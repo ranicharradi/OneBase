@@ -27,12 +27,13 @@ OneBase delivers supplier deduplication through a strict pipeline: data must be 
   3. User can configure and manage data sources with column mappings via the UI
   4. Uploaded supplier names are normalized (uppercase, legal suffixes removed, spaces collapsed) and embeddings are computed — visible in staged data
   5. Re-uploading a file for an existing source supersedes old staged records and a matching task is automatically enqueued
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md — Docker + Backend Infrastructure + Database + Auth
+- [ ] 01-02-PLAN.md — Ingestion Pipeline Backend (CSV parser, normalization, embeddings, upload, re-upload)
+- [ ] 01-03-PLAN.md — Frontend Scaffold + Auth + Sources/Users Pages
+- [ ] 01-04-PLAN.md — Frontend Upload Experience (drag-drop, column mapper, progress tracker)
 
 ### Phase 2: Matching Engine
 **Goal**: System automatically finds duplicate supplier candidates across entities using multi-signal ML matching, and notifies users when complete
@@ -88,7 +89,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Ingestion Pipeline | 0/3 | Not started | - |
+| 1. Foundation + Ingestion Pipeline | 0/4 | Planning | - |
 | 2. Matching Engine | 0/2 | Not started | - |
 | 3. Review + Merge | 0/3 | Not started | - |
 | 4. Unified Browse, Dashboard + Polish | 0/2 | Not started | - |
