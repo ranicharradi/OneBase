@@ -1,0 +1,38 @@
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index, func
+from sqlalchemy.dialects.postgresql import JSONB
+from pgvector.sqlalchemy import Vector
+
+from app.models.base import Base
+
+
+class StagedSupplier(Base):
+    __tablename__ = "staged_suppliers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    import_batch_id = Column(Integer, ForeignKey("import_batches.id"), nullable=False)
+    data_source_id = Column(Integer, ForeignKey("data_sources.id"), nullable=False)
+    source_code = Column(String(50), nullable=True)
+    name = Column(String(255), nullable=True)
+    short_name = Column(String(50), nullable=True)
+    currency = Column(String(10), nullable=True)
+    payment_terms = Column(String(50), nullable=True)
+    contact_name = Column(String(255), nullable=True)
+    supplier_type = Column(String(10), nullable=True)
+    status = Column(String(20), default="active")  # active/superseded
+    raw_data = Column(JSONB, nullable=False)
+    normalized_name = Column(String(255), nullable=True)
+    name_embedding = Column(Vector(384), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_staged_normalized_name", "normalized_name"),
+        Index("ix_staged_source_status", "data_source_id", "status"),
+        Index("ix_staged_source_code", "data_source_id", "source_code"),
+        Index(
+            "ix_staged_name_embedding_hnsw",
+            "name_embedding",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"name_embedding": "vector_cosine_ops"},
+        ),
+    )
