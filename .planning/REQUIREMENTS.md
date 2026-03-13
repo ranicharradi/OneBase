@@ -53,8 +53,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **OPS-01**: Dashboard displays upload status, match stats, review progress, and recent activity
 - [ ] **OPS-02**: User can manage data sources (add/edit name, description, column mappings) via the UI
-- [ ] **OPS-03**: System authenticates users with username/password (local accounts)
-- [ ] **OPS-04**: System logs all user actions (uploads, reviews, merges) in an audit trail
+- [x] **OPS-03**: System authenticates users with username/password (local accounts)
+- [x] **OPS-04**: System logs all user actions (uploads, reviews, merges) in an audit trail
 - [ ] **OPS-05**: System sends WebSocket notifications when matching jobs complete
 - [ ] **OPS-06**: All UI pages are production-grade with dark theme, built using frontend-design skill
 
@@ -132,8 +132,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UNIF-06 | Phase 4 | Pending |
 | OPS-01 | Phase 4 | Pending |
 | OPS-02 | Phase 1 | Pending |
-| OPS-03 | Phase 1 | Pending |
-| OPS-04 | Phase 1 | Pending |
+| OPS-03 | Phase 1 | Complete |
+| OPS-04 | Phase 1 | Complete |
 | OPS-05 | Phase 2 | Pending |
 | OPS-06 | Phase 1 | Pending |
 
