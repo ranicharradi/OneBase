@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-03-13T19:13:49.014Z"
-last_activity: 2026-03-13 — Completed plan 01-03
+status: phase-complete
+stopped_at: Completed 01-04-PLAN.md (Phase 1 complete)
+last_updated: "2026-03-13T19:53:16.994Z"
+last_activity: 2026-03-13 — Completed plan 01-04 (Phase 1 complete)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 75
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 
 ## Current Position
 
-Phase: 1 of 4 (Foundation + Ingestion Pipeline)
-Plan: 3 of 4 in current phase
-Status: Executing
-Last activity: 2026-03-13 — Completed plan 01-03
+Phase: 1 of 4 (Foundation + Ingestion Pipeline) — COMPLETE
+Plan: 4 of 4 in current phase (all done)
+Status: Phase Complete
+Last activity: 2026-03-13 — Completed plan 01-04
 
-Progress: [████████░░] 75%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [████████░░] 75%
 | Phase 01 P01 | 10min | 3 tasks | 40 files |
 | Phase 01 P02 | 9min | 2 tasks | 19 files |
 | Phase 01 P03 | 9min | 2 tasks | 19 files |
+| Phase 01 P04 | 5min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,10 @@ Recent decisions affecting current work:
 - [Phase 01]: [Phase 01 P03]: Tailwind CSS 4 @theme directive in CSS — no tailwind.config.js
 - [Phase 01]: [Phase 01 P03]: OAuth2 form-body login for FastAPI OAuth2PasswordRequestForm compatibility
 - [Phase 01]: [Phase 01 P03]: Custom dark theme design system with surface/accent/danger/success color tokens
+- [Phase 01 P04]: 4-state machine for Upload page: SELECT_SOURCE → UPLOAD_FILE → MAP_COLUMNS → PROCESSING
+- [Phase 01 P04]: useTaskStatus polling at 1s interval, auto-stops on COMPLETE/FAILURE
+- [Phase 01 P04]: Re-upload dialog uses batch count check (no dedicated reupload-info endpoint needed)
+- [Phase 01 P04]: Column mapper uses 2-step wizard flow: name source → map canonical fields
 
 ### Pending Todos
 
@@ -87,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T19:13:49.012Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-03-13T19:53:16Z
+Stopped at: Completed 01-04-PLAN.md (Phase 1 complete)
 Resume file: None

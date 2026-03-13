@@ -10,7 +10,7 @@ OneBase delivers supplier deduplication through a strict pipeline: data must be 
 - Integer phases (1, 2, 3, 4): Planned milestone work
 - Decimal phases (e.g., 2.1): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Foundation + Ingestion Pipeline** - Docker environment, database schema, auth, CSV upload, parsing, normalization, embedding generation, and data source management
+- [x] **Phase 1: Foundation + Ingestion Pipeline** - Docker environment, database schema, auth, CSV upload, parsing, normalization, embedding generation, and data source management (completed 2026-03-13)
 - [ ] **Phase 2: Matching Engine** - Two-pass blocking, multi-signal scoring, transitive clustering, and WebSocket job notifications
 - [ ] **Phase 3: Review + Merge** - Human review queue, side-by-side comparison, field-by-field merge, golden record creation with provenance
 - [ ] **Phase 4: Unified Browse, Dashboard + Polish** - Browse unified suppliers, dashboard with stats, singleton promotion, merge history, export
@@ -27,13 +27,13 @@ OneBase delivers supplier deduplication through a strict pipeline: data must be 
   3. User can configure and manage data sources with column mappings via the UI
   4. Uploaded supplier names are normalized (uppercase, legal suffixes removed, spaces collapsed) and embeddings are computed — visible in staged data
   5. Re-uploading a file for an existing source supersedes old staged records and a matching task is automatically enqueued
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
-- [ ] 01-01-PLAN.md — Docker + Backend Infrastructure + Database + Auth
-- [ ] 01-02-PLAN.md — Ingestion Pipeline Backend (CSV parser, normalization, embeddings, upload, re-upload)
-- [ ] 01-03-PLAN.md — Frontend Scaffold + Auth + Sources/Users Pages
-- [ ] 01-04-PLAN.md — Frontend Upload Experience (drag-drop, column mapper, progress tracker)
+- [x] 01-01-PLAN.md — Docker + Backend Infrastructure + Database + Auth
+- [x] 01-02-PLAN.md — Ingestion Pipeline Backend (CSV parser, normalization, embeddings, upload, re-upload)
+- [x] 01-03-PLAN.md — Frontend Scaffold + Auth + Sources/Users Pages
+- [x] 01-04-PLAN.md — Frontend Upload Experience (drag-drop, column mapper, progress tracker)
 
 ### Phase 2: Matching Engine
 **Goal**: System automatically finds duplicate supplier candidates across entities using multi-signal ML matching, and notifies users when complete
@@ -89,7 +89,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Ingestion Pipeline | 3/4 | In Progress|  |
+| 1. Foundation + Ingestion Pipeline | 4/4 | Complete   | 2026-03-13 |
 | 2. Matching Engine | 0/2 | Not started | - |
 | 3. Review + Merge | 0/3 | Not started | - |
 | 4. Unified Browse, Dashboard + Polish | 0/2 | Not started | - |
