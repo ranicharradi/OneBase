@@ -11,7 +11,7 @@ OneBase delivers supplier deduplication through a strict pipeline: data must be 
 - Decimal phases (e.g., 2.1): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Foundation + Ingestion Pipeline** - Docker environment, database schema, auth, CSV upload, parsing, normalization, embedding generation, and data source management (completed 2026-03-13)
-- [ ] **Phase 1.1: Design Polish** *(INSERTED)* - Apply frontend-design skill to all UI components: distinctive typography, bold color palette, micro-interactions, atmospheric backgrounds
+- [x] **Phase 1.1: Design Polish** *(INSERTED)* - Apply frontend-design skill to all UI components: distinctive typography, bold color palette, micro-interactions, atmospheric backgrounds (completed 2026-03-13)
 - [ ] **Phase 2: Matching Engine** - Two-pass blocking, multi-signal scoring, transitive clustering, and WebSocket job notifications
 - [ ] **Phase 3: Review + Merge** - Human review queue, side-by-side comparison, field-by-field merge, golden record creation with provenance
 - [ ] **Phase 4: Unified Browse, Dashboard + Polish** - Browse unified suppliers, dashboard with stats, singleton promotion, merge history, export
@@ -46,12 +46,12 @@ Plans:
   3. Animation library has 6+ keyframes for micro-interactions and transitions
   4. All 12 frontend files use the design system consistently
   5. All existing functionality preserved — zero behavioral changes
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 1.1-01-PLAN.md — Design system + Layout shell + Login page
-- [ ] 1.1-02-PLAN.md — Sources + Users data pages
-- [ ] 1.1-03-PLAN.md — Upload experience (Upload page + 5 components)
+- [x] 1.1-02-PLAN.md — Sources + Users data pages
+- [x] 1.1-03-PLAN.md — Upload experience (Upload page + 5 components)
 
 ### Phase 2: Matching Engine
 **Goal**: System automatically finds duplicate supplier candidates across entities using multi-signal ML matching, and notifies users when complete
@@ -108,7 +108,7 @@ Phases execute in numeric order: 1 → 1.1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Ingestion Pipeline | 4/4 | Complete   | 2026-03-13 |
-| 1.1 Design Polish *(INSERTED)* | 1/3 | In Progress | - |
+| 1.1 Design Polish *(INSERTED)* | 3/3 | Complete   | 2026-03-13 |
 | 2. Matching Engine | 0/2 | Not started | - |
 | 3. Review + Merge | 0/3 | Not started | - |
 | 4. Unified Browse, Dashboard + Polish | 0/2 | Not started | - |
