@@ -100,48 +100,48 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INGS-01 | — | Pending |
-| INGS-02 | — | Pending |
-| INGS-03 | — | Pending |
-| INGS-04 | — | Pending |
-| INGS-05 | — | Pending |
-| INGS-06 | — | Pending |
-| INGS-07 | — | Pending |
-| INGS-08 | — | Pending |
-| MTCH-01 | — | Pending |
-| MTCH-02 | — | Pending |
-| MTCH-03 | — | Pending |
-| MTCH-04 | — | Pending |
-| MTCH-05 | — | Pending |
-| MTCH-06 | — | Pending |
-| MTCH-07 | — | Pending |
-| MTCH-08 | — | Pending |
-| REVW-01 | — | Pending |
-| REVW-02 | — | Pending |
-| REVW-03 | — | Pending |
-| REVW-04 | — | Pending |
-| REVW-05 | — | Pending |
-| REVW-06 | — | Pending |
-| REVW-07 | — | Pending |
-| REVW-08 | — | Pending |
-| UNIF-01 | — | Pending |
-| UNIF-02 | — | Pending |
-| UNIF-03 | — | Pending |
-| UNIF-04 | — | Pending |
-| UNIF-05 | — | Pending |
-| UNIF-06 | — | Pending |
-| OPS-01 | — | Pending |
-| OPS-02 | — | Pending |
-| OPS-03 | — | Pending |
-| OPS-04 | — | Pending |
-| OPS-05 | — | Pending |
-| OPS-06 | — | Pending |
+| INGS-01 | Phase 1 | Pending |
+| INGS-02 | Phase 1 | Pending |
+| INGS-03 | Phase 1 | Pending |
+| INGS-04 | Phase 1 | Pending |
+| INGS-05 | Phase 1 | Pending |
+| INGS-06 | Phase 1 | Pending |
+| INGS-07 | Phase 1 | Pending |
+| INGS-08 | Phase 1 | Pending |
+| MTCH-01 | Phase 2 | Pending |
+| MTCH-02 | Phase 2 | Pending |
+| MTCH-03 | Phase 2 | Pending |
+| MTCH-04 | Phase 2 | Pending |
+| MTCH-05 | Phase 2 | Pending |
+| MTCH-06 | Phase 2 | Pending |
+| MTCH-07 | Phase 2 | Pending |
+| MTCH-08 | Phase 2 | Pending |
+| REVW-01 | Phase 3 | Pending |
+| REVW-02 | Phase 3 | Pending |
+| REVW-03 | Phase 3 | Pending |
+| REVW-04 | Phase 3 | Pending |
+| REVW-05 | Phase 3 | Pending |
+| REVW-06 | Phase 3 | Pending |
+| REVW-07 | Phase 3 | Pending |
+| REVW-08 | Phase 3 | Pending |
+| UNIF-01 | Phase 3 | Pending |
+| UNIF-02 | Phase 3 | Pending |
+| UNIF-03 | Phase 4 | Pending |
+| UNIF-04 | Phase 4 | Pending |
+| UNIF-05 | Phase 4 | Pending |
+| UNIF-06 | Phase 4 | Pending |
+| OPS-01 | Phase 4 | Pending |
+| OPS-02 | Phase 1 | Pending |
+| OPS-03 | Phase 1 | Pending |
+| OPS-04 | Phase 1 | Pending |
+| OPS-05 | Phase 2 | Pending |
+| OPS-06 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 36 total
-- Mapped to phases: 0
-- Unmapped: 36
+- Mapped to phases: 36
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-13*
-*Last updated: 2026-03-13 after initial definition*
+*Last updated: 2026-03-13 after roadmap traceability mapping*
