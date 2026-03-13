@@ -49,7 +49,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 1.1-01-PLAN.md — Design system + Layout shell + Login page
+- [x] 1.1-01-PLAN.md — Design system + Layout shell + Login page
 - [ ] 1.1-02-PLAN.md — Sources + Users data pages
 - [ ] 1.1-03-PLAN.md — Upload experience (Upload page + 5 components)
 
@@ -108,7 +108,7 @@ Phases execute in numeric order: 1 → 1.1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Ingestion Pipeline | 4/4 | Complete   | 2026-03-13 |
-| 1.1 Design Polish *(INSERTED)* | 0/3 | Planning complete | - |
+| 1.1 Design Polish *(INSERTED)* | 1/3 | In Progress | - |
 | 2. Matching Engine | 0/2 | Not started | - |
 | 3. Review + Merge | 0/3 | Not started | - |
 | 4. Unified Browse, Dashboard + Polish | 0/2 | Not started | - |
