@@ -1,4 +1,4 @@
-// ── App shell with sidebar navigation — dark industrial theme ──
+// ── App shell with sidebar navigation — dark precision editorial ──
 
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
@@ -49,72 +49,118 @@ export default function Layout() {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden animate-fadeIn"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — atmospheric glass with gradient depth */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-40 flex w-64 flex-col
-          bg-surface-900 border-r border-white/[0.06]
-          transform transition-transform duration-200 ease-out
+          bg-gradient-to-b from-surface-900 via-surface-900/95 to-surface-950
+          border-r border-white/[0.06]
+          transform transition-transform duration-300 ease-out
           lg:static lg:translate-x-0
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
+        {/* Sidebar atmospheric overlay — subtle noise texture */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {/* Accent gradient bleed at top */}
+          <div className="absolute -top-20 -left-20 w-60 h-60 bg-accent-500/[0.04] rounded-full blur-3xl" />
+          {/* Geometric line pattern */}
+          <div
+            className="absolute inset-0 opacity-[0.015]"
+            style={{
+              backgroundImage: `repeating-linear-gradient(
+                -45deg,
+                transparent,
+                transparent 30px,
+                rgba(255,255,255,0.5) 30px,
+                rgba(255,255,255,0.5) 31px
+              )`,
+            }}
+          />
+        </div>
+
         {/* Brand */}
-        <div className="flex h-16 items-center gap-3 px-6 border-b border-white/[0.06]">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent-500/10 border border-accent-500/20">
-            <svg className="w-4.5 h-4.5 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="relative flex h-20 items-center gap-3.5 px-6 border-b border-white/[0.06]">
+          {/* Brand icon with glow */}
+          <div className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-accent-500/10 border border-accent-500/25 glow-accent">
+            <svg className="w-5 h-5 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
             </svg>
           </div>
-          <span className="text-lg font-semibold tracking-tight text-white">
-            OneBase
-          </span>
+          <div className="flex flex-col">
+            <span className="text-xl font-display tracking-tight text-white text-glow-accent">
+              OneBase
+            </span>
+            <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-surface-500">
+              Data Platform
+            </span>
+          </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="relative flex-1 overflow-y-auto px-3 py-5">
           <div className="space-y-1">
-            {navItems.map((item) => (
+            {navItems.map((item, index) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 onClick={() => setSidebarOpen(false)}
+                style={{ animationDelay: `${index * 0.06}s` }}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                  `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 animate-slideInLeft ${
                     isActive
-                      ? 'bg-accent-500/10 text-accent-400 border border-accent-500/20'
-                      : 'text-surface-500 hover:text-gray-200 hover:bg-white/[0.04] border border-transparent'
+                      ? 'bg-accent-500/[0.08] text-accent-300 border border-accent-500/20 glow-accent'
+                      : 'text-surface-500 hover:text-gray-200 hover:bg-white/[0.04] border border-transparent hover:border-white/[0.04]'
                   }`
                 }
               >
-                {item.icon}
-                {item.label}
+                {({ isActive }: { isActive: boolean }) => (
+                  <>
+                    {/* Active indicator bar */}
+                    {isActive && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 bg-accent-400 rounded-r-full" />
+                    )}
+                    <span className={`transition-transform duration-200 group-hover:scale-110 ${isActive ? 'text-accent-400' : ''}`}>
+                      {item.icon}
+                    </span>
+                    <span className="transition-all duration-200 group-hover:translate-x-0.5">
+                      {item.label}
+                    </span>
+                  </>
+                )}
               </NavLink>
             ))}
           </div>
         </nav>
 
         {/* User footer */}
-        <div className="border-t border-white/[0.06] p-4">
+        <div className="relative border-t border-white/[0.06] p-4">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-surface-700 text-xs font-bold text-gray-300 uppercase">
-              {user?.username?.[0] ?? '?'}
+            {/* Avatar with gradient ring */}
+            <div className="relative">
+              <div className="absolute -inset-[2px] rounded-full bg-gradient-to-br from-accent-400/40 to-accent-600/20 blur-[1px]" />
+              <div className="relative flex items-center justify-center w-9 h-9 rounded-full bg-surface-800 text-xs font-bold text-accent-300 uppercase ring-1 ring-white/10">
+                {user?.username?.[0] ?? '?'}
+              </div>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-200 truncate">
                 {user?.username}
               </p>
-              <p className="text-xs text-surface-500">Active</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" />
+                <p className="text-[11px] text-surface-500 font-medium">Active</p>
+              </div>
             </div>
             <button
               onClick={handleLogout}
-              className="p-1.5 rounded-md text-surface-500 hover:text-danger-400 hover:bg-danger-500/10 transition-colors"
+              className="p-2 rounded-lg text-surface-500 hover:text-danger-400 hover:bg-danger-500/10 transition-all duration-200 hover:scale-105"
               title="Logout"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -128,21 +174,25 @@ export default function Layout() {
       {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar (mobile) */}
-        <header className="flex h-14 items-center gap-4 border-b border-white/[0.06] bg-surface-900/50 px-4 lg:hidden">
+        <header className="flex h-14 items-center gap-4 border-b border-white/[0.06] glass-subtle px-4 lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-1.5 rounded-md text-surface-500 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
+            className="group p-1.5 rounded-lg text-surface-500 hover:text-accent-400 hover:bg-accent-500/10 transition-all duration-200"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <svg className="w-5 h-5 transition-transform duration-200 group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
           </button>
-          <span className="text-sm font-semibold text-white">OneBase</span>
+          <span className="text-sm font-display tracking-tight text-white text-glow-accent">
+            OneBase
+          </span>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-6xl px-6 py-8">
+        {/* Page content — subtle depth gradient */}
+        <main className="relative flex-1 overflow-y-auto">
+          {/* Subtle radial gradient for depth separation */}
+          <div className="pointer-events-none absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-surface-900/30 to-transparent" />
+          <div className="relative mx-auto max-w-6xl px-6 py-8">
             <Outlet />
           </div>
         </main>
