@@ -9,7 +9,7 @@ class TestNormalizeName:
 
     def test_uppercase_input(self, test_db):
         """Uppercases the input."""
-        assert normalize_name("acme corp") == "ACME CORP"
+        assert normalize_name("acme industries") == "ACME INDUSTRIES"
 
     def test_remove_sarl(self, test_db):
         """Removes SARL suffix."""
@@ -41,7 +41,7 @@ class TestNormalizeName:
 
     def test_collapse_spaces(self, test_db):
         """Collapses multiple spaces to single space."""
-        assert normalize_name("Acme   Corp   International") == "ACME CORP INTERNATIONAL"
+        assert normalize_name("Acme   Global   International") == "ACME GLOBAL INTERNATIONAL"
 
     def test_empty_input(self, test_db):
         """Returns empty string for empty input."""
