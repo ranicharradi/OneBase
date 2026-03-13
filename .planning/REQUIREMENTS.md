@@ -9,14 +9,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Ingestion
 
-- [ ] **INGS-01**: User can upload semicolon-delimited CSV exports from configured Sage X3 entities (EOT, TTEI)
-- [ ] **INGS-02**: System parses uploaded files with BOM stripping, whitespace trimming, and correct delimiter handling
-- [ ] **INGS-03**: User can configure column mappings per data source as JSON (mapping canonical fields to source columns)
-- [ ] **INGS-04**: System normalizes supplier names on ingestion (uppercase, remove legal suffixes, collapse spaces)
-- [ ] **INGS-05**: System computes name embeddings (all-MiniLM-L6-v2, 384 dims) for each ingested supplier
-- [ ] **INGS-06**: System stores both raw JSONB data and extracted key fields in staging tables
-- [ ] **INGS-07**: When a new file is uploaded for an existing source, old staged records are marked superseded and stale match candidates are invalidated
-- [ ] **INGS-08**: System automatically enqueues a Celery matching task after ingestion completes
+- [x] **INGS-01**: User can upload semicolon-delimited CSV exports from configured Sage X3 entities (EOT, TTEI)
+- [x] **INGS-02**: System parses uploaded files with BOM stripping, whitespace trimming, and correct delimiter handling
+- [x] **INGS-03**: User can configure column mappings per data source as JSON (mapping canonical fields to source columns)
+- [x] **INGS-04**: System normalizes supplier names on ingestion (uppercase, remove legal suffixes, collapse spaces)
+- [x] **INGS-05**: System computes name embeddings (all-MiniLM-L6-v2, 384 dims) for each ingested supplier
+- [x] **INGS-06**: System stores both raw JSONB data and extracted key fields in staging tables
+- [x] **INGS-07**: When a new file is uploaded for an existing source, old staged records are marked superseded and stale match candidates are invalidated
+- [x] **INGS-08**: System automatically enqueues a Celery matching task after ingestion completes
 
 ### Matching
 
@@ -52,7 +52,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Operations
 
 - [ ] **OPS-01**: Dashboard displays upload status, match stats, review progress, and recent activity
-- [ ] **OPS-02**: User can manage data sources (add/edit name, description, column mappings) via the UI
+- [x] **OPS-02**: User can manage data sources (add/edit name, description, column mappings) via the UI
 - [x] **OPS-03**: System authenticates users with username/password (local accounts)
 - [x] **OPS-04**: System logs all user actions (uploads, reviews, merges) in an audit trail
 - [ ] **OPS-05**: System sends WebSocket notifications when matching jobs complete
@@ -100,14 +100,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INGS-01 | Phase 1 | Pending |
-| INGS-02 | Phase 1 | Pending |
-| INGS-03 | Phase 1 | Pending |
-| INGS-04 | Phase 1 | Pending |
-| INGS-05 | Phase 1 | Pending |
-| INGS-06 | Phase 1 | Pending |
-| INGS-07 | Phase 1 | Pending |
-| INGS-08 | Phase 1 | Pending |
+| INGS-01 | Phase 1 | Complete |
+| INGS-02 | Phase 1 | Complete |
+| INGS-03 | Phase 1 | Complete |
+| INGS-04 | Phase 1 | Complete |
+| INGS-05 | Phase 1 | Complete |
+| INGS-06 | Phase 1 | Complete |
+| INGS-07 | Phase 1 | Complete |
+| INGS-08 | Phase 1 | Complete |
 | MTCH-01 | Phase 2 | Pending |
 | MTCH-02 | Phase 2 | Pending |
 | MTCH-03 | Phase 2 | Pending |
@@ -131,7 +131,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UNIF-05 | Phase 4 | Pending |
 | UNIF-06 | Phase 4 | Pending |
 | OPS-01 | Phase 4 | Pending |
-| OPS-02 | Phase 1 | Pending |
+| OPS-02 | Phase 1 | Complete |
 | OPS-03 | Phase 1 | Complete |
 | OPS-04 | Phase 1 | Complete |
 | OPS-05 | Phase 2 | Pending |

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-03-13T18:48:22.448Z"
-last_activity: 2026-03-13 — Completed plan 01-01
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-03-13T18:58:53Z"
+last_activity: 2026-03-13 — Completed plan 01-02
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 50
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 1 of 4 (Foundation + Ingestion Pipeline)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: Executing
-Last activity: 2026-03-13 — Completed plan 01-01
+Last activity: 2026-03-13 — Completed plan 01-02
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████░░░░] 50%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10min | 3 tasks | 40 files |
+| Phase 01 P02 | 9min | 2 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - [Phase 01]: Used PBKDF2-SHA256 instead of bcrypt for password hashing — stdlib-only, no binary dependency issues
 - [Phase 01]: Used sa.JSON instead of JSONB in models for SQLite test compatibility; Alembic migration uses JSONB for production
 - [Phase 01]: Sync SQLAlchemy (not async) — simpler architecture, matches Celery worker pattern
+- [Phase 01 P02]: Column mapping stored as JSON dict on DataSource — maps logical fields to CSV headers
+- [Phase 01 P02]: Full supersession on re-upload — all active records replaced, no complex diffing
+- [Phase 01 P02]: Mock embedding model in tests — sentence-transformers not available in test env
 
 ### Pending Todos
 
@@ -78,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T18:48:22.447Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-03-13T18:58:53Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
