@@ -56,7 +56,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **OPS-03**: System authenticates users with username/password (local accounts)
 - [x] **OPS-04**: System logs all user actions (uploads, reviews, merges) in an audit trail
 - [ ] **OPS-05**: System sends WebSocket notifications when matching jobs complete
-- [ ] **OPS-06**: All UI pages are production-grade with dark theme, built using frontend-design skill
+- [x] **OPS-06**: All UI pages are production-grade with dark theme, built using frontend-design skill
 
 ## v2 Requirements
 
@@ -135,7 +135,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OPS-03 | Phase 1 | Complete |
 | OPS-04 | Phase 1 | Complete |
 | OPS-05 | Phase 2 | Pending |
-| OPS-06 | Phase 1 | Pending |
+| OPS-06 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 36 total
