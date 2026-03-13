@@ -1,4 +1,5 @@
-// ── Real-time pipeline progress tracker — dark industrial theme ──
+// ── Real-time pipeline progress tracker ──
+// Dark Precision Editorial — alive pipeline animation, connecting lines, celebration state
 
 import { useTaskStatus } from '../hooks/useTaskStatus';
 
@@ -35,16 +36,16 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
   const activeIndex = getActiveStageIndex(state, stage);
 
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-surface-900/60 p-6 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="card overflow-hidden">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between p-6 pb-5 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
-          <div className={`flex items-center justify-center w-9 h-9 rounded-xl border transition-colors duration-300 ${
+          <div className={`relative flex items-center justify-center w-10 h-10 rounded-xl border transition-all duration-500 ${
             isComplete
-              ? 'bg-success-500/10 border-success-500/20'
+              ? 'bg-success-500/15 border-success-500/25 shadow-sm shadow-success-500/10'
               : isFailed
-                ? 'bg-danger-500/10 border-danger-500/20'
-                : 'bg-accent-500/10 border-accent-500/20'
+                ? 'bg-danger-500/15 border-danger-500/25 shadow-sm shadow-danger-500/10'
+                : 'bg-accent-500/10 border-accent-500/20 glow-accent'
           }`}>
             {isComplete ? (
               <svg className="w-5 h-5 text-success-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -55,14 +56,14 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
               </svg>
             ) : (
-              <div className="w-4.5 h-4.5 border-2 border-accent-400/40 border-t-accent-400 rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-accent-400/40 border-t-accent-400 rounded-full animate-spin" />
             )}
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">
+            <p className="text-sm font-display text-white tracking-wide">
               {isComplete ? 'Processing Complete' : isFailed ? 'Processing Failed' : 'Processing Upload'}
             </p>
-            <p className="text-xs text-surface-500">
+            <p className="text-xs text-surface-500 font-body">
               {isComplete
                 ? `${row_count?.toLocaleString() ?? '—'} rows processed`
                 : isFailed
@@ -73,96 +74,152 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
           </div>
         </div>
 
-        {/* Overall progress percentage */}
+        {/* Overall progress percentage — prominent display */}
         {!isComplete && !isFailed && progress != null && (
-          <span className="text-lg font-bold tabular-nums text-accent-400">
-            {Math.round(progress)}%
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-display tabular-nums text-accent-300 text-glow-accent">
+              {Math.round(progress)}
+            </span>
+            <span className="text-xs text-accent-500/60 font-medium">%</span>
+          </div>
         )}
       </div>
 
-      {/* Pipeline stages */}
-      <div className="relative">
-        {/* Connection line */}
-        <div className="absolute top-6 left-6 right-6 h-px bg-surface-700/60" />
+      {/* ── Pipeline stages — horizontal with connecting lines ── */}
+      <div className="p-6">
+        <div className="relative">
+          {/* Connection line — base track */}
+          <div className="absolute top-6 left-8 right-8 h-[2px] bg-surface-700/40 rounded-full" />
 
-        <div className="relative grid grid-cols-4 gap-2">
-          {STAGES.map((s, i) => {
-            const status = getStageStatus(i, activeIndex, state);
-            const StageIcon = s.icon;
+          {/* Connection line — animated fill */}
+          <div
+            className="absolute top-6 left-8 h-[2px] rounded-full transition-all duration-1000 ease-out"
+            style={{
+              width: isComplete
+                ? 'calc(100% - 4rem)'
+                : activeIndex > 0
+                  ? `calc(${(activeIndex / (STAGES.length - 1)) * 100}% - 2rem)`
+                  : '0%',
+              background: isComplete
+                ? 'linear-gradient(90deg, rgba(34,197,94,0.6), rgba(34,197,94,0.4))'
+                : isFailed
+                  ? 'linear-gradient(90deg, rgba(239,68,68,0.5), rgba(239,68,68,0.3))'
+                  : 'linear-gradient(90deg, rgba(6,182,212,0.6), rgba(6,182,212,0.3))',
+            }}
+          />
 
-            return (
-              <div key={s.key} className="flex flex-col items-center text-center">
-                {/* Icon node */}
-                <div className={`
-                  relative z-10 flex items-center justify-center w-12 h-12 rounded-xl border
-                  transition-all duration-500 ease-out
-                  ${status === 'complete'
-                    ? 'bg-success-500/10 border-success-500/25 text-success-400'
-                    : status === 'active'
-                      ? 'bg-accent-500/10 border-accent-500/30 text-accent-400 shadow-[0_0_20px_-6px_rgba(59,130,246,0.2)]'
-                      : 'bg-surface-800/40 border-white/[0.06] text-surface-600'
-                  }
-                `}>
-                  {status === 'complete' ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                  ) : status === 'active' ? (
-                    <div className="relative">
-                      <StageIcon className="w-5 h-5 animate-pulse" />
+          {/* Stage nodes */}
+          <div className="relative grid grid-cols-4 gap-2">
+            {STAGES.map((s, i) => {
+              const status = getStageStatus(i, activeIndex, state);
+              const StageIcon = s.icon;
+
+              return (
+                <div key={s.key} className="flex flex-col items-center text-center">
+                  {/* Icon node */}
+                  <div className={`
+                    relative z-10 flex items-center justify-center w-12 h-12 rounded-xl border
+                    transition-all duration-700 ease-out
+                    ${status === 'complete'
+                      ? 'bg-success-500/15 border-success-500/25 text-success-400 shadow-sm shadow-success-500/10'
+                      : status === 'active'
+                        ? 'bg-accent-500/15 border-accent-500/30 text-accent-300 shadow-[0_0_25px_-5px_rgba(6,182,212,0.25)]'
+                        : 'bg-surface-800/40 border-white/[0.06] text-surface-600'
+                    }
+                  `}>
+                    {/* Active stage glow ring */}
+                    {status === 'active' && (
+                      <div className="absolute inset-0 rounded-xl animate-pulse-glow" />
+                    )}
+
+                    {status === 'complete' ? (
+                      <svg className="w-5 h-5 animate-fadeIn" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                    ) : status === 'active' ? (
+                      <div className="relative">
+                        <StageIcon className="w-5 h-5" />
+                        {/* Spinning border indicator */}
+                        <div className="absolute -inset-1.5 border border-accent-400/30 border-t-accent-400/60 rounded-lg animate-spin" style={{ animationDuration: '3s' }} />
+                      </div>
+                    ) : (
+                      <StageIcon className="w-5 h-5" />
+                    )}
+                  </div>
+
+                  {/* Label */}
+                  <p className={`mt-3 text-xs font-medium transition-colors duration-500 ${
+                    status === 'complete'
+                      ? 'text-success-400'
+                      : status === 'active'
+                        ? 'text-accent-300 font-semibold'
+                        : 'text-surface-600'
+                  }`}>
+                    {s.label}
+                  </p>
+
+                  {/* Active indicator dot with pulse */}
+                  {status === 'active' && !isFailed && (
+                    <div className="mt-2 relative">
+                      <div className="w-1.5 h-1.5 rounded-full bg-accent-400" />
+                      <div className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-accent-400 animate-ping" />
                     </div>
-                  ) : (
-                    <StageIcon className="w-5 h-5" />
+                  )}
+
+                  {/* Failed indicator */}
+                  {status === 'active' && isFailed && (
+                    <div className="mt-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-danger-400" />
+                    </div>
                   )}
                 </div>
-
-                {/* Label */}
-                <p className={`mt-2.5 text-xs font-medium transition-colors duration-300 ${
-                  status === 'complete'
-                    ? 'text-success-400'
-                    : status === 'active'
-                      ? 'text-accent-300'
-                      : 'text-surface-600'
-                }`}>
-                  {s.label}
-                </p>
-
-                {/* Active indicator dot */}
-                {status === 'active' && (
-                  <div className="mt-1.5 w-1 h-1 rounded-full bg-accent-400 animate-pulse" />
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Completion summary */}
+      {/* ── Completion summary — celebration treatment ── */}
       {isComplete && (
-        <div className="mt-6 pt-5 border-t border-white/[0.06]">
-          <div className="flex items-center gap-3 rounded-xl bg-success-500/[0.06] border border-success-500/15 px-4 py-3">
-            <svg className="w-5 h-5 text-success-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-sm text-success-300">
-              <span className="font-semibold">{row_count?.toLocaleString() ?? '—'} rows</span> processed successfully
-              {detail && <span className="text-success-400/70"> — {detail}</span>}
-            </p>
+        <div className="px-6 pb-6 animate-slideUp">
+          <div className="relative rounded-xl bg-success-500/[0.06] border border-success-500/15 px-5 py-4 overflow-hidden">
+            {/* Ambient glow */}
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-20 bg-success-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="relative flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-success-500/15 border border-success-500/25">
+                <svg className="w-5 h-5 text-success-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-display text-success-300">
+                  <span className="font-semibold tabular-nums">{row_count?.toLocaleString() ?? '—'}</span> rows processed
+                </p>
+                {detail && <p className="text-xs text-success-400/70 mt-0.5">{detail}</p>}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Failure message */}
+      {/* ── Failure message ── */}
       {isFailed && (
-        <div className="mt-6 pt-5 border-t border-white/[0.06]">
-          <div className="flex items-start gap-3 rounded-xl bg-danger-500/[0.06] border border-danger-500/15 px-4 py-3">
-            <svg className="w-5 h-5 text-danger-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
-            <div>
-              <p className="text-sm font-medium text-danger-300">Processing failed</p>
-              {detail && <p className="text-xs text-danger-400/80 mt-1">{detail}</p>}
+        <div className="px-6 pb-6 animate-slideUp">
+          <div className="relative rounded-xl bg-danger-500/[0.06] border border-danger-500/15 px-5 py-4 overflow-hidden">
+            {/* Danger ambient glow */}
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-20 bg-danger-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="relative flex items-start gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-danger-500/15 border border-danger-500/25 shrink-0">
+                <svg className="w-5 h-5 text-danger-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-display text-danger-300">Processing failed</p>
+                {detail && <p className="text-xs text-danger-400/80 mt-1 leading-relaxed">{detail}</p>}
+              </div>
             </div>
           </div>
         </div>
