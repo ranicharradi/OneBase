@@ -1,0 +1,77 @@
+"""Authentication and user management router."""
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+
+from app.dependencies import get_db, get_current_user
+from app.models.user import User
+from app.schemas.auth import TokenResponse, UserCreate, UserResponse
+from app.services.auth import authenticate_user, create_token, hash_password
+from app.services.audit import log_action
+
+router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+@router.post("/login", response_model=TokenResponse)
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Authenticate user and return JWT token."""
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = create_token(user.username)
+
+    # Audit trail
+    log_action(db, user_id=user.id, action="login", entity_type="user", entity_id=user.id)
+    db.commit()
+
+    return TokenResponse(access_token=token)
+
+
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)):
+    """Return the currently authenticated user."""
+    return current_user
+
+
+@router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def create_user(
+    user_data: UserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a new user (requires authentication)."""
+    # Check for duplicate username
+    existing = db.query(User).filter(User.username == user_data.username).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username already exists",
+        )
+
+    new_user = User(
+        username=user_data.username,
+        password_hash=hash_password(user_data.password),
+        is_active=True,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    # Audit trail
+    log_action(
+        db,
+        user_id=current_user.id,
+        action="create_user",
+        entity_type="user",
+        entity_id=new_user.id,
+    )
+    db.commit()
+
+    return new_user

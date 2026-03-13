@@ -1,0 +1,16 @@
+fastapi[standard]
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+alembic
+celery[redis]
+redis
+pydantic
+pydantic-settings
+python-multipart
+sentence-transformers
+passlib[bcrypt]
+PyJWT
+pgvector
+httpx
+pytest
