@@ -1,4 +1,4 @@
-// ── Login page — dark atmospheric design ──
+// ── Login page — dark precision editorial with atmospheric depth ──
 
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
@@ -28,101 +28,160 @@ export default function Login() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-surface-950 px-4">
-      {/* Subtle radial gradient background */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/4 left-1/2 h-[800px] w-[800px] -translate-x-1/2 rounded-full bg-accent-500/[0.03] blur-3xl" />
+    <div className="relative flex min-h-screen items-center justify-center bg-surface-950 px-4 overflow-hidden">
+      {/* ── Atmospheric background layers ── */}
+      <div className="pointer-events-none absolute inset-0">
+        {/* Primary mesh gradient — cyan bloom, top-right */}
+        <div
+          className="absolute -top-1/3 -right-1/4 w-[900px] h-[900px] rounded-full opacity-[0.07]"
+          style={{
+            background: 'radial-gradient(circle, var(--color-accent-400) 0%, transparent 70%)',
+          }}
+        />
+        {/* Secondary bloom — deeper cyan, bottom-left */}
+        <div
+          className="absolute -bottom-1/4 -left-1/4 w-[700px] h-[700px] rounded-full opacity-[0.04]"
+          style={{
+            background: 'radial-gradient(circle, var(--color-accent-500) 0%, transparent 65%)',
+          }}
+        />
+        {/* Warm counterpoint — amber hint, center-bottom */}
+        <div
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] rounded-full opacity-[0.025]"
+          style={{
+            background: 'radial-gradient(ellipse, var(--color-secondary-500) 0%, transparent 70%)',
+          }}
+        />
+
+        {/* Geometric line grid — precision aesthetic */}
+        <div
+          className="absolute inset-0 opacity-[0.02]"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)
+            `,
+            backgroundSize: '60px 60px',
+          }}
+        />
+
+        {/* Grain texture overlay for analog feel */}
+        <div className="texture-grain absolute inset-0" />
+
+        {/* Bottom horizon line */}
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-500/20 to-transparent" />
       </div>
 
-      <div className="relative w-full max-w-sm">
-        {/* Logo */}
-        <div className="mb-10 flex flex-col items-center">
-          <div className="mb-4 flex items-center justify-center w-12 h-12 rounded-xl bg-accent-500/10 border border-accent-500/20 shadow-lg shadow-accent-500/5">
-            <svg className="w-6 h-6 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
-            </svg>
+      {/* ── Content ── */}
+      <div className="relative w-full max-w-[400px]">
+        {/* Brand — hero-level treatment */}
+        <div className="mb-12 flex flex-col items-center animate-fadeIn">
+          {/* Logo mark with glow */}
+          <div className="relative mb-6 animate-float" style={{ animationDuration: '6s' }}>
+            <div className="absolute -inset-3 rounded-2xl bg-accent-500/10 blur-xl" />
+            <div className="relative flex items-center justify-center w-14 h-14 rounded-2xl bg-surface-900/80 border border-accent-500/20 glow-accent-strong">
+              <svg className="w-7 h-7 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+              </svg>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">OneBase</h1>
-          <p className="mt-1.5 text-sm text-surface-500">
-            Supplier data management platform
+          {/* Brand name — serif display treatment */}
+          <h1 className="font-display text-4xl tracking-tight text-white text-glow-accent animate-slideUp stagger-1">
+            OneBase
+          </h1>
+          <p className="mt-3 text-sm tracking-[0.15em] uppercase font-light text-surface-500 animate-slideUp stagger-2">
+            Supplier Data Platform
           </p>
         </div>
 
-        {/* Login card */}
+        {/* Login form — glass card with gradient border */}
         <form
           onSubmit={handleSubmit}
-          className="rounded-2xl border border-white/[0.06] bg-surface-900/80 p-8 shadow-2xl shadow-black/20 backdrop-blur-sm"
+          className="relative animate-slideUp stagger-3"
         >
-          <h2 className="mb-6 text-center text-base font-medium text-gray-300">
-            Sign in to your account
-          </h2>
+          {/* Gradient border glow effect */}
+          <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-accent-500/20 via-transparent to-accent-500/5 pointer-events-none" />
 
-          {error && (
-            <div className="mb-5 rounded-lg border border-danger-500/20 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                </svg>
-                {error}
+          <div className="relative rounded-2xl bg-surface-900/60 backdrop-blur-xl border border-white/[0.06] p-8 shadow-2xl shadow-black/30">
+            <h2 className="mb-8 text-center text-base font-medium text-gray-300 tracking-wide">
+              Sign in to your account
+            </h2>
+
+            {error && (
+              <div className="mb-6 rounded-xl border border-danger-500/20 bg-danger-500/[0.07] px-4 py-3 text-sm text-danger-400 animate-scaleIn">
+                <div className="flex items-center gap-2.5">
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                  {error}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-5">
+              <div className="animate-slideUp stagger-4">
+                <label htmlFor="username" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.15em] text-surface-500">
+                  Username
+                </label>
+                <input
+                  id="username"
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="input-field"
+                  placeholder="Enter username"
+                  autoComplete="username"
+                  autoFocus
+                />
+              </div>
+
+              <div className="animate-slideUp stagger-5">
+                <label htmlFor="password" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.15em] text-surface-500">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-field"
+                  placeholder="Enter password"
+                  autoComplete="current-password"
+                />
               </div>
             </div>
-          )}
 
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="username" className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-surface-500">
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full rounded-lg border border-white/[0.08] bg-surface-800/50 px-4 py-2.5 text-sm text-white placeholder-surface-600 outline-none transition-all focus:border-accent-500/40 focus:ring-2 focus:ring-accent-500/10"
-                placeholder="Enter username"
-                autoComplete="username"
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-surface-500">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-white/[0.08] bg-surface-800/50 px-4 py-2.5 text-sm text-white placeholder-surface-600 outline-none transition-all focus:border-accent-500/40 focus:ring-2 focus:ring-accent-500/10"
-                placeholder="Enter password"
-                autoComplete="current-password"
-              />
+            <div className="animate-slideUp stagger-6 mt-8">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="btn-primary w-full py-3 text-sm"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-surface-950/30 border-t-surface-950 rounded-full animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  'Sign in'
+                )}
+              </button>
             </div>
           </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-accent-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent-500/20 transition-all hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:ring-offset-2 focus:ring-offset-surface-900 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Signing in...
-              </>
-            ) : (
-              'Sign in'
-            )}
-          </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-surface-600">
-          OneBase &middot; Supplier deduplication platform
+        {/* Footer — editorial treatment */}
+        <p className="mt-8 text-center animate-slideUp stagger-7">
+          <span className="font-display text-sm italic text-surface-600 tracking-wide">
+            OneBase
+          </span>
+          <span className="mx-2 text-surface-700">&middot;</span>
+          <span className="text-[11px] uppercase tracking-[0.1em] text-surface-600">
+            Supplier Deduplication
+          </span>
         </p>
       </div>
     </div>
