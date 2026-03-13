@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON, func
 
 from app.models.base import Base
 
@@ -12,5 +11,5 @@ class AuditLog(Base):
     action = Column(String(50), nullable=False)
     entity_type = Column(String(50), nullable=True)
     entity_id = Column(Integer, nullable=True)
-    details = Column(JSONB, nullable=True)
+    details = Column(JSON, nullable=True)
     created_at = Column(DateTime, server_default=func.now())

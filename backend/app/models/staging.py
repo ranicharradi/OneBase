@@ -1,6 +1,10 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index, func
-from sqlalchemy.dialects.postgresql import JSONB
-from pgvector.sqlalchemy import Vector
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index, JSON, LargeBinary, func
+
+try:
+    from pgvector.sqlalchemy import Vector
+except ImportError:
+    # Fallback for environments without pgvector (e.g., SQLite tests)
+    Vector = None
 
 from app.models.base import Base
 
@@ -19,9 +23,9 @@ class StagedSupplier(Base):
     contact_name = Column(String(255), nullable=True)
     supplier_type = Column(String(10), nullable=True)
     status = Column(String(20), default="active")  # active/superseded
-    raw_data = Column(JSONB, nullable=False)
+    raw_data = Column(JSON, nullable=False)
     normalized_name = Column(String(255), nullable=True)
-    name_embedding = Column(Vector(384), nullable=True)
+    name_embedding = Column(Vector(384) if Vector else LargeBinary, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (

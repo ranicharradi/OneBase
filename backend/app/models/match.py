@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, JSON, UniqueConstraint, func
 
 from app.models.base import Base
 
@@ -11,7 +10,7 @@ class MatchCandidate(Base):
     supplier_a_id = Column(Integer, ForeignKey("staged_suppliers.id"), nullable=False)
     supplier_b_id = Column(Integer, ForeignKey("staged_suppliers.id"), nullable=False)
     confidence = Column(Float, nullable=False)
-    match_signals = Column(JSONB, nullable=False)
+    match_signals = Column(JSON, nullable=False)
     status = Column(String(20), default="pending")  # pending/confirmed/rejected/skipped/invalidated
     reviewed_by = Column(String(100), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
