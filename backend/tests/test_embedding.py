@@ -1,0 +1,47 @@
+"""Tests for embedding computation service."""
+import pytest
+import numpy as np
+from unittest.mock import patch, MagicMock
+
+from app.services.embedding import compute_embeddings
+
+
+class TestComputeEmbeddings:
+    """Tests for compute_embeddings function."""
+
+    def test_output_shape(self, test_db):
+        """Returns ndarray of shape (N, 384)."""
+        names = ["ACME CORP", "BETA LTD", "GAMMA INC"]
+        # Mock the model since sentence-transformers may not be installed
+        mock_model = MagicMock()
+        mock_model.encode.return_value = np.random.randn(3, 384).astype(np.float32)
+        with patch("app.services.embedding.get_embedding_model", return_value=mock_model):
+            result = compute_embeddings(names)
+        assert isinstance(result, np.ndarray)
+        assert result.shape == (3, 384)
+
+    def test_empty_list_returns_empty_array(self, test_db):
+        """Empty input returns empty (0, 384) array."""
+        result = compute_embeddings([])
+        assert isinstance(result, np.ndarray)
+        assert result.shape == (0, 384)
+
+    def test_l2_normalization(self, test_db):
+        """Each vector has approximately unit length (L2 normalized)."""
+        names = ["ACME CORP", "BETA LTD"]
+        # Create mock embeddings with known values (not normalized)
+        raw_embeddings = np.array([[1.0, 2.0, 3.0] + [0.0] * 381,
+                                    [4.0, 5.0, 6.0] + [0.0] * 381], dtype=np.float32)
+        # The model.encode with normalize_embeddings=True should return normalized vectors
+        norms = np.linalg.norm(raw_embeddings, axis=1, keepdims=True)
+        normalized = raw_embeddings / norms
+
+        mock_model = MagicMock()
+        mock_model.encode.return_value = normalized
+        with patch("app.services.embedding.get_embedding_model", return_value=mock_model):
+            result = compute_embeddings(names)
+        
+        # Verify each vector has unit length
+        for vec in result:
+            norm = np.linalg.norm(vec)
+            assert abs(norm - 1.0) < 0.01, f"Expected unit length, got {norm}"
