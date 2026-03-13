@@ -45,3 +45,37 @@ export interface UserCreate {
   username: string;
   password: string;
 }
+
+// ── Upload / Ingestion types ──
+
+export interface UploadResponse {
+  batch_id: number;
+  task_id: string;
+  filename: string;
+  message: string;
+}
+
+export interface BatchResponse {
+  id: number;
+  data_source_id: number;
+  filename: string;
+  uploaded_by: string;
+  row_count: number | null;
+  status: string;
+  error_message: string | null;
+  created_at: string;
+  task_id: string | null;
+}
+
+export interface TaskStatus {
+  task_id: string;
+  state: string;
+  stage: string | null;
+  progress: number | null;
+  detail: string | null;
+  row_count: number | null;
+}
+
+export interface ColumnDetectResponse {
+  columns: string[];
+}
