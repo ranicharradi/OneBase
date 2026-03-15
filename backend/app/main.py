@@ -49,3 +49,8 @@ app.include_router(matching.router)
 app.include_router(review.router)
 app.include_router(unified.router)
 app.include_router(ws.router)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}

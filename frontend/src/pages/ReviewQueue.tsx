@@ -8,7 +8,7 @@ import { api } from '../api/client';
 import type { ReviewQueueResponse, ReviewStats, DataSource } from '../api/types';
 
 // ── Signal label formatting ──
-const SIGNAL_LABELS: Record<string, string> = {
+const _SIGNAL_LABELS: Record<string, string> = {
   jaro_winkler: 'Jaro-Winkler',
   token_jaccard: 'Token Jaccard',
   embedding_cosine: 'Embedding',
@@ -16,6 +16,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   currency_match: 'Currency',
   contact_match: 'Contact',
 };
+void _SIGNAL_LABELS;
 
 function ConfidenceBadge({ value }: { value: number }) {
   const pct = Math.round(value * 100);

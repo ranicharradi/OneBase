@@ -136,7 +136,7 @@ export default function UnifiedSupplierDetailPage() {
           <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-surface-500 mb-5">Fields & Provenance</h2>
           <div className="space-y-4">
             {Object.entries(FIELD_LABELS).map(([field, label]) => {
-              const value = (supplier as Record<string, unknown>)[field] as string | null;
+              const value = (supplier as unknown as Record<string, unknown>)[field] as string | null;
               const prov = supplier.provenance[field];
               return (
                 <div
@@ -212,12 +212,12 @@ export default function UnifiedSupplierDetailPage() {
                         {entry.details && (
                           <div className="text-[11px] text-surface-500 mt-0.5 space-y-0.5">
                             {entry.details.conflict_count !== undefined && (
-                              <p>{entry.details.conflict_count as number} conflicts resolved</p>
+                              <p>{String(entry.details.conflict_count)} conflicts resolved</p>
                             )}
-                            {entry.details.source && (
+                            {entry.details.source != null && (
                               <p>Source: {String(entry.details.source)}</p>
                             )}
-                            {entry.details.reviewed_by && (
+                            {entry.details.reviewed_by != null && (
                               <p>By: {String(entry.details.reviewed_by)}</p>
                             )}
                           </div>

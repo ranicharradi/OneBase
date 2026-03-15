@@ -9,8 +9,6 @@ from sqlalchemy import (
     JSON,
     func,
 )
-from sqlalchemy.orm import relationship
-
 from app.models.base import Base
 
 

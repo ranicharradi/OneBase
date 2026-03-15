@@ -158,4 +158,3 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
   );
 }
 
-export default Toast;

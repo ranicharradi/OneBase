@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user
 from app.models.user import User
-from app.models.match import MatchCandidate, MatchGroup
+from app.models.match import MatchCandidate
 from app.models.staging import StagedSupplier
 from app.models.source import DataSource
 from app.models.unified import UnifiedSupplier

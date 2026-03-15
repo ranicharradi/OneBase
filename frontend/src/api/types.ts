@@ -7,11 +7,6 @@ export interface User {
   created_at: string;
 }
 
-export interface TokenResponse {
-  access_token: string;
-  token_type: string;
-}
-
 export interface ColumnMapping {
   supplier_name: string;
   supplier_code: string;
@@ -162,10 +157,6 @@ export interface FieldSelection {
   chosen_supplier_id: number;
 }
 
-export interface MergeRequest {
-  field_selections: FieldSelection[];
-}
-
 export interface ReviewActionResponse {
   candidate_id: number;
   action: string;
@@ -187,22 +178,6 @@ export interface FieldProvenance {
   auto: boolean;
   chosen_by: string | null;
   chosen_at: string | null;
-}
-
-export interface UnifiedSupplierResponse {
-  id: number;
-  name: string;
-  source_code: string | null;
-  short_name: string | null;
-  currency: string | null;
-  payment_terms: string | null;
-  contact_name: string | null;
-  supplier_type: string | null;
-  provenance: Record<string, FieldProvenance>;
-  source_supplier_ids: number[];
-  match_candidate_id: number | null;
-  created_by: string;
-  created_at: string | null;
 }
 
 // ── Unified Browse types ──

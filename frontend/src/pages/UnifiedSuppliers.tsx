@@ -8,7 +8,7 @@ import type { UnifiedSupplierListResponse, SingletonListResponse, DataSource } f
 
 type Tab = 'unified' | 'singletons';
 
-function ProvenanceBadge({ isAuto, sourceEntity }: { isAuto?: boolean; sourceEntity?: string }) {
+function _ProvenanceBadge({ isAuto, sourceEntity }: { isAuto?: boolean; sourceEntity?: string }) {
   if (!sourceEntity) return null;
   return (
     <span
@@ -30,6 +30,7 @@ function ProvenanceBadge({ isAuto, sourceEntity }: { isAuto?: boolean; sourceEnt
     </span>
   );
 }
+void _ProvenanceBadge;
 
 function TypeBadge({ isSingleton }: { isSingleton: boolean }) {
   return (
@@ -383,7 +384,7 @@ export default function UnifiedSuppliers() {
                     </td>
                   </tr>
                 ) : (
-                  singletonData?.items.map((s, i) => (
+                  singletonData?.items.map((s, _i) => (
                     <tr key={s.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
                       <td className="px-4 py-3">
                         <input
