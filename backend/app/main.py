@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import SessionLocal
-from app.routers import auth, users, sources, upload
+from app.routers import auth, users, sources, upload, matching
 
 
 @asynccontextmanager
@@ -14,6 +14,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         from app.services.auth import create_initial_user
+
         create_initial_user(db)
         db.commit()
     except Exception:
@@ -44,3 +45,4 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(sources.router)
 app.include_router(upload.router)
+app.include_router(matching.router)
