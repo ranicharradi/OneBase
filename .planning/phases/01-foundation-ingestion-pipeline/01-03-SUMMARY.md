@@ -99,7 +99,7 @@ Each task was committed atomically:
 2. **Task 2: Sources management page + Users management page** - `ddee991` (feat)
 3. **Task 3: Visual verification** - checkpoint:human-verify (soft gate, presented to user)
 
-**Plan metadata:** TBD (docs: complete plan)
+**Plan metadata:** `a3d92eb` (docs: complete plan)
 
 ## Files Created/Modified
 - `frontend/package.json` - Project config with React 19, Vite 6, Tailwind CSS 4, TanStack Query, React Router
