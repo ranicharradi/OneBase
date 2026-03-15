@@ -73,14 +73,16 @@ build/
 target/
 vendor/
 
-# ── GSD (agent runtime — not project artifacts) ──
+# ── GSD: Runtime / Ephemeral (per-developer, per-session) ──
+.gsd/auto.lock
+.gsd/completed-units.json
+.gsd/STATE.md
+.gsd/metrics.json
 .gsd/activity/
 .gsd/runtime/
 .gsd/worktrees/
-.gsd/auto.lock
-.gsd/metrics.json
-.gsd/completed-units.json
-.gsd/STATE.md
+.gsd/milestones/**/continue.md
+.gsd/milestones/**/*-CONTINUE.md
 
 # ── Other tools ──
 .opencode/
