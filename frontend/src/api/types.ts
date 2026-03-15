@@ -204,3 +204,123 @@ export interface UnifiedSupplierResponse {
   created_by: string;
   created_at: string | null;
 }
+
+// ── Unified Browse types ──
+
+export interface UnifiedSupplierListItem {
+  id: number;
+  name: string;
+  source_code: string | null;
+  short_name: string | null;
+  currency: string | null;
+  supplier_type: string | null;
+  source_count: number;
+  is_singleton: boolean;
+  created_by: string;
+  created_at: string | null;
+}
+
+export interface UnifiedSupplierListResponse {
+  items: UnifiedSupplierListItem[];
+  total: number;
+  has_more: boolean;
+}
+
+export interface SourceRecord {
+  id: number;
+  name: string | null;
+  source_code: string | null;
+  data_source_name: string | null;
+  data_source_id: number;
+}
+
+export interface MergeHistoryEntry {
+  id: number;
+  action: string;
+  details: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+export interface UnifiedSupplierDetail {
+  id: number;
+  name: string;
+  source_code: string | null;
+  short_name: string | null;
+  currency: string | null;
+  payment_terms: string | null;
+  contact_name: string | null;
+  supplier_type: string | null;
+  provenance: Record<string, FieldProvenance>;
+  source_supplier_ids: number[];
+  source_records: SourceRecord[];
+  match_candidate_id: number | null;
+  merge_history: MergeHistoryEntry[];
+  created_by: string;
+  created_at: string | null;
+}
+
+// ── Singleton types ──
+
+export interface SingletonCandidate {
+  id: number;
+  name: string | null;
+  source_code: string | null;
+  short_name: string | null;
+  currency: string | null;
+  payment_terms: string | null;
+  contact_name: string | null;
+  supplier_type: string | null;
+  data_source_id: number;
+  data_source_name: string | null;
+}
+
+export interface SingletonListResponse {
+  items: SingletonCandidate[];
+  total: number;
+  has_more: boolean;
+}
+
+// ── Dashboard types ──
+
+export interface UploadStats {
+  total_batches: number;
+  completed: number;
+  failed: number;
+  total_staged: number;
+}
+
+export interface MatchStats {
+  total_candidates: number;
+  total_groups: number;
+  avg_confidence: number | null;
+}
+
+export interface ReviewProgress {
+  pending: number;
+  confirmed: number;
+  rejected: number;
+  skipped: number;
+}
+
+export interface UnifiedStatsData {
+  total_unified: number;
+  merged: number;
+  singletons: number;
+}
+
+export interface RecentActivity {
+  id: number;
+  action: string;
+  entity_type: string | null;
+  entity_id: number | null;
+  details: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+export interface DashboardResponse {
+  uploads: UploadStats;
+  matching: MatchStats;
+  review: ReviewProgress;
+  unified: UnifiedStatsData;
+  recent_activity: RecentActivity[];
+}

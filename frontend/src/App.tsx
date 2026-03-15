@@ -9,6 +9,11 @@ import Login from './pages/Login';
 import Sources from './pages/Sources';
 import Users from './pages/Users';
 import Upload from './pages/Upload';
+import ReviewQueue from './pages/ReviewQueue';
+import ReviewDetail from './pages/ReviewDetail';
+import Dashboard from './pages/Dashboard';
+import UnifiedSuppliers from './pages/UnifiedSuppliers';
+import UnifiedSupplierDetail from './pages/UnifiedSupplierDetail';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,12 +40,15 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Navigate to="/sources" replace />} />
-              <Route path="sources" element={<Sources />} />
-              <Route path="users" element={<Users />} />
-              <Route path="upload" element={<Upload />} />
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="unified" element={<UnifiedSuppliers />} />
+              <Route path="unified/:id" element={<UnifiedSupplierDetail />} />
               <Route path="review" element={<ReviewQueue />} />
               <Route path="review/:id" element={<ReviewDetail />} />
+              <Route path="upload" element={<Upload />} />
+              <Route path="sources" element={<Sources />} />
+              <Route path="users" element={<Users />} />
             </Route>
           </Routes>
         </BrowserRouter>

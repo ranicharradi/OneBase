@@ -15,5 +15,5 @@
   > After this: Build the matching engine foundation: data model extensions, configuration, and the three core algorithm services (blocking, scoring, clustering) with comprehensive tests.
 - [x] **S04: Review Merge** `risk:medium` `depends:[S03]`
   > After this: Reviewers can examine match candidates, compare suppliers side-by-side, and merge them field-by-field into golden records with full provenance.
-- [ ] **S05: Unified Browse, Dashboard + Polish** `risk:medium` `depends:[S04]`
+- [x] **S05: Unified Browse, Dashboard + Polish** `risk:medium` `depends:[S04]`
   > After this: Users can browse unified suppliers with provenance badges, view merge history, promote singletons, export data, and see dashboard stats.

@@ -157,8 +157,8 @@ CSV/Excel Upload
 | all-MiniLM-L6-v2 | Lightweight CPU model, 384 dims, good quality for name matching | — Pending |
 | Two-pass blocking | Text blocking is fast for obvious matches, embedding blocking catches non-prefix matches | — Pending |
 | Dark theme enterprise UI | Data-heavy views need high contrast; professional look for internal tool | — Pending |
-| frontend-design skill for all pages | Every page production-grade — dashboard, review queue, match detail, unified view, sources | — Pending |
+| frontend-design skill for all pages | Every page production-grade — dashboard, review queue, match detail, unified view, sources | Validated |
 | Context7 MCP for library docs | Ensures current API usage, not stale training data | — Pending |
 
 ---
-*Last updated: 2026-03-15 after S04 (Review Merge) completion — review queue, side-by-side match detail, and field-level merge with provenance are live*
+*Last updated: 2026-03-15 after S05 (Unified Browse, Dashboard + Polish) completion — M001 MVP is complete. All five slices delivered: ingestion pipeline, design polish, matching engine, review merge, and unified browse/dashboard. All 35 requirements validated.*
