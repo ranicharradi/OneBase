@@ -1,18 +1,67 @@
-"""Matching stub task — placeholder for Phase 2 matching engine."""
+"""Celery task for matching pipeline — replaces stub with full implementation."""
+
 import logging
 
 from app.tasks.celery_app import celery_app
+from app.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="run_matching")
-def run_matching(batch_id: int):
-    """Stub matching task — real matching built in Phase 2.
+@celery_app.task(bind=True, name="run_matching")
+def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
+    """Run the matching pipeline for a given batch.
 
-    This stub is auto-enqueued after ingestion completes to maintain
-    the pipeline contract. In Phase 2, it will compute similarity
-    scores and create MatchCandidate records.
+    Creates its own database session (Celery tasks manage their own sessions).
+    Reports progress via self.update_state().
+    Optionally invalidates old candidates for re-upload scenarios.
+
+    Args:
+        batch_id: The import batch to process.
+        invalidate_source_id: Source ID to invalidate old candidates for (re-upload).
     """
-    logger.info(f"Matching stub for batch {batch_id}")
-    return {"status": "stub", "batch_id": batch_id}
+    db = SessionLocal()
+    try:
+        from app.models.batch import ImportBatch
+        from app.services.matching import run_matching_pipeline
+
+        # Store matching task ID on batch
+        batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
+        batch.matching_task_id = self.request.id
+        db.flush()
+
+        # Progress callback for Celery state updates
+        def progress_callback(stage: str, pct: int):
+            self.update_state(
+                state=stage.upper(),
+                meta={"stage": stage, "progress": pct},
+            )
+
+        # Run the pipeline
+        stats = run_matching_pipeline(
+            db,
+            batch_id,
+            progress_callback=progress_callback,
+            invalidate_source_id=invalidate_source_id,
+        )
+
+        db.commit()
+
+        logger.info(
+            "Matching complete for batch %d: %d candidates, %d groups",
+            batch_id,
+            stats["candidate_count"],
+            stats["group_count"],
+        )
+        return {
+            "status": "completed",
+            "batch_id": batch_id,
+            **stats,
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error("Matching failed for batch %d: %s", batch_id, e)
+        raise
+    finally:
+        db.close()

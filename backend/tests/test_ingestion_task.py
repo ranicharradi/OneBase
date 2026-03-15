@@ -1,4 +1,5 @@
 """Tests for ingestion task and service."""
+
 import pytest
 from unittest.mock import patch, MagicMock, call
 import numpy as np
@@ -53,13 +54,16 @@ class TestRunIngestion:
         source, batch = self._create_source_and_batch(test_db)
 
         from app.services.ingestion import run_ingestion
+
         row_count = run_ingestion(test_db, batch.id, SAMPLE_CSV)
 
         assert row_count == 3
 
-        suppliers = test_db.query(StagedSupplier).filter(
-            StagedSupplier.import_batch_id == batch.id
-        ).all()
+        suppliers = (
+            test_db.query(StagedSupplier)
+            .filter(StagedSupplier.import_batch_id == batch.id)
+            .all()
+        )
         assert len(suppliers) == 3
 
         # Check first supplier
@@ -78,11 +82,14 @@ class TestRunIngestion:
         source, batch = self._create_source_and_batch(test_db)
 
         from app.services.ingestion import run_ingestion
+
         run_ingestion(test_db, batch.id, SAMPLE_CSV)
 
-        suppliers = test_db.query(StagedSupplier).filter(
-            StagedSupplier.import_batch_id == batch.id
-        ).all()
+        suppliers = (
+            test_db.query(StagedSupplier)
+            .filter(StagedSupplier.import_batch_id == batch.id)
+            .all()
+        )
 
         s1 = next(s for s in suppliers if s.source_code == "V001")
         # "Acme Corp SARL" -> normalized: "ACME" (CORP and SARL removed)
@@ -98,6 +105,7 @@ class TestRunIngestion:
         source, batch = self._create_source_and_batch(test_db)
 
         from app.services.ingestion import run_ingestion
+
         run_ingestion(test_db, batch.id, SAMPLE_CSV)
 
         # Verify compute_embeddings was called with normalized names
@@ -113,6 +121,7 @@ class TestRunIngestion:
         source, batch = self._create_source_and_batch(test_db)
 
         from app.services.ingestion import run_ingestion
+
         run_ingestion(test_db, batch.id, SAMPLE_CSV)
 
         test_db.refresh(batch)
@@ -128,6 +137,7 @@ class TestRunIngestion:
         callback = MagicMock()
 
         from app.services.ingestion import run_ingestion
+
         run_ingestion(test_db, batch.id, SAMPLE_CSV, progress_callback=callback)
 
         # Verify callback was called with expected stages
@@ -145,6 +155,7 @@ class TestRunIngestion:
         source, batch = self._create_source_and_batch(test_db)
 
         from app.services.ingestion import run_ingestion
+
         with pytest.raises(RuntimeError):
             run_ingestion(test_db, batch.id, SAMPLE_CSV)
 
@@ -153,12 +164,11 @@ class TestRunIngestion:
         assert "Embedding model failed" in batch.error_message
 
 
-class TestMatchingStub:
-    """Tests for matching stub task."""
+class TestMatchingTask:
+    """Tests for matching task (replaced stub)."""
 
-    def test_matching_stub_is_enqueued(self, test_db):
-        """Matching stub task is callable and returns stub result."""
+    def test_matching_task_is_importable(self, test_db):
+        """Matching task is importable and registered with Celery."""
         from app.tasks.matching import run_matching
-        result = run_matching(batch_id=42)
-        assert result["status"] == "stub"
-        assert result["batch_id"] == 42
+
+        assert run_matching.name == "run_matching"
