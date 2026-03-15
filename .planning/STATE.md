@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-15T03:50:27.454Z"
-last_activity: 2026-03-15 — Completed 02-01 Matching Engine Foundation
+status: in_progress
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-15T04:00:11Z"
+last_activity: 2026-03-15 — Completed 02-02 Matching Orchestration + Retraining + API
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
-  percent: 80
+  completed_plans: 9
+  percent: 90
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 2 of 5 (Matching Engine) — IN PROGRESS
-Plan: 1 of 3 in current phase (Plan 01 complete)
-Status: Plan 02-01 complete — ready for Plan 02-02
-Last activity: 2026-03-15 — Completed 02-01 Matching Engine Foundation
+Plan: 2 of 3 in current phase (Plans 01-02 complete)
+Status: Plan 02-02 complete — ready for Plan 02-03
+Last activity: 2026-03-15 — Completed 02-02 Matching Orchestration + Retraining + API
 
-Progress: [████████░░] 80% (8 of 10 plans complete)
+Progress: [█████████░] 90% (9 of 10 plans complete)
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [████████░░] 80% (8 of 10 plans complete)
 | Phase 1.1-design-polish P02 | 5min | 2 tasks | 2 files |
 | Phase 1.1-design-polish P03 | 5min | 2 tasks | 6 files |
 | Phase 02 P01 | 9min | 2 tasks | 12 files |
+| Phase 02 P02 | 15min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,8 @@ Recent decisions affecting current work:
 - [Phase 02 P01]: Extracted _get_suppliers_with_embeddings helper for testability — enables mocking pgvector queries in SQLite
 - [Phase 02 P01]: Neutral 0.5 for missing signal data — neither boosts nor penalizes incomplete records
 - [Phase 02 P01]: Union-Find keeps oversized clusters intact with warning — no automatic splitting
+- [Phase 02 P02]: Discriminative power approach for retraining — avoids sklearn dependency, uses mean(confirmed) - mean(rejected) per signal
+- [Phase 02 P02]: Updated old stub test to importability check — direct call to run_matching tried to connect to PostgreSQL
 
 ### Pending Todos
 
@@ -107,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T03:50:27.440Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-15T04:00:11Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None

@@ -65,8 +65,8 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Matching Foundation + Algorithm Services (models, config, migration, blocking/scoring/clustering services)
-- [ ] 02-02-PLAN.md — Matching Orchestration + Retraining + API (pipeline service, Celery task, retraining, REST endpoints)
+- [x] 02-01-PLAN.md — Matching Foundation + Algorithm Services (models, config, migration, blocking/scoring/clustering services)
+- [x] 02-02-PLAN.md — Matching Orchestration + Retraining + API (pipeline service, Celery task, retraining, REST endpoints)
 - [ ] 02-03-PLAN.md — WebSocket Notifications + Frontend (WS endpoint, Redis pub/sub, toast system, ProgressTracker extension)
 
 ### Phase 3: Review + Merge
@@ -110,6 +110,6 @@ Phases execute in numeric order: 1 → 1.1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Foundation + Ingestion Pipeline | 4/4 | Complete   | 2026-03-13 |
 | 1.1 Design Polish *(INSERTED)* | 3/3 | Complete   | 2026-03-13 |
-| 2. Matching Engine | 0/3 | Not started | - |
+| 2. Matching Engine | 2/3 | In progress | - |
 | 3. Review + Merge | 0/3 | Not started | - |
 | 4. Unified Browse, Dashboard + Polish | 0/2 | Not started | - |

@@ -25,9 +25,9 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **MTCH-03**: System scores candidate pairs using multi-signal matching (Jaro-Winkler, token Jaccard, embedding cosine, short name, currency, contact)
 - [x] **MTCH-04**: System computes a weighted confidence score (0-1) for each candidate pair
 - [x] **MTCH-05**: System detects transitive match groups via connected components (A matches B, B matches C = one group)
-- [ ] **MTCH-06**: All candidates above configurable threshold are inserted as pending match candidates for review
+- [x] **MTCH-06**: All candidates above configurable threshold are inserted as pending match candidates for review
 - [x] **MTCH-07**: System stores per-signal scores in match_signals JSONB for explainability
-- [ ] **MTCH-08**: System supports retraining signal weights via logistic regression from accumulated reviewer decisions
+- [x] **MTCH-08**: System supports retraining signal weights via logistic regression from accumulated reviewer decisions
 
 ### Review
 
@@ -113,9 +113,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MTCH-03 | Phase 2 | Complete |
 | MTCH-04 | Phase 2 | Complete |
 | MTCH-05 | Phase 2 | Complete |
-| MTCH-06 | Phase 2 | Pending |
+| MTCH-06 | Phase 2 | Complete |
 | MTCH-07 | Phase 2 | Complete |
-| MTCH-08 | Phase 2 | Pending |
+| MTCH-08 | Phase 2 | Complete |
 | REVW-01 | Phase 3 | Pending |
 | REVW-02 | Phase 3 | Pending |
 | REVW-03 | Phase 3 | Pending |
