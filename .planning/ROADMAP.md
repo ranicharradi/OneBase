@@ -62,11 +62,12 @@ Plans:
   2. Each candidate pair has a composite confidence score (0-1) with per-signal breakdowns (Jaro-Winkler, token Jaccard, embedding cosine, short name, currency, contact) stored for explainability
   3. Transitive match groups are detected (A-B and B-C produces one A-B-C group) with sensible cluster size limits
   4. User receives a WebSocket notification when a matching job completes
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md — Matching Foundation + Algorithm Services (models, config, migration, blocking/scoring/clustering services)
+- [ ] 02-02-PLAN.md — Matching Orchestration + Retraining + API (pipeline service, Celery task, retraining, REST endpoints)
+- [ ] 02-03-PLAN.md — WebSocket Notifications + Frontend (WS endpoint, Redis pub/sub, toast system, ProgressTracker extension)
 
 ### Phase 3: Review + Merge
 **Goal**: Reviewers can examine match candidates, compare suppliers side-by-side with conflict highlighting, and merge them field-by-field into golden records with full provenance
@@ -109,6 +110,6 @@ Phases execute in numeric order: 1 → 1.1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Foundation + Ingestion Pipeline | 4/4 | Complete   | 2026-03-13 |
 | 1.1 Design Polish *(INSERTED)* | 3/3 | Complete   | 2026-03-13 |
-| 2. Matching Engine | 0/2 | Not started | - |
+| 2. Matching Engine | 0/3 | Not started | - |
 | 3. Review + Merge | 0/3 | Not started | - |
 | 4. Unified Browse, Dashboard + Polish | 0/2 | Not started | - |
