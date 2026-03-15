@@ -11,14 +11,22 @@ const STAGES = [
   { key: 'PARSING', label: 'Parsing', icon: ParseIcon },
   { key: 'NORMALIZING', label: 'Normalizing', icon: NormalizeIcon },
   { key: 'EMBEDDING', label: 'Embedding', icon: EmbedIcon },
-  { key: 'MATCHING_ENQUEUED', label: 'Match Enqueued', icon: MatchIcon },
+  { key: 'MATCHING_ENQUEUED', label: 'Match Enqueued', icon: MatchEnqueuedIcon },
+  { key: 'MATCHING', label: 'Matching', icon: MatchingRunIcon },
 ];
+
+// Matching task stages reported via Celery progress callback
+const MATCHING_STAGES = new Set(['BLOCKING', 'SCORING', 'CLUSTERING', 'INSERTING', 'MATCHING']);
 
 // Map backend states to stage index
 function getActiveStageIndex(state: string, stage: string | null): number {
   if (state === 'COMPLETE') return STAGES.length; // all done
   if (state === 'FAILURE') return -1;
   if (!stage) return 0;
+
+  // Matching-related stages map to index 4 (the MATCHING stage)
+  if (MATCHING_STAGES.has(stage)) return 4;
+
   const idx = STAGES.findIndex((s) => s.key === stage);
   return idx >= 0 ? idx : 0;
 }
@@ -109,7 +117,7 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
           />
 
           {/* Stage nodes */}
-          <div className="relative grid grid-cols-4 gap-2">
+          <div className="relative grid grid-cols-5 gap-2">
             {STAGES.map((s, i) => {
               const status = getStageStatus(i, activeIndex, state);
               const StageIcon = s.icon;
@@ -254,10 +262,20 @@ function EmbedIcon({ className }: { className?: string }) {
   );
 }
 
-function MatchIcon({ className }: { className?: string }) {
+function MatchEnqueuedIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+    </svg>
+  );
+}
+
+function MatchingRunIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      {/* Interlocking circles — represents matching/merging records */}
+      <circle cx="9" cy="12" r="5.5" />
+      <circle cx="15" cy="12" r="5.5" />
     </svg>
   );
 }
