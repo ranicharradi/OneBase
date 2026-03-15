@@ -53,6 +53,22 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
             stats["candidate_count"],
             stats["group_count"],
         )
+
+        # Publish completion notification (failure here must not crash the task)
+        try:
+            from app.services.notifications import publish_notification
+
+            publish_notification(
+                "matching_complete",
+                {
+                    "batch_id": batch_id,
+                    "candidate_count": stats["candidate_count"],
+                    "group_count": stats["group_count"],
+                },
+            )
+        except Exception as notif_err:
+            logger.warning("Failed to publish completion notification: %s", notif_err)
+
         return {
             "status": "completed",
             "batch_id": batch_id,
@@ -62,6 +78,18 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
     except Exception as e:
         db.rollback()
         logger.error("Matching failed for batch %d: %s", batch_id, e)
+
+        # Publish failure notification (must not interfere with error propagation)
+        try:
+            from app.services.notifications import publish_notification
+
+            publish_notification(
+                "matching_failed",
+                {"batch_id": batch_id, "error": str(e)},
+            )
+        except Exception:
+            pass
+
         raise
     finally:
         db.close()

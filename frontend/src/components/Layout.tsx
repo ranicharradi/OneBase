@@ -1,8 +1,12 @@
 // ── App shell with sidebar navigation — dark precision editorial ──
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
+import { useMatchingNotifications } from '../hooks/useMatchingNotifications';
+import { ToastContainer } from './Toast';
+import type { ToastData } from './Toast';
+import type { MatchingNotification } from '../api/types';
 
 const navItems = [
   {
@@ -38,6 +42,35 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastData[]>([]);
+
+  const addToast = useCallback((toast: Omit<ToastData, 'id'>) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setToasts((prev) => [...prev, { ...toast, id }]);
+  }, []);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Wire WebSocket notifications to toast system
+  useMatchingNotifications(useCallback((notification: MatchingNotification) => {
+    if (notification.type === 'matching_complete') {
+      const { candidate_count = 0, group_count = 0 } = notification.data;
+      addToast({
+        type: 'success',
+        message: 'Matching complete',
+        detail: `${candidate_count} candidate pairs found in ${group_count} groups`,
+        action: { label: 'View results →', href: '/review' },
+      });
+    } else if (notification.type === 'matching_failed') {
+      addToast({
+        type: 'error',
+        message: 'Matching failed',
+        detail: notification.data.error || 'An unexpected error occurred during matching',
+      });
+    }
+  }, [addToast]));
 
   const handleLogout = () => {
     logout();
@@ -197,6 +230,9 @@ export default function Layout() {
           </div>
         </main>
       </div>
+
+      {/* Global toast notifications */}
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
   );
 }

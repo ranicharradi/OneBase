@@ -79,3 +79,16 @@ export interface TaskStatus {
 export interface ColumnDetectResponse {
   columns: string[];
 }
+
+// ── Matching notification types (WebSocket) ──
+
+export interface MatchingNotification {
+  type: 'matching_complete' | 'matching_failed';
+  data: {
+    batch_id: number;
+    candidate_count?: number;
+    group_count?: number;
+    error?: string;
+  };
+  timestamp: string;
+}

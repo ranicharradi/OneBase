@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import SessionLocal
-from app.routers import auth, users, sources, upload, matching
+from app.routers import auth, users, sources, upload, matching, ws
 
 
 @asynccontextmanager
@@ -46,3 +46,4 @@ app.include_router(users.router)
 app.include_router(sources.router)
 app.include_router(upload.router)
 app.include_router(matching.router)
+app.include_router(ws.router)
