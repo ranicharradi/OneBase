@@ -1,24 +1,21 @@
 """Tests for matching orchestration service — run_matching_pipeline."""
 
-from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
-import pytest
 from sqlalchemy.orm import Session
 
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.staging import StagedSupplier
 from app.models.source import DataSource
 from app.models.batch import ImportBatch
-from app.models.user import User
 
 
-def _make_source(db: Session, entity_name: str, user_id: int) -> DataSource:
+def _make_source(db: Session, name: str) -> DataSource:
     """Helper to create a DataSource."""
     src = DataSource(
-        entity_name=entity_name,
-        system_name="test",
-        created_by="testuser",
+        name=name,
+        file_format="csv",
+        column_mapping={"name": "Supplier Name"},
     )
     db.add(src)
     db.flush()
@@ -69,8 +66,8 @@ def test_pipeline_creates_candidates(
     mock_score_pair, mock_text_block, mock_embedding_block, test_db
 ):
     """Pipeline creates MatchCandidate records for pairs above threshold."""
-    src1 = _make_source(test_db, "Entity A", 1)
-    src2 = _make_source(test_db, "Entity B", 1)
+    src1 = _make_source(test_db, "Entity A")
+    src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
     s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
@@ -110,8 +107,8 @@ def test_pipeline_filters_below_threshold(
     mock_score_pair, mock_text_block, mock_embedding_block, test_db
 ):
     """Pipeline does NOT create candidates below confidence threshold."""
-    src1 = _make_source(test_db, "Entity A", 1)
-    src2 = _make_source(test_db, "Entity B", 1)
+    src1 = _make_source(test_db, "Entity A")
+    src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
     s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
@@ -149,8 +146,8 @@ def test_pipeline_candidate_has_all_signals(
     mock_score_pair, mock_text_block, mock_embedding_block, test_db
 ):
     """Each MatchCandidate has match_signals dict with all 6 signal keys."""
-    src1 = _make_source(test_db, "Entity A", 1)
-    src2 = _make_source(test_db, "Entity B", 1)
+    src1 = _make_source(test_db, "Entity A")
+    src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
     s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
@@ -194,8 +191,8 @@ def test_pipeline_assigns_groups(
     mock_score_pair, mock_text_block, mock_embedding_block, test_db
 ):
     """Candidates are assigned to MatchGroups (group_id is not null)."""
-    src1 = _make_source(test_db, "Entity A", 1)
-    src2 = _make_source(test_db, "Entity B", 1)
+    src1 = _make_source(test_db, "Entity A")
+    src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
     s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
@@ -238,8 +235,8 @@ def test_pipeline_invalidates_on_reupload(
     mock_score_pair, mock_text_block, mock_embedding_block, test_db
 ):
     """Re-upload invalidates old candidates involving that source."""
-    src1 = _make_source(test_db, "Entity A", 1)
-    src2 = _make_source(test_db, "Entity B", 1)
+    src1 = _make_source(test_db, "Entity A")
+    src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
     s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
@@ -288,8 +285,8 @@ def test_pipeline_returns_stats(
     mock_score_pair, mock_text_block, mock_embedding_block, test_db
 ):
     """Pipeline returns stats dict with candidate_count and group_count."""
-    src1 = _make_source(test_db, "Entity A", 1)
-    src2 = _make_source(test_db, "Entity B", 1)
+    src1 = _make_source(test_db, "Entity A")
+    src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
     s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
@@ -324,7 +321,7 @@ def test_pipeline_returns_stats(
 @patch("app.services.matching.text_block")
 def test_pipeline_zero_candidates(mock_text_block, mock_embedding_block, test_db):
     """With zero candidates above threshold, returns zeros and creates no records."""
-    src1 = _make_source(test_db, "Entity A", 1)
+    src1 = _make_source(test_db, "Entity A")
     batch = _make_batch(test_db, src1)
     _make_supplier(test_db, batch, src1, "Acme Corp")
     test_db.flush()
@@ -349,8 +346,8 @@ def test_pipeline_progress_callback(
     mock_score_pair, mock_text_block, mock_embedding_block, test_db
 ):
     """progress_callback is called at each stage."""
-    src1 = _make_source(test_db, "Entity A", 1)
-    src2 = _make_source(test_db, "Entity B", 1)
+    src1 = _make_source(test_db, "Entity A")
+    src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
     s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
