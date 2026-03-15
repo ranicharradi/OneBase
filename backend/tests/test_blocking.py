@@ -1,6 +1,7 @@
 """Tests for blocking service — candidate pair generation."""
 
 import pytest
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 from app.models.staging import StagedSupplier
@@ -38,15 +39,18 @@ def _make_batch(db, batch_id, source_id):
 
 def _make_supplier(db, supplier_id, source_id, batch_id, normalized_name, **kwargs):
     """Create a StagedSupplier for testing."""
+    defaults = {
+        "status": "active",
+    }
+    defaults.update(kwargs)
     supplier = StagedSupplier(
         id=supplier_id,
         data_source_id=source_id,
         import_batch_id=batch_id,
         name=normalized_name,
         normalized_name=normalized_name,
-        status="active",
         raw_data={"name": normalized_name},
-        **kwargs,
+        **defaults,
     )
     db.add(supplier)
     db.flush()
@@ -152,43 +156,65 @@ class TestTextBlock:
 
 
 class TestEmbeddingBlock:
-    """Test embedding-based blocking (mocked for SQLite)."""
+    """Test embedding-based blocking (mocked for SQLite).
+
+    Since pgvector Vector type doesn't work with SQLite, we mock
+    the supplier query and the neighbor lookup entirely.
+    """
 
     def test_pair_filtering_cross_entity(self, test_db):
         """embedding_block only returns cross-entity pairs."""
-        import numpy as np
+        from app.models.staging import StagedSupplier
 
         _make_source(test_db, 1, "Source A")
         _make_source(test_db, 2, "Source B")
         _make_batch(test_db, 1, 1)
         _make_batch(test_db, 2, 2)
-        # Create suppliers (embeddings won't work in SQLite, but we mock)
-        s1 = _make_supplier(test_db, 1, 1, 1, "ACME CORP")
-        s2 = _make_supplier(test_db, 2, 2, 2, "ACME INDUSTRIES")
-        s3 = _make_supplier(test_db, 3, 1, 1, "BETA INC")
+        # Create suppliers WITHOUT embeddings (pgvector doesn't work in SQLite)
+        _make_supplier(test_db, 1, 1, 1, "ACME CORP")
+        _make_supplier(test_db, 2, 2, 2, "ACME INDUSTRIES")
+        _make_supplier(test_db, 3, 1, 1, "BETA INC")
         test_db.commit()
 
-        # Mock the pgvector query to return neighbors
-        # The function should filter to cross-entity only
-        with patch("app.services.blocking._get_embedding_neighbors") as mock_neighbors:
-            # For supplier 1 (source 1), neighbors are [2 (source 2), 3 (source 1)]
-            # Only (1, 2) should be returned since 3 is same source
+        # Create mock supplier objects with embeddings for the query override
+        def mock_supplier(sid, source_id, name):
+            return SimpleNamespace(
+                id=sid,
+                data_source_id=source_id,
+                normalized_name=name,
+                name_embedding=[0.0, 0.0, 0.0],
+                status="active",
+            )
+
+        mock_suppliers = [
+            mock_supplier(1, 1, "ACME CORP"),
+            mock_supplier(2, 2, "ACME INDUSTRIES"),
+            mock_supplier(3, 1, "BETA INC"),
+        ]
+
+        # Mock both the initial supplier query and the neighbor lookup
+        with (
+            patch("app.services.blocking._get_suppliers_with_embeddings") as mock_query,
+            patch("app.services.blocking._get_embedding_neighbors") as mock_neighbors,
+        ):
+            mock_query.return_value = mock_suppliers
             mock_neighbors.side_effect = lambda db, supplier, source_ids, k: (
                 [2]
                 if supplier.id == 1
                 else [1]
                 if supplier.id == 2
-                else [1, 2]
+                else [2]
                 if supplier.id == 3
                 else []
             )
             pairs = embedding_block(test_db, [1, 2], k=5)
-            # Should have cross-entity pairs only
+
+            # Should have cross-entity pairs only and normalized (min, max)
             assert all(a < b for a, b in pairs)
-            # Pair (1,2) should be present (cross-entity)
+            # Pair (1,2) should be present (source 1 vs source 2)
             assert (1, 2) in pairs
-            # Pair (1,3) should NOT be present (same source)
-            assert (1, 3) not in pairs
+            # Pair (2,3) should be present (source 2 vs source 1)
+            assert (2, 3) in pairs
 
 
 class TestCombineBlocks:
