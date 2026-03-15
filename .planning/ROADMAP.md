@@ -12,7 +12,7 @@ OneBase delivers supplier deduplication through a strict pipeline: data must be 
 
 - [x] **Phase 1: Foundation + Ingestion Pipeline** - Docker environment, database schema, auth, CSV upload, parsing, normalization, embedding generation, and data source management (completed 2026-03-13)
 - [x] **Phase 1.1: Design Polish** *(INSERTED)* - Apply frontend-design skill to all UI components: distinctive typography, bold color palette, micro-interactions, atmospheric backgrounds (completed 2026-03-13)
-- [ ] **Phase 2: Matching Engine** - Two-pass blocking, multi-signal scoring, transitive clustering, and WebSocket job notifications
+- [x] **Phase 2: Matching Engine** - Two-pass blocking, multi-signal scoring, transitive clustering, and WebSocket job notifications (completed 2026-03-15)
 - [ ] **Phase 3: Review + Merge** - Human review queue, side-by-side comparison, field-by-field merge, golden record creation with provenance
 - [ ] **Phase 4: Unified Browse, Dashboard + Polish** - Browse unified suppliers, dashboard with stats, singleton promotion, merge history, export
 
@@ -67,7 +67,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Matching Foundation + Algorithm Services (models, config, migration, blocking/scoring/clustering services)
 - [x] 02-02-PLAN.md — Matching Orchestration + Retraining + API (pipeline service, Celery task, retraining, REST endpoints)
-- [ ] 02-03-PLAN.md — WebSocket Notifications + Frontend (WS endpoint, Redis pub/sub, toast system, ProgressTracker extension)
+- [x] 02-03-PLAN.md — WebSocket Notifications + Frontend (WS endpoint, Redis pub/sub, toast system, ProgressTracker extension)
 
 ### Phase 3: Review + Merge
 **Goal**: Reviewers can examine match candidates, compare suppliers side-by-side with conflict highlighting, and merge them field-by-field into golden records with full provenance
@@ -110,6 +110,6 @@ Phases execute in numeric order: 1 → 1.1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Foundation + Ingestion Pipeline | 4/4 | Complete   | 2026-03-13 |
 | 1.1 Design Polish *(INSERTED)* | 3/3 | Complete   | 2026-03-13 |
-| 2. Matching Engine | 2/3 | In progress | - |
+| 2. Matching Engine | 3/3 | Complete   | 2026-03-15 |
 | 3. Review + Merge | 0/3 | Not started | - |
 | 4. Unified Browse, Dashboard + Polish | 0/2 | Not started | - |

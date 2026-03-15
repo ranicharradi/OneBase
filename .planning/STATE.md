@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-15T04:00:11Z"
-last_activity: 2026-03-15 — Completed 02-02 Matching Orchestration + Retraining + API
+stopped_at: Completed Phase 02 (Matching Engine)
+last_updated: "2026-03-15T05:15:00Z"
+last_activity: 2026-03-15 — Completed Phase 02 Matching Engine (all 3 plans)
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 9
-  percent: 90
+  completed_plans: 10
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Accurate cross-entity supplier deduplication with human-in-the-loop merge — every match is reviewed, every field choice is tracked, every golden record has full provenance.
-**Current focus:** Phase 2: Matching Engine — building matching algorithm services and orchestration pipeline
+**Current focus:** Phase 2 complete — ready for Phase 3: Review + Merge
 
 ## Current Position
 
-Phase: 2 of 5 (Matching Engine) — IN PROGRESS
-Plan: 2 of 3 in current phase (Plans 01-02 complete)
-Status: Plan 02-02 complete — ready for Plan 02-03
-Last activity: 2026-03-15 — Completed 02-02 Matching Orchestration + Retraining + API
+Phase: 2 of 5 (Matching Engine) — COMPLETE
+Plan: 3 of 3 in current phase (all plans complete)
+Status: Phase 02 complete — ready for Phase 03
+Last activity: 2026-03-15 — Completed Phase 02 Matching Engine (WebSocket notifications, Toast, ProgressTracker)
 
-Progress: [█████████░] 90% (9 of 10 plans complete)
+Progress: [██████████] 100% (10 of 10 plans complete across Phases 1, 1.1, 2)
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [█████████░] 90% (9 of 10 plans complete)
 | Phase 1.1-design-polish P03 | 5min | 2 tasks | 6 files |
 | Phase 02 P01 | 9min | 2 tasks | 12 files |
 | Phase 02 P02 | 15min | 2 tasks | 10 files |
+| Phase 02 P03 | 45min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,10 @@ Recent decisions affecting current work:
 - [Phase 02 P02]: Discriminative power approach for retraining — avoids sklearn dependency, uses mean(confirmed) - mean(rejected) per signal
 - [Phase 02 P02]: Updated old stub test to importability check — direct call to run_matching tried to connect to PostgreSQL
 
+- [Phase 02 P03]: No auth on WebSocket v1 — notifications are non-sensitive status updates
+- [Phase 02 P03]: Window.location.host for WS URL in all modes — Vite proxy handles /ws in dev, nginx in prod
+- [Phase 02 P03]: Toast auto-dismiss: 8s for success, no auto-dismiss for errors
+
 ### Pending Todos
 
 None yet.
@@ -110,6 +115,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T04:00:11Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-15T05:15:00Z
+Stopped at: Completed Phase 02 (Matching Engine)
 Resume file: None
