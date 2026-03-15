@@ -39,6 +39,8 @@ export default function App() {
               <Route path="sources" element={<Sources />} />
               <Route path="users" element={<Users />} />
               <Route path="upload" element={<Upload />} />
+              <Route path="review" element={<ReviewQueue />} />
+              <Route path="review/:id" element={<ReviewDetail />} />
             </Route>
           </Routes>
         </BrowserRouter>
