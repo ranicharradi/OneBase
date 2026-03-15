@@ -12,5 +12,6 @@ sentence-transformers
 passlib[bcrypt]
 PyJWT
 pgvector
+rapidfuzz
 httpx
 pytest

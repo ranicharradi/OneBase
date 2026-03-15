@@ -12,9 +12,12 @@ class ImportBatch(Base):
     filename = Column(String(255), nullable=False)
     uploaded_by = Column(String(100), nullable=False)
     row_count = Column(Integer, nullable=True)
-    status = Column(String(20), default="pending")  # pending/processing/completed/failed
+    status = Column(
+        String(20), default="pending"
+    )  # pending/processing/completed/failed
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     task_id = Column(String(255), nullable=True)  # Celery task ID
+    matching_task_id = Column(String(255), nullable=True)  # Matching Celery task ID
 
     data_source = relationship("DataSource")

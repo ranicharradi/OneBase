@@ -4,7 +4,7 @@ from app.models.audit import AuditLog
 from app.models.source import DataSource
 from app.models.batch import ImportBatch
 from app.models.staging import StagedSupplier
-from app.models.match import MatchCandidate
+from app.models.match import MatchCandidate, MatchGroup
 
 __all__ = [
     "Base",
@@ -14,4 +14,5 @@ __all__ = [
     "ImportBatch",
     "StagedSupplier",
     "MatchCandidate",
+    "MatchGroup",
 ]
