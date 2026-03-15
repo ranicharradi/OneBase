@@ -8,34 +8,44 @@ OneBase ingests supplier master data exported from multiple Sage X3 ERP entities
 
 Accurate cross-entity supplier deduplication with human-in-the-loop merge — every match is reviewed, every field choice is tracked, every golden record has full provenance.
 
+## Current State
+
+**M001 MVP complete.** The platform is fully functional end-to-end: CSV ingestion → ML matching → human review → golden records with provenance. All 35 requirements validated with 176 passing tests. Ready for production deployment via Docker Compose.
+
+### What's Built
+
+- **Ingestion pipeline:** CSV upload with BOM/cp1252 handling, configurable column mappings, name normalization (24 legal suffixes), 384-dim embeddings (all-MiniLM-L6-v2), re-upload supersession
+- **Matching engine:** Text + embedding blocking, 6-signal weighted scoring (Jaro-Winkler, token Jaccard, cosine, short name, currency, contact), Union-Find clustering, Celery-orchestrated pipeline with WebSocket notifications
+- **Review UI:** Queue with source-pair/confidence filtering, side-by-side comparison with signal breakdowns, field-level conflict resolution via radio buttons, merge/reject/skip actions
+- **Unified records:** Golden records with per-field JSONB provenance, singleton detection + promotion, CSV export, browsing with provenance badges
+- **Dashboard:** Operational stats (upload/match/review/unified), review progress bars, recent activity feed, 30s auto-refresh
+- **Design system:** Dark Precision Editorial — Instrument Serif + Outfit fonts, cyan accent, atmospheric glass UI across all 8 pages
+- **Infrastructure:** Docker Compose (5 services), JWT auth, audit trail, 3 Alembic migrations
+
+### What's Next
+
+No milestones queued. Potential future work:
+- Operational hardening (error recovery, performance profiling, monitoring)
+- Multi-way group merge (current: pairwise only)
+- Additional export formats (Excel/XLSX)
+- Cursor pagination for large datasets
+- Scheduled/automated imports
+
 ## Requirements
 
-### Validated
+### Validated (35)
 
-(None yet — ship to validate)
+All M001 MVP requirements validated — see `.gsd/REQUIREMENTS.md` for full list with evidence.
+
+**Ingestion (8):** CSV upload, parsing, column mappings, normalization, embeddings, staging, re-upload supersession, auto-enqueue matching
+**Matching (8):** Text blocking, embedding blocking, multi-signal scoring, weighted confidence, transitive clustering, threshold filtering, signal storage, weight retraining
+**Review (8):** Queue, filters, side-by-side detail, conflict highlighting, field selection, merge/reject/skip, auto-include identical, auto-include source-only
+**Unified (6):** Golden records, provenance, browse, detail/audit trail, singleton promotion, CSV export
+**Operations (6):** Dashboard, source management, auth, audit trail, WebSocket notifications, production UI
 
 ### Active
 
-- [ ] Ingest semicolon-delimited CSV exports from multiple Sage X3 entities (EOT, TTEI, future sources)
-- [ ] Configurable column mappings per data source stored as JSON
-- [ ] Parse with BOM stripping, whitespace trimming, and name normalization (uppercase, remove legal suffixes, collapse spaces)
-- [ ] Compute name embeddings (all-MiniLM-L6-v2, 384 dims) for semantic matching
-- [ ] ML-based cross-entity matching with multi-signal scoring (Jaro-Winkler, token Jaccard, embedding cosine, short name, currency, contact)
-- [ ] Two-pass blocking: text-based (prefix + first token) and embedding-based (pgvector ANN, K=20)
-- [ ] Transitive match group detection (connected components) for multi-way merges
-- [ ] All match candidates go to human review — no auto-merge
-- [ ] Review queue sorted by confidence with filtering by source pair and confidence range
-- [ ] Side-by-side match detail with signal breakdowns and field-level conflict highlighting
-- [ ] Field-by-field merge: reviewer picks which source value to keep for each conflicting field
-- [ ] Full provenance on every field in the unified record (source, who chose it, when)
-- [ ] Singleton promotion: suppliers with no matches can be accepted as-is into unified DB
-- [ ] Re-upload lifecycle: new exports supersede old staged records, invalidate stale match candidates
-- [ ] Dashboard with upload, stats, and recent activity
-- [ ] Browse unified suppliers with provenance badges
-- [ ] Manage data sources and column mappings
-- [ ] Basic auth (username/password, local accounts) with audit trail
-- [ ] WebSocket notifications when matching jobs complete
-- [ ] Feedback loop: reviewer decisions can retrain signal weights via logistic regression
+(None)
 
 ### Out of Scope
 
@@ -48,10 +58,6 @@ Accurate cross-entity supplier deduplication with human-in-the-loop merge — ev
 
 ## Context
 
-### Current State
-
-No existing deduplication process. Duplicate suppliers exist unchecked across Sage X3 entities. This is the first tooling to address the problem.
-
 ### Data Sources
 
 Two Sage X3 folders export supplier data as semicolon-delimited CSV:
@@ -59,20 +65,11 @@ Two Sage X3 folders export supplier data as semicolon-delimited CSV:
 - **FournisseurEOT.csv** — EOT entity, ~1,623 suppliers, 284 columns, codes prefixed `FE`
 - **FournisseurTTEI.csv** — TTEI entity, ~3,309 suppliers, 268 columns, codes prefixed `FL`
 
-Schemas overlap (~200 shared columns) but diverge: EOT has expanded RITCOD arrays (0-29), YAPPROB, YCLASS, XDOMACT; TTEI has custom X-fields (XCONTRAT, XCERTIF2, XCOEF, XCOST, etc.) and INVORIMOD, ZTYPENVOI. Additional CSV/Excel sources will be added over time.
-
-### Data Quality Issues
-
-- Trailing whitespace in names
-- Quoted values with internal spaces
-- Empty short names in TTEI
-- Mixed currencies across entities for same supplier
-- Legal suffixes vary inconsistently (SARL, SAS, GmbH, LLC)
-- UTF-8 BOM prefix in files
+Schemas overlap (~200 shared columns) but diverge. Additional CSV/Excel sources can be added over time via the Sources management UI.
 
 ### Scale
 
-~5K suppliers currently across 2 sources, expected to grow to 10-20K suppliers across 5-10 sources. 2-5 reviewers, potentially growing.
+~5K suppliers across 2 sources. Platform designed for up to 10-20K suppliers across 5-10 sources with 2-5 reviewers.
 
 ### Tech Stack
 
@@ -81,45 +78,23 @@ Schemas overlap (~200 shared columns) but diverge: EOT has expanded RITCOD array
 | Backend API | Python 3.12, FastAPI |
 | Task Queue | Celery + Redis |
 | Database | PostgreSQL 16 with pgvector |
-| ORM | SQLAlchemy |
-| ML/Matching | scikit-learn, sentence-transformers, thefuzz, recordlinkage |
+| ORM | SQLAlchemy 2.0 (sync) |
+| ML/Matching | rapidfuzz, sentence-transformers (all-MiniLM-L6-v2) |
 | Vector Search | pgvector (PostgreSQL extension) |
-| Frontend | React (all pages built with frontend-design skill for production-grade UI) |
+| Frontend | React 19, Vite 6, TypeScript, Tailwind CSS 4, TanStack Query |
+| Design | Dark Precision Editorial (Instrument Serif + Outfit, cyan accent) |
 | Deployment | Docker Compose (on-prem) |
-| Documentation | Context7 MCP for up-to-date library docs during implementation |
 
 ### Architecture
 
 ```
-CSV/Excel Upload
-       |
-       v
-+------------------+
-| Ingestion Pipeline| -- Parse -> Map -> Normalize -> Embed
-+--------+---------+
-         v
-+------------------+
-|  Staging Tables   | -- PostgreSQL (raw JSONB + extracted key fields)
-+--------+---------+
-         v
-+------------------+
-| ML Matching Engine| -- Celery async task
-|  (multi-signal)   | -- Blocking -> Compare -> Score
-+--------+---------+
-         v
-+------------------+
-|  Review Queue     | -- All candidates, sorted by confidence
-+--------+---------+
-         v
-+------------------+
-|   Review UI       | -- Side-by-side, conflict highlight, field-by-field merge
-|   (React)         |
-+--------+---------+
-         v
-+------------------+
-| Unified Supplier  | -- Golden records + provenance metadata
-|    Database       |
-+------------------+
+CSV Upload → Ingestion Pipeline (parse → map → normalize → embed)
+    → Staging Tables (PostgreSQL + pgvector)
+    → ML Matching Engine (Celery: block → score → cluster)
+    → Review Queue (all candidates, human review)
+    → Review UI (side-by-side, field-level merge)
+    → Unified Supplier Database (golden records + provenance)
+    → Dashboard (stats, activity, export)
 ```
 
 ### Docker Compose Services
@@ -130,35 +105,28 @@ CSV/Excel Upload
 | `worker` | Celery worker (same codebase as api) |
 | `frontend` | React app (nginx in production) |
 | `postgres` | PostgreSQL 16 with pgvector |
-| `redis` | Celery broker + result backend |
-
-### Implementation Notes
-
-- Use **Context7 MCP** during implementation for up-to-date documentation on FastAPI, SQLAlchemy, Celery, React, sentence-transformers, and other libraries.
-- Use **frontend-design skill** for ALL React UI implementation — every page production-grade, dark theme, data-heavy enterprise design.
-- Use **pgvector** PostgreSQL extension for embedding storage and similarity search.
-- The `all-MiniLM-L6-v2` model is lightweight (80MB) and runs on CPU. Pre-download during Docker build.
-- Use PostgreSQL image with pgvector extension pre-installed (`pgvector/pgvector:pg16`).
-
-## Constraints
-
-- **Deployment**: On-prem server, Docker Compose — no cloud services
-- **ML**: CPU-only, no GPU — lightweight models only (all-MiniLM-L6-v2)
-- **Team**: 2-5 reviewers, all equal permissions, basic auth sufficient
-- **Timeline**: Weeks — need to start cleaning EOT vs TTEI supplier data soon
-- **Data**: Semicolon-delimited CSV with known quality issues (BOM, whitespace, mixed encodings)
+| `redis` | Celery broker + result backend + pub/sub |
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| No auto-merge | Data accuracy is paramount; human review required for every match | — Pending |
-| pgvector for embeddings | Keeps everything in PostgreSQL, no separate vector DB needed | — Pending |
-| all-MiniLM-L6-v2 | Lightweight CPU model, 384 dims, good quality for name matching | — Pending |
-| Two-pass blocking | Text blocking is fast for obvious matches, embedding blocking catches non-prefix matches | — Pending |
-| Dark theme enterprise UI | Data-heavy views need high contrast; professional look for internal tool | — Pending |
-| frontend-design skill for all pages | Every page production-grade — dashboard, review queue, match detail, unified view, sources | Validated |
-| Context7 MCP for library docs | Ensures current API usage, not stale training data | — Pending |
+| No auto-merge | Data accuracy is paramount; human review required for every match | Validated |
+| pgvector for embeddings | Keeps everything in PostgreSQL, no separate vector DB needed | Validated |
+| all-MiniLM-L6-v2 | Lightweight CPU model, 384 dims, good quality for name matching | Validated |
+| Two-pass blocking | Text blocking is fast for obvious matches, embedding blocking catches non-prefix matches | Validated |
+| Dark Precision Editorial UI | Data-heavy views need high contrast; premium feel for internal tool | Validated |
+| Sync SQLAlchemy | Simpler architecture, matches Celery worker pattern | Validated |
+| PBKDF2-SHA256 | Stdlib-only, no binary dependency issues | Validated |
+| JSONB provenance | Per-field tracking on unified_suppliers, adequate for ~5K scale | Validated |
+| Pairwise merge only | Covers primary review flow; multi-way merge deferred | Validated |
+
+## Constraints
+
+- **Deployment**: On-prem server, Docker Compose — no cloud services
+- **ML**: CPU-only, no GPU — lightweight models only
+- **Team**: 2-5 reviewers, all equal permissions, basic auth
+- **Data**: Semicolon-delimited CSV with BOM, whitespace, mixed encodings
 
 ---
-*Last updated: 2026-03-15 after S05 (Unified Browse, Dashboard + Polish) completion — M001 MVP is complete. All five slices delivered: ingestion pipeline, design polish, matching engine, review merge, and unified browse/dashboard. All 35 requirements validated.*
+*Last updated: 2026-03-15 — M001 MVP complete. All 5 slices delivered, all 35 requirements validated, 176 tests passing.*
