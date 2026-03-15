@@ -4,12 +4,11 @@
 import { useEffect, useRef, useCallback } from 'react';
 import type { MatchingNotification } from '../api/types';
 
-/** Derive WebSocket URL from current page location. */
+/** Derive WebSocket URL from current page location.
+ *  Uses window.location.host in all modes — Vite proxy handles /ws in dev. */
 function getWsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  // In dev, backend runs on port 8000; in prod, same host
-  const host = import.meta.env.DEV ? 'localhost:8000' : window.location.host;
-  return `${proto}//${host}/ws/notifications`;
+  return `${proto}//${window.location.host}/ws/notifications`;
 }
 
 const MAX_RECONNECT_DELAY = 30_000;
