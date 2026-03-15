@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-14T15:29:00.359Z"
-last_activity: 2026-03-13 — Completed 1.1-03 Upload Experience Redesign
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-15T03:50:27.454Z"
+last_activity: 2026-03-15 — Completed 02-01 Matching Engine Foundation
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_plans: 10
+  completed_plans: 8
+  percent: 80
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Accurate cross-entity supplier deduplication with human-in-the-loop merge — every match is reviewed, every field choice is tracked, every golden record has full provenance.
-**Current focus:** Phase 1.1: Design Polish (INSERTED — apply frontend-design skill to all UI)
+**Current focus:** Phase 2: Matching Engine — building matching algorithm services and orchestration pipeline
 
 ## Current Position
 
-Phase: 1.1 of 5 (Design Polish) — COMPLETE
-Plan: 3 of 3 in current phase (Plans 01-03 complete)
-Status: Phase complete — ready for Phase 2
-Last activity: 2026-03-13 — Completed 1.1-03 Upload Experience Redesign
+Phase: 2 of 5 (Matching Engine) — IN PROGRESS
+Plan: 1 of 3 in current phase (Plan 01 complete)
+Status: Plan 02-01 complete — ready for Plan 02-02
+Last activity: 2026-03-15 — Completed 02-01 Matching Engine Foundation
 
-Progress: [██████████] 100% (Phase 1.1 complete)
+Progress: [████████░░] 80% (8 of 10 plans complete)
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [██████████] 100% (Phase 1.1 complete)
 | Phase 1.1 P01 | 3min | 2 tasks | 4 files |
 | Phase 1.1-design-polish P02 | 5min | 2 tasks | 2 files |
 | Phase 1.1-design-polish P03 | 5min | 2 tasks | 6 files |
+| Phase 02 P01 | 9min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,10 @@ Recent decisions affecting current work:
 - [Phase 1.1-design-polish]: Deterministic avatar gradients via username hash — consistent per-user colors without stored preferences
 - [Phase 1.1-design-polish P03]: Arrow connectors in ColumnMapper for visual mapping relationship
 - [Phase 1.1-design-polish P03]: Pipeline fill animation in ProgressTracker — gradient line fills between stages as they complete
+- [Phase 02 P01]: SimpleNamespace for duck-typed test objects — avoids SQLAlchemy instrumentation issues with __new__
+- [Phase 02 P01]: Extracted _get_suppliers_with_embeddings helper for testability — enables mocking pgvector queries in SQLite
+- [Phase 02 P01]: Neutral 0.5 for missing signal data — neither boosts nor penalizes incomplete records
+- [Phase 02 P01]: Union-Find keeps oversized clusters intact with warning — no automatic splitting
 
 ### Pending Todos
 
@@ -102,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T15:29:00.356Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-matching-engine/02-CONTEXT.md
+Last session: 2026-03-15T03:50:27.440Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None
