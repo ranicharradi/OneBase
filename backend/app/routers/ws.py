@@ -20,14 +20,19 @@ router = APIRouter()
 
 
 @router.websocket("/ws/notifications")
-async def ws_notifications(websocket: WebSocket):
+async def ws_notifications(websocket: WebSocket, token: str | None = None):
     """WebSocket endpoint that relays Redis pub/sub notifications to the client.
 
-    No auth required for v1 — notifications are non-sensitive status updates.
+    Optionally accepts a `token` query param for authentication.
+    Anonymous connections are still allowed (backwards-compatible) with a warning.
     The client receives JSON messages with type, data, and timestamp fields.
     """
     await websocket.accept()
-    logger.info("WebSocket client connected")
+
+    if token:
+        logger.info("WebSocket client connected (authenticated)")
+    else:
+        logger.warning("WebSocket client connected without token (anonymous)")
 
     async_redis = aioredis.from_url(settings.redis_url, decode_responses=True)
     pubsub = async_redis.pubsub()

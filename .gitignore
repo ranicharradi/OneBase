@@ -57,6 +57,11 @@ backend/test.db-shm
 
 # ── Uploads (runtime data) ──
 backend/uploads/
+backend/data/uploads/
+
+# ── Design assets (not source) ──
+frontend/mockup-design.html
+original-*.webp
 
 # ── Docker ──
 *.pid

@@ -21,6 +21,8 @@ router = APIRouter(prefix="/api/import", tags=["import"])
 UPLOAD_DIR = os.path.join("data", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
 
 @router.post(
     "/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED
@@ -35,6 +37,13 @@ async def upload_file(
 
     Creates an ImportBatch and dispatches a Celery task to process the file.
     """
+    # Validate file extension
+    if not file.filename or not file.filename.lower().endswith('.csv'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only .csv files are accepted",
+        )
+
     # Validate data source exists
     source = db.query(DataSource).filter(DataSource.id == data_source_id).first()
     if source is None:
@@ -45,6 +54,22 @@ async def upload_file(
 
     # Save file to disk
     file_content = await file.read()
+
+    # Validate file size
+    if len(file_content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"File exceeds maximum size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
+        )
+
+    # Validate UTF-8 encoding
+    try:
+        file_content.decode('utf-8')
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File is not valid UTF-8. Please re-save as UTF-8 and try again.",
+        )
     stored_filename = f"{uuid.uuid4()}_{file.filename}"
     filepath = os.path.join(UPLOAD_DIR, stored_filename)
     with open(filepath, "wb") as f:
