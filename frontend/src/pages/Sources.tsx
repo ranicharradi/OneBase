@@ -1,10 +1,11 @@
 // ── Sources management page — full CRUD with column mapping ──
 // Dark Precision Editorial aesthetic — atmospheric modals, gradient cards, staggered animations
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { DataSource, DataSourceCreate, ColumnMapping } from '../api/types';
+import { ToastContainer, type ToastData } from '../components/Toast';
 
 const REQUIRED_FIELDS: (keyof ColumnMapping)[] = ['supplier_name', 'supplier_code'];
 const OPTIONAL_FIELDS: (keyof ColumnMapping)[] = [
@@ -27,41 +28,6 @@ const FIELD_LABELS: Record<string, string> = {
 
 function emptyMapping(): ColumnMapping {
   return { supplier_name: '', supplier_code: '' };
-}
-
-// ── Notification toast — glass card with accent border and entrance animation ──
-function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
-  return (
-    <div className="fixed bottom-6 right-6 z-50 animate-slideUp">
-      <div
-        className={`relative flex items-center gap-3 rounded-xl px-5 py-3.5 text-sm font-medium shadow-2xl overflow-hidden ${
-          type === 'success'
-            ? 'glass text-success-400'
-            : 'glass text-danger-400'
-        }`}
-      >
-        {/* Accent edge line */}
-        <div
-          className={`absolute left-0 top-0 bottom-0 w-[2px] ${
-            type === 'success' ? 'bg-success-400' : 'bg-danger-400'
-          }`}
-        />
-        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          {type === 'success' ? (
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          ) : (
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-          )}
-        </svg>
-        <span className="font-body">{message}</span>
-        <button onClick={onClose} className="ml-3 opacity-60 hover:opacity-100 transition-opacity">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    </div>
-  );
 }
 
 // ── Column Mapping Editor — sectioned with visual hierarchy ──
@@ -433,17 +399,21 @@ export default function Sources() {
   const [showCreate, setShowCreate] = useState(false);
   const [editSource, setEditSource] = useState<DataSource | null>(null);
   const [deleteSource, setDeleteSource] = useState<DataSource | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toasts, setToasts] = useState<ToastData[]>([]);
 
   const { data: sources, isLoading, error } = useQuery({
     queryKey: ['sources'],
     queryFn: () => api.get<DataSource[]>('/api/sources'),
   });
 
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    const id = crypto.randomUUID();
+    setToasts(prev => [...prev, { id, message, type }]);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
 
   return (
     <div>
@@ -639,9 +609,7 @@ export default function Sources() {
       )}
 
       {/* Toast */}
-      {toast && (
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
-      )}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

@@ -39,20 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
-    // FastAPI OAuth2PasswordRequestForm expects x-www-form-urlencoded
-    const body = new URLSearchParams({ username, password });
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
+    const data = await api.formPost<{ access_token: string }>('/api/auth/login', {
+      username,
+      password,
     });
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.detail || 'Invalid credentials');
-    }
-
-    const data = await response.json();
     setToken(data.access_token);
 
     const me = await api.get<User>('/api/auth/me');

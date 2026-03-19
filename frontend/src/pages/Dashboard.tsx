@@ -126,7 +126,9 @@ export default function Dashboard() {
   if (error || !data) {
     return (
       <div className="text-center py-20">
-        <p className="text-danger-400">Failed to load dashboard data</p>
+        <p className="text-danger-400">
+          {error instanceof Error ? error.message : 'Failed to load dashboard data'}
+        </p>
       </div>
     );
   }

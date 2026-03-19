@@ -14,7 +14,7 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
     super(message);
@@ -87,5 +87,12 @@ export const api = {
     request<T>(path, {
       method: 'POST',
       body: formData,
+    }),
+
+  formPost: <T>(path: string, params: Record<string, string>) =>
+    request<T>(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(params),
     }),
 };
