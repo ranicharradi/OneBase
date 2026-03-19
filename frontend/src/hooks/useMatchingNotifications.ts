@@ -12,12 +12,13 @@ function getWsUrl(): string {
 }
 
 const MAX_RECONNECT_DELAY = 30_000;
+const MAX_RECONNECT_ATTEMPTS = 10;
 const HEARTBEAT_INTERVAL = 30_000;
 const HEARTBEAT_TIMEOUT = 10_000;
 
 /**
  * Hook that establishes a WebSocket connection for matching notifications.
- * Auto-reconnects on disconnect with exponential backoff.
+ * Auto-reconnects on disconnect with exponential backoff (up to MAX_RECONNECT_ATTEMPTS).
  *
  * @param onNotification - Callback invoked when a matching notification arrives.
  */
@@ -26,6 +27,7 @@ export function useMatchingNotifications(
 ) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectDelayRef = useRef(1000);
+  const reconnectAttemptsRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -55,6 +57,20 @@ export function useMatchingNotifications(
       }
     }
 
+    function scheduleHeartbeat(ws: WebSocket) {
+      if (heartbeatTimerRef.current) {
+        clearTimeout(heartbeatTimerRef.current);
+      }
+      heartbeatTimerRef.current = setTimeout(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send('ping');
+          heartbeatTimeoutRef.current = setTimeout(() => {
+            ws.close();
+          }, HEARTBEAT_TIMEOUT);
+        }
+      }, HEARTBEAT_INTERVAL);
+    }
+
     function connect() {
       if (!mountedRef.current) return;
 
@@ -64,43 +80,21 @@ export function useMatchingNotifications(
 
       ws.onopen = () => {
         reconnectDelayRef.current = 1000;
-
-        // Start heartbeat
-        const startHeartbeat = () => {
-          heartbeatTimerRef.current = setTimeout(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send('ping');
-              heartbeatTimeoutRef.current = setTimeout(() => {
-                ws.close();
-              }, HEARTBEAT_TIMEOUT);
-            }
-          }, HEARTBEAT_INTERVAL);
-        };
-
-        startHeartbeat();
+        reconnectAttemptsRef.current = 0;
+        scheduleHeartbeat(ws);
       };
 
       ws.onmessage = (event) => {
         try {
           const parsed = JSON.parse(event.data);
 
-          // Handle pong responses — clear heartbeat timeout
+          // Handle pong responses — clear heartbeat timeout and restart cycle
           if (parsed.type === 'pong') {
             if (heartbeatTimeoutRef.current) {
               clearTimeout(heartbeatTimeoutRef.current);
               heartbeatTimeoutRef.current = null;
             }
-            if (heartbeatTimerRef.current) {
-              clearTimeout(heartbeatTimerRef.current);
-            }
-            heartbeatTimerRef.current = setTimeout(() => {
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send('ping');
-                heartbeatTimeoutRef.current = setTimeout(() => {
-                  ws.close();
-                }, HEARTBEAT_TIMEOUT);
-              }
-            }, HEARTBEAT_INTERVAL);
+            scheduleHeartbeat(ws);
             return;
           }
 
@@ -115,8 +109,13 @@ export function useMatchingNotifications(
 
       ws.onclose = () => {
         clearTimers();
-        if (!mountedRef.current) return;
+        // Guard: only reconnect if this is still our active WebSocket
+        if (!mountedRef.current || wsRef.current !== ws) return;
 
+        // Stop reconnecting after limit
+        if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) return;
+
+        reconnectAttemptsRef.current += 1;
         const delay = reconnectDelayRef.current;
         reconnectDelayRef.current = Math.min(delay * 2, MAX_RECONNECT_DELAY);
 

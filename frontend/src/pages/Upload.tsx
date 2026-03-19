@@ -102,6 +102,8 @@ export default function Upload() {
   };
 
   const handleFileSelected = useCallback(async (file: File) => {
+    // Guard against double-submission
+    if (uploadMutation.isPending || detectColumnsMutation.isPending) return;
     setError(null);
 
     if (selectedSourceId === NEW_SOURCE_VALUE) {
