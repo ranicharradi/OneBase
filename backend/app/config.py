@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 480
     admin_username: Optional[str] = None
     admin_password: Optional[str] = None
+    environment: str = "development"
 
     # Matching engine
     matching_confidence_threshold: float = 0.45
@@ -23,6 +24,15 @@ class Settings(BaseSettings):
     matching_weight_contact: float = 0.10
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+
+def validate_production_secrets(s: Settings) -> None:
+    """Raise RuntimeError if production is running with default secrets."""
+    if s.environment == "production" and s.jwt_secret == "change-me-in-production":
+        raise RuntimeError(
+            "JWT_SECRET must be changed from default in production. "
+            "Set a strong, unique JWT_SECRET environment variable."
+        )
 
 
 settings = Settings()

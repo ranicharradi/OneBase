@@ -1,15 +1,22 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings, validate_production_secrets
 from app.database import SessionLocal
 from app.routers import auth, users, sources, upload, matching, review, unified, ws
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup/shutdown lifecycle handler."""
+    # Fail fast if production secrets are insecure
+    validate_production_secrets(settings)
+
     # Startup: create initial admin user if configured
     db = SessionLocal()
     try:
@@ -36,8 +43,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:5173"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Include routers
