@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './hooks/useAuth';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Sources from './pages/Sources';
@@ -14,11 +15,15 @@ import ReviewDetail from './pages/ReviewDetail';
 import Dashboard from './pages/Dashboard';
 import UnifiedSuppliers from './pages/UnifiedSuppliers';
 import UnifiedSupplierDetail from './pages/UnifiedSupplierDetail';
+import { ApiError } from './api/client';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: (failureCount, error) => {
+        if (error instanceof ApiError && error.status === 404) return false;
+        return failureCount < 1;
+      },
       refetchOnWindowFocus: false,
       staleTime: 30_000,
     },
@@ -29,6 +34,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <ErrorBoundary>
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -52,6 +58,7 @@ export default function App() {
             </Route>
           </Routes>
         </BrowserRouter>
+        </ErrorBoundary>
       </AuthProvider>
     </QueryClientProvider>
   );

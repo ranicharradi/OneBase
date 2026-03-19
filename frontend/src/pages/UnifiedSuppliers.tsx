@@ -146,6 +146,7 @@ export default function UnifiedSuppliers() {
           <button
             onClick={handleExport}
             disabled={isExporting}
+            aria-label="Export unified suppliers as CSV"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-500/10 text-accent-300 border border-accent-500/20 hover:bg-accent-500/20 transition-all duration-200 text-sm font-medium disabled:opacity-50"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { DashboardResponse } from '../api/types';
 
+const DASHBOARD_REFRESH_MS = 30_000;
+
 function StatCard({
   label,
   value,
@@ -105,7 +107,7 @@ export default function Dashboard() {
   const { data, isLoading, error } = useQuery<DashboardResponse>({
     queryKey: ['dashboard'],
     queryFn: () => api.get('/api/unified/dashboard'),
-    refetchInterval: 30_000,
+    refetchInterval: DASHBOARD_REFRESH_MS,
   });
 
   if (isLoading) {

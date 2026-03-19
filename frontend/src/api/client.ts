@@ -1,5 +1,6 @@
 // ── Typed API client with JWT auth ──
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const TOKEN_KEY = 'onebase_token';
 
 function getToken(): string | null {
@@ -35,7 +36,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
   });
