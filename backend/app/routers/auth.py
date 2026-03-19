@@ -20,6 +20,14 @@ def login(
     """Authenticate user and return JWT token."""
     user = authenticate_user(db, form_data.username, form_data.password)
     if user is None:
+        log_action(
+            db,
+            user_id=None,
+            action="login_failed",
+            entity_type="user",
+            details={"username": form_data.username},
+        )
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

@@ -23,4 +23,5 @@ def log_action(
         details=details,
     )
     db.add(entry)
+    db.flush()
     return entry

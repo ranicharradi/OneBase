@@ -66,12 +66,12 @@ def process_upload(self, batch_id: int):
 
         batch.matching_task_id = matching_task.id
 
-        logger.info(f"Ingestion complete for batch {batch_id}: {row_count} rows")
+        logger.info("Ingestion complete for batch %d: %d rows", batch_id, row_count)
         return {"status": "completed", "batch_id": batch_id, "row_count": row_count}
 
     except Exception as e:
         db.rollback()
-        logger.error(f"Ingestion failed for batch {batch_id}: {e}")
+        logger.error("Ingestion failed for batch %d: %s", batch_id, e)
         # Ensure batch is marked as failed
         try:
             from app.models.batch import ImportBatch
@@ -80,8 +80,8 @@ def process_upload(self, batch_id: int):
             batch.status = "failed"
             batch.error_message = str(e)
             db.commit()
-        except Exception:
-            pass
+        except Exception as mark_err:
+            logger.error("Failed to mark batch %d as failed: %s", batch_id, mark_err)
         raise
     finally:
         db.close()

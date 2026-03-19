@@ -87,8 +87,8 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
                 "matching_failed",
                 {"batch_id": batch_id, "error": str(e)},
             )
-        except Exception:
-            pass
+        except Exception as notif_err:
+            logger.warning("Failed to publish failure notification: %s", notif_err)
 
         raise
     finally:
