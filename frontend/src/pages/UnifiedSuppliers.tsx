@@ -8,30 +8,6 @@ import type { UnifiedSupplierListResponse, SingletonListResponse, DataSource } f
 
 type Tab = 'unified' | 'singletons';
 
-function _ProvenanceBadge({ isAuto, sourceEntity }: { isAuto?: boolean; sourceEntity?: string }) {
-  if (!sourceEntity) return null;
-  return (
-    <span
-      className={`
-        inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider
-        ${isAuto
-          ? 'bg-surface-800 text-surface-400 border border-white/[0.06]'
-          : 'bg-accent-500/10 text-accent-300 border border-accent-500/20'
-        }
-      `}
-      title={isAuto ? 'Auto-resolved (identical or single-source)' : 'Manually chosen during merge'}
-    >
-      {sourceEntity.length > 20 ? sourceEntity.slice(0, 18) + '…' : sourceEntity}
-      {!isAuto && (
-        <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-        </svg>
-      )}
-    </span>
-  );
-}
-void _ProvenanceBadge;
-
 function TypeBadge({ isSingleton }: { isSingleton: boolean }) {
   return (
     <span
@@ -57,6 +33,8 @@ export default function UnifiedSuppliers() {
   const [singletonSearch, setSingletonSearch] = useState('');
   const [singletonSourceId, setSingletonSourceId] = useState<string>('');
   const [selectedSingletons, setSelectedSingletons] = useState<Set<number>>(new Set());
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Unified suppliers query
   const { data: unifiedData, isLoading: unifiedLoading } = useQuery<UnifiedSupplierListResponse>({
@@ -113,11 +91,13 @@ export default function UnifiedSuppliers() {
 
   // Export
   const handleExport = async () => {
+    setIsExporting(true);
+    setExportError(null);
     try {
       const response = await fetch('/api/unified/export', {
         headers: { Authorization: `Bearer ${localStorage.getItem('onebase_token')}` },
       });
-      if (!response.ok) throw new Error('Export failed');
+      if (!response.ok) throw new Error(`Export failed (${response.status})`);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -126,8 +106,11 @@ export default function UnifiedSuppliers() {
       a.click();
       URL.revokeObjectURL(url);
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-    } catch {
-      // Error handling
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Export failed';
+      setExportError(message);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -156,15 +139,21 @@ export default function UnifiedSuppliers() {
           <h1 className="text-3xl font-display tracking-tight text-white text-glow-accent">Unified Suppliers</h1>
           <p className="text-sm text-surface-500 mt-1">Golden records with full provenance tracking</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-500/10 text-accent-300 border border-accent-500/20 hover:bg-accent-500/20 transition-all duration-200 text-sm font-medium"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-          </svg>
-          Export CSV
-        </button>
+        <div className="flex items-center gap-3">
+          {exportError && (
+            <span className="text-xs text-danger-400">{exportError}</span>
+          )}
+          <button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-500/10 text-accent-300 border border-accent-500/20 hover:bg-accent-500/20 transition-all duration-200 text-sm font-medium disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            {isExporting ? 'Exporting…' : 'Export CSV'}
+          </button>
+        </div>
       </div>
 
       {/* Tab bar */}
@@ -384,7 +373,7 @@ export default function UnifiedSuppliers() {
                     </td>
                   </tr>
                 ) : (
-                  singletonData?.items.map((s, _i) => (
+                  singletonData?.items.map((s) => (
                     <tr key={s.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
                       <td className="px-4 py-3">
                         <input

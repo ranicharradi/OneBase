@@ -1,7 +1,7 @@
 // ── WebSocket hook for matching notifications ──
 // Auto-connects with exponential backoff reconnection + heartbeat
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import type { MatchingNotification } from '../api/types';
 
 /** Derive WebSocket URL from current page location.
@@ -33,66 +33,40 @@ export function useMatchingNotifications(
   const mountedRef = useRef(true);
 
   // Keep callback ref up to date without re-triggering effect
-  onNotificationRef.current = onNotification;
+  useEffect(() => {
+    onNotificationRef.current = onNotification;
+  });
 
-  const clearTimers = useCallback(() => {
-    if (reconnectTimerRef.current) {
-      clearTimeout(reconnectTimerRef.current);
-      reconnectTimerRef.current = null;
+  useEffect(() => {
+    mountedRef.current = true;
+
+    function clearTimers() {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (heartbeatTimerRef.current) {
+        clearTimeout(heartbeatTimerRef.current);
+        heartbeatTimerRef.current = null;
+      }
+      if (heartbeatTimeoutRef.current) {
+        clearTimeout(heartbeatTimeoutRef.current);
+        heartbeatTimeoutRef.current = null;
+      }
     }
-    if (heartbeatTimerRef.current) {
-      clearTimeout(heartbeatTimerRef.current);
-      heartbeatTimerRef.current = null;
-    }
-    if (heartbeatTimeoutRef.current) {
-      clearTimeout(heartbeatTimeoutRef.current);
-      heartbeatTimeoutRef.current = null;
-    }
-  }, []);
 
-  const connect = useCallback(() => {
-    if (!mountedRef.current) return;
+    function connect() {
+      if (!mountedRef.current) return;
 
-    const url = getWsUrl();
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
+      const url = getWsUrl();
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
 
-    ws.onopen = () => {
-      // Reset reconnect delay on successful connection
-      reconnectDelayRef.current = 1000;
+      ws.onopen = () => {
+        reconnectDelayRef.current = 1000;
 
-      // Start heartbeat
-      const startHeartbeat = () => {
-        heartbeatTimerRef.current = setTimeout(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send('ping');
-
-            // Set timeout for pong response
-            heartbeatTimeoutRef.current = setTimeout(() => {
-              // No response — force reconnect
-              ws.close();
-            }, HEARTBEAT_TIMEOUT);
-          }
-        }, HEARTBEAT_INTERVAL);
-      };
-
-      startHeartbeat();
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const parsed = JSON.parse(event.data);
-
-        // Handle pong responses — clear heartbeat timeout
-        if (parsed.type === 'pong') {
-          if (heartbeatTimeoutRef.current) {
-            clearTimeout(heartbeatTimeoutRef.current);
-            heartbeatTimeoutRef.current = null;
-          }
-          // Restart heartbeat cycle
-          if (heartbeatTimerRef.current) {
-            clearTimeout(heartbeatTimerRef.current);
-          }
+        // Start heartbeat
+        const startHeartbeat = () => {
           heartbeatTimerRef.current = setTimeout(() => {
             if (ws.readyState === WebSocket.OPEN) {
               ws.send('ping');
@@ -101,38 +75,61 @@ export function useMatchingNotifications(
               }, HEARTBEAT_TIMEOUT);
             }
           }, HEARTBEAT_INTERVAL);
-          return;
+        };
+
+        startHeartbeat();
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data);
+
+          // Handle pong responses — clear heartbeat timeout
+          if (parsed.type === 'pong') {
+            if (heartbeatTimeoutRef.current) {
+              clearTimeout(heartbeatTimeoutRef.current);
+              heartbeatTimeoutRef.current = null;
+            }
+            if (heartbeatTimerRef.current) {
+              clearTimeout(heartbeatTimerRef.current);
+            }
+            heartbeatTimerRef.current = setTimeout(() => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send('ping');
+                heartbeatTimeoutRef.current = setTimeout(() => {
+                  ws.close();
+                }, HEARTBEAT_TIMEOUT);
+              }
+            }, HEARTBEAT_INTERVAL);
+            return;
+          }
+
+          // Process matching notifications
+          if (parsed.type === 'matching_complete' || parsed.type === 'matching_failed') {
+            onNotificationRef.current(parsed as MatchingNotification);
+          }
+        } catch {
+          // Ignore unparseable messages
         }
+      };
 
-        // Process matching notifications
-        if (parsed.type === 'matching_complete' || parsed.type === 'matching_failed') {
-          onNotificationRef.current(parsed as MatchingNotification);
-        }
-      } catch {
-        // Ignore unparseable messages
-      }
-    };
+      ws.onclose = () => {
+        clearTimers();
+        if (!mountedRef.current) return;
 
-    ws.onclose = () => {
-      clearTimers();
-      if (!mountedRef.current) return;
+        const delay = reconnectDelayRef.current;
+        reconnectDelayRef.current = Math.min(delay * 2, MAX_RECONNECT_DELAY);
 
-      // Reconnect with exponential backoff
-      const delay = reconnectDelayRef.current;
-      reconnectDelayRef.current = Math.min(delay * 2, MAX_RECONNECT_DELAY);
+        reconnectTimerRef.current = setTimeout(() => {
+          connect();
+        }, delay);
+      };
 
-      reconnectTimerRef.current = setTimeout(() => {
-        connect();
-      }, delay);
-    };
+      ws.onerror = () => {
+        // onerror is always followed by onclose — no action needed here
+      };
+    }
 
-    ws.onerror = () => {
-      // onerror is always followed by onclose — no action needed here
-    };
-  }, [clearTimers]);
-
-  useEffect(() => {
-    mountedRef.current = true;
     connect();
 
     return () => {
@@ -143,5 +140,5 @@ export function useMatchingNotifications(
         wsRef.current = null;
       }
     };
-  }, [connect, clearTimers]);
+  }, []);
 }
