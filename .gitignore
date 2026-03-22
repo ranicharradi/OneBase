@@ -103,6 +103,3 @@ tmp/
 !**/tests/**/*.csv
 !**/fixtures/**/*.csv
 
-# ── AI working notes ──
-missing.md
-project_files.md
