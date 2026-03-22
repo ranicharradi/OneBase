@@ -6,10 +6,10 @@ import { useAuth } from '../hooks/useAuth';
 
 function LoadingSkeleton() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-surface-950">
+    <div className="flex items-center justify-center min-h-screen">
       <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 border-2 border-accent-500/30 border-t-accent-500 rounded-full animate-spin" />
-        <span className="text-sm text-surface-500 tracking-wide uppercase">
+        <div className="w-10 h-10 border-2 border-accent-600/30 border-t-accent-600 rounded-full animate-spin" />
+        <span className="text-sm text-on-surface-variant/60 tracking-wide uppercase">
           Loading
         </span>
       </div>

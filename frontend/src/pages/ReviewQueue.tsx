@@ -1,5 +1,5 @@
 // ── Review Queue page — pending match candidates sorted by confidence ──
-// Dark Precision Editorial aesthetic — data-dense queue with atmospheric depth
+// Light glassmorphism aesthetic — data-dense queue with airy depth
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -7,25 +7,14 @@ import { useNavigate } from 'react-router';
 import { api } from '../api/client';
 import type { ReviewQueueResponse, ReviewStats, DataSource } from '../api/types';
 
-// ── Signal label formatting ──
-const _SIGNAL_LABELS: Record<string, string> = {
-  jaro_winkler: 'Jaro-Winkler',
-  token_jaccard: 'Token Jaccard',
-  embedding_cosine: 'Embedding',
-  short_name_match: 'Short Name',
-  currency_match: 'Currency',
-  contact_match: 'Contact',
-};
-void _SIGNAL_LABELS;
-
 function ConfidenceBadge({ value }: { value: number }) {
   const pct = Math.round(value * 100);
   const color =
     pct >= 85
-      ? 'text-success-400 bg-success-500/10 border-success-500/20'
+      ? 'text-success-500 bg-success-bg border-success-500/20'
       : pct >= 65
-        ? 'text-secondary-400 bg-secondary-500/10 border-secondary-500/20'
-        : 'text-danger-400 bg-danger-500/10 border-danger-500/20';
+        ? 'text-secondary-500 bg-secondary-500/10 border-secondary-500/20'
+        : 'text-danger-500 bg-danger-500/10 border-danger-500/20';
 
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 text-xs font-mono font-semibold rounded-md border ${color}`}>
@@ -36,14 +25,14 @@ function ConfidenceBadge({ value }: { value: number }) {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    pending: 'text-accent-400 bg-accent-500/10 border-accent-500/20',
-    confirmed: 'text-success-400 bg-success-500/10 border-success-500/20',
-    rejected: 'text-danger-400 bg-danger-500/10 border-danger-500/20',
-    skipped: 'text-surface-400 bg-surface-500/10 border-surface-500/20',
+    pending: 'text-accent-600 bg-accent-600/10 rounded-full text-[10px] font-bold px-4 py-1',
+    confirmed: 'text-success-500 bg-success-bg rounded-full text-[10px] font-bold px-4 py-1',
+    rejected: 'text-danger-500 bg-danger-500/10 rounded-full text-[10px] font-bold px-4 py-1',
+    skipped: 'text-outline bg-white/40 rounded-full text-[10px] font-bold px-4 py-1',
   };
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider rounded border ${styles[status] || styles.pending}`}>
+    <span className={`inline-flex items-center uppercase tracking-wider ${styles[status] || styles.pending}`}>
       {status}
     </span>
   );
@@ -86,10 +75,10 @@ export default function ReviewQueue() {
       {/* Page header */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-3xl font-display tracking-tight text-white text-glow-accent">
+          <h1 className="text-3xl font-display font-extrabold tracking-tight text-on-surface">
             Review Queue
           </h1>
-          <p className="mt-1 text-sm text-surface-500">
+          <p className="mt-1 text-sm text-on-surface-variant/60">
             Match candidates awaiting human review
           </p>
         </div>
@@ -110,10 +99,16 @@ export default function ReviewQueue() {
               className="card px-4 py-3 flex flex-col items-center gap-1"
               style={{ animationDelay: `${i * 0.05}s` }}
             >
-              <span className="text-2xl font-mono font-bold text-white">
+              <span className="text-2xl font-mono font-bold text-on-surface">
                 {stat.value}
               </span>
-              <span className={`text-[11px] font-semibold uppercase tracking-wider text-${stat.color}-400`}>
+              <span className={`text-[11px] font-semibold uppercase tracking-wider ${
+                stat.color === 'accent' ? 'text-accent-600' :
+                stat.color === 'success' ? 'text-success-500' :
+                stat.color === 'danger' ? 'text-danger-500' :
+                stat.color === 'secondary' ? 'text-secondary-500' :
+                'text-on-surface-variant'
+              }`}>
                 {stat.label}
               </span>
             </div>
@@ -126,7 +121,7 @@ export default function ReviewQueue() {
         <div className="flex flex-wrap items-end gap-4">
           {/* Status filter */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
               Status
             </label>
             <select
@@ -144,7 +139,7 @@ export default function ReviewQueue() {
 
           {/* Source filter */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
               Source Entity
             </label>
             <select
@@ -161,7 +156,7 @@ export default function ReviewQueue() {
 
           {/* Confidence range */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
               Min Confidence
             </label>
             <input
@@ -176,7 +171,7 @@ export default function ReviewQueue() {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
               Max Confidence
             </label>
             <input
@@ -192,10 +187,10 @@ export default function ReviewQueue() {
           </div>
 
           {/* Result count */}
-          <div className="ml-auto flex items-center gap-2 text-sm text-surface-500">
+          <div className="ml-auto flex items-center gap-2 text-sm text-on-surface-variant/60">
             {queue && (
               <>
-                <span className="font-mono text-accent-400">{queue.total}</span>
+                <span className="font-mono text-accent-600">{queue.total}</span>
                 <span>candidates</span>
               </>
             )}
@@ -208,7 +203,7 @@ export default function ReviewQueue() {
         {isLoading ? (
           <div className="space-y-0">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-white/[0.04]">
+              <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-on-surface/[0.06]">
                 <div className="animate-shimmer h-4 w-16 rounded" />
                 <div className="animate-shimmer h-4 w-40 rounded flex-1" />
                 <div className="animate-shimmer h-4 w-40 rounded flex-1" />
@@ -217,17 +212,17 @@ export default function ReviewQueue() {
             ))}
           </div>
         ) : !queue?.items.length ? (
-          <div className="flex flex-col items-center justify-center py-16 text-surface-500">
-            <svg className="w-12 h-12 mb-3 text-surface-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+          <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant/60">
+            <svg className="w-12 h-12 mb-3 text-outline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="text-sm font-medium">No candidates found</p>
-            <p className="text-xs mt-1 text-surface-600">Try adjusting your filters</p>
+            <p className="text-xs mt-1 text-outline">Try adjusting your filters</p>
           </div>
         ) : (
           <>
             {/* Table header */}
-            <div className="grid grid-cols-[1fr_1fr_100px_90px_80px] gap-4 px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-surface-500 border-b border-white/[0.06] bg-surface-900/50">
+            <div className="grid grid-cols-[1fr_1fr_100px_90px_80px] gap-4 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 border-b border-on-surface/5 bg-white/40">
               <span>Supplier A</span>
               <span>Supplier B</span>
               <span className="text-center">Confidence</span>
@@ -236,76 +231,78 @@ export default function ReviewQueue() {
             </div>
 
             {/* Rows */}
-            {queue.items.map((item, i) => (
-              <div
-                key={item.id}
-                className="group grid grid-cols-[1fr_1fr_100px_90px_80px] gap-4 items-center px-5 py-3.5 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors cursor-pointer"
-                style={{ animationDelay: `${i * 0.03}s` }}
-                onClick={() => navigate(`/review/${item.id}`)}
-              >
-                {/* Supplier A */}
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-200 truncate">
-                    {item.supplier_a_name || '—'}
-                  </p>
-                  {item.supplier_a_source && (
-                    <span className="text-[11px] font-mono text-surface-500">
-                      {item.supplier_a_source}
-                    </span>
-                  )}
-                </div>
+            <div className="divide-y divide-on-surface/[0.06]">
+              {queue.items.map((item, i) => (
+                <div
+                  key={item.id}
+                  className="group grid grid-cols-[1fr_1fr_100px_90px_80px] gap-4 items-center px-5 py-3.5 hover:bg-white/30 transition-colors cursor-pointer"
+                  style={{ animationDelay: `${i * 0.03}s` }}
+                  onClick={() => navigate(`/review/${item.id}`)}
+                >
+                  {/* Supplier A */}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-on-surface truncate">
+                      {item.supplier_a_name || '—'}
+                    </p>
+                    {item.supplier_a_source && (
+                      <span className="text-[11px] font-mono text-on-surface-variant/60">
+                        {item.supplier_a_source}
+                      </span>
+                    )}
+                  </div>
 
-                {/* Supplier B */}
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-200 truncate">
-                    {item.supplier_b_name || '—'}
-                  </p>
-                  {item.supplier_b_source && (
-                    <span className="text-[11px] font-mono text-surface-500">
-                      {item.supplier_b_source}
-                    </span>
-                  )}
-                </div>
+                  {/* Supplier B */}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-on-surface truncate">
+                      {item.supplier_b_name || '—'}
+                    </p>
+                    {item.supplier_b_source && (
+                      <span className="text-[11px] font-mono text-on-surface-variant/60">
+                        {item.supplier_b_source}
+                      </span>
+                    )}
+                  </div>
 
-                {/* Confidence */}
-                <div className="text-center">
-                  <ConfidenceBadge value={item.confidence} />
-                </div>
+                  {/* Confidence */}
+                  <div className="text-center">
+                    <ConfidenceBadge value={item.confidence} />
+                  </div>
 
-                {/* Status */}
-                <div className="text-center">
-                  <StatusBadge status={item.status} />
-                </div>
+                  {/* Status */}
+                  <div className="text-center">
+                    <StatusBadge status={item.status} />
+                  </div>
 
-                {/* Action */}
-                <div className="text-center">
-                  <button
-                    className="inline-flex items-center gap-1 text-xs font-medium text-accent-400 hover:text-accent-300 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/review/${item.id}`);
-                    }}
-                  >
-                    Review
-                    <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                    </svg>
-                  </button>
+                  {/* Action */}
+                  <div className="text-center">
+                    <button
+                      className="inline-flex items-center gap-1 text-xs font-medium text-accent-600 hover:text-accent-600/80 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/review/${item.id}`);
+                      }}
+                    >
+                      Review
+                      <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </>
         )}
       </div>
 
       {/* Footer status */}
       {queue && queue.total > 0 && (
-        <div className="flex items-center justify-between px-1 text-xs text-surface-600">
+        <div className="flex items-center justify-between px-1 text-xs text-outline">
           <span>
             Showing {queue.items.length} of {queue.total} candidates
           </span>
           {queue.has_more && (
-            <span className="text-surface-500">
+            <span className="text-on-surface-variant/60">
               Scroll or adjust filters to see more
             </span>
           )}

@@ -25,17 +25,33 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
         from app.models.batch import ImportBatch
         from app.services.matching import run_matching_pipeline
 
-        # Store matching task ID on batch
+        # Store matching task ID on batch — commit immediately so it
+        # survives pipeline rollback and the status endpoint can always
+        # find the matching task.
         batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
         batch.matching_task_id = self.request.id
-        db.flush()
+        db.commit()
 
-        # Progress callback for Celery state updates
+        # Progress callback for Celery state updates + WebSocket push
         def progress_callback(stage: str, pct: int):
             self.update_state(
                 state=stage.upper(),
                 meta={"stage": stage, "progress": pct},
             )
+            # Push progress to Dashboard via WebSocket
+            try:
+                from app.services.notifications import publish_notification
+
+                publish_notification(
+                    "matching_progress",
+                    {
+                        "batch_id": batch_id,
+                        "stage": stage,
+                        "progress": pct,
+                    },
+                )
+            except Exception:
+                pass  # never block matching on notification failure
 
         # Run the pipeline
         stats = run_matching_pipeline(

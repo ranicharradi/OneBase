@@ -24,8 +24,8 @@ type UploadState =
   | { step: 'DROP_FILE' }
   | { step: 'DETECTING'; file: File }
   | { step: 'MATCHED'; file: File; fileRef: string; match: SourceMatch; allMatches: SourceMatch[] }
-  | { step: 'PICK_SOURCE'; file: File; fileRef: string; matches: SourceMatch[]; columns: string[] }
-  | { step: 'MAP_COLUMNS'; file: File; fileRef: string; columns: string[]; suggestedName: string; guessedMapping?: GuessMappingResponse }
+  | { step: 'PICK_SOURCE'; file: File; fileRef: string; matches: SourceMatch[]; columns: string[]; detectedDelimiter?: string }
+  | { step: 'MAP_COLUMNS'; file: File; fileRef: string; columns: string[]; suggestedName: string; guessedMapping?: GuessMappingResponse; detectedDelimiter?: string }
   | { step: 'PROCESSING'; taskId: string };
 
 export default function Upload() {
@@ -134,6 +134,7 @@ export default function Upload() {
             columns: result.detected_columns,
             suggestedName: result.suggested_name,
             guessedMapping,
+            detectedDelimiter: result.detected_delimiter,
           });
           return;
         }
@@ -144,6 +145,7 @@ export default function Upload() {
           fileRef: result.file_ref,
           matches: result.matches,
           columns: result.detected_columns,
+          detectedDelimiter: result.detected_delimiter,
         });
         return;
       }
@@ -166,6 +168,7 @@ export default function Upload() {
           fileRef: result.file_ref,
           matches: result.matches,
           columns: result.detected_columns,
+          detectedDelimiter: result.detected_delimiter,
         });
       }
     } catch (err) {
@@ -454,6 +457,7 @@ export default function Upload() {
                         columns: cols,
                         suggestedName,
                         guessedMapping,
+                        detectedDelimiter: state.detectedDelimiter,
                       });
                     };
 
@@ -504,6 +508,7 @@ export default function Upload() {
               isSubmitting={createSourceMutation.isPending || uploadWithFileMutation.isPending}
               initialSourceName={uploadState.suggestedName}
               guessedMapping={uploadState.guessedMapping}
+              detectedDelimiter={uploadState.detectedDelimiter}
             />
             <div className="flex justify-center mt-4">
               <button

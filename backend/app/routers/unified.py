@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, case, and_, or_
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user

@@ -44,19 +44,21 @@ def process_upload(self, batch_id: int):
         from app.tasks.matching import run_matching
         from app.models.staging import StagedSupplier
 
-        # Check if there are existing active suppliers for this data source
-        # from a prior batch (not this one)
-        prior_active_count = (
+        # Check if there are superseded suppliers for this data source
+        # from a prior batch — indicates a re-upload scenario.
+        # (Ingestion already marks old records as "superseded", so checking
+        # "active" would always return 0 here.)
+        prior_superseded_count = (
             db.query(StagedSupplier)
             .filter(
                 StagedSupplier.data_source_id == batch.data_source_id,
                 StagedSupplier.import_batch_id != batch.id,
-                StagedSupplier.status == "active",
+                StagedSupplier.status == "superseded",
             )
             .count()
         )
 
-        if prior_active_count > 0:
+        if prior_superseded_count > 0:
             # Re-upload: invalidate old candidates for this source
             matching_task = run_matching.delay(
                 batch_id, invalidate_source_id=batch.data_source_id
@@ -65,6 +67,7 @@ def process_upload(self, batch_id: int):
             matching_task = run_matching.delay(batch_id)
 
         batch.matching_task_id = matching_task.id
+        db.commit()  # Persist matching_task_id so status endpoint can track matching
 
         logger.info("Ingestion complete for batch %d: %d rows", batch_id, row_count)
         return {"status": "completed", "batch_id": batch_id, "row_count": row_count}

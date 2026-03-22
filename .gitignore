@@ -50,14 +50,19 @@ htmlcov/
 .coverage.*
 coverage.xml
 
+# ── Celery / Redis runtime ──
+celerybeat-schedule*
+dump.rdb
+
 # ── Test artifacts ──
 backend/test.db
 backend/test.db-wal
 backend/test.db-shm
 
-# ── Uploads (runtime data) ──
+# ── Uploads & local data ──
 backend/uploads/
 backend/data/uploads/
+data/
 
 # ── Design assets (not source) ──
 frontend/mockup-design.html
@@ -78,17 +83,26 @@ build/
 target/
 vendor/
 
-# ── GSD: Runtime / Ephemeral (per-developer, per-session) ──
-.gsd/auto.lock
-.gsd/completed-units.json
-.gsd/STATE.md
-.gsd/metrics.json
-.gsd/activity/
-.gsd/runtime/
-.gsd/worktrees/
-.gsd/milestones/**/continue.md
-.gsd/milestones/**/*-CONTINUE.md
+# ── Browser automation (Playwright CLI) ──
+.playwright-cli/
 
-# ── Other tools ──
+# ── GSD: All per-developer agent workflow data ──
+.gsd/
+
+# ── AI agent / tool runtime dirs ──
 .opencode/
+.superpowers/
+.bg-shell/
+.claude/
+.agents/runtime/
+docs/superpowers/
 tmp/
+
+# ── Local data / sample files (not source) ──
+*.csv
+!**/tests/**/*.csv
+!**/fixtures/**/*.csv
+
+# ── AI working notes ──
+missing.md
+project_files.md

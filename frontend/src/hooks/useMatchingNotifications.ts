@@ -138,7 +138,17 @@ export function useMatchingNotifications(
       mountedRef.current = false;
       clearTimers();
       if (wsRef.current) {
-        wsRef.current.close();
+        // Only close if the connection is open/established — avoid
+        // "WebSocket is closed before the connection is established"
+        // warnings from React Strict Mode double-mount cleanup.
+        if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CLOSING) {
+          wsRef.current.close();
+        } else {
+          // Still CONNECTING — attach a one-shot handler to close after open
+          const ws = wsRef.current;
+          ws.onopen = () => ws.close();
+          ws.onerror = () => {};
+        }
         wsRef.current = null;
       }
     };

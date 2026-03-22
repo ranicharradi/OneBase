@@ -8,11 +8,21 @@
     <!-- Font preconnects -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Display font: Instrument Serif — editorial elegance for headings -->
-    <!-- Body font: Outfit — geometric warmth for interface text -->
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Display font: Manrope — bold geometric for headlines -->
+    <!-- Body font: Inter — clean geometric for interface text -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- Material Symbols Outlined — icon system -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   </head>
-  <body class="bg-[#080c14] text-gray-100 antialiased">
+  <body class="text-on-surface antialiased">
+    <!-- Prevent flash of wrong theme before React hydrates -->
+    <script>
+      (function() {
+        var t = localStorage.getItem('onebase_theme');
+        if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

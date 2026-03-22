@@ -1,269 +1,471 @@
-// ── Dashboard — operational overview with stats and activity feed ──
+// ── Dashboard — Pipeline View ──
+// Hero progress ring · pipeline stage cards · contextual next actions
 
+import { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router';
 import { api } from '../api/client';
-import type { DashboardResponse } from '../api/types';
+import type { DashboardResponse, MatchingNotification } from '../api/types';
+import { useMatchingNotifications } from '../hooks/useMatchingNotifications';
 
-const DASHBOARD_REFRESH_MS = 30_000;
+const REFRESH_MS = 30_000;
 
-function StatCard({
+// ── Types ──────────────────────────────────────────────────────────────
+
+interface MatchProgress {
+  stage: string;
+  progress: number;
+}
+
+interface NextAction {
+  key: string;
+  variant: 'danger' | 'warn' | 'info';
+  icon: string;
+  title: string;
+  detail: string;
+  to: string;
+  cta: string;
+}
+
+type DotColor = 'green' | 'yellow' | 'red' | 'accent';
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+const DOT_COLORS: Record<DotColor, string> = {
+  green: 'bg-success-500',
+  yellow: 'bg-warning-500',
+  red: 'bg-danger-500',
+  accent: 'bg-accent-500',
+};
+
+const ACTION_VARIANTS: Record<string, { bg: string; iconBg: string; iconColor: string }> = {
+  danger: {
+    bg: 'bg-danger-500/[0.06] hover:bg-danger-500/[0.12]',
+    iconBg: 'bg-danger-500/[0.12]',
+    iconColor: 'text-danger-500',
+  },
+  warn: {
+    bg: 'bg-warning-500/[0.06] hover:bg-warning-500/[0.12]',
+    iconBg: 'bg-warning-500/[0.12]',
+    iconColor: 'text-warning-500',
+  },
+  info: {
+    bg: 'bg-accent-500/[0.06] hover:bg-accent-500/[0.12]',
+    iconBg: 'bg-accent-500/[0.12]',
+    iconColor: 'text-accent-500',
+  },
+};
+
+function deriveActions(d: DashboardResponse): NextAction[] {
+  const out: NextAction[] = [];
+
+  if (d.uploads.failed > 0) {
+    out.push({
+      key: 'failed-uploads',
+      variant: 'danger',
+      icon: 'error',
+      title: `Resolve ${d.uploads.failed} failed upload${d.uploads.failed !== 1 ? 's' : ''}`,
+      detail: 'Check column mappings and file format',
+      to: '/upload',
+      cta: 'View uploads',
+    });
+  }
+
+  if (d.review.pending > 0) {
+    const done = d.review.confirmed + d.review.rejected;
+    out.push({
+      key: 'pending-review',
+      variant: 'warn',
+      icon: 'rate_review',
+      title: `Review ${d.review.pending} match candidate${d.review.pending !== 1 ? 's' : ''}`,
+      detail: done > 0
+        ? `${done} already reviewed \u2014 keep going`
+        : 'Confirm or reject potential supplier matches',
+      to: '/review',
+      cta: 'Start reviewing',
+    });
+  }
+
+  if (d.unified.total_unified > 0) {
+    out.push({
+      key: 'view-unified',
+      variant: 'info',
+      icon: 'download',
+      title: `Export ${d.unified.total_unified.toLocaleString()} unified records`,
+      detail: `${d.unified.merged} merged \u00b7 ${d.unified.singletons} singletons`,
+      to: '/unified',
+      cta: 'View records',
+    });
+  }
+
+  return out.slice(0, 3);
+}
+
+// ── Progress Ring ──────────────────────────────────────────────────────
+
+const RING_R = 44;
+const RING_C = 2 * Math.PI * RING_R;
+
+function ProgressRing({
+  pct,
+  unified,
+  total,
+}: {
+  pct: number;
+  unified: number;
+  total: number;
+}) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const dash = ready ? (pct / 100) * RING_C : 0;
+
+  return (
+    <div className="card rounded-2xl p-7 flex flex-col items-center justify-center gap-2 min-w-[210px]">
+      <svg
+        width="120"
+        height="120"
+        viewBox="0 0 120 120"
+        role="img"
+        aria-label={`${pct}% unified`}
+      >
+        <defs>
+          <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style={{ stopColor: 'var(--color-accent-600)' }} />
+            <stop offset="100%" style={{ stopColor: 'var(--color-accent-300)' }} />
+          </linearGradient>
+        </defs>
+        {/* Track */}
+        <circle
+          cx="60" cy="60" r={RING_R}
+          fill="none" strokeWidth="7"
+          style={{ stroke: 'var(--ring-track)' }}
+        />
+        {/* Arc */}
+        <circle
+          cx="60" cy="60" r={RING_R}
+          fill="none" stroke="url(#ring-grad)" strokeWidth="7"
+          strokeDasharray={`${dash} ${RING_C}`}
+          strokeLinecap="round"
+          transform="rotate(-90 60 60)"
+          style={{
+            transition: 'stroke-dasharray 1.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            filter: 'drop-shadow(0 0 6px color-mix(in srgb, var(--color-accent-500) 40%, transparent))',
+          }}
+        />
+        {/* Percentage */}
+        <text
+          x="60" y="55"
+          textAnchor="middle" dominantBaseline="central"
+          style={{
+            fontSize: 28,
+            fontWeight: 800,
+            fontFamily: 'var(--font-display)',
+            fill: 'var(--color-on-surface)',
+          }}
+        >
+          {pct}%
+        </text>
+        {/* Label */}
+        <text
+          x="60" y="74"
+          textAnchor="middle" dominantBaseline="central"
+          style={{
+            fontSize: 10,
+            fontWeight: 500,
+            fill: 'var(--color-on-surface-variant)',
+            opacity: 0.6,
+          }}
+        >
+          unified
+        </text>
+      </svg>
+      <p className="text-xs text-on-surface-variant/60 text-center">
+        {total > 0
+          ? `${unified.toLocaleString()} / ${total.toLocaleString()} suppliers`
+          : 'Upload files to get started'}
+      </p>
+    </div>
+  );
+}
+
+// ── Pipeline Card ──────────────────────────────────────────────────────
+
+function PipelineCard({
+  dot,
+  pulse,
   label,
   value,
-  accent = false,
-  icon,
   sub,
+  delay,
+  children,
 }: {
+  dot: DotColor;
+  pulse?: boolean;
   label: string;
-  value: number | string;
-  accent?: boolean;
-  icon: React.ReactNode;
+  value: string;
   sub?: string;
+  delay?: number;
+  children?: React.ReactNode;
 }) {
   return (
     <div
-      className={`
-        relative overflow-hidden rounded-xl border p-5
-        ${accent
-          ? 'bg-accent-500/[0.06] border-accent-500/20 glow-accent'
-          : 'bg-surface-900/60 border-white/[0.06]'
-        }
-        transition-all duration-300 hover:border-white/[0.1] hover:bg-surface-900/80
-      `}
+      className="card card-hover p-4 flex flex-col justify-center rounded-xl animate-fadeIn"
+      style={delay ? { animationDelay: `${delay}s` } : undefined}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-surface-500 mb-1.5">
-            {label}
-          </p>
-          <p className={`text-3xl font-display tracking-tight ${accent ? 'text-accent-300 text-glow-accent' : 'text-white'}`}>
-            {value}
-          </p>
-          {sub && (
-            <p className="text-xs text-surface-500 mt-1">{sub}</p>
-          )}
-        </div>
-        <div className={`p-2.5 rounded-lg ${accent ? 'bg-accent-500/10 text-accent-400' : 'bg-white/[0.04] text-surface-500'}`}>
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProgressBar({
-  label,
-  value,
-  total,
-  color,
-}: {
-  label: string;
-  value: number;
-  total: number;
-  color: string;
-}) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-surface-500 w-20 text-right font-medium">{label}</span>
-      <div className="flex-1 h-2 rounded-full bg-surface-800 overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-700 ease-out ${color}`}
-          style={{ width: `${pct}%` }}
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <span
+          className={`w-2 h-2 rounded-full flex-shrink-0 ${DOT_COLORS[dot]} ${pulse ? 'animate-pulse-glow' : ''}`}
         />
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant/60">
+          {label}
+        </span>
       </div>
-      <span className="text-xs font-mono text-surface-400 w-14 text-right">{value} <span className="text-surface-600">({pct}%)</span></span>
+      <p className="text-[22px] font-display font-extrabold tracking-tight text-on-surface leading-tight">
+        {value}
+      </p>
+      {sub && (
+        <p className="text-[11px] text-on-surface-variant/60 mt-0.5">{sub}</p>
+      )}
+      {children}
     </div>
   );
 }
 
-const ACTION_LABELS: Record<string, { label: string; color: string }> = {
-  merge_confirmed: { label: 'Merge confirmed', color: 'text-success-400' },
-  match_rejected: { label: 'Match rejected', color: 'text-danger-400' },
-  match_skipped: { label: 'Match skipped', color: 'text-secondary-400' },
-  singleton_promoted: { label: 'Singleton promoted', color: 'text-accent-400' },
-  unified_exported: { label: 'Data exported', color: 'text-accent-300' },
-  file_uploaded: { label: 'File uploaded', color: 'text-success-400' },
-  upload_completed: { label: 'Upload completed', color: 'text-success-400' },
-  source_created: { label: 'Source created', color: 'text-accent-400' },
-  source_updated: { label: 'Source updated', color: 'text-accent-400' },
-  user_created: { label: 'User created', color: 'text-accent-400' },
-};
+// ── Matching Progress Bar ──────────────────────────────────────────────
 
-function formatTimeAgo(dateStr: string | null): string {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  return `${diffDay}d ago`;
+function MatchingBar({ progress }: { progress: number }) {
+  return (
+    <>
+      <p className="text-[11px] text-accent-600 font-semibold mt-1.5">
+        {progress}% complete
+      </p>
+      <div className="h-1.5 rounded-full bg-white/30 overflow-hidden mt-2">
+        <div
+          className="h-full rounded-full relative overflow-hidden"
+          style={{
+            width: `${progress}%`,
+            transition: 'width 0.6s ease-out',
+            background: 'linear-gradient(90deg, var(--color-accent-600), var(--color-accent-300))',
+          }}
+        >
+          <div className="absolute inset-0 animate-shimmer" />
+        </div>
+      </div>
+    </>
+  );
 }
+
+// ── Action Item ────────────────────────────────────────────────────────
+
+function ActionItem({ action, delay }: { action: NextAction; delay?: number }) {
+  const s = ACTION_VARIANTS[action.variant];
+  return (
+    <Link
+      to={action.to}
+      className={`
+        group flex items-center justify-between px-4 py-3.5 rounded-xl
+        transition-all duration-200 hover:translate-x-0.5
+        ${s.bg} animate-fadeIn
+      `}
+      style={delay ? { animationDelay: `${delay}s` } : undefined}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${s.iconBg}`}>
+          <span className={`material-symbols-outlined text-lg ${s.iconColor}`}>
+            {action.icon}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[13px] font-bold text-on-surface truncate">
+            {action.title}
+          </p>
+          <p className="text-[11px] text-on-surface-variant/60 mt-px truncate">
+            {action.detail}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-1 text-accent-600 text-xs font-semibold opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-4">
+        {action.cta}
+        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+      </div>
+    </Link>
+  );
+}
+
+// ── Loading Skeleton ───────────────────────────────────────────────────
+
+function Skeleton() {
+  return (
+    <div className="space-y-5 animate-fadeIn">
+      <div className="flex flex-col lg:flex-row gap-5">
+        <div className="w-full lg:w-[210px] h-[210px] rounded-2xl bg-white/30 border border-on-surface/5 animate-pulse" />
+        <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-[110px] rounded-xl bg-white/30 border border-on-surface/5 animate-pulse"
+              style={{ animationDelay: `${i * 0.1}s` }}
+            />
+          ))}
+        </div>
+      </div>
+      <div
+        className="h-44 rounded-2xl bg-white/30 border border-on-surface/5 animate-pulse"
+        style={{ animationDelay: '0.3s' }}
+      />
+    </div>
+  );
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const { data, isLoading, error } = useQuery<DashboardResponse>({
     queryKey: ['dashboard'],
     queryFn: () => api.get('/api/unified/dashboard'),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: REFRESH_MS,
   });
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-fadeIn">
-        <div className="flex items-baseline gap-4">
-          <h1 className="text-3xl font-display tracking-tight text-white text-glow-accent">Dashboard</h1>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-28 rounded-xl bg-surface-900/60 border border-white/[0.06] animate-pulse" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const [matchProgress, setMatchProgress] = useState<MatchProgress | null>(null);
+
+  useMatchingNotifications(
+    useCallback((n: MatchingNotification) => {
+      if (n.type === 'matching_progress') {
+        setMatchProgress({
+          stage: n.data.stage ?? 'Processing',
+          progress: n.data.progress ?? 0,
+        });
+      } else if (n.type === 'matching_complete' || n.type === 'matching_failed') {
+        setMatchProgress(null);
+      }
+    }, []),
+  );
+
+  // ── States ──
+
+  if (isLoading) return <Skeleton />;
 
   if (error || !data) {
     return (
-      <div className="text-center py-20">
-        <p className="text-danger-400">
-          {error instanceof Error ? error.message : 'Failed to load dashboard data'}
+      <div className="flex flex-col items-center justify-center py-20 animate-fadeIn">
+        <span className="material-symbols-outlined text-4xl text-danger-500/60 mb-3">
+          cloud_off
+        </span>
+        <p className="text-sm font-medium text-danger-500">
+          {error instanceof Error ? error.message : 'Failed to load dashboard'}
         </p>
       </div>
     );
   }
 
-  const { uploads, matching, review, unified, recent_activity } = data;
-  const reviewTotal = review.pending + review.confirmed + review.rejected + review.skipped;
+  // ── Derived values ──
+
+  const { uploads, matching, review, unified } = data;
+  const pct = uploads.total_staged > 0
+    ? Math.round((unified.total_unified / uploads.total_staged) * 100)
+    : 0;
+  const actions = deriveActions(data);
+  const isMatchRunning = matchProgress !== null;
 
   return (
-    <div className="space-y-8 animate-fadeIn">
-      {/* Header */}
-      <div className="flex items-baseline gap-4">
-        <h1 className="text-3xl font-display tracking-tight text-white text-glow-accent">Dashboard</h1>
-        <span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Operational Overview</span>
-      </div>
+    <div className="space-y-5 animate-fadeIn">
+      {/* ── Hero: Ring + Pipeline Cards ── */}
+      <div className="flex flex-col lg:flex-row gap-5 items-stretch">
+        <ProgressRing
+          pct={pct}
+          unified={unified.total_unified}
+          total={uploads.total_staged}
+        />
 
-      {/* Top stats row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Staged Suppliers"
-          value={uploads.total_staged.toLocaleString()}
-          sub={`${uploads.completed} uploads completed`}
-          icon={
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375" />
-            </svg>
-          }
-        />
-        <StatCard
-          label="Match Candidates"
-          value={matching.total_candidates.toLocaleString()}
-          sub={`${matching.total_groups} groups${matching.avg_confidence ? ` · avg ${(matching.avg_confidence * 100).toFixed(0)}%` : ''}`}
-          icon={
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-            </svg>
-          }
-        />
-        <StatCard
-          label="Pending Review"
-          value={review.pending}
-          sub={reviewTotal > 0 ? `${review.confirmed + review.rejected} reviewed` : 'No candidates yet'}
-          icon={
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-        />
-        <StatCard
-          label="Unified Records"
-          value={unified.total_unified}
-          accent
-          sub={`${unified.merged} merged · ${unified.singletons} singletons`}
-          icon={
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
-            </svg>
-          }
-        />
-      </div>
+        <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* Ingestion */}
+          <PipelineCard
+            dot={uploads.failed > 0 ? 'red' : 'green'}
+            label="Ingestion"
+            value={uploads.failed > 0 ? `${uploads.failed} failed` : 'Healthy'}
+            sub={`${uploads.completed} upload${uploads.completed !== 1 ? 's' : ''} completed`}
+            delay={0.05}
+          />
 
-      {/* Middle row: Review Progress + Upload Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Review progress */}
-        <div className="rounded-xl border border-white/[0.06] bg-surface-900/60 p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-surface-500 mb-5">Review Progress</h2>
-          {reviewTotal === 0 ? (
-            <p className="text-sm text-surface-500 italic">No match candidates to review yet</p>
-          ) : (
-            <div className="space-y-3">
-              <ProgressBar label="Confirmed" value={review.confirmed} total={reviewTotal} color="bg-success-500" />
-              <ProgressBar label="Rejected" value={review.rejected} total={reviewTotal} color="bg-danger-500" />
-              <ProgressBar label="Skipped" value={review.skipped} total={reviewTotal} color="bg-secondary-500" />
-              <ProgressBar label="Pending" value={review.pending} total={reviewTotal} color="bg-surface-500" />
-            </div>
-          )}
+          {/* Matching */}
+          <PipelineCard
+            dot={isMatchRunning ? 'accent' : 'green'}
+            pulse={isMatchRunning}
+            label="Matching"
+            value={isMatchRunning ? `${matchProgress.stage}\u2026` : 'Idle'}
+            sub={
+              isMatchRunning
+                ? undefined
+                : matching.avg_confidence
+                  ? `Avg ${(matching.avg_confidence * 100).toFixed(0)}% confidence`
+                  : 'No matches yet'
+            }
+            delay={0.1}
+          >
+            {isMatchRunning && <MatchingBar progress={matchProgress.progress} />}
+          </PipelineCard>
+
+          {/* Review */}
+          <PipelineCard
+            dot={review.pending > 0 ? 'yellow' : 'green'}
+            label="Review"
+            value={String(review.pending)}
+            sub={review.pending > 0 ? 'pending review' : 'all reviewed'}
+            delay={0.15}
+          />
+
+          {/* Unified */}
+          <PipelineCard
+            dot="accent"
+            label="Unified"
+            value={unified.total_unified.toLocaleString()}
+            sub={`${unified.merged} merged \u00b7 ${unified.singletons} singletons`}
+            delay={0.2}
+          />
         </div>
+      </div>
 
-        {/* Upload stats */}
-        <div className="rounded-xl border border-white/[0.06] bg-surface-900/60 p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-surface-500 mb-5">Upload Summary</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center p-4 rounded-lg bg-surface-800/40 border border-white/[0.04]">
-              <p className="text-2xl font-display text-white">{uploads.total_batches}</p>
-              <p className="text-[11px] text-surface-500 uppercase tracking-wider mt-1">Total Uploads</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-surface-800/40 border border-white/[0.04]">
-              <p className="text-2xl font-display text-success-400">{uploads.completed}</p>
-              <p className="text-[11px] text-surface-500 uppercase tracking-wider mt-1">Completed</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-surface-800/40 border border-white/[0.04]">
-              <p className="text-2xl font-display text-danger-400">{uploads.failed}</p>
-              <p className="text-[11px] text-surface-500 uppercase tracking-wider mt-1">Failed</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-surface-800/40 border border-white/[0.04]">
-              <p className="text-2xl font-display text-accent-300">{uploads.total_staged.toLocaleString()}</p>
-              <p className="text-[11px] text-surface-500 uppercase tracking-wider mt-1">Staged Records</p>
-            </div>
+      {/* ── Next Actions ── */}
+      <div className="card p-5 rounded-2xl animate-fadeIn" style={{ animationDelay: '0.15s' }}>
+        <h2 className="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant/60 mb-3.5">
+          Suggested next steps
+        </h2>
+
+        {actions.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            {actions.map((a, i) => (
+              <ActionItem key={a.key} action={a} delay={0.2 + i * 0.05} />
+            ))}
           </div>
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="rounded-xl border border-white/[0.06] bg-surface-900/60 p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-surface-500 mb-5">Recent Activity</h2>
-        {recent_activity.length === 0 ? (
-          <p className="text-sm text-surface-500 italic">No activity recorded yet</p>
+        ) : uploads.total_staged === 0 ? (
+          /* Empty state — no data yet */
+          <div className="flex flex-col items-center py-8">
+            <span className="material-symbols-outlined text-4xl text-accent-500/40 mb-2">
+              cloud_upload
+            </span>
+            <p className="text-sm font-semibold text-on-surface">Get started</p>
+            <p className="text-xs text-on-surface-variant/60 mt-1 mb-4">
+              Upload your first supplier CSV to begin unifying your data.
+            </p>
+            <Link to="/upload" className="btn-primary text-xs">
+              Upload a file
+            </Link>
+          </div>
         ) : (
-          <div className="space-y-0">
-            {recent_activity.map((entry, i) => {
-              const actionInfo = ACTION_LABELS[entry.action] || { label: entry.action, color: 'text-surface-400' };
-              return (
-                <div
-                  key={entry.id}
-                  className="flex items-center gap-4 py-3 border-b border-white/[0.04] last:border-0"
-                  style={{ animationDelay: `${i * 0.03}s` }}
-                >
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${actionInfo.color.replace('text-', 'bg-')}`} />
-                  <span className={`text-sm font-medium ${actionInfo.color}`}>{actionInfo.label}</span>
-                  {entry.details && (
-                    <span className="text-xs text-surface-500 truncate">
-                      {entry.details.supplier_name
-                        ? String(entry.details.supplier_name)
-                        : entry.details.unified_supplier_name
-                          ? String(entry.details.unified_supplier_name)
-                          : entry.details.count
-                            ? `${entry.details.count} records`
-                            : ''}
-                    </span>
-                  )}
-                  <span className="ml-auto text-[11px] text-surface-600 flex-shrink-0">{formatTimeAgo(entry.created_at)}</span>
-                </div>
-              );
-            })}
+          /* All clear — nothing needs attention */
+          <div className="flex flex-col items-center py-8">
+            <span className="material-symbols-outlined text-4xl text-success-500/70 mb-2">
+              check_circle
+            </span>
+            <p className="text-sm font-semibold text-on-surface">All caught up!</p>
+            <p className="text-xs text-on-surface-variant/60 mt-1">
+              All suppliers are unified and reviewed. Nice work.
+            </p>
           </div>
         )}
       </div>

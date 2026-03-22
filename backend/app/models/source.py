@@ -13,4 +13,5 @@ class DataSource(Base):
     delimiter = Column(String(5), default=";")
     column_mapping = Column(JSON, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+    filename_pattern = Column(String(255), nullable=True, default=None)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

@@ -24,6 +24,7 @@ export interface DataSource {
   file_format: string;
   delimiter: string;
   column_mapping: ColumnMapping;
+  filename_pattern: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +35,7 @@ export interface DataSourceCreate {
   file_format?: string;
   delimiter?: string;
   column_mapping: ColumnMapping;
+  filename_pattern?: string;
 }
 
 export interface UserCreate {
@@ -71,19 +73,56 @@ export interface TaskStatus {
   row_count: number | null;
 }
 
-export interface ColumnDetectResponse {
-  columns: string[];
+// ── Source matching types (upload-first flow) ──
+
+export interface SourceMatch {
+  source_id: number;
+  source_name: string;
+  column_match: boolean;
+  filename_match: boolean;
+  data_overlap_pct: number;
+  sample_size: number;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface SourceMatchResponse {
+  filename: string;
+  file_ref: string;
+  detected_columns: string[];
+  detected_delimiter: string;
+  matches: SourceMatch[];
+  suggested_source_id: number | null;
+  suggested_name: string;
+}
+
+// ── Column guess types (auto-mapping) ──
+
+export interface FieldGuess {
+  column: string | null;
+  confidence: number;
+}
+
+export interface GuessMappingResponse {
+  supplier_name: FieldGuess;
+  supplier_code: FieldGuess;
+  short_name: FieldGuess;
+  currency: FieldGuess;
+  payment_terms: FieldGuess;
+  contact_name: FieldGuess;
+  supplier_type: FieldGuess;
 }
 
 // ── Matching notification types (WebSocket) ──
 
 export interface MatchingNotification {
-  type: 'matching_complete' | 'matching_failed';
+  type: 'matching_complete' | 'matching_failed' | 'matching_progress';
   data: {
     batch_id: number;
     candidate_count?: number;
     group_count?: number;
     error?: string;
+    stage?: string;
+    progress?: number;
   };
   timestamp: string;
 }

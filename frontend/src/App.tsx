@@ -3,6 +3,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './hooks/useAuth';
+import { ThemeProvider } from './hooks/useTheme';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
@@ -32,6 +33,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
+    <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ErrorBoundary>
@@ -61,5 +63,6 @@ export default function App() {
         </ErrorBoundary>
       </AuthProvider>
     </QueryClientProvider>
+    </ThemeProvider>
   );
 }

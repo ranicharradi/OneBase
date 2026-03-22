@@ -1,5 +1,5 @@
-// ── Toast notification system — Dark Precision Editorial ──
-// Glass-morphic toasts with glow accents, slide-up animation, auto-dismiss
+// ── Toast notification system — Light Glassmorphism ──
+// Glass-morphic toasts with subtle accents, slide-up animation, auto-dismiss
 
 import { useEffect, useState, useCallback } from 'react';
 
@@ -25,8 +25,8 @@ function Toast({ id, type, message, detail, action, autoDismiss, onDismiss }: To
   }, [id, onDismiss]);
 
   useEffect(() => {
-    // Auto-dismiss: success/info after autoDismiss or 8000ms; errors don't auto-dismiss
-    const timeout = autoDismiss ?? (type === 'error' ? 0 : 8000);
+    const TOAST_DISMISS_MS = 8000;
+    const timeout = autoDismiss ?? (type === 'error' ? 0 : TOAST_DISMISS_MS);
     if (timeout <= 0) return;
 
     const timer = setTimeout(dismiss, timeout);
@@ -38,48 +38,40 @@ function Toast({ id, type, message, detail, action, autoDismiss, onDismiss }: To
       ? 'border-success-500/25'
       : type === 'error'
         ? 'border-danger-500/25'
-        : 'border-accent-500/25';
+        : 'border-accent-600/25';
 
-  const glowColor =
+  const shadowColor =
     type === 'success'
       ? 'shadow-success-500/10'
       : type === 'error'
         ? 'shadow-danger-500/10'
-        : 'shadow-accent-500/10';
+        : 'shadow-accent-600/10';
 
   const iconColor =
     type === 'success'
-      ? 'text-success-400'
+      ? 'text-success-500'
       : type === 'error'
-        ? 'text-danger-400'
-        : 'text-accent-400';
+        ? 'text-danger-500'
+        : 'text-accent-600';
 
   const iconBg =
     type === 'success'
-      ? 'bg-success-500/15 border-success-500/25'
+      ? 'bg-success-500/10 border-success-500/20'
       : type === 'error'
-        ? 'bg-danger-500/15 border-danger-500/25'
-        : 'bg-accent-500/15 border-accent-500/25';
+        ? 'bg-danger-500/10 border-danger-500/20'
+        : 'bg-accent-600/10 border-accent-600/20';
 
   return (
     <div
       className={`
         relative flex items-start gap-3 w-[380px] max-w-[calc(100vw-2rem)]
-        glass rounded-xl border ${borderColor}
-        px-4 py-3.5 shadow-lg ${glowColor}
+        bg-white/45 backdrop-blur-[40px] rounded-xl border ${borderColor}
+        px-4 py-3.5 shadow-lg ${shadowColor}
         transition-all duration-300
         ${exiting ? 'opacity-0 translate-y-2 scale-95' : 'animate-slideUp'}
       `}
       role="alert"
     >
-      {/* Ambient glow behind toast */}
-      <div
-        className={`
-          absolute -top-6 left-1/2 -translate-x-1/2 w-32 h-12 rounded-full blur-3xl pointer-events-none
-          ${type === 'success' ? 'bg-success-500/10' : type === 'error' ? 'bg-danger-500/10' : 'bg-accent-500/10'}
-        `}
-      />
-
       {/* Icon */}
       <div className={`relative flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg border ${iconBg}`}>
         {type === 'success' ? (
@@ -99,18 +91,18 @@ function Toast({ id, type, message, detail, action, autoDismiss, onDismiss }: To
 
       {/* Content */}
       <div className="relative flex-1 min-w-0 pt-0.5">
-        <p className="text-sm font-display text-white tracking-wide leading-snug">
+        <p className="text-sm font-display text-on-surface tracking-wide leading-snug">
           {message}
         </p>
         {detail && (
-          <p className="mt-1 text-xs text-surface-500 font-body leading-relaxed">
+          <p className="mt-1 text-xs text-on-surface-variant/60 font-body leading-relaxed">
             {detail}
           </p>
         )}
         {action && (
           <a
             href={action.href}
-            className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-accent-400 hover:text-accent-300 transition-colors duration-200"
+            className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-accent-600 hover:text-accent-700 transition-colors duration-200"
           >
             {action.label}
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -123,7 +115,7 @@ function Toast({ id, type, message, detail, action, autoDismiss, onDismiss }: To
       {/* Close button */}
       <button
         onClick={dismiss}
-        className="relative flex-shrink-0 p-1 rounded-md text-surface-500 hover:text-white hover:bg-white/[0.06] transition-all duration-200"
+        className="relative flex-shrink-0 p-1 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5 transition-all duration-200"
         aria-label="Dismiss notification"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -157,4 +149,3 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
     </div>
   );
 }
-
