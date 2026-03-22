@@ -5,10 +5,13 @@ import { useEffect, useRef } from 'react';
 import type { MatchingNotification } from '../api/types';
 
 /** Derive WebSocket URL from current page location.
- *  Uses window.location.host in all modes — Vite proxy handles /ws in dev. */
+ *  Uses window.location.host in all modes — Vite proxy handles /ws in dev.
+ *  Appends JWT token from localStorage for authenticated connections. */
 function getWsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${proto}//${window.location.host}/ws/notifications`;
+  const base = `${proto}//${window.location.host}/ws/notifications`;
+  const token = localStorage.getItem('onebase_token');
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
 }
 
 const MAX_RECONNECT_DELAY = 30_000;
@@ -99,7 +102,7 @@ export function useMatchingNotifications(
           }
 
           // Process matching notifications
-          if (parsed.type === 'matching_complete' || parsed.type === 'matching_failed') {
+          if (parsed.type === 'matching_complete' || parsed.type === 'matching_failed' || parsed.type === 'matching_progress') {
             onNotificationRef.current(parsed as MatchingNotification);
           }
         } catch {
