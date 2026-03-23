@@ -106,3 +106,6 @@ tmp/
 
 # PFE rapport
 docs/pfe/
+
+# GSD planning docs
+.gsd/
