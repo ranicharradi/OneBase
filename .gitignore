@@ -103,3 +103,6 @@ tmp/
 !**/tests/**/*.csv
 !**/fixtures/**/*.csv
 
+
+# PFE rapport
+docs/pfe/
