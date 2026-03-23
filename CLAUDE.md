@@ -130,9 +130,11 @@ Steps 1-4 run as Celery tasks (Redis broker). Frontend polls `/api/import/batche
 - `app/services/` - Business logic, one service per domain concern
 - `app/services/column_guesser.py` - Auto-detects CSV column mappings for ingestion
 - `app/services/notifications.py` - WebSocket event broadcasting for async task updates
-- `app/schemas/` - Pydantic request/response models
+- `app/schemas/` - Pydantic request/response models (auth, source, upload, matching, review, unified)
 - `app/tasks/` - Celery tasks: `process_upload` (ingestion + triggers matching), `run_matching` (blocking + scoring + clustering)
 - `app/dependencies.py` - `get_db()` session, `get_current_user()` JWT auth (OAuth2 Bearer, HS256)
+- `app/database.py` - SQLAlchemy engine and `SessionLocal` factory
+- `app/utils/csv_parser.py` - Low-level CSV reading utility (used by ingestion)
 
 ### Frontend Structure
 
@@ -141,12 +143,13 @@ Steps 1-4 run as Celery tasks (Redis broker). Frontend polls `/api/import/batche
 - `src/hooks/useAuth.tsx` - AuthContext provider (login/logout/me)
 - `src/hooks/useTaskStatus.ts` - Poll Celery task progress
 - `src/hooks/useMatchingNotifications.ts` - WebSocket for async matching events
+- `src/hooks/useTheme.tsx` - Dark/light theme context and toggle
 - `src/pages/` - Route components: Dashboard, Upload, Sources, ReviewQueue, ReviewDetail, UnifiedSuppliers, UnifiedSupplierDetail, Users, Login
 
 ### Key Dependencies
 - `vite` 8.x uses Rolldown (Rust bundler) — no esbuild/rollupOptions in config
 - `@vitejs/plugin-react` 6.x required for Vite 8 (v4 only supports up to Vite 7)
-- `@tailwindcss/vite` needs >=4.2.2 for Vite 8 peer dep
+- `@tailwindcss/vite` resolves to >=4.2.2 at install time (required for Vite 8 peer dep — `^4.0.0` in package.json resolves to a compatible version)
 
 ### Key Design Decisions
 
@@ -154,6 +157,8 @@ Steps 1-4 run as Celery tasks (Redis broker). Frontend polls `/api/import/batche
 - **Re-upload handling**: Re-uploading for a source marks old StagedSuppliers as "superseded" and invalidates their MatchCandidates
 - **Signal weight retraining**: `POST /api/matching/retrain` optimizes signal weights from confirmed/rejected decisions (requires 20+ reviews)
 - **Test DB**: Tests use SQLite by default (fast, no deps) with WAL mode; set `TEST_DATABASE_URL` for Postgres integration tests
+- **Production secret validation**: `validate_production_secrets()` runs at startup — if `ENVIRONMENT=production` and `JWT_SECRET` is still the default, the app refuses to start with a RuntimeError
+- **Health endpoint**: `GET /health` (no `/api/` prefix, unlike all other routes) — returns `{"status": "ok"}`, useful for load balancer/container health checks
 
 ## Environment Variables
 
