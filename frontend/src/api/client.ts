@@ -1,5 +1,6 @@
 // ── Typed API client with JWT auth ──
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const TOKEN_KEY = 'onebase_token';
 
 function getToken(): string | null {
@@ -14,7 +15,7 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
     super(message);
@@ -35,7 +36,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
   });
@@ -87,5 +88,12 @@ export const api = {
     request<T>(path, {
       method: 'POST',
       body: formData,
+    }),
+
+  formPost: <T>(path: string, params: Record<string, string>) =>
+    request<T>(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(params),
     }),
 };

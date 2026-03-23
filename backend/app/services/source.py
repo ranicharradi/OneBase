@@ -1,4 +1,6 @@
 """Data source CRUD service."""
+import re
+
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -6,14 +8,26 @@ from app.models.source import DataSource
 from app.schemas.source import DataSourceCreate, DataSourceUpdate
 
 
+def _validate_filename_pattern(pattern: str | None) -> None:
+    """Validate a regex pattern. Raises ValueError if invalid."""
+    if pattern is None:
+        return
+    try:
+        re.compile(pattern)
+    except re.error as e:
+        raise ValueError(f"Invalid filename pattern: {e}")
+
+
 def create_source(db: Session, data: DataSourceCreate) -> DataSource:
     """Create a new data source."""
+    _validate_filename_pattern(data.filename_pattern)
     source = DataSource(
         name=data.name,
         description=data.description,
         file_format=data.file_format,
         delimiter=data.delimiter,
         column_mapping=data.column_mapping.model_dump(),
+        filename_pattern=data.filename_pattern,
     )
     db.add(source)
     try:
@@ -48,16 +62,71 @@ def update_source(db: Session, source_id: int, data: DataSourceUpdate) -> DataSo
         source.delimiter = data.delimiter
     if data.column_mapping is not None:
         source.column_mapping = data.column_mapping.model_dump()
+    if data.filename_pattern is not None:
+        _validate_filename_pattern(data.filename_pattern)
+        source.filename_pattern = data.filename_pattern
 
     db.flush()
     return source
 
 
 def delete_source(db: Session, source_id: int) -> bool:
-    """Delete a data source. Returns True if deleted, False if not found."""
+    """Delete a data source and all related data.
+
+    Cascades through: MatchCandidates → StagedSuppliers → ImportBatches → DataSource.
+    Returns True if deleted, False if not found.
+    """
+    from app.models.batch import ImportBatch
+    from app.models.staging import StagedSupplier
+    from app.models.match import MatchCandidate
+    from app.models.unified import UnifiedSupplier
+
     source = get_source(db, source_id)
     if source is None:
         return False
+
+    # Find all staged supplier IDs for this source
+    staged_ids = [
+        row[0]
+        for row in db.query(StagedSupplier.id)
+        .filter(StagedSupplier.data_source_id == source_id)
+        .all()
+    ]
+
+    if staged_ids:
+        # Nullify unified supplier references to match candidates involving these suppliers
+        candidate_ids = [
+            row[0]
+            for row in db.query(MatchCandidate.id)
+            .filter(
+                (MatchCandidate.supplier_a_id.in_(staged_ids))
+                | (MatchCandidate.supplier_b_id.in_(staged_ids))
+            )
+            .all()
+        ]
+        if candidate_ids:
+            db.query(UnifiedSupplier).filter(
+                UnifiedSupplier.match_candidate_id.in_(candidate_ids)
+            ).update(
+                {UnifiedSupplier.match_candidate_id: None},
+                synchronize_session="fetch",
+            )
+            # Delete match candidates
+            db.query(MatchCandidate).filter(
+                MatchCandidate.id.in_(candidate_ids)
+            ).delete(synchronize_session="fetch")
+
+        # Delete staged suppliers
+        db.query(StagedSupplier).filter(
+            StagedSupplier.data_source_id == source_id
+        ).delete(synchronize_session="fetch")
+
+    # Delete import batches
+    db.query(ImportBatch).filter(
+        ImportBatch.data_source_id == source_id
+    ).delete(synchronize_session="fetch")
+
+    # Delete the source itself
     db.delete(source)
     db.flush()
     return True

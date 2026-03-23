@@ -18,7 +18,7 @@ from app.models.batch import ImportBatch
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.staging import StagedSupplier
 from app.services.blocking import text_block, embedding_block, combine_blocks
-from app.services.scoring import score_pair
+from app.services.scoring import score_pair, compute_signal_weights
 from app.services.clustering import find_groups
 
 logger = logging.getLogger(__name__)
@@ -127,7 +127,14 @@ def run_matching_pipeline(
     # Step 1: BLOCKING
     _report("BLOCKING", 0)
     text_pairs = text_block(db, source_ids)
-    emb_pairs = embedding_block(db, source_ids)
+    try:
+        emb_pairs = embedding_block(db, source_ids)
+    except Exception as e:
+        logger.warning(
+            "embedding_block failed, falling back to text-only blocking: %s", e
+        )
+        db.rollback()  # Reset session state after DB-level error
+        emb_pairs = set()
     all_pairs = combine_blocks(text_pairs, emb_pairs)
     _report("BLOCKING", 100)
 
@@ -135,6 +142,18 @@ def run_matching_pipeline(
 
     if not all_pairs:
         return {"candidate_count": 0, "group_count": 0}
+
+    # Compute dynamic signal weights based on all active suppliers
+    all_active_suppliers = (
+        db.query(StagedSupplier)
+        .filter(
+            StagedSupplier.status == "active",
+            StagedSupplier.data_source_id.in_(source_ids),
+        )
+        .all()
+    )
+    signal_weights = compute_signal_weights(all_active_suppliers)
+    logger.info("Auto signal weights: %s", signal_weights)
 
     # Step 2: SCORING
     _report("SCORING", 0)
@@ -164,7 +183,7 @@ def run_matching_pipeline(
             )
             continue
 
-        result = score_pair(supplier_a, supplier_b)
+        result = score_pair(supplier_a, supplier_b, weights=signal_weights)
         confidence = result["confidence"]
         signals = result["signals"]
 

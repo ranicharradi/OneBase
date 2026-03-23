@@ -1,10 +1,12 @@
 // ── Real-time pipeline progress tracker ──
-// Dark Precision Editorial — alive pipeline animation, connecting lines, celebration state
+// Light Glassmorphism — alive pipeline animation, connecting lines, celebration state
 
+import { useEffect, useRef } from 'react';
 import { useTaskStatus } from '../hooks/useTaskStatus';
 
 interface ProgressTrackerProps {
   taskId: string;
+  onComplete?: () => void;
 }
 
 const STAGES = [
@@ -39,41 +41,49 @@ function getStageStatus(stageIndex: number, activeIndex: number, state: string):
   return 'pending';
 }
 
-export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
+export default function ProgressTracker({ taskId, onComplete }: ProgressTrackerProps) {
   const { state, stage, progress, detail, row_count, isComplete, isFailed } = useTaskStatus(taskId);
   const activeIndex = getActiveStageIndex(state, stage);
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (isComplete && !firedRef.current) {
+      firedRef.current = true;
+      onComplete?.();
+    }
+  }, [isComplete, onComplete]);
 
   return (
     <div className="card overflow-hidden">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between p-6 pb-5 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between p-6 pb-5 border-b border-on-surface/5">
         <div className="flex items-center gap-3">
           <div className={`relative flex items-center justify-center w-10 h-10 rounded-xl border transition-all duration-500 ${
             isComplete
-              ? 'bg-success-500/15 border-success-500/25 shadow-sm shadow-success-500/10'
+              ? 'bg-success-bg border-success-500/25'
               : isFailed
-                ? 'bg-danger-500/15 border-danger-500/25 shadow-sm shadow-danger-500/10'
-                : 'bg-accent-500/10 border-accent-500/20 glow-accent'
+                ? 'bg-danger-500/[0.08] border-danger-500/15'
+                : 'bg-accent-600/10 border-accent-600/20'
           }`}>
             {isComplete ? (
-              <svg className="w-5 h-5 text-success-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-5 h-5 text-success-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             ) : isFailed ? (
-              <svg className="w-5 h-5 text-danger-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-5 h-5 text-danger-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
               </svg>
             ) : (
-              <div className="w-5 h-5 border-2 border-accent-400/40 border-t-accent-400 rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-accent-600/40 border-t-accent-600 rounded-full animate-spin" />
             )}
           </div>
           <div>
-            <p className="text-sm font-display text-white tracking-wide">
+            <p className="text-sm font-display font-bold text-on-surface tracking-wide">
               {isComplete ? 'Processing Complete' : isFailed ? 'Processing Failed' : 'Processing Upload'}
             </p>
-            <p className="text-xs text-surface-500 font-body">
+            <p className="text-xs text-on-surface-variant/60 font-body">
               {isComplete
-                ? `${row_count?.toLocaleString() ?? '—'} rows processed`
+                ? `${row_count?.toLocaleString() ?? '--'} rows processed`
                 : isFailed
                   ? 'An error occurred during processing'
                   : detail || 'Pipeline in progress...'
@@ -82,13 +92,13 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
           </div>
         </div>
 
-        {/* Overall progress percentage — prominent display */}
+        {/* Overall progress percentage */}
         {!isComplete && !isFailed && progress != null && (
           <div className="flex items-center gap-2">
-            <span className="text-2xl font-display tabular-nums text-accent-300 text-glow-accent">
+            <span className="text-2xl font-display font-extrabold tabular-nums text-accent-600">
               {Math.round(progress)}
             </span>
-            <span className="text-xs text-accent-500/60 font-medium">%</span>
+            <span className="text-xs text-accent-600/60 font-medium">%</span>
           </div>
         )}
       </div>
@@ -97,7 +107,7 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
       <div className="p-6">
         <div className="relative">
           {/* Connection line — base track */}
-          <div className="absolute top-6 left-8 right-8 h-[2px] bg-surface-700/40 rounded-full" />
+          <div className="absolute top-6 left-8 right-8 h-[2px] bg-on-surface/5 rounded-full" />
 
           {/* Connection line — animated fill */}
           <div
@@ -112,7 +122,7 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
                 ? 'linear-gradient(90deg, rgba(34,197,94,0.6), rgba(34,197,94,0.4))'
                 : isFailed
                   ? 'linear-gradient(90deg, rgba(239,68,68,0.5), rgba(239,68,68,0.3))'
-                  : 'linear-gradient(90deg, rgba(6,182,212,0.6), rgba(6,182,212,0.3))',
+                  : 'linear-gradient(90deg, rgba(59,130,246,0.6), rgba(59,130,246,0.3))',
             }}
           />
 
@@ -129,15 +139,15 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
                     relative z-10 flex items-center justify-center w-12 h-12 rounded-xl border
                     transition-all duration-700 ease-out
                     ${status === 'complete'
-                      ? 'bg-success-500/15 border-success-500/25 text-success-400 shadow-sm shadow-success-500/10'
+                      ? 'bg-success-bg border-success-500/25 text-success-500'
                       : status === 'active'
-                        ? 'bg-accent-500/15 border-accent-500/30 text-accent-300 shadow-[0_0_25px_-5px_rgba(6,182,212,0.25)]'
-                        : 'bg-surface-800/40 border-white/[0.06] text-surface-600'
+                        ? 'bg-accent-600/15 border-accent-600/30 text-accent-600'
+                        : 'bg-white/40 border-on-surface/10 text-outline'
                     }
                   `}>
-                    {/* Active stage glow ring */}
+                    {/* Active stage pulse */}
                     {status === 'active' && (
-                      <div className="absolute inset-0 rounded-xl animate-pulse-glow" />
+                      <div className="absolute inset-0 rounded-xl border border-accent-600/20 animate-pulse" />
                     )}
 
                     {status === 'complete' ? (
@@ -148,7 +158,7 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
                       <div className="relative">
                         <StageIcon className="w-5 h-5" />
                         {/* Spinning border indicator */}
-                        <div className="absolute -inset-1.5 border border-accent-400/30 border-t-accent-400/60 rounded-lg animate-spin" style={{ animationDuration: '3s' }} />
+                        <div className="absolute -inset-1.5 border border-accent-600/30 border-t-accent-600/60 rounded-lg animate-spin" style={{ animationDuration: '3s' }} />
                       </div>
                     ) : (
                       <StageIcon className="w-5 h-5" />
@@ -158,10 +168,10 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
                   {/* Label */}
                   <p className={`mt-3 text-xs font-medium transition-colors duration-500 ${
                     status === 'complete'
-                      ? 'text-success-400'
+                      ? 'text-success-500'
                       : status === 'active'
-                        ? 'text-accent-300 font-semibold'
-                        : 'text-surface-600'
+                        ? 'text-accent-600 font-semibold'
+                        : 'text-outline'
                   }`}>
                     {s.label}
                   </p>
@@ -169,15 +179,15 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
                   {/* Active indicator dot with pulse */}
                   {status === 'active' && !isFailed && (
                     <div className="mt-2 relative">
-                      <div className="w-1.5 h-1.5 rounded-full bg-accent-400" />
-                      <div className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-accent-400 animate-ping" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-accent-600" />
+                      <div className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-accent-600 animate-ping" />
                     </div>
                   )}
 
                   {/* Failed indicator */}
                   {status === 'active' && isFailed && (
                     <div className="mt-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-danger-400" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-danger-500" />
                     </div>
                   )}
                 </div>
@@ -190,21 +200,18 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
       {/* ── Completion summary — celebration treatment ── */}
       {isComplete && (
         <div className="px-6 pb-6 animate-slideUp">
-          <div className="relative rounded-xl bg-success-500/[0.06] border border-success-500/15 px-5 py-4 overflow-hidden">
-            {/* Ambient glow */}
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-20 bg-success-500/10 rounded-full blur-3xl pointer-events-none" />
-
+          <div className="relative rounded-xl bg-success-bg border border-success-500/15 px-5 py-4 overflow-hidden">
             <div className="relative flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-success-500/15 border border-success-500/25">
-                <svg className="w-5 h-5 text-success-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <svg className="w-5 h-5 text-success-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-display text-success-300">
-                  <span className="font-semibold tabular-nums">{row_count?.toLocaleString() ?? '—'}</span> rows processed
+                <p className="text-sm font-display font-bold text-success-500">
+                  <span className="font-semibold tabular-nums">{row_count?.toLocaleString() ?? '--'}</span> rows processed
                 </p>
-                {detail && <p className="text-xs text-success-400/70 mt-0.5">{detail}</p>}
+                {detail && <p className="text-xs text-success-500/70 mt-0.5">{detail}</p>}
               </div>
             </div>
           </div>
@@ -214,19 +221,16 @@ export default function ProgressTracker({ taskId }: ProgressTrackerProps) {
       {/* ── Failure message ── */}
       {isFailed && (
         <div className="px-6 pb-6 animate-slideUp">
-          <div className="relative rounded-xl bg-danger-500/[0.06] border border-danger-500/15 px-5 py-4 overflow-hidden">
-            {/* Danger ambient glow */}
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-20 bg-danger-500/10 rounded-full blur-3xl pointer-events-none" />
-
+          <div className="relative rounded-xl bg-danger-500/[0.08] border border-danger-500/15 px-5 py-4 overflow-hidden">
             <div className="relative flex items-start gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-danger-500/15 border border-danger-500/25 shrink-0">
-                <svg className="w-5 h-5 text-danger-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-danger-500/10 border border-danger-500/20 shrink-0">
+                <svg className="w-5 h-5 text-danger-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-display text-danger-300">Processing failed</p>
-                {detail && <p className="text-xs text-danger-400/80 mt-1 leading-relaxed">{detail}</p>}
+                <p className="text-sm font-display font-bold text-danger-500">Processing failed</p>
+                {detail && <p className="text-xs text-danger-500/80 mt-1 leading-relaxed">{detail}</p>}
               </div>
             </div>
           </div>

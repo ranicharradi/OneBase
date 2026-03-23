@@ -71,6 +71,39 @@ class TestUploadEndpoint:
         assert response.status_code == 401
 
 
+    def test_upload_rejects_oversized_file(self, authenticated_client, test_db):
+        """Upload with file exceeding 50MB returns 413."""
+        source_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
+        source_id = source_resp.json()["id"]
+
+        # Create content just over the limit (50 MB + 1 byte)
+        oversized_content = b"x" * (50 * 1024 * 1024 + 1)
+
+        with patch("app.routers.upload.process_upload"):
+            response = authenticated_client.post(
+                "/api/import/upload",
+                data={"data_source_id": str(source_id)},
+                files={"file": ("huge.csv", oversized_content, "text/csv")},
+            )
+
+        assert response.status_code == 413
+
+    def test_upload_rejects_non_csv_file(self, authenticated_client, test_db):
+        """Upload with non-.csv extension returns 400."""
+        source_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
+        source_id = source_resp.json()["id"]
+
+        with patch("app.routers.upload.process_upload"):
+            response = authenticated_client.post(
+                "/api/import/upload",
+                data={"data_source_id": str(source_id)},
+                files={"file": ("suppliers.xlsx", b"fake excel content", "application/vnd.ms-excel")},
+            )
+
+        assert response.status_code == 400
+        assert "csv" in response.json()["detail"].lower()
+
+
 class TestBatchListEndpoint:
     """Tests for GET /api/import/batches."""
 

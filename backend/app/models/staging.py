@@ -18,10 +18,10 @@ class StagedSupplier(Base):
     source_code = Column(String(50), nullable=True)
     name = Column(String(255), nullable=True)
     short_name = Column(String(50), nullable=True)
-    currency = Column(String(10), nullable=True)
+    currency = Column(String(50), nullable=True)
     payment_terms = Column(String(50), nullable=True)
     contact_name = Column(String(255), nullable=True)
-    supplier_type = Column(String(10), nullable=True)
+    supplier_type = Column(String(50), nullable=True)
     status = Column(String(20), default="active")  # active/superseded
     raw_data = Column(JSON, nullable=False)
     normalized_name = Column(String(255), nullable=True)

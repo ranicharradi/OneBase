@@ -1,5 +1,5 @@
 // ── Drag-and-drop file upload zone ──
-// Dark Precision Editorial — atmospheric drag zone with dramatic hover interaction
+// Light Glassmorphism — airy drag zone with soft hover interaction
 
 import { useState, useRef, useCallback } from 'react';
 
@@ -91,32 +91,28 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
     >
       {/* ── Background layers ── */}
 
-      {/* Base surface with subtle gradient */}
+      {/* Base surface */}
       <div className={`absolute inset-0 rounded-2xl transition-all duration-500 ${
         isDragOver
-          ? 'bg-gradient-to-b from-accent-500/[0.08] via-surface-900/80 to-accent-500/[0.04]'
+          ? 'bg-accent-600/[0.06]'
           : selectedFile
-            ? 'bg-gradient-to-b from-success-500/[0.04] via-surface-900/50 to-transparent'
-            : 'bg-gradient-to-b from-surface-800/30 via-surface-900/40 to-surface-800/20'
+            ? 'bg-success-500/[0.04]'
+            : 'bg-white/20'
       }`} />
 
-      {/* Border — animated on drag, gradient normally */}
+      {/* Border */}
       <div className={`absolute inset-0 rounded-2xl transition-all duration-500 ${
         isDragOver
-          ? 'border-2 border-accent-400/50 shadow-[inset_0_0_30px_rgba(6,182,212,0.06)]'
+          ? 'border-2 border-accent-600/40'
           : selectedFile
-            ? 'border border-success-500/25'
-            : 'border border-dashed border-white/[0.08] group-hover:border-white/[0.14]'
-      }`}
-        style={isDragOver ? {
-          animation: 'pulse-glow 2s ease-in-out infinite',
-        } : undefined}
-      />
+            ? 'border border-success-500/20'
+            : 'border border-dashed border-on-surface/10 group-hover:border-on-surface/20'
+      }`} />
 
       {/* Dot-grid background texture */}
       <div
         className={`absolute inset-0 pointer-events-none transition-opacity duration-500 ${
-          isDragOver ? 'opacity-[0.04]' : 'opacity-[0.02]'
+          isDragOver ? 'opacity-[0.06]' : 'opacity-[0.03]'
         }`}
         style={{
           backgroundImage: `radial-gradient(circle, currentColor 1px, transparent 1px)`,
@@ -124,32 +120,18 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
         }}
       />
 
-      {/* Diagonal scan lines — subtle texture */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-[0.008]"
-        style={{
-          backgroundImage: `repeating-linear-gradient(
-            -45deg,
-            transparent,
-            transparent 8px,
-            currentColor 8px,
-            currentColor 9px
-          )`,
-        }}
-      />
-
-      {/* Central glow orb — intensifies on drag-over */}
+      {/* Central glow orb */}
       <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-all duration-700 ${
         isDragOver
-          ? 'w-[500px] h-[500px] bg-accent-500/[0.08] blur-[100px]'
+          ? 'w-[500px] h-[500px] bg-accent-600/[0.06] blur-[100px]'
           : showAccepted
             ? 'w-[400px] h-[400px] bg-success-500/[0.06] blur-[80px]'
-            : 'w-[300px] h-[300px] bg-accent-500/[0.02] blur-[60px] group-hover:bg-accent-500/[0.04]'
+            : 'w-[300px] h-[300px] bg-accent-600/[0.04] blur-[60px] group-hover:bg-accent-600/[0.06]'
       }`} />
 
-      {/* Top edge glow on drag-over */}
+      {/* Top edge highlight on drag-over */}
       {isDragOver && (
-        <div className="absolute top-0 left-8 right-8 h-[2px] bg-gradient-to-r from-transparent via-accent-400/60 to-transparent" />
+        <div className="absolute top-0 left-8 right-8 h-[2px] bg-gradient-to-r from-transparent via-accent-600/60 to-transparent" />
       )}
 
       {/* ── Content ── */}
@@ -159,36 +141,32 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
             {/* File accepted state */}
             <div className={`flex items-center justify-center w-16 h-16 rounded-2xl mb-5 transition-all duration-500 ${
               showAccepted
-                ? 'bg-success-500/15 border border-success-400/30 scale-110'
-                : 'bg-success-500/10 border border-success-500/20'
+                ? 'bg-success-bg border border-success-500/30 scale-110'
+                : 'bg-success-bg border border-success-500/20'
             }`}>
-              <svg className="w-7 h-7 text-success-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <svg className="w-7 h-7 text-success-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <p className="text-sm font-semibold text-white mb-1 font-body">{selectedFile.name}</p>
-            <p className="text-xs text-surface-500 font-mono">{formatSize(selectedFile.size)}</p>
+            <p className="text-sm font-semibold text-on-surface mb-1 font-body">{selectedFile.name}</p>
+            <p className="text-xs text-on-surface-variant/60 font-mono">{formatSize(selectedFile.size)}</p>
           </>
         ) : (
           <>
-            {/* Upload icon — prominent with accent treatment */}
+            {/* Upload icon */}
             <div className={`
               relative flex items-center justify-center w-20 h-20 rounded-2xl mb-6
               transition-all duration-500
               ${isDragOver
-                ? 'bg-accent-500/15 border-2 border-accent-400/40 scale-110 shadow-[0_0_40px_rgba(6,182,212,0.15)]'
-                : 'bg-surface-800/40 border border-white/[0.06] group-hover:bg-surface-800/60 group-hover:border-white/[0.12]'
+                ? 'bg-accent-600/15 border-2 border-accent-600/40 scale-110'
+                : 'bg-white/30 border border-on-surface/5 group-hover:bg-white/50 group-hover:border-on-surface/10'
               }
             `}>
-              {/* Icon glow ring on drag-over */}
-              {isDragOver && (
-                <div className="absolute inset-0 rounded-2xl animate-pulse-glow" />
-              )}
               <svg
                 className={`relative w-9 h-9 transition-all duration-500 ${
                   isDragOver
-                    ? 'text-accent-300 -translate-y-1.5'
-                    : 'text-surface-500 group-hover:text-accent-500/60 animate-float'
+                    ? 'text-accent-600 -translate-y-1.5'
+                    : 'text-outline group-hover:text-accent-600/60 animate-float'
                 }`}
                 fill="none"
                 viewBox="0 0 24 24"
@@ -203,19 +181,19 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
               </svg>
             </div>
 
-            {/* Text — display font for hero emphasis */}
-            <p className={`text-lg font-display mb-2 transition-all duration-300 ${
-              isDragOver ? 'text-accent-300 text-glow-accent scale-105' : 'text-gray-200'
+            {/* Text */}
+            <p className={`text-lg font-display font-bold mb-2 transition-all duration-300 ${
+              isDragOver ? 'text-accent-600 scale-105' : 'text-on-surface'
             }`}>
               {isDragOver ? 'Release to upload' : 'Drag & drop your CSV'}
             </p>
             <p className={`text-sm mb-6 transition-all duration-300 ${
-              isDragOver ? 'text-accent-400/60' : 'text-surface-500'
+              isDragOver ? 'text-accent-600/60' : 'text-on-surface-variant/60'
             }`}>
               {isDragOver ? 'File will be processed immediately' : 'or browse to select'}
             </p>
 
-            {/* Browse button — secondary action with accent hover */}
+            {/* Browse button */}
             <button
               type="button"
               onClick={(e) => {
@@ -225,16 +203,16 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
               disabled={disabled}
               className={`rounded-xl border px-6 py-2.5 text-sm font-medium transition-all duration-300 active:scale-[0.97] ${
                 isDragOver
-                  ? 'border-accent-500/30 bg-accent-500/10 text-accent-300 opacity-0 pointer-events-none'
-                  : 'border-white/[0.08] bg-surface-800/60 text-gray-300 hover:bg-surface-700 hover:border-accent-500/20 hover:text-white hover:shadow-[0_0_20px_rgba(6,182,212,0.06)]'
+                  ? 'border-accent-600/30 bg-accent-600/10 text-accent-600 opacity-0 pointer-events-none'
+                  : 'border-white/60 bg-white/40 text-on-surface hover:bg-white/60 hover:border-accent-600/20 hover:text-on-surface'
               }`}
             >
               Browse files
             </button>
 
-            {/* File hint — subtle */}
+            {/* File hint */}
             <p className={`mt-5 text-xs transition-all duration-300 ${
-              isDragOver ? 'text-accent-500/40' : 'text-surface-600'
+              isDragOver ? 'text-accent-600/40' : 'text-outline'
             }`}>
               Only .csv files accepted
             </p>

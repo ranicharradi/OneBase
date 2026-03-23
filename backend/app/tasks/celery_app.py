@@ -17,4 +17,4 @@ celery_app.conf.update(
     task_reject_on_worker_lost=True,
 )
 
-celery_app.autodiscover_tasks(["app.tasks"])
+celery_app.conf.include = ["app.tasks.ingestion", "app.tasks.matching"]

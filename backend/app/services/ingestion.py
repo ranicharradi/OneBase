@@ -19,6 +19,27 @@ from app.services.embedding import compute_embeddings
 
 logger = logging.getLogger(__name__)
 
+# Max lengths matching the DB column definitions
+_FIELD_MAX_LENGTHS = {
+    "source_code": 50,
+    "name": 255,
+    "short_name": 50,
+    "currency": 50,
+    "payment_terms": 50,
+    "contact_name": 255,
+    "supplier_type": 50,
+}
+
+
+def _truncate(value: str | None, field: str) -> str | None:
+    """Truncate a value to fit its DB column, or return None for empty strings."""
+    if not value:
+        return None
+    max_len = _FIELD_MAX_LENGTHS.get(field)
+    if max_len and len(value) > max_len:
+        return value[:max_len]
+    return value
+
 
 def run_ingestion(
     db: Session,
@@ -95,13 +116,13 @@ def run_ingestion(
             supplier = StagedSupplier(
                 import_batch_id=batch.id,
                 data_source_id=source.id,
-                source_code=row.get(column_mapping.get("supplier_code", ""), ""),
-                name=row.get(column_mapping.get("supplier_name", ""), ""),
-                short_name=row.get(column_mapping.get("short_name", ""), None) or None,
-                currency=row.get(column_mapping.get("currency", ""), None) or None,
-                payment_terms=row.get(column_mapping.get("payment_terms", ""), None) or None,
-                contact_name=row.get(column_mapping.get("contact_name", ""), None) or None,
-                supplier_type=row.get(column_mapping.get("supplier_type", ""), None) or None,
+                source_code=_truncate(row.get(column_mapping.get("supplier_code", ""), ""), "source_code"),
+                name=_truncate(row.get(column_mapping.get("supplier_name", ""), ""), "name"),
+                short_name=_truncate(row.get(column_mapping.get("short_name", ""), None), "short_name"),
+                currency=_truncate(row.get(column_mapping.get("currency", ""), None), "currency"),
+                payment_terms=_truncate(row.get(column_mapping.get("payment_terms", ""), None), "payment_terms"),
+                contact_name=_truncate(row.get(column_mapping.get("contact_name", ""), None), "contact_name"),
+                supplier_type=_truncate(row.get(column_mapping.get("supplier_type", ""), None), "supplier_type"),
                 status="active",
                 raw_data=row,
             )

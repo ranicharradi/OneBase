@@ -21,34 +21,86 @@ router = APIRouter(prefix="/api/import", tags=["import"])
 UPLOAD_DIR = os.path.join("data", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
 
 @router.post(
     "/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED
 )
 async def upload_file(
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    file_ref: str | None = Form(None),
     data_source_id: int = Form(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Upload a CSV file for processing.
 
+    Accepts either a file upload or a file_ref from a prior match-source call.
     Creates an ImportBatch and dispatches a Celery task to process the file.
     """
-    # Validate data source exists
+    if file_ref and file is None:
+        # Load from previously saved file
+        filepath = os.path.join(UPLOAD_DIR, file_ref)
+        if not os.path.isfile(filepath):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="file_ref not found. Please re-upload the file.",
+            )
+        stored_filename = file_ref
+        original_filename = file_ref.split("_", 1)[1] if "_" in file_ref else file_ref
+    elif file is not None:
+        # Validate file extension
+        if not file.filename or not file.filename.lower().endswith('.csv'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only .csv files are accepted",
+            )
+
+        # Validate data source exists
+        source = db.query(DataSource).filter(DataSource.id == data_source_id).first()
+        if source is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Data source not found",
+            )
+
+        # Save file to disk
+        file_content = await file.read()
+
+        # Validate file size
+        if len(file_content) > MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"File exceeds maximum size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
+            )
+
+        # Validate UTF-8 encoding
+        try:
+            file_content.decode('utf-8')
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File is not valid UTF-8. Please re-save as UTF-8 and try again.",
+            )
+        stored_filename = f"{uuid.uuid4()}_{file.filename}"
+        filepath = os.path.join(UPLOAD_DIR, stored_filename)
+        with open(filepath, "wb") as f:
+            f.write(file_content)
+        original_filename = file.filename
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either file or file_ref must be provided",
+        )
+
+    # Validate data source exists (for file_ref path too)
     source = db.query(DataSource).filter(DataSource.id == data_source_id).first()
     if source is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Data source not found",
         )
-
-    # Save file to disk
-    file_content = await file.read()
-    stored_filename = f"{uuid.uuid4()}_{file.filename}"
-    filepath = os.path.join(UPLOAD_DIR, stored_filename)
-    with open(filepath, "wb") as f:
-        f.write(file_content)
 
     # Create import batch
     batch = ImportBatch(
@@ -72,14 +124,14 @@ async def upload_file(
         action="upload",
         entity_type="import_batch",
         entity_id=batch.id,
-        details={"filename": file.filename, "data_source_id": data_source_id},
+        details={"filename": original_filename, "data_source_id": data_source_id},
     )
     db.commit()
 
     return UploadResponse(
         batch_id=batch.id,
         task_id=task.id,
-        filename=file.filename,
+        filename=original_filename or stored_filename,
         message="File uploaded successfully. Processing started.",
     )
 
@@ -95,6 +147,35 @@ def list_batches(
     if data_source_id is not None:
         query = query.filter(ImportBatch.data_source_id == data_source_id)
     return query.order_by(ImportBatch.created_at.desc()).all()
+
+
+@router.delete("/batches/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_batch(
+    batch_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a stuck or unwanted import batch.
+
+    Only batches with status 'pending' or 'failed' can be deleted.
+    """
+    batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).first()
+    if batch is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found")
+    if batch.status not in ("pending", "failed", "failure"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete batch with status '{batch.status}'. Only pending or failed batches can be deleted.",
+        )
+    db.delete(batch)
+    log_action(
+        db,
+        user_id=current_user.id,
+        action="delete_batch",
+        entity_type="import_batch",
+        entity_id=batch_id,
+    )
+    db.commit()
 
 
 @router.get("/batches/{task_id}/status", response_model=TaskStatusResponse)

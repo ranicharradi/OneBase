@@ -30,12 +30,81 @@ def _embedding_to_array(embedding) -> np.ndarray | None:
     return None
 
 
-def score_pair(supplier_a: StagedSupplier, supplier_b: StagedSupplier) -> dict:
+_MIN_COVERAGE = 0.20
+
+
+def compute_signal_weights(suppliers: list) -> dict[str, float]:
+    """Compute dynamic signal weights based on field coverage and cardinality.
+
+    Core signals (jaro_winkler, token_jaccard, embedding_cosine) are always
+    included. Optional signals (short_name_match, currency_match, contact_match)
+    are included only if the underlying field has sufficient coverage (>20% non-null)
+    and cardinality (>1 distinct value).
+
+    Weights are redistributed proportionally among active signals so they sum to 1.0.
+    """
+    if not suppliers:
+        return {
+            "jaro_winkler": settings.matching_weight_jaro_winkler,
+            "token_jaccard": settings.matching_weight_token_jaccard,
+            "embedding_cosine": settings.matching_weight_embedding_cosine,
+            "short_name_match": settings.matching_weight_short_name,
+            "currency_match": settings.matching_weight_currency,
+            "contact_match": settings.matching_weight_contact,
+        }
+
+    total = len(suppliers)
+
+    # Core signals always active
+    active_weights = {
+        "jaro_winkler": settings.matching_weight_jaro_winkler,
+        "token_jaccard": settings.matching_weight_token_jaccard,
+        "embedding_cosine": settings.matching_weight_embedding_cosine,
+    }
+
+    optional_signals = [
+        ("short_name_match", "short_name", settings.matching_weight_short_name),
+        ("currency_match", "currency", settings.matching_weight_currency),
+        ("contact_match", "contact_name", settings.matching_weight_contact),
+    ]
+
+    for signal_name, field_name, default_weight in optional_signals:
+        values = [getattr(s, field_name, None) for s in suppliers]
+        non_null = [v for v in values if v is not None and str(v).strip()]
+        coverage = len(non_null) / total if total > 0 else 0.0
+
+        if coverage < _MIN_COVERAGE:
+            active_weights[signal_name] = 0.0
+            continue
+
+        # Single distinct value has no discriminative power
+        distinct = set(str(v).strip().lower() for v in non_null)
+        if len(distinct) <= 1:
+            active_weights[signal_name] = 0.0
+            continue
+
+        active_weights[signal_name] = default_weight
+
+    # Normalize weights to sum to 1.0
+    total_weight = sum(active_weights.values())
+    if total_weight > 0:
+        active_weights = {k: v / total_weight for k, v in active_weights.items()}
+
+    return active_weights
+
+
+def score_pair(
+    supplier_a: StagedSupplier,
+    supplier_b: StagedSupplier,
+    weights: dict[str, float] | None = None,
+) -> dict:
     """Compute all 6 scoring signals and weighted confidence for a supplier pair.
 
     Args:
         supplier_a: First supplier.
         supplier_b: Second supplier.
+        weights: Optional signal weights dict (from compute_signal_weights).
+                 Falls back to settings defaults if not provided.
 
     Returns:
         dict with 'confidence' (float 0-1) and 'signals' dict with all 6 signal scores.
@@ -94,13 +163,22 @@ def score_pair(supplier_a: StagedSupplier, supplier_b: StagedSupplier) -> dict:
     }
 
     # Weighted confidence score
+    w = weights or {
+        "jaro_winkler": settings.matching_weight_jaro_winkler,
+        "token_jaccard": settings.matching_weight_token_jaccard,
+        "embedding_cosine": settings.matching_weight_embedding_cosine,
+        "short_name_match": settings.matching_weight_short_name,
+        "currency_match": settings.matching_weight_currency,
+        "contact_match": settings.matching_weight_contact,
+    }
+
     confidence = (
-        jaro_winkler * settings.matching_weight_jaro_winkler
-        + token_jaccard * settings.matching_weight_token_jaccard
-        + embedding_cosine * settings.matching_weight_embedding_cosine
-        + short_name_match * settings.matching_weight_short_name
-        + currency_match * settings.matching_weight_currency
-        + contact_match * settings.matching_weight_contact
+        jaro_winkler * w.get("jaro_winkler", 0.0)
+        + token_jaccard * w.get("token_jaccard", 0.0)
+        + embedding_cosine * w.get("embedding_cosine", 0.0)
+        + short_name_match * w.get("short_name_match", 0.0)
+        + currency_match * w.get("currency_match", 0.0)
+        + contact_match * w.get("contact_match", 0.0)
     )
 
     return {

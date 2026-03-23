@@ -1,0 +1,105 @@
+# =============================================
+# OneBase .gitignore
+# =============================================
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+Desktop.ini
+*:Zone.Identifier
+
+# ── Editors / IDEs ──
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ── Environment / secrets ──
+.env
+.env.*
+!.env.example
+
+# ── Node / Frontend ──
+node_modules/
+dist/
+dist-ssr/
+*.local
+.cache/
+.parcel-cache/
+.turbo/
+*.tsbuildinfo
+
+# ── Python / Backend ──
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# ── Celery / Redis runtime ──
+celerybeat-schedule*
+dump.rdb
+
+# ── Test artifacts ──
+backend/test.db
+backend/test.db-wal
+backend/test.db-shm
+
+# ── Uploads & local data ──
+backend/uploads/
+backend/data/uploads/
+data/
+
+# ── Design assets (not source) ──
+frontend/mockup-design.html
+original-*.webp
+
+# ── Docker ──
+*.pid
+
+# ── Logs ──
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# ── Build output ──
+build/
+target/
+vendor/
+
+# ── Browser automation (Playwright CLI) ──
+.playwright-cli/
+
+# ── GSD: All per-developer agent workflow data ──
+.gsd/
+
+# ── AI agent / tool runtime dirs ──
+.opencode/
+.superpowers/
+.bg-shell/
+.claude/
+.agents/runtime/
+docs/superpowers/
+tmp/
+
+# ── Local data / sample files (not source) ──
+*.csv
+!**/tests/**/*.csv
+!**/fixtures/**/*.csv
+

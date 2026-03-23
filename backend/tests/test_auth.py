@@ -123,3 +123,23 @@ def test_list_users_unauthenticated(test_client):
     """GET /api/users without auth returns 401."""
     response = test_client.get("/api/users")
     assert response.status_code == 401
+
+
+def test_failed_login_creates_audit_entry(test_client, test_db):
+    """Failed login should create an audit log entry with login_failed action."""
+    from app.models.audit import AuditLog
+
+    response = test_client.post(
+        "/api/auth/login",
+        data={"username": "baduser", "password": "badpass"},
+    )
+    assert response.status_code == 401
+
+    audit = (
+        test_db.query(AuditLog)
+        .filter(AuditLog.action == "login_failed")
+        .first()
+    )
+    assert audit is not None
+    assert audit.user_id is None
+    assert audit.details["username"] == "baduser"

@@ -1,5 +1,21 @@
+import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Optional
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # backend/../
+_PROFILE = os.getenv("ENV_PROFILE", "").lower()
+
+def _env_files() -> list[str]:
+    """Return env files to load, in priority order (last wins)."""
+    base = _PROJECT_ROOT / ".env"
+    profile = _PROJECT_ROOT / f".env.{_PROFILE}" if _PROFILE else None
+    files = []
+    if base.exists():
+        files.append(str(base))
+    if profile and profile.exists():
+        files.append(str(profile))
+    return files
 
 
 class Settings(BaseSettings):
@@ -10,6 +26,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 480
     admin_username: Optional[str] = None
     admin_password: Optional[str] = None
+    environment: str = "development"
 
     # Matching engine
     matching_confidence_threshold: float = 0.45
@@ -22,7 +39,16 @@ class Settings(BaseSettings):
     matching_weight_currency: float = 0.05
     matching_weight_contact: float = 0.10
 
-    model_config = {"env_file": ".env", "extra": "ignore"}
+    model_config = {"env_file": _env_files(), "extra": "ignore"}
+
+
+def validate_production_secrets(s: Settings) -> None:
+    """Raise RuntimeError if production is running with default secrets."""
+    if s.environment == "production" and s.jwt_secret == "change-me-in-production":
+        raise RuntimeError(
+            "JWT_SECRET must be changed from default in production. "
+            "Set a strong, unique JWT_SECRET environment variable."
+        )
 
 
 settings = Settings()

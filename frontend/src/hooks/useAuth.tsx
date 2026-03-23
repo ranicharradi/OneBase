@@ -23,39 +23,26 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('onebase_token'));
 
   useEffect(() => {
     const token = localStorage.getItem('onebase_token');
-    if (token) {
-      api
-        .get<User>('/api/auth/me')
-        .then(setUser)
-        .catch(() => {
-          clearToken();
-          setUser(null);
-        })
-        .finally(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
+    if (!token) return;
+    api
+      .get<User>('/api/auth/me')
+      .then(setUser)
+      .catch(() => {
+        clearToken();
+        setUser(null);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
-    // FastAPI OAuth2PasswordRequestForm expects x-www-form-urlencoded
-    const body = new URLSearchParams({ username, password });
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
+    const data = await api.formPost<{ access_token: string }>('/api/auth/login', {
+      username,
+      password,
     });
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.detail || 'Invalid credentials');
-    }
-
-    const data = await response.json();
     setToken(data.access_token);
 
     const me = await api.get<User>('/api/auth/me');
@@ -82,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (!context) {
