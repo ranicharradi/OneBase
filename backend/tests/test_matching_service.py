@@ -380,3 +380,33 @@ def test_pipeline_progress_callback(
     assert "SCORING" in called_stages
     assert "CLUSTERING" in called_stages
     assert "INSERTING" in called_stages
+
+
+def test_text_block_filters_to_representatives(test_db):
+    """text_block only considers suppliers in representative_ids when provided."""
+    from app.services.blocking import text_block
+
+    src1 = _make_source(test_db, "TTEI")
+    src2 = _make_source(test_db, "EOT")
+    batch1 = _make_batch(test_db, src1)
+    batch2 = _make_batch(test_db, src2)
+
+    # src1: two rows with same normalized name — only one is representative
+    s1_rep = _make_supplier(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
+    s1_dup = _make_supplier(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
+    # src2: one row
+    s2 = _make_supplier(test_db, batch2, src2, "Acme Corporation", normalized_name="ACME CORPORATION")
+    test_db.flush()
+
+    # Without filter: both src1 rows pair with src2
+    # (they share prefix "ACM" and first token "ACME" with s2)
+    pairs_all = text_block(test_db, [src1.id, src2.id])
+    assert len(pairs_all) == 2  # s1_rep-s2 and s1_dup-s2
+
+    # With filter: only representative pairs with src2
+    rep_ids = {s1_rep.id, s2.id}
+    pairs_filtered = text_block(test_db, [src1.id, src2.id], representative_ids=rep_ids)
+    assert len(pairs_filtered) == 1
+    pair = pairs_filtered.pop()
+    assert min(s1_rep.id, s2.id) == pair[0]
+    assert max(s1_rep.id, s2.id) == pair[1]
