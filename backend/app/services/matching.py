@@ -11,6 +11,7 @@ Coordinates the full matching flow:
 import logging
 from collections.abc import Callable
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -20,6 +21,7 @@ from app.models.staging import StagedSupplier
 from app.services.blocking import text_block, embedding_block, combine_blocks
 from app.services.scoring import score_pair, compute_signal_weights
 from app.services.clustering import find_groups
+from app.services.grouping import group_intra_source
 
 logger = logging.getLogger(__name__)
 
@@ -120,15 +122,33 @@ def run_matching_pipeline(
     # Get all active source IDs
     source_ids = _get_active_source_ids(db, batch_id)
 
+    # Step 0.5: Intra-source grouping (runs even for single-source uploads)
+    _report("GROUPING", 0)
+    grouping_stats = group_intra_source(db, source_ids)
+    _report("GROUPING", 100)
+    logger.info("Intra-source grouping: %s", grouping_stats)
+
     if len(source_ids) < 2:
         logger.info("Fewer than 2 sources — skipping matching for batch %d", batch_id)
         return {"candidate_count": 0, "group_count": 0}
 
+    # Compute representative set (grouped reps + ungrouped singles)
+    reps = db.query(StagedSupplier.id).filter(
+        StagedSupplier.data_source_id.in_(source_ids),
+        StagedSupplier.status == "active",
+        or_(
+            StagedSupplier.intra_source_group_id == StagedSupplier.id,
+            StagedSupplier.intra_source_group_id.is_(None),
+        ),
+    )
+    representative_ids = {r.id for r in reps}
+    logger.info("Representatives: %d out of total active suppliers", len(representative_ids))
+
     # Step 1: BLOCKING
     _report("BLOCKING", 0)
-    text_pairs = text_block(db, source_ids)
+    text_pairs = text_block(db, source_ids, representative_ids=representative_ids)
     try:
-        emb_pairs = embedding_block(db, source_ids)
+        emb_pairs = embedding_block(db, source_ids, representative_ids=representative_ids)
     except Exception as e:
         logger.warning(
             "embedding_block failed, falling back to text-only blocking: %s", e
@@ -143,16 +163,13 @@ def run_matching_pipeline(
     if not all_pairs:
         return {"candidate_count": 0, "group_count": 0}
 
-    # Compute dynamic signal weights based on all active suppliers
-    all_active_suppliers = (
+    # Compute dynamic signal weights based on representatives only
+    rep_suppliers = (
         db.query(StagedSupplier)
-        .filter(
-            StagedSupplier.status == "active",
-            StagedSupplier.data_source_id.in_(source_ids),
-        )
+        .filter(StagedSupplier.id.in_(representative_ids))
         .all()
     )
-    signal_weights = compute_signal_weights(all_active_suppliers)
+    signal_weights = compute_signal_weights(rep_suppliers)
     logger.info("Auto signal weights: %s", signal_weights)
 
     # Step 2: SCORING
