@@ -84,6 +84,22 @@ def compare_fields(
     return comparisons
 
 
+def _expand_group_members(db: Session, supplier_id: int) -> list[int]:
+    """Return all StagedSupplier IDs in the same intra-source group."""
+    supplier = db.get(StagedSupplier, supplier_id)
+    if supplier is None:
+        return [supplier_id]
+    group_id = supplier.intra_source_group_id
+    if group_id is None:
+        return [supplier_id]
+    member_ids = (
+        db.query(StagedSupplier.id)
+        .filter(StagedSupplier.intra_source_group_id == group_id)
+        .all()
+    )
+    return [m.id for m in member_ids]
+
+
 def execute_merge(
     db: Session,
     candidate: MatchCandidate,
@@ -206,7 +222,10 @@ def execute_merge(
         contact_name=merged_values.get("contact_name"),
         supplier_type=merged_values.get("supplier_type"),
         provenance=provenance,
-        source_supplier_ids=[supplier_a.id, supplier_b.id],
+        source_supplier_ids=(
+            _expand_group_members(db, supplier_a.id)
+            + _expand_group_members(db, supplier_b.id)
+        ),
         match_candidate_id=candidate.id,
         created_by=username,
     )
@@ -227,7 +246,10 @@ def execute_merge(
         entity_id=candidate.id,
         details={
             "unified_supplier_name": merged_values["name"],
-            "source_supplier_ids": [supplier_a.id, supplier_b.id],
+            "source_supplier_ids": (
+                _expand_group_members(db, supplier_a.id)
+                + _expand_group_members(db, supplier_b.id)
+            ),
             "conflict_count": sum(1 for c in comparisons if c["is_conflict"]),
         },
     )
