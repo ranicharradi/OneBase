@@ -23,7 +23,7 @@ CSV Upload → Ingestion → Blocking → Scoring → Clustering → Human Revie
 
 ```bash
 # Configure environment
-cp .env.example .env
+cd OneBase && cp .env.example .env
 # Edit .env: set JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD, POSTGRES_PASSWORD
 
 # Start all services and verify health
@@ -37,10 +37,11 @@ docker-compose ps
 
 ```bash
 # 1. Start databases only
-docker-compose up -d postgres redis
+cd OneBase && docker-compose up -d postgres redis
 
 # 2. Backend setup (from backend/)
 # On Debian/Ubuntu, you may need: sudo apt install python3.12-venv
+cd OneBase/backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
@@ -48,10 +49,11 @@ ENV_PROFILE=dev alembic upgrade head
 ENV_PROFILE=dev uvicorn app.main:app --reload    # API on :8000
 
 # 3. In a second terminal — Celery worker (needed for uploads and matching)
-cd backend && source .venv/bin/activate
+cd OneBase/backend && source .venv/bin/activate
 ENV_PROFILE=dev celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
 
 # 4. Frontend (from frontend/)
+cd OneBase/frontend
 npm install
 npm run dev    # Vite dev server on :5173, proxies /api → :8000
 

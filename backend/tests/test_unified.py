@@ -150,6 +150,31 @@ class TestSingletonPromotion:
         assert resp.status_code == 200
         assert resp.json()["total"] == 0
 
+    def test_list_singletons_excludes_non_representative_group_members(
+        self, authenticated_client, test_db
+    ):
+        """Non-representative group members should NOT appear in singletons."""
+        s1, _ = _seed_sources(test_db)
+        b1 = _seed_batch(test_db, s1)
+        rep = _seed_staged(test_db, s1, b1, "GROUP REP", "FE001")
+        member = _seed_staged(test_db, s1, b1, "GROUP REP", "FE002")
+        ungrouped = _seed_staged(test_db, s1, b1, "UNGROUPED", "FE003")
+
+        # Mark rep as representative (group_id = self.id)
+        rep.intra_source_group_id = rep.id
+        # Mark member as non-representative (group_id = rep.id)
+        member.intra_source_group_id = rep.id
+        # ungrouped stays NULL
+        test_db.commit()
+
+        resp = authenticated_client.get("/api/unified/singletons")
+        data = resp.json()
+        names = [item["name"] for item in data["items"]]
+        # Rep and ungrouped should appear; non-representative member should not
+        assert names.count("GROUP REP") == 1  # only the representative, not the member
+        assert "UNGROUPED" in names
+        assert data["total"] == 2  # rep + ungrouped, NOT the member
+
     def test_list_singletons_excludes_matched(self, authenticated_client, test_db):
         s1, s2 = _seed_sources(test_db)
         b1 = _seed_batch(test_db, s1)

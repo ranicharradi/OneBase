@@ -26,12 +26,14 @@ class StagedSupplier(Base):
     raw_data = Column(JSON, nullable=False)
     normalized_name = Column(String(255), nullable=True)
     name_embedding = Column(Vector(384) if Vector else LargeBinary, nullable=True)
+    intra_source_group_id = Column(Integer, ForeignKey("staged_suppliers.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (
         Index("ix_staged_normalized_name", "normalized_name"),
         Index("ix_staged_source_status", "data_source_id", "status"),
         Index("ix_staged_source_code", "data_source_id", "source_code"),
+        Index("ix_staged_intra_group", "intra_source_group_id"),
         Index(
             "ix_staged_name_embedding_hnsw",
             "name_embedding",
