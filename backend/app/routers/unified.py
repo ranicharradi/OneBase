@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, case
+from sqlalchemy import func, case, or_
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user
@@ -274,6 +274,13 @@ def list_singletons(
         )
         .join(DataSource, StagedSupplier.data_source_id == DataSource.id)
         .filter(StagedSupplier.status == "active")
+        # Exclude non-representative group members (they are handled via their representative)
+        .filter(
+            or_(
+                StagedSupplier.intra_source_group_id.is_(None),
+                StagedSupplier.intra_source_group_id == StagedSupplier.id,
+            )
+        )
     )
 
     if exclude_ids:
