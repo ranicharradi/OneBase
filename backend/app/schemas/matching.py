@@ -49,3 +49,18 @@ class RetrainResponse(BaseModel):
 
     weights: dict[str, float]
     sample_count: int
+
+
+class ModelTrainingResult(BaseModel):
+    """Result for a single model (scorer or blocker)."""
+    model_id: int
+    sample_count: int
+    metrics: dict
+    feature_importances: dict | None = None
+    threshold: float
+
+
+class TrainModelResponse(BaseModel):
+    """Response from ML model training."""
+    scorer: ModelTrainingResult
+    blocker: ModelTrainingResult
