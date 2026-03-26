@@ -171,7 +171,7 @@ class TestSingletonPromotion:
         data = resp.json()
         names = [item["name"] for item in data["items"]]
         # Rep and ungrouped should appear; non-representative member should not
-        assert "GROUP REP" in names
+        assert names.count("GROUP REP") == 1  # only the representative, not the member
         assert "UNGROUPED" in names
         assert data["total"] == 2  # rep + ungrouped, NOT the member
 
