@@ -109,3 +109,6 @@ docs/pfe/
 
 # GSD planning docs
 .gsd/
+
+# Git worktrees
+.worktrees/
