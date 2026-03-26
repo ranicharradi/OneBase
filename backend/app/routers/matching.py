@@ -1,7 +1,7 @@
 """Matching API router — match groups, candidates, and retraining endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user
@@ -12,8 +12,18 @@ from app.schemas.matching import (
     MatchCandidateResponse,
     MatchGroupResponse,
     RetrainResponse,
+    TrainModelResponse,
+    ModelTrainingResult,
 )
 from app.services.retraining import retrain_weights
+from app.services.ml_training import (
+    extract_training_data,
+    train_model,
+    save_model,
+    MIN_TRAINING_SAMPLES,
+    SCORER_FEATURE_NAMES,
+    BLOCKER_FEATURE_NAMES,
+)
 
 router = APIRouter(prefix="/api/matching", tags=["matching"])
 
@@ -143,4 +153,83 @@ def trigger_retrain(
     return RetrainResponse(
         weights=result["weights"],
         sample_count=result["sample_count"],
+    )
+
+
+@router.post("/train-model", response_model=TrainModelResponse)
+def train_ml_model(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Train ML scorer and blocker models from reviewed match candidates.
+
+    Requires at least 50 confirmed/rejected candidates with both classes present.
+    Acquires a PostgreSQL advisory lock to prevent concurrent training.
+    """
+    # Advisory lock to prevent concurrent training (skip on SQLite)
+    try:
+        db.execute(text("SELECT pg_advisory_xact_lock(737373)"))
+    except Exception:
+        pass  # SQLite or other DBs without advisory locks
+
+    # Extract training data
+    X, y = extract_training_data(db)
+
+    if len(y) < MIN_TRAINING_SAMPLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Insufficient training data — need at least {MIN_TRAINING_SAMPLES} "
+                   f"reviewed candidates, found {len(y)}",
+        )
+
+    if len(set(y)) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Training data must include both confirmed and rejected candidates",
+        )
+
+    # Train scorer (all 8 features)
+    scorer_result = train_model(X, y, model_type="scorer")
+    scorer_version = save_model(
+        model=scorer_result["model"],
+        model_type="scorer",
+        feature_names=SCORER_FEATURE_NAMES,
+        metrics=scorer_result["metrics"],
+        feature_importances=scorer_result["feature_importances"],
+        sample_count=len(y),
+        db=db,
+        created_by=current_user.username,
+    )
+
+    # Train blocker (3 fast features: jaro_winkler, token_jaccard, name_length_ratio)
+    X_blocker = X[:, [0, 1, 6]]  # indices for jaro_winkler, token_jaccard, name_length_ratio
+    blocker_result = train_model(X_blocker, y, model_type="blocker")
+    blocker_version = save_model(
+        model=blocker_result["model"],
+        model_type="blocker",
+        feature_names=BLOCKER_FEATURE_NAMES,
+        metrics=blocker_result["metrics"],
+        feature_importances=blocker_result["feature_importances"],
+        sample_count=len(y),
+        db=db,
+        created_by=current_user.username,
+    )
+
+    db.commit()
+
+    return TrainModelResponse(
+        scorer=ModelTrainingResult(
+            model_id=scorer_version.id,
+            sample_count=len(y),
+            metrics=scorer_result["metrics"],
+            feature_importances=scorer_result["feature_importances"],
+            threshold=scorer_result["metrics"]["threshold"],
+        ),
+        blocker=ModelTrainingResult(
+            model_id=blocker_version.id,
+            sample_count=len(y),
+            metrics=blocker_result["metrics"],
+            feature_importances=blocker_result["feature_importances"],
+            threshold=blocker_result["metrics"]["threshold"],
+        ),
     )

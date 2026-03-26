@@ -6,6 +6,7 @@ from app.models.batch import ImportBatch
 from app.models.staging import StagedSupplier
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.unified import UnifiedSupplier
+from app.models.ml_model import MLModelVersion
 
 __all__ = [
     "Base",
@@ -17,4 +18,5 @@ __all__ = [
     "MatchCandidate",
     "MatchGroup",
     "UnifiedSupplier",
+    "MLModelVersion",
 ]

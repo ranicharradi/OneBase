@@ -487,3 +487,81 @@ def test_pipeline_grouping_progress_callback(
 
     called_stages = [call[0][0] for call in callback.call_args_list]
     assert "GROUPING" in called_stages
+
+
+class TestMLPipelineIntegration:
+    """Test that the pipeline uses ML scorer/blocker when available."""
+
+    @staticmethod
+    def _seed_two_source_scenario(db):
+        """Create a minimal two-source scenario and return (batch_id, s1, s2)."""
+        src1 = _make_source(db, "ML Entity A")
+        src2 = _make_source(db, "ML Entity B")
+        batch1 = _make_batch(db, src1)
+        batch2 = _make_batch(db, src2)
+        s1 = _make_supplier(db, batch1, src1, "Acme Corp")
+        s2 = _make_supplier(db, batch2, src2, "Acme Corporation")
+        db.flush()
+        return batch1.id, s1, s2
+
+    @patch("app.services.matching.embedding_block")
+    @patch("app.services.matching.text_block")
+    def test_pipeline_uses_ml_scorer_when_model_exists(
+        self, mock_text_block, mock_embedding_block, test_db
+    ):
+        """Pipeline should use ml_score_pair when a scorer model is active."""
+        from unittest.mock import MagicMock
+        from app.services.ml_training import ModelBundle
+        import numpy as np
+
+        batch_id, s1, s2 = self._seed_two_source_scenario(test_db)
+
+        mock_text_block.return_value = {(s1.id, s2.id)}
+        mock_embedding_block.return_value = set()
+
+        mock_model = MagicMock()
+        mock_model.predict.return_value = np.array([0.9])
+        scorer_bundle = ModelBundle(
+            model=mock_model, threshold=0.5,
+            feature_names=["jaro_winkler", "token_jaccard", "embedding_cosine",
+                           "short_name_match", "currency_match", "contact_match",
+                           "name_length_ratio", "token_count_diff"],
+        )
+
+        with patch("app.services.matching.load_active_model") as mock_load:
+            mock_load.side_effect = lambda db, t, **kw: scorer_bundle if t == "scorer" else None
+            with patch("app.services.matching.ml_score_pair") as mock_ml_score:
+                mock_ml_score.return_value = {"confidence": 0.9, "signals": {
+                    "jaro_winkler": 0.9, "token_jaccard": 0.8, "embedding_cosine": 0.85,
+                    "short_name_match": 1.0, "currency_match": 1.0, "contact_match": 0.7,
+                }}
+
+                from app.services.matching import run_matching_pipeline
+                result = run_matching_pipeline(test_db, batch_id)
+
+                assert mock_ml_score.called
+
+    @patch("app.services.matching.embedding_block")
+    @patch("app.services.matching.text_block")
+    @patch("app.services.matching.score_pair")
+    def test_pipeline_falls_back_to_weighted_sum(
+        self, mock_score_pair, mock_text_block, mock_embedding_block, test_db
+    ):
+        """Pipeline should use score_pair when no ML model exists."""
+        batch_id, s1, s2 = self._seed_two_source_scenario(test_db)
+
+        mock_text_block.return_value = {(s1.id, s2.id)}
+        mock_embedding_block.return_value = set()
+        mock_score_pair.return_value = {
+            "confidence": 0.85,
+            "signals": {
+                "jaro_winkler": 0.9, "token_jaccard": 0.8, "embedding_cosine": 0.7,
+                "short_name_match": 0.5, "currency_match": 0.5, "contact_match": 0.5,
+            },
+        }
+
+        with patch("app.services.matching.load_active_model", return_value=None):
+            from app.services.matching import run_matching_pipeline
+            result = run_matching_pipeline(test_db, batch_id)
+            assert result["candidate_count"] == 1
+            assert mock_score_pair.called

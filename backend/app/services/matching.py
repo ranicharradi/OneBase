@@ -22,6 +22,8 @@ from app.services.blocking import text_block, embedding_block, combine_blocks
 from app.services.scoring import score_pair, compute_signal_weights
 from app.services.clustering import find_groups
 from app.services.grouping import group_intra_source
+from app.services.ml_scoring import ml_score_pair, blocker_filter
+from app.services.ml_training import load_active_model
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +134,15 @@ def run_matching_pipeline(
         logger.info("Fewer than 2 sources — skipping matching for batch %d", batch_id)
         return {"candidate_count": 0, "group_count": 0}
 
+    # Load ML models (None if no trained model exists)
+    scorer_bundle = load_active_model(db, "scorer")
+    blocker_bundle = load_active_model(db, "blocker")
+    using_ml = scorer_bundle is not None
+    if using_ml:
+        logger.info("Using ML scorer model for this pipeline run")
+    else:
+        logger.info("No ML model — using weighted-sum scorer")
+
     # Compute representative set (grouped reps + ungrouped singles)
     reps = db.query(StagedSupplier.id).filter(
         StagedSupplier.data_source_id.in_(source_ids),
@@ -162,6 +173,26 @@ def run_matching_pipeline(
 
     if not all_pairs:
         return {"candidate_count": 0, "group_count": 0}
+
+    # Step 1.5: LEARNED BLOCKER (prune pairs before full scoring)
+    if blocker_bundle is not None:
+        blocker_supplier_ids = set()
+        for a_id, b_id in all_pairs:
+            blocker_supplier_ids.add(a_id)
+            blocker_supplier_ids.add(b_id)
+        blocker_suppliers = (
+            db.query(StagedSupplier)
+            .filter(StagedSupplier.id.in_(blocker_supplier_ids))
+            .all()
+        )
+        blocker_lookup = {s.id: s for s in blocker_suppliers}
+
+        pre_filter_count = len(all_pairs)
+        all_pairs = set(blocker_filter(list(all_pairs), blocker_lookup, blocker_bundle))
+        logger.info("Blocker pruned %d → %d pairs", pre_filter_count, len(all_pairs))
+
+        if not all_pairs:
+            return {"candidate_count": 0, "group_count": 0}
 
     # Compute dynamic signal weights based on representatives only
     rep_suppliers = (
@@ -200,7 +231,10 @@ def run_matching_pipeline(
             )
             continue
 
-        result = score_pair(supplier_a, supplier_b, weights=signal_weights)
+        if using_ml:
+            result = ml_score_pair(supplier_a, supplier_b, scorer_bundle)
+        else:
+            result = score_pair(supplier_a, supplier_b, weights=signal_weights)
         confidence = result["confidence"]
         signals = result["signals"]
 

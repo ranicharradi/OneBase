@@ -1,5 +1,7 @@
 """Review & merge API router — review queue, match detail, and merge/reject/skip actions."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, case
 from sqlalchemy.orm import Session
@@ -58,6 +60,9 @@ def get_review_queue(
     max_confidence: float | None = Query(None, ge=0.0, le=1.0),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    sort: Literal["confidence_desc", "confidence_asc", "active_learning"] = Query(
+        "confidence_desc", description="Sort order for the queue"
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -112,9 +117,16 @@ def get_review_queue(
 
     total = query.count()
 
+    # Apply sort order
+    if sort == "confidence_asc":
+        query = query.order_by(MatchCandidate.confidence.asc())
+    elif sort == "active_learning":
+        query = query.order_by(func.abs(MatchCandidate.confidence - 0.5).asc())
+    else:  # confidence_desc (default)
+        query = query.order_by(MatchCandidate.confidence.desc())
+
     candidates = (
-        query.order_by(MatchCandidate.confidence.desc())
-        .offset(offset)
+        query.offset(offset)
         .limit(limit)
         .all()
     )
