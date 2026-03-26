@@ -64,6 +64,9 @@ backend/uploads/
 backend/data/uploads/
 data/
 
+# ── ML model artifacts ──
+backend/ml_models/
+
 # ── Design assets (not source) ──
 frontend/mockup-design.html
 original-*.webp

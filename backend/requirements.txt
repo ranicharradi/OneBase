@@ -9,3 +9,5 @@ PyJWT
 pgvector
 rapidfuzz
 pytest
+lightgbm
+scikit-learn
