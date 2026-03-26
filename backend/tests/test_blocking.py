@@ -198,7 +198,7 @@ class TestEmbeddingBlock:
             patch("app.services.blocking._get_embedding_neighbors") as mock_neighbors,
         ):
             mock_query.return_value = mock_suppliers
-            mock_neighbors.side_effect = lambda db, supplier, source_ids, k: (
+            mock_neighbors.side_effect = lambda db, supplier, source_ids, k, representative_ids=None: (
                 [2]
                 if supplier.id == 1
                 else [1]
