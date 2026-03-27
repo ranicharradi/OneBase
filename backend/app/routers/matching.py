@@ -1,29 +1,31 @@
 """Matching API router — match groups, candidates, and retraining endpoints."""
 
+import contextlib
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_current_user
-from app.models.user import User
+from app.dependencies import get_current_user, get_db
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.staging import StagedSupplier
+from app.models.user import User
 from app.schemas.matching import (
     MatchCandidateResponse,
     MatchGroupResponse,
+    ModelTrainingResult,
     RetrainResponse,
     TrainModelResponse,
-    ModelTrainingResult,
 )
-from app.services.retraining import retrain_weights
 from app.services.ml_training import (
-    extract_training_data,
-    train_model,
-    save_model,
+    BLOCKER_FEATURE_NAMES,
     MIN_TRAINING_SAMPLES,
     SCORER_FEATURE_NAMES,
-    BLOCKER_FEATURE_NAMES,
+    extract_training_data,
+    save_model,
+    train_model,
 )
+from app.services.retraining import retrain_weights
 
 router = APIRouter(prefix="/api/matching", tags=["matching"])
 
@@ -42,9 +44,7 @@ def list_groups(
             MatchGroup.id,
             MatchGroup.created_at,
             func.count(MatchCandidate.id).label("candidate_count"),
-            func.coalesce(func.avg(MatchCandidate.confidence), 0.0).label(
-                "avg_confidence"
-            ),
+            func.coalesce(func.avg(MatchCandidate.confidence), 0.0).label("avg_confidence"),
         )
         .outerjoin(MatchCandidate, MatchCandidate.group_id == MatchGroup.id)
         .group_by(MatchGroup.id)
@@ -79,10 +79,6 @@ def list_candidates(
 
     Joins to StagedSupplier to include supplier names.
     """
-    # Aliases for supplier A and B
-    SupA = StagedSupplier.__table__.alias("supplier_a")
-    SupB = StagedSupplier.__table__.alias("supplier_b")
-
     query = db.query(MatchCandidate)
 
     if group_id is not None:
@@ -94,12 +90,7 @@ def list_candidates(
     if min_confidence is not None:
         query = query.filter(MatchCandidate.confidence >= min_confidence)
 
-    candidates = (
-        query.order_by(MatchCandidate.confidence.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    candidates = query.order_by(MatchCandidate.confidence.desc()).offset(offset).limit(limit).all()
 
     # Batch-load supplier names
     supplier_ids = set()
@@ -109,11 +100,7 @@ def list_candidates(
 
     supplier_names: dict[int, str | None] = {}
     if supplier_ids:
-        suppliers = (
-            db.query(StagedSupplier.id, StagedSupplier.name)
-            .filter(StagedSupplier.id.in_(supplier_ids))
-            .all()
-        )
+        suppliers = db.query(StagedSupplier.id, StagedSupplier.name).filter(StagedSupplier.id.in_(supplier_ids)).all()
         supplier_names = {s.id: s.name for s in suppliers}
 
     return [
@@ -167,10 +154,8 @@ def train_ml_model(
     Acquires a PostgreSQL advisory lock to prevent concurrent training.
     """
     # Advisory lock to prevent concurrent training (skip on SQLite)
-    try:
+    with contextlib.suppress(Exception):
         db.execute(text("SELECT pg_advisory_xact_lock(737373)"))
-    except Exception:
-        pass  # SQLite or other DBs without advisory locks
 
     # Extract training data
     X, y = extract_training_data(db)
@@ -179,7 +164,7 @@ def train_ml_model(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Insufficient training data — need at least {MIN_TRAINING_SAMPLES} "
-                   f"reviewed candidates, found {len(y)}",
+            f"reviewed candidates, found {len(y)}",
         )
 
     if len(set(y)) < 2:

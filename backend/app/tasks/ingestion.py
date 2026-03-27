@@ -3,8 +3,8 @@
 import logging
 import os
 
-from app.tasks.celery_app import celery_app
 from app.database import SessionLocal
+from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,8 @@ def process_upload(self, batch_id: int):
         db.commit()
 
         # Enqueue matching — detect re-upload by checking for prior active suppliers
-        from app.tasks.matching import run_matching
         from app.models.staging import StagedSupplier
+        from app.tasks.matching import run_matching
 
         # Check if there are superseded suppliers for this data source
         # from a prior batch — indicates a re-upload scenario.
@@ -60,9 +60,7 @@ def process_upload(self, batch_id: int):
 
         if prior_superseded_count > 0:
             # Re-upload: invalidate old candidates for this source
-            matching_task = run_matching.delay(
-                batch_id, invalidate_source_id=batch.data_source_id
-            )
+            matching_task = run_matching.delay(batch_id, invalidate_source_id=batch.data_source_id)
         else:
             matching_task = run_matching.delay(batch_id)
 

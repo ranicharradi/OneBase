@@ -3,10 +3,10 @@
 import tempfile
 from unittest.mock import patch
 
-from app.models.source import DataSource
 from app.models.batch import ImportBatch
-from app.models.staging import StagedSupplier
 from app.models.match import MatchCandidate
+from app.models.source import DataSource
+from app.models.staging import StagedSupplier
 
 
 def _seed_reviewed(db, count=60, confirm_ratio=0.5):
@@ -27,14 +27,22 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
         status = "confirmed" if i < num_confirmed else "rejected"
 
         sa = StagedSupplier(
-            import_batch_id=b1.id, data_source_id=s1.id,
-            name=name_a, normalized_name=name_a.lower(),
-            source_code=f"A{i}", raw_data={}, status="active",
+            import_batch_id=b1.id,
+            data_source_id=s1.id,
+            name=name_a,
+            normalized_name=name_a.lower(),
+            source_code=f"A{i}",
+            raw_data={},
+            status="active",
         )
         sb = StagedSupplier(
-            import_batch_id=b2.id, data_source_id=s2.id,
-            name=name_b, normalized_name=name_b.lower(),
-            source_code=f"B{i}", raw_data={}, status="active",
+            import_batch_id=b2.id,
+            data_source_id=s2.id,
+            name=name_b,
+            normalized_name=name_b.lower(),
+            source_code=f"B{i}",
+            raw_data={},
+            status="active",
         )
         db.add_all([sa, sb])
         db.flush()
@@ -48,9 +56,12 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
             "contact_match": 0.6 if status == "confirmed" else 0.2,
         }
         mc = MatchCandidate(
-            supplier_a_id=sa.id, supplier_b_id=sb.id,
+            supplier_a_id=sa.id,
+            supplier_b_id=sb.id,
             confidence=0.7 if status == "confirmed" else 0.3,
-            match_signals=signals, status=status, reviewed_by="reviewer",
+            match_signals=signals,
+            status=status,
+            reviewed_by="reviewer",
         )
         db.add(mc)
     db.flush()
@@ -61,9 +72,8 @@ class TestTrainModelEndpoint:
         _seed_reviewed(test_db, count=80, confirm_ratio=0.5)
         test_db.commit()
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("app.services.ml_training.MODEL_DIR", tmpdir):
-                resp = authenticated_client.post("/api/matching/train-model")
+        with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml_training.MODEL_DIR", tmpdir):
+            resp = authenticated_client.post("/api/matching/train-model")
 
         assert resp.status_code == 200
         data = resp.json()
@@ -118,23 +128,37 @@ class TestActiveLearningSort:
         pairs = []
         for i, conf in enumerate([0.9, 0.5, 0.3]):
             sa = StagedSupplier(
-                import_batch_id=b1.id, data_source_id=s1.id,
-                name=f"SUP A{i}", normalized_name=f"sup a{i}",
-                source_code=f"QA{i}", raw_data={}, status="active",
+                import_batch_id=b1.id,
+                data_source_id=s1.id,
+                name=f"SUP A{i}",
+                normalized_name=f"sup a{i}",
+                source_code=f"QA{i}",
+                raw_data={},
+                status="active",
             )
             sb = StagedSupplier(
-                import_batch_id=b2.id, data_source_id=s2.id,
-                name=f"SUP B{i}", normalized_name=f"sup b{i}",
-                source_code=f"QB{i}", raw_data={}, status="active",
+                import_batch_id=b2.id,
+                data_source_id=s2.id,
+                name=f"SUP B{i}",
+                normalized_name=f"sup b{i}",
+                source_code=f"QB{i}",
+                raw_data={},
+                status="active",
             )
             db.add_all([sa, sb])
             db.flush()
             mc = MatchCandidate(
-                supplier_a_id=sa.id, supplier_b_id=sb.id,
+                supplier_a_id=sa.id,
+                supplier_b_id=sb.id,
                 confidence=conf,
-                match_signals={"jaro_winkler": conf, "token_jaccard": conf,
-                               "embedding_cosine": conf, "short_name_match": 0,
-                               "currency_match": 0, "contact_match": 0},
+                match_signals={
+                    "jaro_winkler": conf,
+                    "token_jaccard": conf,
+                    "embedding_cosine": conf,
+                    "short_name_match": 0,
+                    "currency_match": 0,
+                    "contact_match": 0,
+                },
                 status="pending",
             )
             db.add(mc)

@@ -4,10 +4,7 @@ Tests notification publishing and WebSocket endpoint with mocked Redis.
 """
 
 import json
-from unittest.mock import patch, MagicMock
-
-import pytest
-from fastapi.testclient import TestClient
+from unittest.mock import MagicMock, patch
 
 
 class TestPublishNotification:
@@ -17,7 +14,7 @@ class TestPublishNotification:
     @patch("app.services.notifications.redis")
     def test_publishes_correct_json_structure(self, mock_redis_module):
         """publish_notification sends correct JSON to Redis channel."""
-        from app.services.notifications import publish_notification, CHANNEL
+        from app.services.notifications import CHANNEL, publish_notification
 
         # Reset the singleton so our mock gets used
         mock_client = MagicMock()
@@ -66,6 +63,7 @@ class TestPublishNotification:
     def test_does_not_crash_on_redis_error(self, mock_redis_module):
         """publish_notification handles Redis connection errors gracefully."""
         import redis as real_redis
+
         from app.services.notifications import publish_notification
 
         mock_client = MagicMock()
@@ -98,14 +96,8 @@ class TestWebSocketEndpoint:
         """WebSocket endpoint at /ws/notifications is registered."""
         from app.main import app
 
-        ws_routes = [
-            route
-            for route in app.routes
-            if hasattr(route, "path") and route.path == "/ws/notifications"
-        ]
-        assert len(ws_routes) == 1, (
-            "WebSocket route /ws/notifications should be registered"
-        )
+        ws_routes = [route for route in app.routes if hasattr(route, "path") and route.path == "/ws/notifications"]
+        assert len(ws_routes) == 1, "WebSocket route /ws/notifications should be registered"
 
     def test_websocket_accepts_connection(self, test_client):
         """WebSocket endpoint accepts connections (mocked Redis)."""

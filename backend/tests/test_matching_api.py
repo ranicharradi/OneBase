@@ -1,15 +1,11 @@
 """Tests for retraining service and matching API endpoints."""
 
-from datetime import datetime, timezone
-from unittest.mock import patch
-
-import pytest
 from sqlalchemy.orm import Session
 
-from app.models.match import MatchCandidate, MatchGroup
-from app.models.staging import StagedSupplier
-from app.models.source import DataSource
 from app.models.batch import ImportBatch
+from app.models.match import MatchCandidate, MatchGroup
+from app.models.source import DataSource
+from app.models.staging import StagedSupplier
 
 
 def _make_source(db: Session, name: str) -> DataSource:

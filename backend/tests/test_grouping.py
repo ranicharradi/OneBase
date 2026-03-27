@@ -2,9 +2,9 @@
 
 from sqlalchemy.orm import Session
 
-from app.models.staging import StagedSupplier
-from app.models.source import DataSource
 from app.models.batch import ImportBatch
+from app.models.source import DataSource
+from app.models.staging import StagedSupplier
 
 
 def _make_source(db: Session, name: str) -> DataSource:
@@ -155,12 +155,21 @@ def test_representative_is_richest_row(test_db):
     s1 = _make_supplier(test_db, batch, src, "Acme Corp", normalized_name="ACME CORP")
     # s2: rich (name + currency + contact)
     s2 = _make_supplier(
-        test_db, batch, src, "Acme Corp", normalized_name="ACME CORP",
-        currency="TND", contact_name="Ali Ben",
+        test_db,
+        batch,
+        src,
+        "Acme Corp",
+        normalized_name="ACME CORP",
+        currency="TND",
+        contact_name="Ali Ben",
     )
     # s3: medium (name + currency)
     s3 = _make_supplier(
-        test_db, batch, src, "Acme Corp", normalized_name="ACME CORP",
+        test_db,
+        batch,
+        src,
+        "Acme Corp",
+        normalized_name="ACME CORP",
         currency="TND",
     )
     test_db.flush()
@@ -185,11 +194,19 @@ def test_representative_tiebreak_lowest_id(test_db):
     batch = _make_batch(test_db, src)
     # Same richness (both have just name + currency)
     s1 = _make_supplier(
-        test_db, batch, src, "Acme Corp", normalized_name="ACME CORP",
+        test_db,
+        batch,
+        src,
+        "Acme Corp",
+        normalized_name="ACME CORP",
         currency="TND",
     )
     s2 = _make_supplier(
-        test_db, batch, src, "Acme Corp", normalized_name="ACME CORP",
+        test_db,
+        batch,
+        src,
+        "Acme Corp",
+        normalized_name="ACME CORP",
         currency="EUR",
     )
     test_db.flush()
@@ -211,7 +228,7 @@ def test_idempotency(test_db):
     src = _make_source(test_db, "TTEI")
     batch = _make_batch(test_db, src)
     s1 = _make_supplier(test_db, batch, src, "Acme Corp", normalized_name="ACME CORP")
-    s2 = _make_supplier(test_db, batch, src, "Acme Corp", normalized_name="ACME CORP")
+    _s2 = _make_supplier(test_db, batch, src, "Acme Corp", normalized_name="ACME CORP")
     test_db.flush()
 
     stats1 = group_intra_source(test_db, [src.id])

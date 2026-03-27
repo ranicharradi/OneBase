@@ -1,0 +1,14 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "S"]
+ignore = [
+    "S101",  # allow assert in tests
+    "B008",  # Depends() in function defaults is standard FastAPI pattern
+    "S105",  # false positive: hardcoded passwords are config defaults, not secrets
+]
+
+[tool.ruff.format]
+quote-style = "double"

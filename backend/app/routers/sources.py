@@ -1,37 +1,39 @@
 """Data source CRUD endpoints."""
+
 import csv
 import io
 import os
 import re
 import uuid
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_current_user
-from app.models.user import User
+from app.dependencies import get_current_user, get_db
 from app.models.staging import StagedSupplier
+from app.models.user import User
 from app.schemas.source import (
-    DataSourceCreate,
-    DataSourceUpdate,
-    DataSourceResponse,
     ColumnDetectResponse,
-    SourceMatchResult,
-    SourceMatchResponse,
+    DataSourceCreate,
+    DataSourceResponse,
+    DataSourceUpdate,
     FieldGuess,
     GuessMappingResponse,
-)
-from app.services.source import (
-    create_source,
-    get_sources,
-    get_source,
-    update_source,
-    delete_source,
+    SourceMatchResponse,
+    SourceMatchResult,
 )
 from app.services.audit import log_action
 from app.services.column_guesser import guess_column_mapping
+from app.services.source import (
+    create_source,
+    delete_source,
+    get_source,
+    get_sources,
+    update_source,
+)
 from app.utils.csv_parser import detect_columns
 
 UPLOAD_DIR = os.path.join("data", "uploads")
@@ -65,8 +67,8 @@ def create_data_source(
     except ValueError as e:
         err_msg = str(e)
         if "already exists" in err_msg:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=err_msg)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err_msg)
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=err_msg) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err_msg) from e
 
 
 @router.get("", response_model=list[DataSourceResponse])
@@ -122,6 +124,7 @@ def _sample_rows(text: str, delimiter: str, n: int = SAMPLE_ROWS) -> list[dict[s
 
 def _check_filename_pattern(pattern: str, filename: str) -> bool:
     """Check filename against a regex pattern with a timeout to prevent ReDoS."""
+
     def _match():
         return bool(re.search(pattern, filename))
 
@@ -176,7 +179,7 @@ async def match_source(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File is not valid UTF-8 or Windows-1252 encoded.",
-            )
+            ) from None
 
     # Auto-detect delimiter
     delimiter = _sniff_delimiter(text)
@@ -225,11 +228,7 @@ async def match_source(
         sample_size = len(sample_rows)
         supplier_code_col = col_mapping.get("supplier_code")
         if supplier_code_col and sample_rows:
-            csv_codes = {
-                row.get(supplier_code_col, "")
-                for row in sample_rows
-                if row.get(supplier_code_col, "")
-            }
+            csv_codes = {row.get(supplier_code_col, "") for row in sample_rows if row.get(supplier_code_col, "")}
             if csv_codes:
                 # Query existing source_codes for this source
                 existing_codes = {
@@ -273,9 +272,8 @@ async def match_source(
     suggested_source_id = None
     if matches:
         top = matches[0]
-        if top.confidence == "high":
-            if len(matches) == 1 or top.data_overlap_pct > 2 * matches[1].data_overlap_pct:
-                suggested_source_id = top.source_id
+        if top.confidence == "high" and (len(matches) == 1 or top.data_overlap_pct > 2 * matches[1].data_overlap_pct):
+            suggested_source_id = top.source_id
 
     return SourceMatchResponse(
         filename=file.filename or "unknown.csv",
@@ -317,7 +315,7 @@ async def guess_mapping(
         try:
             text = file_content.decode("cp1252")
         except UnicodeDecodeError:
-            raise HTTPException(status_code=400, detail="File encoding not supported")
+            raise HTTPException(status_code=400, detail="File encoding not supported") from None
 
     delimiter = _sniff_delimiter(text)
     columns = _detect_columns_from_text(text, delimiter)
@@ -365,7 +363,7 @@ def update_data_source(
     try:
         source = update_source(db, source_id, data)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
     log_action(

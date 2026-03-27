@@ -53,7 +53,7 @@ docker-compose up -d postgres redis      # just the DBs, no app containers
 python3 -m venv .venv
 source .venv/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # includes prod deps + test/lint tools
 
 # Run migrations and start dev server
 ENV_PROFILE=dev alembic upgrade head

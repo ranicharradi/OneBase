@@ -8,14 +8,13 @@ Handles:
 - Audit trail logging
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.models.match import MatchCandidate
 from app.models.staging import StagedSupplier
-from app.models.source import DataSource
 from app.models.unified import UnifiedSupplier
 from app.services.audit import log_action
 
@@ -92,11 +91,7 @@ def _expand_group_members(db: Session, supplier_id: int) -> list[int]:
     group_id = supplier.intra_source_group_id
     if group_id is None:
         return [supplier_id]
-    member_ids = (
-        db.query(StagedSupplier.id)
-        .filter(StagedSupplier.intra_source_group_id == group_id)
-        .all()
-    )
+    member_ids = db.query(StagedSupplier.id).filter(StagedSupplier.intra_source_group_id == group_id).all()
     return [m.id for m in member_ids]
 
 
@@ -119,7 +114,7 @@ def execute_merge(
     Returns:
         The created UnifiedSupplier.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     selection_map = {fs["field"]: fs["chosen_supplier_id"] for fs in field_selections}
     comparisons = compare_fields(supplier_a, supplier_b, source_a_name, source_b_name)
 
@@ -169,9 +164,7 @@ def execute_merge(
             # Conflict — must have user selection
             chosen_id = selection_map.get(field)
             if chosen_id is None:
-                raise ValueError(
-                    f"Missing field selection for conflicting field '{field}'"
-                )
+                raise ValueError(f"Missing field selection for conflicting field '{field}'")
 
             if chosen_id == supplier_a.id:
                 merged_values[field] = comp["value_a"]
@@ -194,9 +187,7 @@ def execute_merge(
                     "chosen_at": now,
                 }
             else:
-                raise ValueError(
-                    f"Invalid chosen_supplier_id {chosen_id} for field '{field}'"
-                )
+                raise ValueError(f"Invalid chosen_supplier_id {chosen_id} for field '{field}'")
         else:
             # Both None — empty field
             merged_values[field] = None
@@ -222,10 +213,7 @@ def execute_merge(
         contact_name=merged_values.get("contact_name"),
         supplier_type=merged_values.get("supplier_type"),
         provenance=provenance,
-        source_supplier_ids=(
-            _expand_group_members(db, supplier_a.id)
-            + _expand_group_members(db, supplier_b.id)
-        ),
+        source_supplier_ids=(_expand_group_members(db, supplier_a.id) + _expand_group_members(db, supplier_b.id)),
         match_candidate_id=candidate.id,
         created_by=username,
     )
@@ -235,7 +223,7 @@ def execute_merge(
     # Mark candidate as confirmed
     candidate.status = "confirmed"
     candidate.reviewed_by = username
-    candidate.reviewed_at = datetime.now(timezone.utc)
+    candidate.reviewed_at = datetime.now(UTC)
 
     # Audit trail
     log_action(
@@ -247,8 +235,7 @@ def execute_merge(
         details={
             "unified_supplier_name": merged_values["name"],
             "source_supplier_ids": (
-                _expand_group_members(db, supplier_a.id)
-                + _expand_group_members(db, supplier_b.id)
+                _expand_group_members(db, supplier_a.id) + _expand_group_members(db, supplier_b.id)
             ),
             "conflict_count": sum(1 for c in comparisons if c["is_conflict"]),
         },
@@ -267,7 +254,7 @@ def reject_candidate(
     """Mark a match candidate as rejected."""
     candidate.status = "rejected"
     candidate.reviewed_by = username
-    candidate.reviewed_at = datetime.now(timezone.utc)
+    candidate.reviewed_at = datetime.now(UTC)
 
     log_action(
         db,
@@ -287,7 +274,7 @@ def skip_candidate(
     """Mark a match candidate as skipped (for later review)."""
     candidate.status = "skipped"
     candidate.reviewed_by = username
-    candidate.reviewed_at = datetime.now(timezone.utc)
+    candidate.reviewed_at = datetime.now(UTC)
 
     log_action(
         db,

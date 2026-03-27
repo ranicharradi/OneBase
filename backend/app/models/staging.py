@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index, JSON, LargeBinary, func
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, LargeBinary, String, func
 
 try:
     from pgvector.sqlalchemy import Vector

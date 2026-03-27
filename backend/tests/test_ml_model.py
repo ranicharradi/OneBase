@@ -8,9 +8,16 @@ class TestMLModelVersion:
         mv = MLModelVersion(
             model_type="scorer",
             filename="ml_models/scorer_20260326.lgbm",
-            feature_names=["jaro_winkler", "token_jaccard", "embedding_cosine",
-                           "short_name_match", "currency_match", "contact_match",
-                           "name_length_ratio", "token_count_diff"],
+            feature_names=[
+                "jaro_winkler",
+                "token_jaccard",
+                "embedding_cosine",
+                "short_name_match",
+                "currency_match",
+                "contact_match",
+                "name_length_ratio",
+                "token_count_diff",
+            ],
             metrics={"precision": 0.92, "recall": 0.88, "f1": 0.90, "auc": 0.95, "threshold": 0.45},
             sample_count=150,
             is_active=True,
@@ -61,7 +68,7 @@ class TestMLModelVersion:
 
         active = (
             test_db.query(MLModelVersion)
-            .filter(MLModelVersion.model_type == "scorer", MLModelVersion.is_active == True)
+            .filter(MLModelVersion.model_type == "scorer", MLModelVersion.is_active == True)  # noqa: E712
             .first()
         )
         assert active is not None

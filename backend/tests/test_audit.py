@@ -1,12 +1,11 @@
 """Tests for audit trail logging."""
-import pytest
 
 
 def test_log_action_creates_entry(test_db):
     """log_action creates audit_log entry with correct fields."""
-    from app.services.audit import log_action
     from app.models.audit import AuditLog
     from app.models.user import User
+    from app.services.audit import log_action
     from app.services.auth import hash_password
 
     user = User(
@@ -39,9 +38,9 @@ def test_log_action_creates_entry(test_db):
 
 def test_login_creates_audit_entry(test_client, test_db):
     """Login action is logged in audit_log."""
-    from app.services.auth import hash_password
-    from app.models.user import User
     from app.models.audit import AuditLog
+    from app.models.user import User
+    from app.services.auth import hash_password
 
     user = User(
         username="auditlogin",

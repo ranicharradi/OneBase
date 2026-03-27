@@ -1,25 +1,17 @@
 """Tests for re-upload supersession logic."""
-import pytest
-from unittest.mock import patch, MagicMock
+
+from unittest.mock import patch
+
 import numpy as np
 
-from app.models.staging import StagedSupplier
-from app.models.match import MatchCandidate
 from app.models.batch import ImportBatch
+from app.models.match import MatchCandidate
 from app.models.source import DataSource
+from app.models.staging import StagedSupplier
 
+SAMPLE_CSV = b"\xef\xbb\xbfVendorCode;Name1\nV001;Acme Corp SARL\nV002;Beta GmbH\n"
 
-SAMPLE_CSV = (
-    b"\xef\xbb\xbfVendorCode;Name1\n"
-    b"V001;Acme Corp SARL\n"
-    b"V002;Beta GmbH\n"
-)
-
-SAMPLE_CSV_V2 = (
-    b"\xef\xbb\xbfVendorCode;Name1\n"
-    b"V001;Acme Corporation\n"
-    b"V003;Gamma LLC\n"
-)
+SAMPLE_CSV_V2 = b"\xef\xbb\xbfVendorCode;Name1\nV001;Acme Corporation\nV003;Gamma LLC\n"
 
 
 class TestReuploadSupersession:
@@ -54,12 +46,17 @@ class TestReuploadSupersession:
         source, batch = self._create_source_and_batch(test_db)
 
         from app.services.ingestion import run_ingestion
+
         run_ingestion(test_db, batch.id, SAMPLE_CSV)
 
-        suppliers = test_db.query(StagedSupplier).filter(
-            StagedSupplier.data_source_id == source.id,
-            StagedSupplier.status == "active",
-        ).all()
+        suppliers = (
+            test_db.query(StagedSupplier)
+            .filter(
+                StagedSupplier.data_source_id == source.id,
+                StagedSupplier.status == "active",
+            )
+            .all()
+        )
         assert len(suppliers) == 2
 
     @patch("app.services.ingestion.compute_embeddings")
@@ -70,6 +67,7 @@ class TestReuploadSupersession:
         source, batch1 = self._create_source_and_batch(test_db)
 
         from app.services.ingestion import run_ingestion
+
         run_ingestion(test_db, batch1.id, SAMPLE_CSV)
         test_db.commit()
 
@@ -87,17 +85,25 @@ class TestReuploadSupersession:
         test_db.commit()
 
         # Old records should be superseded
-        superseded = test_db.query(StagedSupplier).filter(
-            StagedSupplier.import_batch_id == batch1.id,
-            StagedSupplier.status == "superseded",
-        ).all()
+        superseded = (
+            test_db.query(StagedSupplier)
+            .filter(
+                StagedSupplier.import_batch_id == batch1.id,
+                StagedSupplier.status == "superseded",
+            )
+            .all()
+        )
         assert len(superseded) == 2
 
         # New records should be active
-        active = test_db.query(StagedSupplier).filter(
-            StagedSupplier.import_batch_id == batch2.id,
-            StagedSupplier.status == "active",
-        ).all()
+        active = (
+            test_db.query(StagedSupplier)
+            .filter(
+                StagedSupplier.import_batch_id == batch2.id,
+                StagedSupplier.status == "active",
+            )
+            .all()
+        )
         assert len(active) == 2
 
     @patch("app.services.ingestion.compute_embeddings")
@@ -108,13 +114,12 @@ class TestReuploadSupersession:
         source, batch1 = self._create_source_and_batch(test_db)
 
         from app.services.ingestion import run_ingestion
+
         run_ingestion(test_db, batch1.id, SAMPLE_CSV)
         test_db.commit()
 
         # Create a pending match candidate between the two staged suppliers
-        suppliers = test_db.query(StagedSupplier).filter(
-            StagedSupplier.import_batch_id == batch1.id
-        ).all()
+        suppliers = test_db.query(StagedSupplier).filter(StagedSupplier.import_batch_id == batch1.id).all()
         match = MatchCandidate(
             supplier_a_id=suppliers[0].id,
             supplier_b_id=suppliers[1].id,
@@ -150,13 +155,12 @@ class TestReuploadSupersession:
         source, batch1 = self._create_source_and_batch(test_db)
 
         from app.services.ingestion import run_ingestion
+
         run_ingestion(test_db, batch1.id, SAMPLE_CSV)
         test_db.commit()
 
         # Create a confirmed match candidate
-        suppliers = test_db.query(StagedSupplier).filter(
-            StagedSupplier.import_batch_id == batch1.id
-        ).all()
+        suppliers = test_db.query(StagedSupplier).filter(StagedSupplier.import_batch_id == batch1.id).all()
         match = MatchCandidate(
             supplier_a_id=suppliers[0].id,
             supplier_b_id=suppliers[1].id,

@@ -1,12 +1,12 @@
-from app.models.base import Base
-from app.models.user import User
 from app.models.audit import AuditLog
-from app.models.source import DataSource
+from app.models.base import Base
 from app.models.batch import ImportBatch
-from app.models.staging import StagedSupplier
 from app.models.match import MatchCandidate, MatchGroup
-from app.models.unified import UnifiedSupplier
 from app.models.ml_model import MLModelVersion
+from app.models.source import DataSource
+from app.models.staging import StagedSupplier
+from app.models.unified import UnifiedSupplier
+from app.models.user import User
 
 __all__ = [
     "Base",

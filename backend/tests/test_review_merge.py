@@ -3,13 +3,12 @@
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.match import MatchCandidate, MatchGroup
-from app.models.staging import StagedSupplier
-from app.models.source import DataSource
 from app.models.batch import ImportBatch
+from app.models.match import MatchCandidate
+from app.models.source import DataSource
+from app.models.staging import StagedSupplier
 from app.models.unified import UnifiedSupplier
 from app.services.merge import compare_fields, execute_merge, reject_candidate, skip_candidate
-
 
 # ── Helpers ──
 
@@ -90,7 +89,9 @@ def _setup_pair(db: Session):
     batch_ttei = _make_batch(db, src_ttei)
 
     sup_a = _make_supplier(
-        db, batch_eot, src_eot,
+        db,
+        batch_eot,
+        src_eot,
         name="ACME CORP",
         short_name="ACME",
         currency="EUR",
@@ -98,7 +99,9 @@ def _setup_pair(db: Session):
         source_code="FE001",
     )
     sup_b = _make_supplier(
-        db, batch_ttei, src_ttei,
+        db,
+        batch_ttei,
+        src_ttei,
         name="ACME CORPORATION",
         short_name="ACME",
         currency="USD",
@@ -280,12 +283,22 @@ class TestReviewAPI:
         batch_ttei = _make_batch(db, src_ttei)
 
         sup_a = _make_supplier(
-            db, batch_eot, src_eot, "ACME CORP",
-            short_name="ACME", currency="EUR", source_code="FE001",
+            db,
+            batch_eot,
+            src_eot,
+            "ACME CORP",
+            short_name="ACME",
+            currency="EUR",
+            source_code="FE001",
         )
         sup_b = _make_supplier(
-            db, batch_ttei, src_ttei, "ACME CORPORATION",
-            short_name="ACME", currency="USD", source_code="FL001",
+            db,
+            batch_ttei,
+            src_ttei,
+            "ACME CORPORATION",
+            short_name="ACME",
+            currency="USD",
+            source_code="FL001",
         )
         candidate = _make_candidate(db, sup_a, sup_b)
         db.commit()
@@ -341,18 +354,14 @@ class TestReviewAPI:
     def test_reject_endpoint(self, authenticated_client, test_db):
         _, _, candidate = self._setup_data(test_db)
 
-        resp = authenticated_client.post(
-            f"/api/review/candidates/{candidate.id}/reject"
-        )
+        resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/reject")
         assert resp.status_code == 200
         assert resp.json()["action"] == "rejected"
 
     def test_skip_endpoint(self, authenticated_client, test_db):
         _, _, candidate = self._setup_data(test_db)
 
-        resp = authenticated_client.post(
-            f"/api/review/candidates/{candidate.id}/skip"
-        )
+        resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/skip")
         assert resp.status_code == 200
         assert resp.json()["action"] == "skipped"
 

@@ -1,8 +1,9 @@
 """User listing router."""
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.auth import UserResponse
 

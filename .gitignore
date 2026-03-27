@@ -11,6 +11,7 @@ Desktop.ini
 # ── Editors / IDEs ──
 .idea/
 .vscode/
+.github/instructions/
 *.code-workspace
 *.swp
 *.swo

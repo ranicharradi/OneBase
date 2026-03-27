@@ -53,6 +53,7 @@ class RetrainResponse(BaseModel):
 
 class ModelTrainingResult(BaseModel):
     """Result for a single model (scorer or blocker)."""
+
     model_id: int
     sample_count: int
     metrics: dict
@@ -62,5 +63,6 @@ class ModelTrainingResult(BaseModel):
 
 class TrainModelResponse(BaseModel):
     """Response from ML model training."""
+
     scorer: ModelTrainingResult
     blocker: ModelTrainingResult

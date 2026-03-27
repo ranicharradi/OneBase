@@ -41,9 +41,7 @@ async def ws_notifications(websocket: WebSocket, token: str | None = None):
     try:
         while True:
             # Non-blocking check for Redis messages with a short timeout
-            message = await pubsub.get_message(
-                ignore_subscribe_messages=True, timeout=1.0
-            )
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
             if message and message["type"] == "message":
                 try:
                     await websocket.send_text(message["data"])
@@ -52,13 +50,11 @@ async def ws_notifications(websocket: WebSocket, token: str | None = None):
 
             # Also check for incoming client messages (ping/pong)
             try:
-                client_msg = await asyncio.wait_for(
-                    websocket.receive_text(), timeout=0.1
-                )
+                client_msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
                 # Respond to pings with pong
                 if client_msg == "ping":
                     await websocket.send_text(json.dumps({"type": "pong"}))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             except (WebSocketDisconnect, RuntimeError):
                 break

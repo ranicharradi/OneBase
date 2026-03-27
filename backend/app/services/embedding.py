@@ -1,6 +1,6 @@
 """Embedding computation service using sentence-transformers."""
-import numpy as np
 
+import numpy as np
 
 _model = None
 
@@ -13,6 +13,7 @@ def get_embedding_model():
     global _model
     if _model is None:
         from sentence_transformers import SentenceTransformer
+
         _model = SentenceTransformer("all-MiniLM-L6-v2")
     return _model
 

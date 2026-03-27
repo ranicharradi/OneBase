@@ -6,11 +6,11 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_current_user
-from app.models.user import User
+from app.dependencies import get_current_user, get_db
 from app.models.batch import ImportBatch
 from app.models.source import DataSource
-from app.schemas.upload import UploadResponse, BatchResponse, TaskStatusResponse
+from app.models.user import User
+from app.schemas.upload import BatchResponse, TaskStatusResponse, UploadResponse
 from app.services.audit import log_action
 from app.tasks.celery_app import celery_app
 from app.tasks.ingestion import process_upload
@@ -24,9 +24,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
-@router.post(
-    "/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file(
     file: UploadFile | None = File(None),
     file_ref: str | None = Form(None),
@@ -51,7 +49,7 @@ async def upload_file(
         original_filename = file_ref.split("_", 1)[1] if "_" in file_ref else file_ref
     elif file is not None:
         # Validate file extension
-        if not file.filename or not file.filename.lower().endswith('.csv'):
+        if not file.filename or not file.filename.lower().endswith(".csv"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Only .csv files are accepted",
@@ -77,12 +75,12 @@ async def upload_file(
 
         # Validate UTF-8 encoding
         try:
-            file_content.decode('utf-8')
+            file_content.decode("utf-8")
         except UnicodeDecodeError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File is not valid UTF-8. Please re-save as UTF-8 and try again.",
-            )
+            ) from None
         stored_filename = f"{uuid.uuid4()}_{file.filename}"
         filepath = os.path.join(UPLOAD_DIR, stored_filename)
         with open(filepath, "wb") as f:

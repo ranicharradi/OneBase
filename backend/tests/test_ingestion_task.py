@@ -1,13 +1,13 @@
 """Tests for ingestion task and service."""
 
-import pytest
-from unittest.mock import patch, MagicMock, call
-import numpy as np
+from unittest.mock import MagicMock, patch
 
-from app.models.staging import StagedSupplier
+import numpy as np
+import pytest
+
 from app.models.batch import ImportBatch
 from app.models.source import DataSource
-
+from app.models.staging import StagedSupplier
 
 SAMPLE_CSV = (
     b"\xef\xbb\xbfVendorCode;Name1;ShortName;Currency\n"
@@ -59,11 +59,7 @@ class TestRunIngestion:
 
         assert row_count == 3
 
-        suppliers = (
-            test_db.query(StagedSupplier)
-            .filter(StagedSupplier.import_batch_id == batch.id)
-            .all()
-        )
+        suppliers = test_db.query(StagedSupplier).filter(StagedSupplier.import_batch_id == batch.id).all()
         assert len(suppliers) == 3
 
         # Check first supplier
@@ -85,11 +81,7 @@ class TestRunIngestion:
 
         run_ingestion(test_db, batch.id, SAMPLE_CSV)
 
-        suppliers = (
-            test_db.query(StagedSupplier)
-            .filter(StagedSupplier.import_batch_id == batch.id)
-            .all()
-        )
+        suppliers = test_db.query(StagedSupplier).filter(StagedSupplier.import_batch_id == batch.id).all()
 
         s1 = next(s for s in suppliers if s.source_code == "V001")
         # "Acme Corp SARL" -> normalized: "ACME" (CORP and SARL removed)

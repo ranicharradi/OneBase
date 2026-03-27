@@ -1,11 +1,10 @@
 """Tests for scoring service — multi-signal supplier pair scoring."""
 
-import pytest
 from types import SimpleNamespace
-from unittest.mock import patch
+
 import numpy as np
 
-from app.services.scoring import score_pair, compute_signal_weights
+from app.services.scoring import compute_signal_weights, score_pair
 
 
 def _make_supplier_obj(**kwargs):
@@ -122,9 +121,7 @@ class TestScorePairSignals:
         b = _make_supplier_obj(id=2, normalized_name="B", contact_name="Jane Doe")
         result = score_pair(a, b)
         assert 0.0 <= result["signals"]["contact_match"] <= 1.0
-        assert (
-            result["signals"]["contact_match"] < 0.8
-        )  # Should be low for very different names
+        assert result["signals"]["contact_match"] < 0.8  # Should be low for very different names
 
     def test_none_contact_neutral(self):
         """None contact returns 0.5 (neutral)."""
@@ -218,12 +215,9 @@ class TestScorePairAggregation:
 
         expected = (
             result["signals"]["jaro_winkler"] * settings.matching_weight_jaro_winkler
-            + result["signals"]["token_jaccard"]
-            * settings.matching_weight_token_jaccard
-            + result["signals"]["embedding_cosine"]
-            * settings.matching_weight_embedding_cosine
-            + result["signals"]["short_name_match"]
-            * settings.matching_weight_short_name
+            + result["signals"]["token_jaccard"] * settings.matching_weight_token_jaccard
+            + result["signals"]["embedding_cosine"] * settings.matching_weight_embedding_cosine
+            + result["signals"]["short_name_match"] * settings.matching_weight_short_name
             + result["signals"]["currency_match"] * settings.matching_weight_currency
             + result["signals"]["contact_match"] * settings.matching_weight_contact
         )
@@ -250,24 +244,32 @@ class TestComputeSignalWeights:
     def test_all_fields_populated_returns_normalized_weights(self):
         """With all fields present and varied, weights should sum to 1.0."""
         suppliers = [
-            _make_supplier_obj(id=i, normalized_name=f"Supplier {i}",
-                               short_name=f"S{i}", currency=["USD", "EUR"][i % 2],
-                               contact_name=f"Contact {i}")
+            _make_supplier_obj(
+                id=i,
+                normalized_name=f"Supplier {i}",
+                short_name=f"S{i}",
+                currency=["USD", "EUR"][i % 2],
+                contact_name=f"Contact {i}",
+            )
             for i in range(10)
         ]
         weights = compute_signal_weights(suppliers)
         assert set(weights.keys()) == {
-            "jaro_winkler", "token_jaccard", "embedding_cosine",
-            "short_name_match", "currency_match", "contact_match",
+            "jaro_winkler",
+            "token_jaccard",
+            "embedding_cosine",
+            "short_name_match",
+            "currency_match",
+            "contact_match",
         }
         assert abs(sum(weights.values()) - 1.0) < 0.01
 
     def test_missing_currency_drops_signal(self):
         """If currency is mostly null, currency_match weight should be 0."""
         suppliers = [
-            _make_supplier_obj(id=i, normalized_name=f"Supplier {i}",
-                               currency=None, short_name=f"S{i}",
-                               contact_name=f"Contact {i}")
+            _make_supplier_obj(
+                id=i, normalized_name=f"Supplier {i}", currency=None, short_name=f"S{i}", contact_name=f"Contact {i}"
+            )
             for i in range(10)
         ]
         weights = compute_signal_weights(suppliers)
@@ -277,9 +279,9 @@ class TestComputeSignalWeights:
     def test_single_value_currency_drops_signal(self):
         """If all suppliers have the same currency, it has no discriminative power."""
         suppliers = [
-            _make_supplier_obj(id=i, normalized_name=f"Supplier {i}",
-                               currency="USD", short_name=f"S{i}",
-                               contact_name=f"Contact {i}")
+            _make_supplier_obj(
+                id=i, normalized_name=f"Supplier {i}", currency="USD", short_name=f"S{i}", contact_name=f"Contact {i}"
+            )
             for i in range(10)
         ]
         weights = compute_signal_weights(suppliers)
@@ -287,10 +289,7 @@ class TestComputeSignalWeights:
 
     def test_core_signals_always_present(self):
         """jaro_winkler, token_jaccard, embedding_cosine are always included."""
-        suppliers = [
-            _make_supplier_obj(id=i, normalized_name=f"Supplier {i}")
-            for i in range(10)
-        ]
+        suppliers = [_make_supplier_obj(id=i, normalized_name=f"Supplier {i}") for i in range(10)]
         weights = compute_signal_weights(suppliers)
         assert weights["jaro_winkler"] > 0
         assert weights["token_jaccard"] > 0
@@ -300,6 +299,7 @@ class TestComputeSignalWeights:
         """Empty supplier list returns default settings weights."""
         weights = compute_signal_weights([])
         from app.config import settings
+
         assert weights["jaro_winkler"] == settings.matching_weight_jaro_winkler
 
     def test_score_pair_accepts_weights(self):

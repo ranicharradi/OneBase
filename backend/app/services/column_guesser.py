@@ -17,40 +17,207 @@ import re
 
 # ISO 4217 currency codes (common subset)
 _ISO_CURRENCIES = {
-    "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN",
-    "BAM", "BBD", "BDT", "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BRL",
-    "BSD", "BTN", "BWP", "BYN", "BZD", "CAD", "CDF", "CHF", "CLP", "CNY",
-    "COP", "CRC", "CUP", "CVE", "CZK", "DJF", "DKK", "DOP", "DZD", "EGP",
-    "ERN", "ETB", "EUR", "FJD", "FKP", "GBP", "GEL", "GHS", "GIP", "GMD",
-    "GNF", "GTQ", "GYD", "HKD", "HNL", "HRK", "HTG", "HUF", "IDR", "ILS",
-    "INR", "IQD", "IRR", "ISK", "JMD", "JOD", "JPY", "KES", "KGS", "KHR",
-    "KMF", "KPW", "KRW", "KWD", "KYD", "KZT", "LAK", "LBP", "LKR", "LRD",
-    "LSL", "LYD", "MAD", "MDL", "MGA", "MKD", "MMK", "MNT", "MOP", "MRU",
-    "MUR", "MVR", "MWK", "MXN", "MYR", "MZN", "NAD", "NGN", "NIO", "NOK",
-    "NPR", "NZD", "OMR", "PAB", "PEN", "PGK", "PHP", "PKR", "PLN", "PYG",
-    "QAR", "RON", "RSD", "RUB", "RWF", "SAR", "SBD", "SCR", "SDG", "SEK",
-    "SGD", "SHP", "SLE", "SOS", "SRD", "SSP", "STN", "SYP", "SZL", "THB",
-    "TJS", "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX",
-    "USD", "UYU", "UZS", "VES", "VND", "VUV", "WST", "XAF", "XCD", "XOF",
-    "XPF", "YER", "ZAR", "ZMW", "ZWL",
+    "AED",
+    "AFN",
+    "ALL",
+    "AMD",
+    "ANG",
+    "AOA",
+    "ARS",
+    "AUD",
+    "AWG",
+    "AZN",
+    "BAM",
+    "BBD",
+    "BDT",
+    "BGN",
+    "BHD",
+    "BIF",
+    "BMD",
+    "BND",
+    "BOB",
+    "BRL",
+    "BSD",
+    "BTN",
+    "BWP",
+    "BYN",
+    "BZD",
+    "CAD",
+    "CDF",
+    "CHF",
+    "CLP",
+    "CNY",
+    "COP",
+    "CRC",
+    "CUP",
+    "CVE",
+    "CZK",
+    "DJF",
+    "DKK",
+    "DOP",
+    "DZD",
+    "EGP",
+    "ERN",
+    "ETB",
+    "EUR",
+    "FJD",
+    "FKP",
+    "GBP",
+    "GEL",
+    "GHS",
+    "GIP",
+    "GMD",
+    "GNF",
+    "GTQ",
+    "GYD",
+    "HKD",
+    "HNL",
+    "HRK",
+    "HTG",
+    "HUF",
+    "IDR",
+    "ILS",
+    "INR",
+    "IQD",
+    "IRR",
+    "ISK",
+    "JMD",
+    "JOD",
+    "JPY",
+    "KES",
+    "KGS",
+    "KHR",
+    "KMF",
+    "KPW",
+    "KRW",
+    "KWD",
+    "KYD",
+    "KZT",
+    "LAK",
+    "LBP",
+    "LKR",
+    "LRD",
+    "LSL",
+    "LYD",
+    "MAD",
+    "MDL",
+    "MGA",
+    "MKD",
+    "MMK",
+    "MNT",
+    "MOP",
+    "MRU",
+    "MUR",
+    "MVR",
+    "MWK",
+    "MXN",
+    "MYR",
+    "MZN",
+    "NAD",
+    "NGN",
+    "NIO",
+    "NOK",
+    "NPR",
+    "NZD",
+    "OMR",
+    "PAB",
+    "PEN",
+    "PGK",
+    "PHP",
+    "PKR",
+    "PLN",
+    "PYG",
+    "QAR",
+    "RON",
+    "RSD",
+    "RUB",
+    "RWF",
+    "SAR",
+    "SBD",
+    "SCR",
+    "SDG",
+    "SEK",
+    "SGD",
+    "SHP",
+    "SLE",
+    "SOS",
+    "SRD",
+    "SSP",
+    "STN",
+    "SYP",
+    "SZL",
+    "THB",
+    "TJS",
+    "TMT",
+    "TND",
+    "TOP",
+    "TRY",
+    "TTD",
+    "TWD",
+    "TZS",
+    "UAH",
+    "UGX",
+    "USD",
+    "UYU",
+    "UZS",
+    "VES",
+    "VND",
+    "VUV",
+    "WST",
+    "XAF",
+    "XCD",
+    "XOF",
+    "XPF",
+    "YER",
+    "ZAR",
+    "ZMW",
+    "ZWL",
 }
 
 _COMPANY_TOKENS = {
-    "inc", "corp", "corporation", "ltd", "limited", "llc", "gmbh", "sa", "sas",
-    "sarl", "ag", "bv", "nv", "plc", "co", "company", "group", "holdings",
-    "international", "intl", "services", "solutions", "industries", "enterprises",
-    "partners", "associates", "consulting", "technologies", "tech", "systems",
+    "inc",
+    "corp",
+    "corporation",
+    "ltd",
+    "limited",
+    "llc",
+    "gmbh",
+    "sa",
+    "sas",
+    "sarl",
+    "ag",
+    "bv",
+    "nv",
+    "plc",
+    "co",
+    "company",
+    "group",
+    "holdings",
+    "international",
+    "intl",
+    "services",
+    "solutions",
+    "industries",
+    "enterprises",
+    "partners",
+    "associates",
+    "consulting",
+    "technologies",
+    "tech",
+    "systems",
 }
 
 _ALL_FIELDS = [
-    "supplier_name", "supplier_code", "short_name",
-    "currency", "payment_terms", "contact_name", "supplier_type",
+    "supplier_name",
+    "supplier_code",
+    "short_name",
+    "currency",
+    "payment_terms",
+    "contact_name",
+    "supplier_type",
 ]
 
-_EMPTY_RESULT = {
-    field: {"column": None, "confidence": 0.0}
-    for field in _ALL_FIELDS
-}
+_EMPTY_RESULT = {field: {"column": None, "confidence": 0.0} for field in _ALL_FIELDS}
 
 _MIN_SCORE = 0.15
 
@@ -102,21 +269,14 @@ def _score_supplier_name(values: list[str]) -> float:
         return 0.0
     avg_len = _avg_length(values)
     uniqueness = _uniqueness_ratio(values)
-    company_count = sum(
-        1 for v in values if set(v.lower().split()) & _COMPANY_TOKENS
-    )
+    company_count = sum(1 for v in values if set(v.lower().split()) & _COMPANY_TOKENS)
     company_ratio = company_count / len(values)
     # Prefer longer text columns (20+ chars = max score)
     length_score = min(avg_len / 20.0, 1.0)
     # Bonus for ALL CAPS (common for company names in ERP systems)
     upper_count = sum(1 for v in values if v == v.upper() and len(v) > 3)
     upper_ratio = upper_count / len(values)
-    return (
-        length_score * 0.35
-        + uniqueness * 0.25
-        + company_ratio * 0.25
-        + upper_ratio * 0.15
-    )
+    return length_score * 0.35 + uniqueness * 0.25 + company_ratio * 0.25 + upper_ratio * 0.15
 
 
 def _score_supplier_code(values: list[str]) -> float:
@@ -135,31 +295,22 @@ def _score_supplier_code(values: list[str]) -> float:
         length_score = max(0.0, 1.0 - (avg_len - 15) / 30.0)
 
     # Alphanumeric pattern
-    alnum_count = sum(1 for v in values if re.match(r'^[\w\-]+$', v))
+    alnum_count = sum(1 for v in values if re.match(r"^[\w\-]+$", v))
     alnum_ratio = alnum_count / len(values)
 
     # Mixed alpha+digits is a strong signal (e.g., "FE661", "V001")
     # Pure numbers are more likely to be IDs/ticks, pure alpha more like names
-    mixed_count = sum(
-        1 for v in values
-        if re.search(r'[a-zA-Z]', v) and re.search(r'\d', v)
-    )
+    mixed_count = sum(1 for v in values if re.search(r"[a-zA-Z]", v) and re.search(r"\d", v))
     mixed_ratio = mixed_count / len(values)
 
     # Has any numeric component
-    has_digit = sum(1 for v in values if re.search(r'\d', v))
+    has_digit = sum(1 for v in values if re.search(r"\d", v))
     digit_ratio = has_digit / len(values)
 
     # Very high uniqueness required
     uniqueness_score = 1.0 if uniqueness > 0.95 else uniqueness
 
-    return (
-        length_score * 0.15
-        + uniqueness_score * 0.35
-        + alnum_ratio * 0.10
-        + mixed_ratio * 0.25
-        + digit_ratio * 0.15
-    )
+    return length_score * 0.15 + uniqueness_score * 0.35 + alnum_ratio * 0.10 + mixed_ratio * 0.25 + digit_ratio * 0.15
 
 
 def _score_short_name(values: list[str], name_avg_len: float) -> float:
@@ -175,7 +326,7 @@ def _score_short_name(values: list[str], name_avg_len: float) -> float:
         length_score = 1.0
     else:
         length_score = max(0.0, 1.0 - (avg_len - 15) / 20.0)
-    text_count = sum(1 for v in values if re.search(r'[a-zA-Z]', v))
+    text_count = sum(1 for v in values if re.search(r"[a-zA-Z]", v))
     text_ratio = text_count / len(values)
     uniqueness = _uniqueness_ratio(values)
     return length_score * 0.40 + text_ratio * 0.30 + uniqueness * 0.30
@@ -191,10 +342,7 @@ def _score_contact_name(values: list[str]) -> float:
 
     # Title Case specifically — person names are Title Case, not ALL CAPS
     # Must contain letters to count (exclude pure digits/symbols)
-    title_count = sum(
-        1 for v in values
-        if v == v.title() and re.search(r'[a-zA-Z]', v) and len(v) >= 3
-    )
+    title_count = sum(1 for v in values if v == v.title() and re.search(r"[a-zA-Z]", v) and len(v) >= 3)
     title_ratio = title_count / len(values)
 
     # Moderate length (5-40 chars)
@@ -207,19 +355,14 @@ def _score_contact_name(values: list[str]) -> float:
         length_score = 0.3
 
     # Alpha-heavy (names are mostly letters + spaces)
-    alpha_count = sum(1 for v in values if re.match(r'^[a-zA-Z\s.\-]+$', v))
+    alpha_count = sum(1 for v in values if re.match(r"^[a-zA-Z\s.\-]+$", v))
     alpha_ratio = alpha_count / len(values)
 
     # Penalize ALL CAPS (more likely company names)
     upper_count = sum(1 for v in values if v == v.upper() and len(v) > 3)
     upper_penalty = upper_count / len(values)
 
-    score = (
-        multi_word_ratio * 0.30
-        + title_ratio * 0.30
-        + alpha_ratio * 0.20
-        + length_score * 0.20
-    )
+    score = multi_word_ratio * 0.30 + title_ratio * 0.30 + alpha_ratio * 0.20 + length_score * 0.20
     # Reduce score for ALL CAPS columns
     return score * (1.0 - upper_penalty * 0.5)
 
@@ -242,7 +385,7 @@ def _score_payment_terms(values: list[str]) -> float:
         length_score = 1.0
     else:
         length_score = max(0.0, 1.0 - (avg_len - 20) / 30.0)
-    text_count = sum(1 for v in values if re.search(r'[a-zA-Z]', v))
+    text_count = sum(1 for v in values if re.search(r"[a-zA-Z]", v))
     text_ratio = text_count / len(values)
     return cardinality_score * 0.50 + length_score * 0.25 + text_ratio * 0.25
 

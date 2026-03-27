@@ -18,12 +18,12 @@ from app.config import settings
 from app.models.batch import ImportBatch
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.staging import StagedSupplier
-from app.services.blocking import text_block, embedding_block, combine_blocks
-from app.services.scoring import score_pair, compute_signal_weights
+from app.services.blocking import combine_blocks, embedding_block, text_block
 from app.services.clustering import find_groups
 from app.services.grouping import group_intra_source
-from app.services.ml_scoring import ml_score_pair, blocker_filter
+from app.services.ml_scoring import blocker_filter, ml_score_pair
 from app.services.ml_training import load_active_model
+from app.services.scoring import compute_signal_weights, score_pair
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +39,7 @@ def _invalidate_old_candidates(db: Session, source_id: int) -> int:
     """
     # Get supplier IDs belonging to this source
     supplier_ids = [
-        sid
-        for (sid,) in db.query(StagedSupplier.id)
-        .filter(StagedSupplier.data_source_id == source_id)
-        .all()
+        sid for (sid,) in db.query(StagedSupplier.id).filter(StagedSupplier.data_source_id == source_id).all()
     ]
 
     if not supplier_ids:
@@ -53,10 +50,7 @@ def _invalidate_old_candidates(db: Session, source_id: int) -> int:
         db.query(MatchCandidate)
         .filter(
             MatchCandidate.status != "invalidated",
-            (
-                MatchCandidate.supplier_a_id.in_(supplier_ids)
-                | MatchCandidate.supplier_b_id.in_(supplier_ids)
-            ),
+            (MatchCandidate.supplier_a_id.in_(supplier_ids) | MatchCandidate.supplier_b_id.in_(supplier_ids)),
         )
         .all()
     )
@@ -81,10 +75,7 @@ def _get_active_source_ids(db: Session, batch_id: int) -> list[int]:
     # Get all source IDs with active suppliers
     source_ids = [
         sid
-        for (sid,) in db.query(StagedSupplier.data_source_id)
-        .filter(StagedSupplier.status == "active")
-        .distinct()
-        .all()
+        for (sid,) in db.query(StagedSupplier.data_source_id).filter(StagedSupplier.status == "active").distinct().all()
     ]
 
     # Ensure batch's source is included
@@ -161,9 +152,7 @@ def run_matching_pipeline(
     try:
         emb_pairs = embedding_block(db, source_ids, representative_ids=representative_ids)
     except Exception as e:
-        logger.warning(
-            "embedding_block failed, falling back to text-only blocking: %s", e
-        )
+        logger.warning("embedding_block failed, falling back to text-only blocking: %s", e)
         db.rollback()  # Reset session state after DB-level error
         emb_pairs = set()
     all_pairs = combine_blocks(text_pairs, emb_pairs)
@@ -180,11 +169,7 @@ def run_matching_pipeline(
         for a_id, b_id in all_pairs:
             blocker_supplier_ids.add(a_id)
             blocker_supplier_ids.add(b_id)
-        blocker_suppliers = (
-            db.query(StagedSupplier)
-            .filter(StagedSupplier.id.in_(blocker_supplier_ids))
-            .all()
-        )
+        blocker_suppliers = db.query(StagedSupplier).filter(StagedSupplier.id.in_(blocker_supplier_ids)).all()
         blocker_lookup = {s.id: s for s in blocker_suppliers}
 
         pre_filter_count = len(all_pairs)
@@ -195,11 +180,7 @@ def run_matching_pipeline(
             return {"candidate_count": 0, "group_count": 0}
 
     # Compute dynamic signal weights based on representatives only
-    rep_suppliers = (
-        db.query(StagedSupplier)
-        .filter(StagedSupplier.id.in_(representative_ids))
-        .all()
-    )
+    rep_suppliers = db.query(StagedSupplier).filter(StagedSupplier.id.in_(representative_ids)).all()
     signal_weights = compute_signal_weights(rep_suppliers)
     logger.info("Auto signal weights: %s", signal_weights)
 
@@ -214,21 +195,15 @@ def run_matching_pipeline(
     for idx, (a_id, b_id) in enumerate(pair_list):
         # Load suppliers (with caching)
         if a_id not in supplier_cache:
-            supplier_cache[a_id] = (
-                db.query(StagedSupplier).filter(StagedSupplier.id == a_id).first()
-            )
+            supplier_cache[a_id] = db.query(StagedSupplier).filter(StagedSupplier.id == a_id).first()
         if b_id not in supplier_cache:
-            supplier_cache[b_id] = (
-                db.query(StagedSupplier).filter(StagedSupplier.id == b_id).first()
-            )
+            supplier_cache[b_id] = db.query(StagedSupplier).filter(StagedSupplier.id == b_id).first()
 
         supplier_a = supplier_cache[a_id]
         supplier_b = supplier_cache[b_id]
 
         if supplier_a is None or supplier_b is None:
-            logger.warning(
-                "Supplier not found for pair (%d, %d) — skipping", a_id, b_id
-            )
+            logger.warning("Supplier not found for pair (%d, %d) — skipping", a_id, b_id)
             continue
 
         if using_ml:

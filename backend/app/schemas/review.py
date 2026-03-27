@@ -5,7 +5,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-
 # ── Supplier detail for side-by-side comparison ──
 
 

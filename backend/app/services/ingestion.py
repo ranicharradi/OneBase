@@ -3,19 +3,19 @@
 Processes uploaded CSV files through the full pipeline:
 parse → map → supersede → store → normalize → embed → finalize
 """
-import logging
-from typing import Callable
 
-import numpy as np
+import logging
+from collections.abc import Callable
+
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
+from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
-from app.models.match import MatchCandidate
-from app.utils.csv_parser import parse_csv
-from app.services.normalization import normalize_name
 from app.services.embedding import compute_embeddings
+from app.services.normalization import normalize_name
+from app.utils.csv_parser import parse_csv
 
 logger = logging.getLogger(__name__)
 
@@ -87,17 +87,21 @@ def run_ingestion(
             return 0
 
         # 2. SUPERSEDE old records (if this source has existing active records)
-        existing_active = db.query(StagedSupplier).filter(
-            StagedSupplier.data_source_id == source.id,
-            StagedSupplier.status == "active",
-        ).all()
+        existing_active = (
+            db.query(StagedSupplier)
+            .filter(
+                StagedSupplier.data_source_id == source.id,
+                StagedSupplier.status == "active",
+            )
+            .all()
+        )
 
         if existing_active:
             # Mark all existing active records as superseded
             superseded_ids = [s.id for s in existing_active]
-            db.query(StagedSupplier).filter(
-                StagedSupplier.id.in_(superseded_ids)
-            ).update({"status": "superseded"}, synchronize_session="fetch")
+            db.query(StagedSupplier).filter(StagedSupplier.id.in_(superseded_ids)).update(
+                {"status": "superseded"}, synchronize_session="fetch"
+            )
 
             # Invalidate pending match candidates referencing superseded records
             if superseded_ids:

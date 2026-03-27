@@ -1,8 +1,9 @@
 """Authentication and user management service."""
+
 import hashlib
 import hmac
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from sqlalchemy.orm import Session
@@ -30,7 +31,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def create_token(username: str) -> str:
     """Create a JWT access token for a given username."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_expire_minutes)
     payload = {
         "sub": username,
         "exp": expire,
