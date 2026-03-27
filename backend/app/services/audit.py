@@ -1,4 +1,5 @@
 """Audit trail logging service."""
+
 from typing import Any
 
 from sqlalchemy.orm import Session

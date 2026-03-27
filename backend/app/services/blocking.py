@@ -18,9 +18,7 @@ from app.models.staging import StagedSupplier
 logger = logging.getLogger(__name__)
 
 
-def text_block(
-    db: Session, source_ids: list[int], representative_ids: set[int] | None = None
-) -> set[tuple[int, int]]:
+def text_block(db: Session, source_ids: list[int], representative_ids: set[int] | None = None) -> set[tuple[int, int]]:
     """Generate candidate pairs via normalized_name prefix and first-token overlap.
 
     Args:
@@ -32,12 +30,9 @@ def text_block(
         Set of (min_id, max_id) supplier pairs, cross-entity only.
     """
     # Query all active suppliers for given sources
-    query = (
-        db.query(StagedSupplier)
-        .filter(
-            StagedSupplier.data_source_id.in_(source_ids),
-            StagedSupplier.status == "active",
-        )
+    query = db.query(StagedSupplier).filter(
+        StagedSupplier.data_source_id.in_(source_ids),
+        StagedSupplier.status == "active",
     )
     if representative_ids is not None:
         query = query.filter(StagedSupplier.id.in_(representative_ids))
@@ -92,7 +87,10 @@ def text_block(
 
 
 def _get_embedding_neighbors(
-    db: Session, supplier: StagedSupplier, source_ids: list[int], k: int,
+    db: Session,
+    supplier: StagedSupplier,
+    source_ids: list[int],
+    k: int,
     representative_ids: set[int] | None = None,
 ) -> list[int]:
     """Query pgvector for K nearest neighbors from different sources.
@@ -110,20 +108,15 @@ def _get_embedding_neighbors(
         List of neighbor supplier IDs.
     """
     # pgvector cosine distance query
-    query = (
-        db.query(StagedSupplier.id)
-        .filter(
-            StagedSupplier.data_source_id != supplier.data_source_id,
-            StagedSupplier.data_source_id.in_(source_ids),
-            StagedSupplier.status == "active",
-            StagedSupplier.name_embedding.isnot(None),
-        )
+    query = db.query(StagedSupplier.id).filter(
+        StagedSupplier.data_source_id != supplier.data_source_id,
+        StagedSupplier.data_source_id.in_(source_ids),
+        StagedSupplier.status == "active",
+        StagedSupplier.name_embedding.isnot(None),
     )
     if representative_ids is not None:
         query = query.filter(StagedSupplier.id.in_(representative_ids))
-    neighbors = query.order_by(
-        StagedSupplier.name_embedding.cosine_distance(supplier.name_embedding)
-    ).limit(k).all()
+    neighbors = query.order_by(StagedSupplier.name_embedding.cosine_distance(supplier.name_embedding)).limit(k).all()
     return [n.id for n in neighbors]
 
 
@@ -142,13 +135,10 @@ def _get_suppliers_with_embeddings(
     Returns:
         List of StagedSupplier with non-null embeddings.
     """
-    query = (
-        db.query(StagedSupplier)
-        .filter(
-            StagedSupplier.data_source_id.in_(source_ids),
-            StagedSupplier.status == "active",
-            StagedSupplier.name_embedding.isnot(None),
-        )
+    query = db.query(StagedSupplier).filter(
+        StagedSupplier.data_source_id.in_(source_ids),
+        StagedSupplier.status == "active",
+        StagedSupplier.name_embedding.isnot(None),
     )
     if representative_ids is not None:
         query = query.filter(StagedSupplier.id.in_(representative_ids))
@@ -156,7 +146,9 @@ def _get_suppliers_with_embeddings(
 
 
 def embedding_block(
-    db: Session, source_ids: list[int], k: int | None = None,
+    db: Session,
+    source_ids: list[int],
+    k: int | None = None,
     representative_ids: set[int] | None = None,
 ) -> set[tuple[int, int]]:
     """Generate candidate pairs via pgvector ANN cosine distance search.

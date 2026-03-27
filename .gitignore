@@ -67,6 +67,11 @@ data/
 # ── ML model artifacts ──
 backend/ml_models/
 
+# ── CSV data files (allow test fixtures) ──
+*.csv
+!**/tests/**/*.csv
+!**/fixtures/**/*.csv
+
 # ── Design assets (not source) ──
 frontend/mockup-design.html
 original-*.webp
@@ -86,32 +91,21 @@ build/
 target/
 vendor/
 
-# ── Browser automation (Playwright CLI) ──
-.playwright-cli/
+# ── Local documentation (not tracked) ──
+docs/pfe/
+docs/revamp/
+revamp.md
 
-# ── GSD: All per-developer agent workflow data ──
+# ── AI agent / tool runtime ──
+.claude/
 .gsd/
-
-# ── AI agent / tool runtime dirs ──
 .opencode/
 .superpowers/
 .bg-shell/
-.claude/
 .agents/runtime/
-docs/superpowers/
+.github/instructions/
+.playwright-cli/
 tmp/
 
-# ── Local data / sample files (not source) ──
-*.csv
-!**/tests/**/*.csv
-!**/fixtures/**/*.csv
-
-
-# PFE rapport
-docs/pfe/
-
-# GSD planning docs
-.gsd/
-
-# Git worktrees
+# ── Git worktrees ──
 .worktrees/

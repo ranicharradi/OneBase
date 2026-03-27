@@ -1,17 +1,15 @@
 """Tests for ML training pipeline."""
 
-import os
 import tempfile
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 
-from app.models.source import DataSource
 from app.models.batch import ImportBatch
-from app.models.staging import StagedSupplier
-from app.models.match import MatchCandidate, MatchGroup
+from app.models.match import MatchCandidate
 from app.models.ml_model import MLModelVersion
+from app.models.source import DataSource
+from app.models.staging import StagedSupplier
 
 
 def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
@@ -56,22 +54,33 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
             status = "rejected"
 
         sup_a = StagedSupplier(
-            import_batch_id=b1.id, data_source_id=s1.id,
-            name=name_a, normalized_name=name_a.lower(),
-            source_code=f"A{i:03d}", short_name="TST", currency="EUR",
-            raw_data={"name": name_a}, status="active",
+            import_batch_id=b1.id,
+            data_source_id=s1.id,
+            name=name_a,
+            normalized_name=name_a.lower(),
+            source_code=f"A{i:03d}",
+            short_name="TST",
+            currency="EUR",
+            raw_data={"name": name_a},
+            status="active",
         )
         sup_b = StagedSupplier(
-            import_batch_id=b2.id, data_source_id=s2.id,
-            name=name_b, normalized_name=name_b.lower(),
-            source_code=f"B{i:03d}", short_name="TST", currency="EUR",
-            raw_data={"name": name_b}, status="active",
+            import_batch_id=b2.id,
+            data_source_id=s2.id,
+            name=name_b,
+            normalized_name=name_b.lower(),
+            source_code=f"B{i:03d}",
+            short_name="TST",
+            currency="EUR",
+            raw_data={"name": name_b},
+            status="active",
         )
         db.add_all([sup_a, sup_b])
         db.flush()
 
         mc = MatchCandidate(
-            supplier_a_id=sup_a.id, supplier_b_id=sup_b.id,
+            supplier_a_id=sup_a.id,
+            supplier_b_id=sup_b.id,
             confidence=sum(signals.values()) / 6,
             match_signals=signals,
             status=status,
@@ -110,22 +119,37 @@ class TestExtractTrainingData:
         test_db.add(b)
         test_db.flush()
         sa_ = StagedSupplier(
-            import_batch_id=b.id, data_source_id=s.id,
-            name="PENDING", normalized_name="pending",
-            source_code="P001", raw_data={}, status="active",
+            import_batch_id=b.id,
+            data_source_id=s.id,
+            name="PENDING",
+            normalized_name="pending",
+            source_code="P001",
+            raw_data={},
+            status="active",
         )
         sb_ = StagedSupplier(
-            import_batch_id=b.id, data_source_id=s.id,
-            name="PENDING B", normalized_name="pending b",
-            source_code="P002", raw_data={}, status="active",
+            import_batch_id=b.id,
+            data_source_id=s.id,
+            name="PENDING B",
+            normalized_name="pending b",
+            source_code="P002",
+            raw_data={},
+            status="active",
         )
         test_db.add_all([sa_, sb_])
         test_db.flush()
         mc = MatchCandidate(
-            supplier_a_id=sa_.id, supplier_b_id=sb_.id,
-            confidence=0.5, match_signals={"jaro_winkler": 0.5, "token_jaccard": 0.5,
-                                            "embedding_cosine": 0.5, "short_name_match": 0.5,
-                                            "currency_match": 0.5, "contact_match": 0.5},
+            supplier_a_id=sa_.id,
+            supplier_b_id=sb_.id,
+            confidence=0.5,
+            match_signals={
+                "jaro_winkler": 0.5,
+                "token_jaccard": 0.5,
+                "embedding_cosine": 0.5,
+                "short_name_match": 0.5,
+                "currency_match": 0.5,
+                "contact_match": 0.5,
+            },
             status="pending",
         )
         test_db.add(mc)
@@ -194,7 +218,10 @@ class TestTrainModel:
 class TestSaveLoadModel:
     def test_save_and_load_roundtrip(self, test_db):
         from app.services.ml_training import (
-            extract_training_data, train_model, save_model, load_active_model,
+            extract_training_data,
+            load_active_model,
+            save_model,
+            train_model,
         )
 
         _seed_reviewed_candidates(test_db, count=80, confirm_ratio=0.5)
@@ -203,23 +230,29 @@ class TestSaveLoadModel:
         X, y = extract_training_data(test_db)
         result = train_model(X, y, model_type="scorer")
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("app.services.ml_training.MODEL_DIR", tmpdir):
-                save_model(
-                    model=result["model"],
-                    model_type="scorer",
-                    feature_names=["jaro_winkler", "token_jaccard", "embedding_cosine",
-                                   "short_name_match", "currency_match", "contact_match",
-                                   "name_length_ratio", "token_count_diff"],
-                    metrics=result["metrics"],
-                    feature_importances=result["feature_importances"],
-                    sample_count=80,
-                    db=test_db,
-                    created_by="testuser",
-                )
-                test_db.flush()
+        with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml_training.MODEL_DIR", tmpdir):
+            save_model(
+                model=result["model"],
+                model_type="scorer",
+                feature_names=[
+                    "jaro_winkler",
+                    "token_jaccard",
+                    "embedding_cosine",
+                    "short_name_match",
+                    "currency_match",
+                    "contact_match",
+                    "name_length_ratio",
+                    "token_count_diff",
+                ],
+                metrics=result["metrics"],
+                feature_importances=result["feature_importances"],
+                sample_count=80,
+                db=test_db,
+                created_by="testuser",
+            )
+            test_db.flush()
 
-                bundle = load_active_model(test_db, "scorer", model_dir=tmpdir)
+            bundle = load_active_model(test_db, "scorer", model_dir=tmpdir)
 
         assert bundle is not None
         assert bundle.threshold == result["metrics"]["threshold"]
@@ -233,7 +266,9 @@ class TestSaveLoadModel:
 
     def test_new_model_deactivates_old(self, test_db):
         from app.services.ml_training import (
-            extract_training_data, train_model, save_model,
+            extract_training_data,
+            save_model,
+            train_model,
         )
 
         _seed_reviewed_candidates(test_db, count=80, confirm_ratio=0.5)
@@ -242,26 +277,35 @@ class TestSaveLoadModel:
         X, y = extract_training_data(test_db)
         result = train_model(X, y, model_type="scorer")
 
-        feature_names = ["jaro_winkler", "token_jaccard", "embedding_cosine",
-                         "short_name_match", "currency_match", "contact_match",
-                         "name_length_ratio", "token_count_diff"]
+        feature_names = [
+            "jaro_winkler",
+            "token_jaccard",
+            "embedding_cosine",
+            "short_name_match",
+            "currency_match",
+            "contact_match",
+            "name_length_ratio",
+            "token_count_diff",
+        ]
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("app.services.ml_training.MODEL_DIR", tmpdir):
-                save_model(result["model"], "scorer", feature_names,
-                           result["metrics"], result["feature_importances"], 80, test_db)
-                test_db.flush()
+        with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml_training.MODEL_DIR", tmpdir):
+            save_model(
+                result["model"], "scorer", feature_names, result["metrics"], result["feature_importances"], 80, test_db
+            )
+            test_db.flush()
 
-                import time
-                time.sleep(1)
+            import time
 
-                save_model(result["model"], "scorer", feature_names,
-                           result["metrics"], result["feature_importances"], 80, test_db)
-                test_db.flush()
+            time.sleep(1)
+
+            save_model(
+                result["model"], "scorer", feature_names, result["metrics"], result["feature_importances"], 80, test_db
+            )
+            test_db.flush()
 
         active_count = (
             test_db.query(MLModelVersion)
-            .filter(MLModelVersion.model_type == "scorer", MLModelVersion.is_active == True)
+            .filter(MLModelVersion.model_type == "scorer", MLModelVersion.is_active == True)  # noqa: E712
             .count()
         )
         assert active_count == 1

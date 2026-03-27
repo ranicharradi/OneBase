@@ -2,41 +2,41 @@
 
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, case, or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_current_user
-from app.models.user import User
+from app.dependencies import get_current_user, get_db
 from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
 from app.models.unified import UnifiedSupplier
-from app.services.audit import log_action
+from app.models.user import User
 from app.schemas.unified import (
-    UnifiedSupplierListItem,
-    UnifiedSupplierListResponse,
-    UnifiedSupplierDetail,
-    FieldProvenance,
-    SourceRecord,
-    MergeHistoryEntry,
-    SingletonCandidate,
-    SingletonListResponse,
-    PromoteResponse,
     BulkPromoteRequest,
     BulkPromoteResponse,
     DashboardResponse,
-    UploadStats,
+    FieldProvenance,
     MatchStats,
-    ReviewProgress,
-    UnifiedStats,
+    MergeHistoryEntry,
+    PromoteResponse,
     RecentActivity,
+    ReviewProgress,
+    SingletonCandidate,
+    SingletonListResponse,
+    SourceRecord,
+    UnifiedStats,
+    UnifiedSupplierDetail,
+    UnifiedSupplierListItem,
+    UnifiedSupplierListResponse,
+    UploadStats,
 )
+from app.services.audit import log_action
 
 router = APIRouter(prefix="/api/unified", tags=["unified"])
 
@@ -66,12 +66,7 @@ def list_unified_suppliers(
 
     total = query.count()
 
-    suppliers = (
-        query.order_by(UnifiedSupplier.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    suppliers = query.order_by(UnifiedSupplier.created_at.desc()).offset(offset).limit(limit).all()
 
     items = []
     for s in suppliers:
@@ -347,13 +342,13 @@ def promote_singleton(
     source = db.get(DataSource, supplier.data_source_id)
     source_name = source.name if source else "Unknown"
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     # Build provenance — all fields from single source
     provenance = {}
     from app.services.merge import CANONICAL_FIELDS
 
-    for field, label in CANONICAL_FIELDS:
+    for field, _label in CANONICAL_FIELDS:
         val = getattr(supplier, field, None)
         if val is not None:
             val = str(val).strip()
@@ -407,10 +402,7 @@ def promote_singleton(
 
     # Update audit entry with the new unified ID
     latest_audit = (
-        db.query(AuditLog)
-        .filter(AuditLog.action == "singleton_promoted")
-        .order_by(AuditLog.id.desc())
-        .first()
+        db.query(AuditLog).filter(AuditLog.action == "singleton_promoted").order_by(AuditLog.id.desc()).first()
     )
     if latest_audit:
         latest_audit.entity_id = unified.id
@@ -434,7 +426,7 @@ def bulk_promote_singletons(
     from app.services.merge import CANONICAL_FIELDS
 
     already = _get_already_unified_ids(db)
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     promoted_ids = []
 
@@ -449,7 +441,7 @@ def bulk_promote_singletons(
         source_name = source.name if source else "Unknown"
 
         provenance = {}
-        for field, label in CANONICAL_FIELDS:
+        for field, _label in CANONICAL_FIELDS:
             val = getattr(supplier, field, None)
             if val is not None:
                 val = str(val).strip()
@@ -519,28 +511,30 @@ def export_unified_csv(
     writer = csv.writer(output)
 
     # Header row
-    writer.writerow([
-        "ID",
-        "Name",
-        "Supplier Code",
-        "Short Name",
-        "Currency",
-        "Payment Terms",
-        "Contact Name",
-        "Supplier Type",
-        "Source Count",
-        "Is Singleton",
-        "Created By",
-        "Created At",
-        # Provenance columns
-        "Name Source",
-        "Code Source",
-        "Short Name Source",
-        "Currency Source",
-        "Payment Terms Source",
-        "Contact Source",
-        "Type Source",
-    ])
+    writer.writerow(
+        [
+            "ID",
+            "Name",
+            "Supplier Code",
+            "Short Name",
+            "Currency",
+            "Payment Terms",
+            "Contact Name",
+            "Supplier Type",
+            "Source Count",
+            "Is Singleton",
+            "Created By",
+            "Created At",
+            # Provenance columns
+            "Name Source",
+            "Code Source",
+            "Short Name Source",
+            "Currency Source",
+            "Payment Terms Source",
+            "Contact Source",
+            "Type Source",
+        ]
+    )
 
     from app.services.merge import CANONICAL_FIELDS
 
@@ -559,21 +553,23 @@ def export_unified_csv(
                 source_cols.append("")
 
         source_ids = s.source_supplier_ids or []
-        writer.writerow([
-            s.id,
-            s.name,
-            s.source_code or "",
-            s.short_name or "",
-            s.currency or "",
-            s.payment_terms or "",
-            s.contact_name or "",
-            s.supplier_type or "",
-            len(source_ids),
-            "Yes" if s.match_candidate_id is None else "No",
-            s.created_by,
-            s.created_at.isoformat() if s.created_at else "",
-            *source_cols,
-        ])
+        writer.writerow(
+            [
+                s.id,
+                s.name,
+                s.source_code or "",
+                s.short_name or "",
+                s.currency or "",
+                s.payment_terms or "",
+                s.contact_name or "",
+                s.supplier_type or "",
+                len(source_ids),
+                "Yes" if s.match_candidate_id is None else "No",
+                s.created_by,
+                s.created_at.isoformat() if s.created_at else "",
+                *source_cols,
+            ]
+        )
 
     output.seek(0)
 
@@ -591,7 +587,8 @@ def export_unified_csv(
         iter([output.getvalue()]),
         media_type="text/csv",
         headers={
-            "Content-Disposition": f"attachment; filename=unified_suppliers_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+            "Content-Disposition": f"attachment; filename=unified_suppliers_"
+            f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.csv"
         },
     )
 
@@ -606,17 +603,12 @@ def get_dashboard(
 ):
     """Dashboard with upload stats, match stats, review progress, and recent activity."""
     # Upload stats
-    batch_counts = (
-        db.query(
-            func.count(ImportBatch.id).label("total"),
-            func.count(case((ImportBatch.status == "completed", 1))).label("completed"),
-            func.count(case((ImportBatch.status == "failed", 1))).label("failed"),
-        )
-        .one()
-    )
-    total_staged = db.query(func.count(StagedSupplier.id)).filter(
-        StagedSupplier.status == "active"
-    ).scalar() or 0
+    batch_counts = db.query(
+        func.count(ImportBatch.id).label("total"),
+        func.count(case((ImportBatch.status == "completed", 1))).label("completed"),
+        func.count(case((ImportBatch.status == "failed", 1))).label("failed"),
+    ).one()
+    total_staged = db.query(func.count(StagedSupplier.id)).filter(StagedSupplier.status == "active").scalar() or 0
 
     # Match stats
     total_candidates = db.query(func.count(MatchCandidate.id)).scalar() or 0
@@ -624,36 +616,24 @@ def get_dashboard(
     avg_confidence = db.query(func.avg(MatchCandidate.confidence)).scalar()
 
     # Review progress
-    review_counts = (
-        db.query(
-            func.count(case((MatchCandidate.status == "pending", 1))).label("pending"),
-            func.count(case((MatchCandidate.status == "confirmed", 1))).label("confirmed"),
-            func.count(case((MatchCandidate.status == "rejected", 1))).label("rejected"),
-            func.count(case((MatchCandidate.status == "skipped", 1))).label("skipped"),
-        )
-        .one()
-    )
+    review_counts = db.query(
+        func.count(case((MatchCandidate.status == "pending", 1))).label("pending"),
+        func.count(case((MatchCandidate.status == "confirmed", 1))).label("confirmed"),
+        func.count(case((MatchCandidate.status == "rejected", 1))).label("rejected"),
+        func.count(case((MatchCandidate.status == "skipped", 1))).label("skipped"),
+    ).one()
 
     # Unified stats
     total_unified = db.query(func.count(UnifiedSupplier.id)).scalar() or 0
     merged_count = (
-        db.query(func.count(UnifiedSupplier.id))
-        .filter(UnifiedSupplier.match_candidate_id.isnot(None))
-        .scalar() or 0
+        db.query(func.count(UnifiedSupplier.id)).filter(UnifiedSupplier.match_candidate_id.isnot(None)).scalar() or 0
     )
     singleton_count = (
-        db.query(func.count(UnifiedSupplier.id))
-        .filter(UnifiedSupplier.match_candidate_id.is_(None))
-        .scalar() or 0
+        db.query(func.count(UnifiedSupplier.id)).filter(UnifiedSupplier.match_candidate_id.is_(None)).scalar() or 0
     )
 
     # Recent activity (last 20 audit entries)
-    recent = (
-        db.query(AuditLog)
-        .order_by(AuditLog.created_at.desc())
-        .limit(20)
-        .all()
-    )
+    recent = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(20).all()
 
     return DashboardResponse(
         uploads=UploadStats(

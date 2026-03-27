@@ -6,7 +6,7 @@ them to connected frontend clients in real time.
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import redis
 
@@ -39,7 +39,7 @@ def publish_notification(notification_type: str, data: dict) -> None:
         {
             "type": notification_type,
             "data": data,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
     )
     try:
@@ -50,6 +50,4 @@ def publish_notification(notification_type: str, data: dict) -> None:
         # Notification failure should never crash the calling task
         logger.warning("Failed to publish notification '%s': %s", notification_type, e)
     except Exception as e:
-        logger.warning(
-            "Unexpected error publishing notification '%s': %s", notification_type, e
-        )
+        logger.warning("Unexpected error publishing notification '%s': %s", notification_type, e)

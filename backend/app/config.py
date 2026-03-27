@@ -1,10 +1,11 @@
 import os
 from pathlib import Path
+
 from pydantic_settings import BaseSettings
-from typing import Optional
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # backend/../
 _PROFILE = os.getenv("ENV_PROFILE", "").lower()
+
 
 def _env_files() -> list[str]:
     """Return env files to load, in priority order (last wins)."""
@@ -24,8 +25,8 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480
-    admin_username: Optional[str] = None
-    admin_password: Optional[str] = None
+    admin_username: str | None = None
+    admin_password: str | None = None
     environment: str = "development"
 
     # Matching engine

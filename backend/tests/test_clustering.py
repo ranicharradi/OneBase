@@ -1,6 +1,5 @@
 """Tests for clustering service — Union-Find connected components."""
 
-import pytest
 import logging
 
 from app.services.clustering import find_groups
@@ -56,10 +55,7 @@ class TestFindGroups:
         assert len(groups) == 1
         assert groups[0] == {1, 2, 3, 4, 5, 6}
         # Warning was logged
-        assert any(
-            "6" in record.message and "exceed" in record.message.lower()
-            for record in caplog.records
-        )
+        assert any("6" in record.message and "exceed" in record.message.lower() for record in caplog.records)
 
     def test_within_size_no_warning(self, caplog):
         """Groups within max_cluster_size produce no warning."""

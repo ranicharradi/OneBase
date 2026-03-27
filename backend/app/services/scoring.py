@@ -10,8 +10,8 @@ Computes 6 signals for any supplier pair and a weighted confidence score:
 """
 
 import numpy as np
-from rapidfuzz.distance import JaroWinkler
 from rapidfuzz import fuzz
+from rapidfuzz.distance import JaroWinkler
 
 from app.config import settings
 from app.models.staging import StagedSupplier
@@ -132,10 +132,7 @@ def score_pair(
     # Signal 4: Short name exact match
     sn_a = supplier_a.short_name
     sn_b = supplier_b.short_name
-    if sn_a is not None and sn_b is not None:
-        short_name_match = 1.0 if sn_a == sn_b else 0.0
-    else:
-        short_name_match = 0.5  # Neutral when missing
+    short_name_match = (1.0 if sn_a == sn_b else 0.0) if sn_a is not None and sn_b is not None else 0.5
 
     # Signal 5: Currency match (case-insensitive)
     cur_a = supplier_a.currency
@@ -148,10 +145,7 @@ def score_pair(
     # Signal 6: Contact name similarity
     con_a = supplier_a.contact_name
     con_b = supplier_b.contact_name
-    if con_a is not None and con_b is not None:
-        contact_match = JaroWinkler.similarity(con_a, con_b)
-    else:
-        contact_match = 0.5  # Neutral when missing
+    contact_match = JaroWinkler.similarity(con_a, con_b) if con_a is not None and con_b is not None else 0.5
 
     signals = {
         "jaro_winkler": jaro_winkler,

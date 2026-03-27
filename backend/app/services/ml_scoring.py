@@ -6,8 +6,8 @@ Provides:
 """
 
 import numpy as np
-from rapidfuzz.distance import JaroWinkler
 from rapidfuzz import fuzz
+from rapidfuzz.distance import JaroWinkler
 
 from app.models.staging import StagedSupplier
 from app.services.ml_training import ModelBundle, _compute_engineered_features
@@ -27,16 +27,20 @@ def ml_score_pair(
     name_b = supplier_b.normalized_name or supplier_b.name or ""
     nlr, tcd = _compute_engineered_features(name_a, name_b)
 
-    feature_vector = np.array([[
-        signals["jaro_winkler"],
-        signals["token_jaccard"],
-        signals["embedding_cosine"],
-        signals["short_name_match"],
-        signals["currency_match"],
-        signals["contact_match"],
-        nlr,
-        tcd,
-    ]])
+    feature_vector = np.array(
+        [
+            [
+                signals["jaro_winkler"],
+                signals["token_jaccard"],
+                signals["embedding_cosine"],
+                signals["short_name_match"],
+                signals["currency_match"],
+                signals["contact_match"],
+                nlr,
+                tcd,
+            ]
+        ]
+    )
 
     confidence = float(bundle.model.predict(feature_vector)[0])
 
@@ -80,7 +84,4 @@ def blocker_filter(
     X = np.array(features)
     probs = bundle.model.predict(X)
 
-    return [
-        pair for pair, prob in zip(valid_pairs, probs)
-        if prob >= bundle.threshold
-    ]
+    return [pair for pair, prob in zip(valid_pairs, probs, strict=False) if prob >= bundle.threshold]

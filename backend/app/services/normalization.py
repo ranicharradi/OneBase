@@ -1,7 +1,7 @@
 """Name normalization service for supplier name matching."""
+
 import re
 import unicodedata
-
 
 # Legal suffixes sorted by length (longest first) to match longest first
 LEGAL_SUFFIXES = [

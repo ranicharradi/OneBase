@@ -1,6 +1,5 @@
 """Tests for column guesser service — data-value-based column classification."""
 
-import pytest
 from app.services.column_guesser import guess_column_mapping
 
 
@@ -107,16 +106,51 @@ class TestFullSageX3Mapping:
 
     def test_sage_x3_core_fields_detected(self):
         rows = [
-            {"BPSNUM_0": "FE661", "BPSNAM_0": "IPC INTERNATIONAL", "BPSSHO_0": "IPC INTERN",
-             "BPSTYP_0": "1", "CUR_0": "USD", "PTE_0": "PAIEMAVANCE", "CNTNAM_0": "Pierre Martin"},
-            {"BPSNUM_0": "FE662", "BPSNAM_0": "GLOBAL SUPPLIES LTD", "BPSSHO_0": "GLOBAL SUP",
-             "BPSTYP_0": "2", "CUR_0": "EUR", "PTE_0": "NET30", "CNTNAM_0": "John Smith"},
-            {"BPSNUM_0": "FE663", "BPSNAM_0": "ACME CORPORATION INC", "BPSSHO_0": "ACME CORP",
-             "BPSTYP_0": "1", "CUR_0": "GBP", "PTE_0": "NET30", "CNTNAM_0": "Jane Doe"},
-            {"BPSNUM_0": "FE664", "BPSNAM_0": "TECHNO SOLUTIONS SARL", "BPSSHO_0": "TECHNO SOL",
-             "BPSTYP_0": "1", "CUR_0": "EUR", "PTE_0": "PAIEMAVANCE", "CNTNAM_0": "Marie Dupont"},
-            {"BPSNUM_0": "FE665", "BPSNAM_0": "NORDIC ENTERPRISES AB", "BPSSHO_0": "NORDIC ENT",
-             "BPSTYP_0": "2", "CUR_0": "SEK", "PTE_0": "NET60", "CNTNAM_0": "Erik Johansson"},
+            {
+                "BPSNUM_0": "FE661",
+                "BPSNAM_0": "IPC INTERNATIONAL",
+                "BPSSHO_0": "IPC INTERN",
+                "BPSTYP_0": "1",
+                "CUR_0": "USD",
+                "PTE_0": "PAIEMAVANCE",
+                "CNTNAM_0": "Pierre Martin",
+            },
+            {
+                "BPSNUM_0": "FE662",
+                "BPSNAM_0": "GLOBAL SUPPLIES LTD",
+                "BPSSHO_0": "GLOBAL SUP",
+                "BPSTYP_0": "2",
+                "CUR_0": "EUR",
+                "PTE_0": "NET30",
+                "CNTNAM_0": "John Smith",
+            },
+            {
+                "BPSNUM_0": "FE663",
+                "BPSNAM_0": "ACME CORPORATION INC",
+                "BPSSHO_0": "ACME CORP",
+                "BPSTYP_0": "1",
+                "CUR_0": "GBP",
+                "PTE_0": "NET30",
+                "CNTNAM_0": "Jane Doe",
+            },
+            {
+                "BPSNUM_0": "FE664",
+                "BPSNAM_0": "TECHNO SOLUTIONS SARL",
+                "BPSSHO_0": "TECHNO SOL",
+                "BPSTYP_0": "1",
+                "CUR_0": "EUR",
+                "PTE_0": "PAIEMAVANCE",
+                "CNTNAM_0": "Marie Dupont",
+            },
+            {
+                "BPSNUM_0": "FE665",
+                "BPSNAM_0": "NORDIC ENTERPRISES AB",
+                "BPSSHO_0": "NORDIC ENT",
+                "BPSTYP_0": "2",
+                "CUR_0": "SEK",
+                "PTE_0": "NET60",
+                "CNTNAM_0": "Erik Johansson",
+            },
         ]
         columns = list(rows[0].keys())
         result = guess_column_mapping(columns, rows)

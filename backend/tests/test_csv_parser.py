@@ -1,7 +1,6 @@
 """Tests for CSV parsing utility."""
-import pytest
 
-from app.utils.csv_parser import parse_csv, detect_columns
+from app.utils.csv_parser import detect_columns, parse_csv
 
 
 class TestParseCsv:

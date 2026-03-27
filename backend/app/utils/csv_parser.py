@@ -1,4 +1,5 @@
 """CSV parsing utility with BOM handling and encoding fallback."""
+
 import csv
 import io
 from typing import Any

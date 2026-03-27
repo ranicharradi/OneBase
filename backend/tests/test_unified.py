@@ -1,22 +1,16 @@
 """Tests for unified suppliers — browse, detail, singleton promotion, export, dashboard."""
 
-import pytest
-from app.models.source import DataSource
 from app.models.batch import ImportBatch
+from app.models.match import MatchCandidate
+from app.models.source import DataSource
 from app.models.staging import StagedSupplier
-from app.models.match import MatchCandidate, MatchGroup
 from app.models.unified import UnifiedSupplier
-from app.models.audit import AuditLog
 
 
 def _seed_sources(db):
     """Create two data sources."""
-    s1 = DataSource(
-        name="EOT", description="EOT entity", column_mapping={"supplier_name": "BPSNAM"}
-    )
-    s2 = DataSource(
-        name="TTEI", description="TTEI entity", column_mapping={"supplier_name": "BPSNAM"}
-    )
+    s1 = DataSource(name="EOT", description="EOT entity", column_mapping={"supplier_name": "BPSNAM"})
+    s2 = DataSource(name="TTEI", description="TTEI entity", column_mapping={"supplier_name": "BPSNAM"})
     db.add_all([s1, s2])
     db.flush()
     return s1, s2
@@ -24,7 +18,9 @@ def _seed_sources(db):
 
 def _seed_batch(db, source):
     """Create an import batch."""
-    b = ImportBatch(data_source_id=source.id, filename="test.csv", uploaded_by="testuser", status="completed", row_count=10)
+    b = ImportBatch(
+        data_source_id=source.id, filename="test.csv", uploaded_by="testuser", status="completed", row_count=10
+    )
     db.add(b)
     db.flush()
     return b
@@ -53,7 +49,14 @@ def _seed_unified(db, name, source_ids, match_candidate_id=None, created_by="tes
         name=name,
         source_code="U001",
         provenance={
-            "name": {"value": name, "source_entity": "EOT", "source_record_id": source_ids[0], "auto": True, "chosen_by": created_by, "chosen_at": "2026-03-15T08:00:00"}
+            "name": {
+                "value": name,
+                "source_entity": "EOT",
+                "source_record_id": source_ids[0],
+                "auto": True,
+                "chosen_by": created_by,
+                "chosen_at": "2026-03-15T08:00:00",
+            }
         },
         source_supplier_ids=source_ids,
         match_candidate_id=match_candidate_id,
@@ -150,15 +153,13 @@ class TestSingletonPromotion:
         assert resp.status_code == 200
         assert resp.json()["total"] == 0
 
-    def test_list_singletons_excludes_non_representative_group_members(
-        self, authenticated_client, test_db
-    ):
+    def test_list_singletons_excludes_non_representative_group_members(self, authenticated_client, test_db):
         """Non-representative group members should NOT appear in singletons."""
         s1, _ = _seed_sources(test_db)
         b1 = _seed_batch(test_db, s1)
         rep = _seed_staged(test_db, s1, b1, "GROUP REP", "FE001")
         member = _seed_staged(test_db, s1, b1, "GROUP REP", "FE002")
-        ungrouped = _seed_staged(test_db, s1, b1, "UNGROUPED", "FE003")
+        _ungrouped = _seed_staged(test_db, s1, b1, "UNGROUPED", "FE003")
 
         # Mark rep as representative (group_id = self.id)
         rep.intra_source_group_id = rep.id
@@ -181,7 +182,7 @@ class TestSingletonPromotion:
         b2 = _seed_batch(test_db, s2)
         sup_a = _seed_staged(test_db, s1, b1, "MATCHED A")
         sup_b = _seed_staged(test_db, s2, b2, "MATCHED B")
-        sup_c = _seed_staged(test_db, s1, b1, "SINGLETON C", "FE003")
+        _sup_c = _seed_staged(test_db, s1, b1, "SINGLETON C", "FE003")
 
         # Create a match candidate for A and B
         mc = MatchCandidate(

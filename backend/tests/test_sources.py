@@ -1,6 +1,4 @@
 """Tests for data source CRUD endpoints."""
-import pytest
-
 
 VALID_SOURCE = {
     "name": "SAP Export",

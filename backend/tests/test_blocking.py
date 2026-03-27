@@ -1,13 +1,12 @@
 """Tests for blocking service — candidate pair generation."""
 
-import pytest
 from types import SimpleNamespace
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from app.models.staging import StagedSupplier
-from app.models.source import DataSource
 from app.models.batch import ImportBatch
-from app.services.blocking import text_block, embedding_block, combine_blocks
+from app.models.source import DataSource
+from app.models.staging import StagedSupplier
+from app.services.blocking import combine_blocks, embedding_block, text_block
 
 
 def _make_source(db, source_id, name):
@@ -164,7 +163,6 @@ class TestEmbeddingBlock:
 
     def test_pair_filtering_cross_entity(self, test_db):
         """embedding_block only returns cross-entity pairs."""
-        from app.models.staging import StagedSupplier
 
         _make_source(test_db, 1, "Source A")
         _make_source(test_db, 2, "Source B")
@@ -199,13 +197,7 @@ class TestEmbeddingBlock:
         ):
             mock_query.return_value = mock_suppliers
             mock_neighbors.side_effect = lambda db, supplier, source_ids, k, representative_ids=None: (
-                [2]
-                if supplier.id == 1
-                else [1]
-                if supplier.id == 2
-                else [2]
-                if supplier.id == 3
-                else []
+                [2] if supplier.id == 1 else [1] if supplier.id == 2 else [2] if supplier.id == 3 else []
             )
             pairs = embedding_block(test_db, [1, 2], k=5)
 

@@ -3,26 +3,24 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, case
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_current_user
-from app.models.user import User
+from app.dependencies import get_current_user, get_db
 from app.models.match import MatchCandidate
-from app.models.staging import StagedSupplier
 from app.models.source import DataSource
+from app.models.staging import StagedSupplier
 from app.models.unified import UnifiedSupplier
+from app.models.user import User
 from app.schemas.review import (
-    ReviewQueueItem,
-    ReviewQueueResponse,
-    MatchDetailResponse,
     FieldComparison,
-    SupplierDetail,
+    MatchDetailResponse,
     MergeRequest,
     ReviewActionResponse,
+    ReviewQueueItem,
+    ReviewQueueResponse,
     ReviewStatsResponse,
-    UnifiedSupplierResponse,
-    FieldProvenance,
+    SupplierDetail,
 )
 from app.services.merge import (
     compare_fields,
@@ -34,9 +32,7 @@ from app.services.merge import (
 router = APIRouter(prefix="/api/review", tags=["review"])
 
 
-def _load_supplier_detail(
-    db: Session, supplier_id: int
-) -> tuple[StagedSupplier, DataSource]:
+def _load_supplier_detail(db: Session, supplier_id: int) -> tuple[StagedSupplier, DataSource]:
     """Load a staged supplier and its data source."""
     supplier = db.get(StagedSupplier, supplier_id)
     if not supplier:
@@ -81,39 +77,21 @@ def get_review_queue(
 
     # Source pair filtering — requires joins to staged suppliers
     if source_a_id is not None or source_b_id is not None:
-        SupA = (
-            db.query(StagedSupplier.id, StagedSupplier.data_source_id)
-            .subquery("sup_a")
-        )
-        SupB = (
-            db.query(StagedSupplier.id, StagedSupplier.data_source_id)
-            .subquery("sup_b")
-        )
+        SupA = db.query(StagedSupplier.id, StagedSupplier.data_source_id).subquery("sup_a")
+        SupB = db.query(StagedSupplier.id, StagedSupplier.data_source_id).subquery("sup_b")
         query = query.join(SupA, MatchCandidate.supplier_a_id == SupA.c.id)
         query = query.join(SupB, MatchCandidate.supplier_b_id == SupB.c.id)
 
         if source_a_id is not None and source_b_id is not None:
             # Either direction: (A in source_a, B in source_b) OR (A in source_b, B in source_a)
             query = query.filter(
-                (
-                    (SupA.c.data_source_id == source_a_id)
-                    & (SupB.c.data_source_id == source_b_id)
-                )
-                | (
-                    (SupA.c.data_source_id == source_b_id)
-                    & (SupB.c.data_source_id == source_a_id)
-                )
+                ((SupA.c.data_source_id == source_a_id) & (SupB.c.data_source_id == source_b_id))
+                | ((SupA.c.data_source_id == source_b_id) & (SupB.c.data_source_id == source_a_id))
             )
         elif source_a_id is not None:
-            query = query.filter(
-                (SupA.c.data_source_id == source_a_id)
-                | (SupB.c.data_source_id == source_a_id)
-            )
+            query = query.filter((SupA.c.data_source_id == source_a_id) | (SupB.c.data_source_id == source_a_id))
         elif source_b_id is not None:
-            query = query.filter(
-                (SupA.c.data_source_id == source_b_id)
-                | (SupB.c.data_source_id == source_b_id)
-            )
+            query = query.filter((SupA.c.data_source_id == source_b_id) | (SupB.c.data_source_id == source_b_id))
 
     total = query.count()
 
@@ -125,11 +103,7 @@ def get_review_queue(
     else:  # confidence_desc (default)
         query = query.order_by(MatchCandidate.confidence.desc())
 
-    candidates = (
-        query.offset(offset)
-        .limit(limit)
-        .all()
-    )
+    candidates = query.offset(offset).limit(limit).all()
 
     # Batch-load supplier info
     supplier_ids = set()
@@ -248,9 +222,7 @@ def get_match_detail(
 # ── Review actions ──
 
 
-@router.post(
-    "/candidates/{candidate_id}/merge", response_model=ReviewActionResponse
-)
+@router.post("/candidates/{candidate_id}/merge", response_model=ReviewActionResponse)
 def merge_candidate(
     candidate_id: int,
     body: MergeRequest,
@@ -298,7 +270,7 @@ def merge_candidate(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
 
     return ReviewActionResponse(
         candidate_id=candidate.id,
@@ -307,9 +279,7 @@ def merge_candidate(
     )
 
 
-@router.post(
-    "/candidates/{candidate_id}/reject", response_model=ReviewActionResponse
-)
+@router.post("/candidates/{candidate_id}/reject", response_model=ReviewActionResponse)
 def reject_match(
     candidate_id: int,
     db: Session = Depends(get_db),
@@ -338,9 +308,7 @@ def reject_match(
     )
 
 
-@router.post(
-    "/candidates/{candidate_id}/skip", response_model=ReviewActionResponse
-)
+@router.post("/candidates/{candidate_id}/skip", response_model=ReviewActionResponse)
 def skip_match(
     candidate_id: int,
     db: Session = Depends(get_db),
@@ -378,23 +346,12 @@ def get_review_stats(
     current_user: User = Depends(get_current_user),
 ):
     """Get summary stats for the review queue."""
-    counts = (
-        db.query(
-            func.count(case((MatchCandidate.status == "pending", 1))).label(
-                "pending"
-            ),
-            func.count(case((MatchCandidate.status == "confirmed", 1))).label(
-                "confirmed"
-            ),
-            func.count(case((MatchCandidate.status == "rejected", 1))).label(
-                "rejected"
-            ),
-            func.count(case((MatchCandidate.status == "skipped", 1))).label(
-                "skipped"
-            ),
-        )
-        .one()
-    )
+    counts = db.query(
+        func.count(case((MatchCandidate.status == "pending", 1))).label("pending"),
+        func.count(case((MatchCandidate.status == "confirmed", 1))).label("confirmed"),
+        func.count(case((MatchCandidate.status == "rejected", 1))).label("rejected"),
+        func.count(case((MatchCandidate.status == "skipped", 1))).label("skipped"),
+    ).one()
 
     unified_count = db.query(func.count(UnifiedSupplier.id)).scalar() or 0
 

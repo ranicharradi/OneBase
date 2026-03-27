@@ -1,7 +1,6 @@
 """Tests for upload endpoint and batch management."""
-import pytest
-from unittest.mock import patch, MagicMock
 
+from unittest.mock import MagicMock, patch
 
 VALID_SOURCE = {
     "name": "SAP Export",
@@ -53,7 +52,7 @@ class TestUploadEndpoint:
 
     def test_upload_invalid_source_id(self, authenticated_client, test_db):
         """Upload with non-existent data_source_id returns 404."""
-        with patch("app.routers.upload.process_upload") as mock_task:
+        with patch("app.routers.upload.process_upload") as _mock_task:
             response = authenticated_client.post(
                 "/api/import/upload",
                 data={"data_source_id": "999"},
@@ -69,7 +68,6 @@ class TestUploadEndpoint:
             files={"file": ("test.csv", b"code;name\n001;Acme\n", "text/csv")},
         )
         assert response.status_code == 401
-
 
     def test_upload_rejects_oversized_file(self, authenticated_client, test_db):
         """Upload with file exceeding 50MB returns 413."""

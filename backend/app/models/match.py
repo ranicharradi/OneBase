@@ -1,11 +1,11 @@
 from sqlalchemy import (
-    Column,
-    Integer,
-    Float,
-    String,
-    DateTime,
-    ForeignKey,
     JSON,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
     UniqueConstraint,
     func,
 )
@@ -31,9 +31,7 @@ class MatchCandidate(Base):
     supplier_b_id = Column(Integer, ForeignKey("staged_suppliers.id"), nullable=False)
     confidence = Column(Float, nullable=False)
     match_signals = Column(JSON, nullable=False)
-    status = Column(
-        String(20), default="pending"
-    )  # pending/confirmed/rejected/skipped/invalidated
+    status = Column(String(20), default="pending")  # pending/confirmed/rejected/skipped/invalidated
     reviewed_by = Column(String(100), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
@@ -41,6 +39,4 @@ class MatchCandidate(Base):
 
     group = relationship("MatchGroup", back_populates="candidates")
 
-    __table_args__ = (
-        UniqueConstraint("supplier_a_id", "supplier_b_id", name="uq_match_pair"),
-    )
+    __table_args__ = (UniqueConstraint("supplier_a_id", "supplier_b_id", name="uq_match_pair"),)

@@ -6,16 +6,17 @@ Create Date: 2026-03-15
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
+
+import sqlalchemy as sa
 
 from alembic import op
-import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "002"
-down_revision: Union[str, None] = "001"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "001"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -58,9 +59,7 @@ def downgrade() -> None:
 
     # Drop group_id index, FK, and column from match_candidates
     op.drop_index("ix_match_candidates_group_id", table_name="match_candidates")
-    op.drop_constraint(
-        "fk_match_candidates_group_id", "match_candidates", type_="foreignkey"
-    )
+    op.drop_constraint("fk_match_candidates_group_id", "match_candidates", type_="foreignkey")
     op.drop_column("match_candidates", "group_id")
 
     # Drop match_groups table

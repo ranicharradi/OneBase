@@ -10,7 +10,7 @@ Enterprise supplier data unification platform. Ingests supplier CSVs from multip
 
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy, PostgreSQL + pgvector, Celery + Redis
 - **Frontend:** React 19, TypeScript, Vite 8 (Rolldown), TanStack Query, React Router v7, Tailwind CSS v4
-- **ML:** sentence-transformers (all-MiniLM-L6-v2, 384-dim embeddings), rapidfuzz
+- **ML:** sentence-transformers (all-MiniLM-L6-v2, 384-dim embeddings), LightGBM, rapidfuzz
 - **Infra:** Docker Compose (postgres, redis, api, worker, frontend/nginx)
 
 ## Environment Profiles
@@ -53,7 +53,7 @@ docker-compose up -d postgres redis      # just the DBs, no app containers
 python3 -m venv .venv
 source .venv/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # includes prod deps + test/lint tools
 
 # Run migrations and start dev server
 ENV_PROFILE=dev alembic upgrade head
@@ -82,7 +82,7 @@ Open `http://localhost:5173` — login with `admin` / `changeme`.
 
 ```bash
 # Backend (from backend/, with venv activated)
-python3 -m pytest                        # run all tests (202 tests, SQLite)
+python3 -m pytest                        # run all tests (243 tests, SQLite)
 python3 -m pytest tests/test_auth.py     # run single test file
 python3 -m pytest tests/test_auth.py::test_login_success -v  # single test
 TEST_DATABASE_URL=postgresql://... python3 -m pytest  # test against Postgres
@@ -116,7 +116,7 @@ CSV Upload → Ingestion → Blocking → Scoring → Clustering → Human Revie
 
 1. **Ingestion** (`services/ingestion.py`): Parse CSV via column mapping from DataSource config, normalize fields, insert StagedSupplier rows
 2. **Blocking** (`services/blocking.py`): Generate candidate pairs via text token overlap + pgvector HNSW nearest-neighbor
-3. **Scoring** (`services/scoring.py`): Multi-signal confidence (jaro-winkler 0.30, token-jaccard 0.20, embedding-cosine 0.25, short-name 0.10, currency 0.05, contact 0.10)
+3. **Scoring** (`services/scoring.py`): Multi-signal confidence with default weights (jaro-winkler 0.30, token-jaccard 0.20, embedding-cosine 0.25, short-name 0.10, currency 0.05, contact 0.10) — all tunable via `MATCHING_WEIGHT_*` env vars
 4. **Clustering** (`services/clustering.py`): Transitive closure to group related pairs into MatchGroups
 5. **Review** (UI + `routers/review.py`): Human confirms/rejects/skips candidates
 6. **Merge** (`services/merge.py`): Creates UnifiedSupplier with per-field provenance JSON tracking source, reviewer, timestamp
@@ -125,11 +125,9 @@ Steps 1-4 run as Celery tasks (Redis broker). Frontend polls `/api/import/batche
 
 ### Backend Structure
 
-- `app/models/` - SQLAlchemy ORM: User, DataSource, ImportBatch, StagedSupplier, MatchGroup, MatchCandidate, UnifiedSupplier, AuditLog
-- `app/routers/` - FastAPI route handlers, all prefixed `/api/` (auth, sources, upload, matching, review, unified, users, ws)
-- `app/services/` - Business logic, one service per domain concern
-- `app/services/column_guesser.py` - Auto-detects CSV column mappings for ingestion
-- `app/services/notifications.py` - WebSocket event broadcasting for async task updates
+- `app/models/` - SQLAlchemy ORM: User, DataSource, ImportBatch, StagedSupplier, MatchGroup, MatchCandidate, UnifiedSupplier, MLModelVersion, AuditLog
+- `app/routers/` - FastAPI route handlers, all prefixed `/api/` (auth, sources, upload, matching, review, unified, users) except `ws` (no prefix)
+- `app/services/` - Business logic, one service per domain concern (including `column_guesser.py`, `grouping.py`, `ml_training.py`, `ml_scoring.py`, `notifications.py`)
 - `app/schemas/` - Pydantic request/response models (auth, source, upload, matching, review, unified)
 - `app/tasks/` - Celery tasks: `process_upload` (ingestion + triggers matching), `run_matching` (blocking + scoring + clustering)
 - `app/dependencies.py` - `get_db()` session, `get_current_user()` JWT auth (OAuth2 Bearer, HS256)
@@ -144,6 +142,7 @@ Steps 1-4 run as Celery tasks (Redis broker). Frontend polls `/api/import/batche
 - `src/hooks/useTaskStatus.ts` - Poll Celery task progress
 - `src/hooks/useMatchingNotifications.ts` - WebSocket for async matching events
 - `src/hooks/useTheme.tsx` - Dark/light theme context and toggle
+- `src/components/` - Reusable UI: Layout, ErrorBoundary, ProtectedRoute, DropZone, ColumnMapper, ProgressTracker, Toast, BatchHistory, ReUploadDialog
 - `src/pages/` - Route components: Dashboard, Upload, Sources, ReviewQueue, ReviewDetail, UnifiedSuppliers, UnifiedSupplierDetail, Users, Login
 
 ### Key Dependencies
@@ -155,7 +154,8 @@ Steps 1-4 run as Celery tasks (Redis broker). Frontend polls `/api/import/batche
 
 - **Field-level provenance**: UnifiedSupplier.provenance is a JSON dict mapping each field to its source record, reviewer, and timestamp
 - **Re-upload handling**: Re-uploading for a source marks old StagedSuppliers as "superseded" and invalidates their MatchCandidates
-- **Signal weight retraining**: `POST /api/matching/retrain` optimizes signal weights from confirmed/rejected decisions (requires 20+ reviews)
+- **ML-enhanced matching**: `POST /api/matching/train-model` trains a LightGBM scorer/blocker from review decisions; falls back to weighted-sum when no model exists
+- **Signal weight retraining**: `POST /api/matching/retrain` optimizes linear signal weights from confirmed/rejected decisions (requires 20+ reviews)
 - **Test DB**: Tests use SQLite by default (fast, no deps) with WAL mode; set `TEST_DATABASE_URL` for Postgres integration tests
 - **Production secret validation**: `validate_production_secrets()` runs at startup — if `ENVIRONMENT=production` and `JWT_SECRET` is still the default, the app refuses to start with a RuntimeError
 - **Health endpoint**: `GET /health` (no `/api/` prefix, unlike all other routes) — returns `{"status": "ok"}`, useful for load balancer/container health checks
@@ -166,9 +166,13 @@ Configured via `.env` (see `.env.example`): `DATABASE_URL`, `REDIS_URL`, `JWT_SE
 
 Matching engine tuning (optional): `MATCHING_CONFIDENCE_THRESHOLD` (default 0.45), `MATCHING_BLOCKING_K` (default 20), `MATCHING_MAX_CLUSTER_SIZE` (default 50)
 
+Matching signal weights (optional): `MATCHING_WEIGHT_JARO_WINKLER` (0.30), `MATCHING_WEIGHT_TOKEN_JACCARD` (0.20), `MATCHING_WEIGHT_EMBEDDING_COSINE` (0.25), `MATCHING_WEIGHT_SHORT_NAME` (0.10), `MATCHING_WEIGHT_CURRENCY` (0.05), `MATCHING_WEIGHT_CONTACT` (0.10)
+
+JWT config: `JWT_EXPIRE_MINUTES` (default 480, 8 hours)
+
 ## Database
 
-PostgreSQL 16 with pgvector extension. 5 Alembic migrations in `backend/alembic/versions/`. Key table: `staged_suppliers` has HNSW index on `name_embedding` (384-dim vector) for fast nearest-neighbor blocking.
+PostgreSQL 16 with pgvector extension. 7 Alembic migrations in `backend/alembic/versions/`. Key table: `staged_suppliers` has HNSW index on `name_embedding` (384-dim vector) for fast nearest-neighbor blocking.
 
 ## Rules
 

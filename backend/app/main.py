@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings, validate_production_secrets
 from app.database import SessionLocal
-from app.routers import auth, users, sources, upload, matching, review, unified, ws
+from app.routers import auth, matching, review, sources, unified, upload, users, ws
 
 
 @asynccontextmanager

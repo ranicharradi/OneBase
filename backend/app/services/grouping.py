@@ -16,17 +16,20 @@ logger = logging.getLogger(__name__)
 
 # Fields used to determine "richness" for representative selection
 _CANONICAL_FIELDS = [
-    "name", "source_code", "short_name", "currency",
-    "payment_terms", "contact_name", "supplier_type",
+    "name",
+    "source_code",
+    "short_name",
+    "currency",
+    "payment_terms",
+    "contact_name",
+    "supplier_type",
 ]
 
 
 def _count_populated(supplier: StagedSupplier) -> int:
     """Count non-null canonical fields on a supplier."""
     return sum(
-        1 for f in _CANONICAL_FIELDS
-        if getattr(supplier, f, None) is not None
-        and str(getattr(supplier, f)).strip()
+        1 for f in _CANONICAL_FIELDS if getattr(supplier, f, None) is not None and str(getattr(supplier, f)).strip()
     )
 
 
@@ -74,7 +77,7 @@ def group_intra_source(db: Session, source_ids: list[int]) -> dict:
     groups_formed = 0
     rows_grouped = 0
 
-    for key, members in groups.items():
+    for _key, members in groups.items():
         if len(members) < 2:
             continue  # Single-member group: leave as NULL
 
@@ -90,7 +93,9 @@ def group_intra_source(db: Session, source_ids: list[int]) -> dict:
     representatives = groups_formed  # One rep per group
     logger.info(
         "Intra-source grouping: %d groups, %d rows grouped, %d representatives",
-        groups_formed, rows_grouped, representatives,
+        groups_formed,
+        rows_grouped,
+        representatives,
     )
 
     return {

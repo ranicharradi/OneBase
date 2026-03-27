@@ -1,11 +1,10 @@
 """Tests for JWT authentication and user management."""
-import pytest
 
 
 def test_login_success(test_client, test_db):
     """POST /api/auth/login with valid credentials returns 200 + JWT token."""
-    from app.services.auth import hash_password
     from app.models.user import User
+    from app.services.auth import hash_password
 
     user = User(
         username="admin",
@@ -27,8 +26,8 @@ def test_login_success(test_client, test_db):
 
 def test_login_invalid_credentials(test_client, test_db):
     """POST /api/auth/login with invalid credentials returns 401."""
-    from app.services.auth import hash_password
     from app.models.user import User
+    from app.services.auth import hash_password
 
     user = User(
         username="admin",
@@ -135,11 +134,7 @@ def test_failed_login_creates_audit_entry(test_client, test_db):
     )
     assert response.status_code == 401
 
-    audit = (
-        test_db.query(AuditLog)
-        .filter(AuditLog.action == "login_failed")
-        .first()
-    )
+    audit = test_db.query(AuditLog).filter(AuditLog.action == "login_failed").first()
     assert audit is not None
     assert audit.user_id is None
     assert audit.details["username"] == "baduser"

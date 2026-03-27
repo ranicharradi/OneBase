@@ -1,13 +1,13 @@
 """Tests for matching orchestration service — run_matching_pipeline."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from sqlalchemy.orm import Session
 
-from app.models.match import MatchCandidate, MatchGroup
-from app.models.staging import StagedSupplier
-from app.models.source import DataSource
 from app.models.batch import ImportBatch
+from app.models.match import MatchCandidate, MatchGroup
+from app.models.source import DataSource
+from app.models.staging import StagedSupplier
 
 
 def _make_source(db: Session, name: str) -> DataSource:
@@ -62,9 +62,7 @@ def _make_supplier(
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
 @patch("app.services.matching.score_pair")
-def test_pipeline_creates_candidates(
-    mock_score_pair, mock_text_block, mock_embedding_block, test_db
-):
+def test_pipeline_creates_candidates(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
     """Pipeline creates MatchCandidate records for pairs above threshold."""
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
@@ -103,9 +101,7 @@ def test_pipeline_creates_candidates(
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
 @patch("app.services.matching.score_pair")
-def test_pipeline_filters_below_threshold(
-    mock_score_pair, mock_text_block, mock_embedding_block, test_db
-):
+def test_pipeline_filters_below_threshold(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
     """Pipeline does NOT create candidates below confidence threshold."""
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
@@ -142,9 +138,7 @@ def test_pipeline_filters_below_threshold(
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
 @patch("app.services.matching.score_pair")
-def test_pipeline_candidate_has_all_signals(
-    mock_score_pair, mock_text_block, mock_embedding_block, test_db
-):
+def test_pipeline_candidate_has_all_signals(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
     """Each MatchCandidate has match_signals dict with all 6 signal keys."""
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
@@ -187,9 +181,7 @@ def test_pipeline_candidate_has_all_signals(
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
 @patch("app.services.matching.score_pair")
-def test_pipeline_assigns_groups(
-    mock_score_pair, mock_text_block, mock_embedding_block, test_db
-):
+def test_pipeline_assigns_groups(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
     """Candidates are assigned to MatchGroups (group_id is not null)."""
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
@@ -222,18 +214,14 @@ def test_pipeline_assigns_groups(
     candidate = test_db.query(MatchCandidate).first()
     assert candidate is not None
     assert candidate.group_id is not None
-    group = (
-        test_db.query(MatchGroup).filter(MatchGroup.id == candidate.group_id).first()
-    )
+    group = test_db.query(MatchGroup).filter(MatchGroup.id == candidate.group_id).first()
     assert group is not None
 
 
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
 @patch("app.services.matching.score_pair")
-def test_pipeline_invalidates_on_reupload(
-    mock_score_pair, mock_text_block, mock_embedding_block, test_db
-):
+def test_pipeline_invalidates_on_reupload(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
     """Re-upload invalidates old candidates involving that source."""
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
@@ -270,20 +258,14 @@ def test_pipeline_invalidates_on_reupload(
     run_matching_pipeline(test_db, batch.id, invalidate_source_id=src1.id)
     test_db.flush()
 
-    old = (
-        test_db.query(MatchCandidate)
-        .filter(MatchCandidate.id == old_candidate.id)
-        .first()
-    )
+    old = test_db.query(MatchCandidate).filter(MatchCandidate.id == old_candidate.id).first()
     assert old.status == "invalidated"
 
 
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
 @patch("app.services.matching.score_pair")
-def test_pipeline_returns_stats(
-    mock_score_pair, mock_text_block, mock_embedding_block, test_db
-):
+def test_pipeline_returns_stats(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
     """Pipeline returns stats dict with candidate_count and group_count."""
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
@@ -342,9 +324,7 @@ def test_pipeline_zero_candidates(mock_text_block, mock_embedding_block, test_db
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
 @patch("app.services.matching.score_pair")
-def test_pipeline_progress_callback(
-    mock_score_pair, mock_text_block, mock_embedding_block, test_db
-):
+def test_pipeline_progress_callback(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
     """progress_callback is called at each stage."""
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
@@ -393,7 +373,7 @@ def test_text_block_filters_to_representatives(test_db):
 
     # src1: two rows with same normalized name — only one is representative
     s1_rep = _make_supplier(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
-    s1_dup = _make_supplier(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
+    _s1_dup = _make_supplier(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
     # src2: one row
     s2 = _make_supplier(test_db, batch2, src2, "Acme Corporation", normalized_name="ACME CORPORATION")
     test_db.flush()
@@ -415,9 +395,7 @@ def test_text_block_filters_to_representatives(test_db):
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
 @patch("app.services.matching.score_pair")
-def test_pipeline_groups_duplicates_reduces_candidates(
-    mock_score_pair, mock_text_block, mock_embedding_block, test_db
-):
+def test_pipeline_groups_duplicates_reduces_candidates(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
     """Pipeline with intra-source duplicates produces fewer candidates than raw rows."""
     src1 = _make_source(test_db, "TTEI")
     src2 = _make_source(test_db, "EOT")
@@ -448,8 +426,12 @@ def test_pipeline_groups_duplicates_reduces_candidates(
     mock_score_pair.return_value = {
         "confidence": 0.85,
         "signals": {
-            "jaro_winkler": 0.9, "token_jaccard": 0.8, "embedding_cosine": 0.7,
-            "short_name_match": 0.5, "currency_match": 0.5, "contact_match": 0.5,
+            "jaro_winkler": 0.9,
+            "token_jaccard": 0.8,
+            "embedding_cosine": 0.7,
+            "short_name_match": 0.5,
+            "currency_match": 0.5,
+            "contact_match": 0.5,
         },
     }
 
@@ -464,9 +446,7 @@ def test_pipeline_groups_duplicates_reduces_candidates(
 
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
-def test_pipeline_grouping_progress_callback(
-    mock_text_block, mock_embedding_block, test_db
-):
+def test_pipeline_grouping_progress_callback(mock_text_block, mock_embedding_block, test_db):
     """Progress callback includes GROUPING stage."""
     src1 = _make_source(test_db, "TTEI")
     src2 = _make_source(test_db, "EOT")
@@ -506,13 +486,13 @@ class TestMLPipelineIntegration:
 
     @patch("app.services.matching.embedding_block")
     @patch("app.services.matching.text_block")
-    def test_pipeline_uses_ml_scorer_when_model_exists(
-        self, mock_text_block, mock_embedding_block, test_db
-    ):
+    def test_pipeline_uses_ml_scorer_when_model_exists(self, mock_text_block, mock_embedding_block, test_db):
         """Pipeline should use ml_score_pair when a scorer model is active."""
         from unittest.mock import MagicMock
-        from app.services.ml_training import ModelBundle
+
         import numpy as np
+
+        from app.services.ml_training import ModelBundle
 
         batch_id, s1, s2 = self._seed_two_source_scenario(test_db)
 
@@ -522,31 +502,45 @@ class TestMLPipelineIntegration:
         mock_model = MagicMock()
         mock_model.predict.return_value = np.array([0.9])
         scorer_bundle = ModelBundle(
-            model=mock_model, threshold=0.5,
-            feature_names=["jaro_winkler", "token_jaccard", "embedding_cosine",
-                           "short_name_match", "currency_match", "contact_match",
-                           "name_length_ratio", "token_count_diff"],
+            model=mock_model,
+            threshold=0.5,
+            feature_names=[
+                "jaro_winkler",
+                "token_jaccard",
+                "embedding_cosine",
+                "short_name_match",
+                "currency_match",
+                "contact_match",
+                "name_length_ratio",
+                "token_count_diff",
+            ],
         )
 
         with patch("app.services.matching.load_active_model") as mock_load:
             mock_load.side_effect = lambda db, t, **kw: scorer_bundle if t == "scorer" else None
             with patch("app.services.matching.ml_score_pair") as mock_ml_score:
-                mock_ml_score.return_value = {"confidence": 0.9, "signals": {
-                    "jaro_winkler": 0.9, "token_jaccard": 0.8, "embedding_cosine": 0.85,
-                    "short_name_match": 1.0, "currency_match": 1.0, "contact_match": 0.7,
-                }}
+                mock_ml_score.return_value = {
+                    "confidence": 0.9,
+                    "signals": {
+                        "jaro_winkler": 0.9,
+                        "token_jaccard": 0.8,
+                        "embedding_cosine": 0.85,
+                        "short_name_match": 1.0,
+                        "currency_match": 1.0,
+                        "contact_match": 0.7,
+                    },
+                }
 
                 from app.services.matching import run_matching_pipeline
-                result = run_matching_pipeline(test_db, batch_id)
+
+                _result = run_matching_pipeline(test_db, batch_id)
 
                 assert mock_ml_score.called
 
     @patch("app.services.matching.embedding_block")
     @patch("app.services.matching.text_block")
     @patch("app.services.matching.score_pair")
-    def test_pipeline_falls_back_to_weighted_sum(
-        self, mock_score_pair, mock_text_block, mock_embedding_block, test_db
-    ):
+    def test_pipeline_falls_back_to_weighted_sum(self, mock_score_pair, mock_text_block, mock_embedding_block, test_db):
         """Pipeline should use score_pair when no ML model exists."""
         batch_id, s1, s2 = self._seed_two_source_scenario(test_db)
 
@@ -555,13 +549,18 @@ class TestMLPipelineIntegration:
         mock_score_pair.return_value = {
             "confidence": 0.85,
             "signals": {
-                "jaro_winkler": 0.9, "token_jaccard": 0.8, "embedding_cosine": 0.7,
-                "short_name_match": 0.5, "currency_match": 0.5, "contact_match": 0.5,
+                "jaro_winkler": 0.9,
+                "token_jaccard": 0.8,
+                "embedding_cosine": 0.7,
+                "short_name_match": 0.5,
+                "currency_match": 0.5,
+                "contact_match": 0.5,
             },
         }
 
         with patch("app.services.matching.load_active_model", return_value=None):
             from app.services.matching import run_matching_pipeline
+
             result = run_matching_pipeline(test_db, batch_id)
             assert result["candidate_count"] == 1
             assert mock_score_pair.called

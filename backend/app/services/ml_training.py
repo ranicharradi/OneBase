@@ -12,8 +12,8 @@ from datetime import datetime
 
 import lightgbm as lgb
 import numpy as np
+from sklearn.metrics import f1_score, precision_recall_curve, precision_score, recall_score, roc_auc_score
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import precision_recall_curve, precision_score, recall_score, f1_score, roc_auc_score
 from sqlalchemy.orm import Session
 
 from app.models.match import MatchCandidate
@@ -25,13 +25,20 @@ logger = logging.getLogger(__name__)
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "ml_models")
 
 SCORER_FEATURE_NAMES = [
-    "jaro_winkler", "token_jaccard", "embedding_cosine",
-    "short_name_match", "currency_match", "contact_match",
-    "name_length_ratio", "token_count_diff",
+    "jaro_winkler",
+    "token_jaccard",
+    "embedding_cosine",
+    "short_name_match",
+    "currency_match",
+    "contact_match",
+    "name_length_ratio",
+    "token_count_diff",
 ]
 
 BLOCKER_FEATURE_NAMES = [
-    "jaro_winkler", "token_jaccard", "name_length_ratio",
+    "jaro_winkler",
+    "token_jaccard",
+    "name_length_ratio",
 ]
 
 LGB_PARAMS = {
@@ -53,6 +60,7 @@ MAX_KEPT_VERSIONS = 5
 @dataclass
 class ModelBundle:
     """Bundles a loaded model with its threshold and feature names."""
+
     model: lgb.Booster
     threshold: float
     feature_names: list[str]
@@ -73,11 +81,7 @@ def _compute_engineered_features(name_a: str, name_b: str) -> tuple[float, float
 
 def extract_training_data(db: Session) -> tuple[np.ndarray, np.ndarray]:
     """Extract feature matrix and labels from confirmed/rejected candidates."""
-    candidates = (
-        db.query(MatchCandidate)
-        .filter(MatchCandidate.status.in_(["confirmed", "rejected"]))
-        .all()
-    )
+    candidates = db.query(MatchCandidate).filter(MatchCandidate.status.in_(["confirmed", "rejected"])).all()
 
     if not candidates:
         return np.empty((0, 8)), np.empty(0)
@@ -87,11 +91,7 @@ def extract_training_data(db: Session) -> tuple[np.ndarray, np.ndarray]:
         supplier_ids.add(c.supplier_a_id)
         supplier_ids.add(c.supplier_b_id)
 
-    suppliers = (
-        db.query(StagedSupplier)
-        .filter(StagedSupplier.id.in_(supplier_ids))
-        .all()
-    )
+    suppliers = db.query(StagedSupplier).filter(StagedSupplier.id.in_(supplier_ids)).all()
     supplier_map = {s.id: s for s in suppliers}
 
     rows = []
@@ -134,11 +134,15 @@ def train_model(
 ) -> dict:
     """Train a LightGBM binary classifier."""
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, stratify=y, random_state=42,
+        X,
+        y,
+        test_size=0.2,
+        stratify=y,
+        random_state=42,
     )
 
     feature_names = BLOCKER_FEATURE_NAMES if model_type == "blocker" else SCORER_FEATURE_NAMES
-    feature_names = feature_names[:X.shape[1]]
+    feature_names = feature_names[: X.shape[1]]
 
     train_data = lgb.Dataset(X_train, label=y_train, feature_name=feature_names)
     valid_data = lgb.Dataset(X_test, label=y_test, feature_name=feature_names, reference=train_data)
@@ -160,10 +164,7 @@ def train_model(
         # precision_recall_curve produces len(thresholds) == len(recall_arr) - 1;
         # the last element of recall_arr/precision_arr has no corresponding threshold.
         valid_idx = candidates_idx[candidates_idx < len(thresholds)]
-        if len(valid_idx) > 0:
-            threshold = float(thresholds[valid_idx].min())
-        else:
-            threshold = 0.1
+        threshold = float(thresholds[valid_idx].min()) if len(valid_idx) > 0 else 0.1  # noqa: SIM108
     else:
         precision_arr, recall_arr, thresholds = precision_recall_curve(y_test, y_prob)
         f1_scores = 2 * precision_arr * recall_arr / (precision_arr + recall_arr + 1e-10)
@@ -180,7 +181,7 @@ def train_model(
     }
 
     importances = model.feature_importance(importance_type="gain")
-    feature_importances = dict(zip(feature_names, [float(v) for v in importances]))
+    feature_importances = dict(zip(feature_names, [float(v) for v in importances], strict=False))
 
     logger.info("Trained %s model: %s", model_type, metrics)
 
@@ -212,7 +213,7 @@ def save_model(
 
     db.query(MLModelVersion).filter(
         MLModelVersion.model_type == model_type,
-        MLModelVersion.is_active == True,
+        MLModelVersion.is_active.is_(True),
     ).update({"is_active": False}, synchronize_session="fetch")
 
     version = MLModelVersion(
@@ -255,7 +256,7 @@ def load_active_model(
         db.query(MLModelVersion)
         .filter(
             MLModelVersion.model_type == model_type,
-            MLModelVersion.is_active == True,
+            MLModelVersion.is_active.is_(True),
         )
         .first()
     )

@@ -1,4 +1,4 @@
-from typing import Generator
+from collections.abc import Generator
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -23,8 +23,9 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     """Decode JWT token and return the current authenticated user."""
-    from app.services.auth import decode_token
     import jwt as pyjwt
+
+    from app.services.auth import decode_token
 
     try:
         payload = decode_token(token)
@@ -38,7 +39,7 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
-        )
+        ) from None
 
     user = db.query(User).filter(User.username == username).first()
     if user is None:

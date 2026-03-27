@@ -1,15 +1,13 @@
 import os
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
 
-from app.models.base import Base
-from app.models.user import User
 from app.dependencies import get_db
 from app.main import app
-
+from app.models.user import User
 
 # Use SQLite for fast unit tests, PostgreSQL via TEST_DATABASE_URL if available
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "sqlite:///./test.db")
@@ -21,11 +19,13 @@ test_engine = create_engine(
 
 # Enable WAL mode for SQLite to avoid locking issues
 if "sqlite" in TEST_DATABASE_URL:
+
     @event.listens_for(test_engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.close()
+
 
 TestSessionLocal = sessionmaker(bind=test_engine)
 
@@ -64,7 +64,7 @@ def test_client(test_db):
 @pytest.fixture
 def authenticated_client(test_client, test_db):
     """Test client with a pre-created user and auth token."""
-    from app.services.auth import hash_password, create_token
+    from app.services.auth import create_token, hash_password
 
     user = User(
         username="testuser",

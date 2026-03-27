@@ -2,8 +2,8 @@
 
 import logging
 
-from app.tasks.celery_app import celery_app
 from app.database import SessionLocal
+from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
                         "progress": pct,
                     },
                 )
-            except Exception:
+            except Exception:  # noqa: S110
                 pass  # never block matching on notification failure
 
         # Run the pipeline

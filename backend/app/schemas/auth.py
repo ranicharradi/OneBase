@@ -1,4 +1,5 @@
 """Pydantic v2 schemas for authentication and user management."""
+
 from datetime import datetime
 
 from pydantic import BaseModel

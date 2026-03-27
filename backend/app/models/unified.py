@@ -1,14 +1,15 @@
 """Unified (golden record) supplier models with full field-level provenance."""
 
 from sqlalchemy import (
+    JSON,
     Column,
-    Integer,
-    String,
     DateTime,
     ForeignKey,
-    JSON,
+    Integer,
+    String,
     func,
 )
+
 from app.models.base import Base
 
 
@@ -49,9 +50,7 @@ class UnifiedSupplier(Base):
     source_supplier_ids = Column(JSON, nullable=False)  # e.g. [1, 2]
 
     # Link back to match candidate that triggered merge (null for singleton promotions)
-    match_candidate_id = Column(
-        Integer, ForeignKey("match_candidates.id"), nullable=True
-    )
+    match_candidate_id = Column(Integer, ForeignKey("match_candidates.id"), nullable=True)
 
     created_by = Column(String(100), nullable=False)
     created_at = Column(DateTime, server_default=func.now())

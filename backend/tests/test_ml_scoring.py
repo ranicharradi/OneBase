@@ -1,24 +1,27 @@
 """Tests for ML scoring and blocker inference."""
 
-import tempfile
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
-import numpy as np
-import pytest
 import lightgbm as lgb
+import numpy as np
 
-from app.models.source import DataSource
 from app.models.batch import ImportBatch
+from app.models.source import DataSource
 from app.models.staging import StagedSupplier
 from app.services.ml_training import ModelBundle
 
 
 def _make_supplier(db, source, batch, name, **kwargs):
     defaults = dict(
-        import_batch_id=batch.id, data_source_id=source.id,
-        name=name, normalized_name=name.lower(),
-        source_code="C001", short_name="TST", currency="EUR",
-        raw_data={"name": name}, status="active",
+        import_batch_id=batch.id,
+        data_source_id=source.id,
+        name=name,
+        normalized_name=name.lower(),
+        source_code="C001",
+        short_name="TST",
+        currency="EUR",
+        raw_data={"name": name},
+        status="active",
     )
     defaults.update(kwargs)
     s = StagedSupplier(**defaults)
@@ -44,9 +47,16 @@ def _make_mock_bundle(feature_count=8, predict_value=0.85):
     mock_model.predict.return_value = np.array([predict_value])
 
     if feature_count == 8:
-        names = ["jaro_winkler", "token_jaccard", "embedding_cosine",
-                 "short_name_match", "currency_match", "contact_match",
-                 "name_length_ratio", "token_count_diff"]
+        names = [
+            "jaro_winkler",
+            "token_jaccard",
+            "embedding_cosine",
+            "short_name_match",
+            "currency_match",
+            "contact_match",
+            "name_length_ratio",
+            "token_count_diff",
+        ]
     else:
         names = ["jaro_winkler", "token_jaccard", "name_length_ratio"]
 
@@ -66,8 +76,12 @@ class TestMlScorePair:
         assert result["confidence"] == 0.85
         assert "signals" in result
         assert set(result["signals"].keys()) == {
-            "jaro_winkler", "token_jaccard", "embedding_cosine",
-            "short_name_match", "currency_match", "contact_match",
+            "jaro_winkler",
+            "token_jaccard",
+            "embedding_cosine",
+            "short_name_match",
+            "currency_match",
+            "contact_match",
         }
 
     def test_model_receives_8_features(self, test_db):
@@ -106,7 +120,8 @@ class TestBlockerFilter:
         mock_model.predict.return_value = np.array([0.8, 0.1])
 
         bundle = ModelBundle(
-            model=mock_model, threshold=0.3,
+            model=mock_model,
+            threshold=0.3,
             feature_names=["jaro_winkler", "token_jaccard", "name_length_ratio"],
         )
 

@@ -1,5 +1,4 @@
 """Tests for name normalization service."""
-import pytest
 
 from app.services.normalization import normalize_name
 

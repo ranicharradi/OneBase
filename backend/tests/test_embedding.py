@@ -1,7 +1,8 @@
 """Tests for embedding computation service."""
-import pytest
+
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from unittest.mock import patch, MagicMock
 
 from app.services.embedding import compute_embeddings
 
@@ -30,8 +31,7 @@ class TestComputeEmbeddings:
         """Each vector has approximately unit length (L2 normalized)."""
         names = ["ACME CORP", "BETA LTD"]
         # Create mock embeddings with known values (not normalized)
-        raw_embeddings = np.array([[1.0, 2.0, 3.0] + [0.0] * 381,
-                                    [4.0, 5.0, 6.0] + [0.0] * 381], dtype=np.float32)
+        raw_embeddings = np.array([[1.0, 2.0, 3.0] + [0.0] * 381, [4.0, 5.0, 6.0] + [0.0] * 381], dtype=np.float32)
         # The model.encode with normalize_embeddings=True should return normalized vectors
         norms = np.linalg.norm(raw_embeddings, axis=1, keepdims=True)
         normalized = raw_embeddings / norms
@@ -40,7 +40,7 @@ class TestComputeEmbeddings:
         mock_model.encode.return_value = normalized
         with patch("app.services.embedding.get_embedding_model", return_value=mock_model):
             result = compute_embeddings(names)
-        
+
         # Verify each vector has unit length
         for vec in result:
             norm = np.linalg.norm(vec)
