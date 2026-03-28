@@ -4,6 +4,7 @@ import tempfile
 from unittest.mock import patch
 
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
@@ -15,8 +16,12 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
     s2 = DataSource(name="S2", file_format="csv", column_mapping={"supplier_name": "n"})
     db.add_all([s1, s2])
     db.flush()
-    b1 = ImportBatch(data_source_id=s1.id, filename="a.csv", uploaded_by="u", status="completed", row_count=count)
-    b2 = ImportBatch(data_source_id=s2.id, filename="b.csv", uploaded_by="u", status="completed", row_count=count)
+    b1 = ImportBatch(
+        data_source_id=s1.id, filename="a.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=count
+    )
+    b2 = ImportBatch(
+        data_source_id=s2.id, filename="b.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=count
+    )
     db.add_all([b1, b2])
     db.flush()
 
@@ -24,7 +29,7 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
     for i in range(count):
         name_a = f"CORP {i}" if i < num_confirmed else f"ALPHA {i}"
         name_b = f"CORPORATION {i}" if i < num_confirmed else f"BETA {i}"
-        status = "confirmed" if i < num_confirmed else "rejected"
+        status = CandidateStatus.CONFIRMED if i < num_confirmed else CandidateStatus.REJECTED
 
         sa = StagedSupplier(
             import_batch_id=b1.id,
@@ -33,7 +38,7 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
             normalized_name=name_a.lower(),
             source_code=f"A{i}",
             raw_data={},
-            status="active",
+            status=SupplierStatus.ACTIVE,
         )
         sb = StagedSupplier(
             import_batch_id=b2.id,
@@ -42,7 +47,7 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
             normalized_name=name_b.lower(),
             source_code=f"B{i}",
             raw_data={},
-            status="active",
+            status=SupplierStatus.ACTIVE,
         )
         db.add_all([sa, sb])
         db.flush()

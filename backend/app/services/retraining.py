@@ -10,6 +10,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.models.enums import CandidateStatus
 from app.models.match import MatchCandidate
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ def retrain_weights(db: Session) -> dict | None:
     reviewed = (
         db.query(MatchCandidate)
         .filter(
-            MatchCandidate.status.in_(["confirmed", "rejected"]),
+            MatchCandidate.status.in_([CandidateStatus.CONFIRMED, CandidateStatus.REJECTED]),
             MatchCandidate.match_signals.isnot(None),
         )
         .all()
@@ -55,8 +56,8 @@ def retrain_weights(db: Session) -> dict | None:
         return None
 
     # Separate confirmed and rejected
-    confirmed = [c for c in reviewed if c.status == "confirmed"]
-    rejected = [c for c in reviewed if c.status == "rejected"]
+    confirmed = [c for c in reviewed if c.status == CandidateStatus.CONFIRMED]
+    rejected = [c for c in reviewed if c.status == CandidateStatus.REJECTED]
 
     if not confirmed or not rejected:
         logger.warning("Need both confirmed and rejected candidates for retraining")

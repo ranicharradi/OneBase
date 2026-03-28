@@ -6,6 +6,9 @@ Tests notification publishing and WebSocket endpoint with mocked Redis.
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
+from starlette.websockets import WebSocketDisconnect
+
 
 class TestPublishNotification:
     """Tests for the publish_notification service."""
@@ -89,6 +92,32 @@ class TestPublishNotification:
         publish_notification("matching_complete", {"batch_id": 1})
 
 
+def _make_mock_redis():
+    """Build a mock aioredis instance with async pub/sub methods."""
+    mock_redis = MagicMock()
+    mock_pubsub = MagicMock()
+
+    async def mock_subscribe(*args):
+        pass
+
+    async def mock_unsubscribe(*args):
+        pass
+
+    async def mock_close():
+        pass
+
+    async def mock_get_message(**kwargs):
+        return None
+
+    mock_pubsub.subscribe = mock_subscribe
+    mock_pubsub.unsubscribe = mock_unsubscribe
+    mock_pubsub.close = mock_close
+    mock_pubsub.get_message = mock_get_message
+    mock_redis.pubsub.return_value = mock_pubsub
+    mock_redis.close = mock_close
+    return mock_redis
+
+
 class TestWebSocketEndpoint:
     """Tests for the WebSocket endpoint."""
 
@@ -100,39 +129,51 @@ class TestWebSocketEndpoint:
         assert len(ws_routes) == 1, "WebSocket route /ws/notifications should be registered"
 
     def test_websocket_accepts_connection(self, test_client):
-        """WebSocket endpoint accepts connections (mocked Redis)."""
+        """WebSocket endpoint accepts connections with a valid token (mocked Redis)."""
+        from app.services.auth import create_token
+
+        token = create_token("testuser")
+
         with patch("app.routers.ws.aioredis") as mock_aioredis:
-            # Mock the async Redis pub/sub
-            mock_redis = MagicMock()
-            mock_pubsub = MagicMock()
+            mock_aioredis.from_url.return_value = _make_mock_redis()
 
-            mock_aioredis.from_url.return_value = mock_redis
+            with test_client.websocket_connect(f"/ws/notifications?token={token}") as ws:
+                ws.send_text("ping")
+                response = ws.receive_text()
+                data = json.loads(response)
+                assert data["type"] == "pong"
 
-            # Make pubsub methods async
-            async def mock_subscribe(*args):
-                pass
 
-            async def mock_unsubscribe(*args):
-                pass
+class TestWebSocketAuth:
+    """Tests for WebSocket JWT authentication."""
 
-            async def mock_close():
-                pass
+    def test_connection_without_token_rejected(self, test_client):
+        """WebSocket connections without a token are rejected."""
+        with pytest.raises(WebSocketDisconnect), test_client.websocket_connect("/ws/notifications"):
+            pass
 
-            async def mock_get_message(**kwargs):
-                # Return None (no messages) which makes the loop continue
-                # The WebSocket disconnect will break the loop
-                return None
+    def test_connection_with_invalid_token_rejected(self, test_client):
+        """WebSocket connections with an invalid token are rejected."""
+        with (
+            pytest.raises(WebSocketDisconnect),
+            test_client.websocket_connect("/ws/notifications?token=invalid.jwt.token"),
+        ):
+            pass
 
-            mock_pubsub.subscribe = mock_subscribe
-            mock_pubsub.unsubscribe = mock_unsubscribe
-            mock_pubsub.close = mock_close
-            mock_pubsub.get_message = mock_get_message
-            mock_redis.pubsub.return_value = mock_pubsub
-            mock_redis.close = mock_close
+    def test_connection_with_valid_token_accepted(self, test_client, test_db):
+        """WebSocket connections with a valid token are accepted and can ping/pong."""
+        from app.models.user import User
+        from app.services.auth import create_token, hash_password
 
-            # Use FastAPI TestClient for WebSocket testing
-            with test_client.websocket_connect("/ws/notifications") as ws:
-                # Connection accepted, send ping
+        user = User(username="wsuser", password_hash=hash_password("pass"), is_active=True)
+        test_db.add(user)
+        test_db.commit()
+        token = create_token("wsuser")
+
+        with patch("app.routers.ws.aioredis") as mock_aioredis:
+            mock_aioredis.from_url.return_value = _make_mock_redis()
+
+            with test_client.websocket_connect(f"/ws/notifications?token={token}") as ws:
                 ws.send_text("ping")
                 response = ws.receive_text()
                 data = json.loads(response)

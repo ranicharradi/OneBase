@@ -7,9 +7,11 @@ parse → map → supersede → store → normalize → embed → finalize
 import logging
 from collections.abc import Callable
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
@@ -81,37 +83,54 @@ def run_ingestion(
 
         if not rows:
             batch.row_count = 0
-            batch.status = "completed"
+            batch.status = BatchStatus.COMPLETED
             if progress_callback:
                 progress_callback("complete", 100)
             return 0
 
         # 2. SUPERSEDE old records (if this source has existing active records)
-        existing_active = (
-            db.query(StagedSupplier)
-            .filter(
-                StagedSupplier.data_source_id == source.id,
-                StagedSupplier.status == "active",
+        try:
+            existing_active = (
+                db.query(StagedSupplier)
+                .filter(
+                    StagedSupplier.data_source_id == source.id,
+                    StagedSupplier.status == SupplierStatus.ACTIVE,
+                )
+                .with_for_update(nowait=True)
+                .all()
             )
-            .all()
-        )
+        except OperationalError:
+            db.rollback()
+            # SQLite doesn't support FOR UPDATE — fall back to unlocked query.
+            # On PostgreSQL, nowait=True raises OperationalError when rows are
+            # locked by a concurrent transaction — re-raise to signal conflict.
+            if "sqlite" not in str(db.bind.url):
+                raise
+            existing_active = (
+                db.query(StagedSupplier)
+                .filter(
+                    StagedSupplier.data_source_id == source.id,
+                    StagedSupplier.status == SupplierStatus.ACTIVE,
+                )
+                .all()
+            )
 
         if existing_active:
             # Mark all existing active records as superseded
             superseded_ids = [s.id for s in existing_active]
             db.query(StagedSupplier).filter(StagedSupplier.id.in_(superseded_ids)).update(
-                {"status": "superseded"}, synchronize_session="fetch"
+                {"status": SupplierStatus.SUPERSEDED}, synchronize_session="fetch"
             )
 
             # Invalidate pending match candidates referencing superseded records
             if superseded_ids:
                 db.query(MatchCandidate).filter(
-                    MatchCandidate.status == "pending",
+                    MatchCandidate.status == CandidateStatus.PENDING,
                     (
                         MatchCandidate.supplier_a_id.in_(superseded_ids)
                         | MatchCandidate.supplier_b_id.in_(superseded_ids)
                     ),
-                ).update({"status": "invalidated"}, synchronize_session="fetch")
+                ).update({"status": CandidateStatus.INVALIDATED}, synchronize_session="fetch")
 
         # 3. MAP columns and STORE staged suppliers
         suppliers = []
@@ -127,7 +146,7 @@ def run_ingestion(
                 payment_terms=_truncate(row.get(column_mapping.get("payment_terms", ""), None), "payment_terms"),
                 contact_name=_truncate(row.get(column_mapping.get("contact_name", ""), None), "contact_name"),
                 supplier_type=_truncate(row.get(column_mapping.get("supplier_type", ""), None), "supplier_type"),
-                status="active",
+                status=SupplierStatus.ACTIVE,
                 raw_data=row,
             )
             suppliers.append(supplier)
@@ -163,7 +182,7 @@ def run_ingestion(
 
         # 6. FINALIZE
         batch.row_count = len(rows)
-        batch.status = "completed"
+        batch.status = BatchStatus.COMPLETED
         db.flush()
 
         if progress_callback:
@@ -172,7 +191,7 @@ def run_ingestion(
         return len(rows)
 
     except Exception as e:
-        batch.status = "failed"
+        batch.status = BatchStatus.FAILED
         batch.error_message = str(e)
         db.flush()
         raise

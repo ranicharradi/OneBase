@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
@@ -28,7 +29,7 @@ def _make_batch(db: Session, source: DataSource) -> ImportBatch:
         data_source_id=source.id,
         filename="test.csv",
         uploaded_by="testuser",
-        status="completed",
+        status=BatchStatus.COMPLETED,
     )
     db.add(batch)
     db.flush()
@@ -49,7 +50,7 @@ def _make_supplier(
         name=name,
         normalized_name=normalized_name or name.upper(),
         raw_data={"name": name},
-        status="active",
+        status=SupplierStatus.ACTIVE,
     )
     db.add(s)
     db.flush()
@@ -95,7 +96,7 @@ def test_pipeline_creates_candidates(mock_score_pair, mock_text_block, mock_embe
     candidate = test_db.query(MatchCandidate).first()
     assert candidate is not None
     assert candidate.confidence == 0.85
-    assert candidate.status == "pending"
+    assert candidate.status == CandidateStatus.PENDING
 
 
 @patch("app.services.matching.embedding_block")
@@ -244,7 +245,7 @@ def test_pipeline_invalidates_on_reupload(mock_score_pair, mock_text_block, mock
             "currency_match": 0.5,
             "contact_match": 0.5,
         },
-        status="pending",
+        status=CandidateStatus.PENDING,
     )
     test_db.add(old_candidate)
     test_db.flush()
@@ -259,7 +260,7 @@ def test_pipeline_invalidates_on_reupload(mock_score_pair, mock_text_block, mock
     test_db.flush()
 
     old = test_db.query(MatchCandidate).filter(MatchCandidate.id == old_candidate.id).first()
-    assert old.status == "invalidated"
+    assert old.status == CandidateStatus.INVALIDATED
 
 
 @patch("app.services.matching.embedding_block")

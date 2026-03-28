@@ -6,6 +6,7 @@ from unittest.mock import patch
 import numpy as np
 
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
 from app.models.match import MatchCandidate
 from app.models.ml_model import MLModelVersion
 from app.models.source import DataSource
@@ -19,8 +20,12 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
     db.add_all([s1, s2])
     db.flush()
 
-    b1 = ImportBatch(data_source_id=s1.id, filename="a.csv", uploaded_by="u", status="completed", row_count=count)
-    b2 = ImportBatch(data_source_id=s2.id, filename="b.csv", uploaded_by="u", status="completed", row_count=count)
+    b1 = ImportBatch(
+        data_source_id=s1.id, filename="a.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=count
+    )
+    b2 = ImportBatch(
+        data_source_id=s2.id, filename="b.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=count
+    )
     db.add_all([b1, b2])
     db.flush()
 
@@ -39,7 +44,7 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
                 "currency_match": 1.0,
                 "contact_match": 0.7 + np.random.uniform(-0.1, 0.1),
             }
-            status = "confirmed"
+            status = CandidateStatus.CONFIRMED
         else:
             name_a = f"ALPHA INC {i}"
             name_b = f"BETA LLC {i}"
@@ -51,7 +56,7 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
                 "currency_match": 0.5,
                 "contact_match": 0.3 + np.random.uniform(-0.1, 0.1),
             }
-            status = "rejected"
+            status = CandidateStatus.REJECTED
 
         sup_a = StagedSupplier(
             import_batch_id=b1.id,
@@ -62,7 +67,7 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
             short_name="TST",
             currency="EUR",
             raw_data={"name": name_a},
-            status="active",
+            status=SupplierStatus.ACTIVE,
         )
         sup_b = StagedSupplier(
             import_batch_id=b2.id,
@@ -73,7 +78,7 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
             short_name="TST",
             currency="EUR",
             raw_data={"name": name_b},
-            status="active",
+            status=SupplierStatus.ACTIVE,
         )
         db.add_all([sup_a, sup_b])
         db.flush()

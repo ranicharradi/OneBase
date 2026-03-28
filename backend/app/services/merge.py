@@ -13,6 +13,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.models.enums import CandidateStatus
 from app.models.match import MatchCandidate
 from app.models.staging import StagedSupplier
 from app.models.unified import UnifiedSupplier
@@ -221,7 +222,7 @@ def execute_merge(
     db.add(unified)
 
     # Mark candidate as confirmed
-    candidate.status = "confirmed"
+    candidate.status = CandidateStatus.CONFIRMED
     candidate.reviewed_by = username
     candidate.reviewed_at = datetime.now(UTC)
 
@@ -252,7 +253,7 @@ def reject_candidate(
     username: str,
 ) -> None:
     """Mark a match candidate as rejected."""
-    candidate.status = "rejected"
+    candidate.status = CandidateStatus.REJECTED
     candidate.reviewed_by = username
     candidate.reviewed_at = datetime.now(UTC)
 
@@ -272,7 +273,7 @@ def skip_candidate(
     username: str,
 ) -> None:
     """Mark a match candidate as skipped (for later review)."""
-    candidate.status = "skipped"
+    candidate.status = CandidateStatus.SKIPPED
     candidate.reviewed_by = username
     candidate.reviewed_at = datetime.now(UTC)
 

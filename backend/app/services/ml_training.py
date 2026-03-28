@@ -16,6 +16,7 @@ from sklearn.metrics import f1_score, precision_recall_curve, precision_score, r
 from sklearn.model_selection import train_test_split
 from sqlalchemy.orm import Session
 
+from app.models.enums import CandidateStatus
 from app.models.match import MatchCandidate
 from app.models.ml_model import MLModelVersion
 from app.models.staging import StagedSupplier
@@ -81,7 +82,11 @@ def _compute_engineered_features(name_a: str, name_b: str) -> tuple[float, float
 
 def extract_training_data(db: Session) -> tuple[np.ndarray, np.ndarray]:
     """Extract feature matrix and labels from confirmed/rejected candidates."""
-    candidates = db.query(MatchCandidate).filter(MatchCandidate.status.in_(["confirmed", "rejected"])).all()
+    candidates = (
+        db.query(MatchCandidate)
+        .filter(MatchCandidate.status.in_([CandidateStatus.CONFIRMED, CandidateStatus.REJECTED]))
+        .all()
+    )
 
     if not candidates:
         return np.empty((0, 8)), np.empty(0)
@@ -119,7 +124,7 @@ def extract_training_data(db: Session) -> tuple[np.ndarray, np.ndarray]:
         nlr, tcd = _compute_engineered_features(name_a, name_b)
 
         rows.append(base + [nlr, tcd])
-        labels.append(1 if c.status == "confirmed" else 0)
+        labels.append(1 if c.status == CandidateStatus.CONFIRMED else 0)
 
     X = np.array(rows, dtype=np.float64)
     y = np.array(labels, dtype=np.int32)

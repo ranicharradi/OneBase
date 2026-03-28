@@ -10,6 +10,7 @@ from collections import defaultdict
 
 from sqlalchemy.orm import Session
 
+from app.models.enums import SupplierStatus
 from app.models.staging import StagedSupplier
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ def group_intra_source(db: Session, source_ids: list[int]) -> dict:
     # Idempotency: clear existing group assignments for these sources (active only)
     db.query(StagedSupplier).filter(
         StagedSupplier.data_source_id.in_(source_ids),
-        StagedSupplier.status == "active",
+        StagedSupplier.status == SupplierStatus.ACTIVE,
         StagedSupplier.intra_source_group_id.isnot(None),
     ).update(
         {StagedSupplier.intra_source_group_id: None},
@@ -63,7 +64,7 @@ def group_intra_source(db: Session, source_ids: list[int]) -> dict:
         db.query(StagedSupplier)
         .filter(
             StagedSupplier.data_source_id.in_(source_ids),
-            StagedSupplier.status == "active",
+            StagedSupplier.status == SupplierStatus.ACTIVE,
         )
         .all()
     )

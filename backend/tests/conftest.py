@@ -2,29 +2,29 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.dependencies import get_db
 from app.main import app
 from app.models.user import User
 
-# Use SQLite for fast unit tests, PostgreSQL via TEST_DATABASE_URL if available
-TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "sqlite:///./test.db")
+# Use SQLite in-memory for fast, isolated unit tests.
+# StaticPool reuses a single connection so CREATE/DROP TABLE are immediately
+# visible across all sessions — eliminates "no such table" races from
+# file-based WAL mode. Set TEST_DATABASE_URL to a PostgreSQL URL for
+# integration tests.
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "sqlite://")
 
-test_engine = create_engine(
-    TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in TEST_DATABASE_URL else {},
-)
-
-# Enable WAL mode for SQLite to avoid locking issues
 if "sqlite" in TEST_DATABASE_URL:
-
-    @event.listens_for(test_engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.close()
+    test_engine = create_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+else:
+    test_engine = create_engine(TEST_DATABASE_URL)
 
 
 TestSessionLocal = sessionmaker(bind=test_engine)

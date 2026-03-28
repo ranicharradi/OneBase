@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.batch import ImportBatch
+from app.models.enums import CandidateStatus, SupplierStatus
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.staging import StagedSupplier
 from app.services.blocking import combine_blocks, embedding_block, text_block
@@ -49,7 +50,7 @@ def _invalidate_old_candidates(db: Session, source_id: int) -> int:
     candidates = (
         db.query(MatchCandidate)
         .filter(
-            MatchCandidate.status != "invalidated",
+            MatchCandidate.status != CandidateStatus.INVALIDATED,
             (MatchCandidate.supplier_a_id.in_(supplier_ids) | MatchCandidate.supplier_b_id.in_(supplier_ids)),
         )
         .all()
@@ -57,7 +58,7 @@ def _invalidate_old_candidates(db: Session, source_id: int) -> int:
 
     count = 0
     for c in candidates:
-        c.status = "invalidated"
+        c.status = CandidateStatus.INVALIDATED
         c.group_id = None
         count += 1
 
@@ -75,7 +76,10 @@ def _get_active_source_ids(db: Session, batch_id: int) -> list[int]:
     # Get all source IDs with active suppliers
     source_ids = [
         sid
-        for (sid,) in db.query(StagedSupplier.data_source_id).filter(StagedSupplier.status == "active").distinct().all()
+        for (sid,) in db.query(StagedSupplier.data_source_id)
+        .filter(StagedSupplier.status == SupplierStatus.ACTIVE)
+        .distinct()
+        .all()
     ]
 
     # Ensure batch's source is included
@@ -137,7 +141,7 @@ def run_matching_pipeline(
     # Compute representative set (grouped reps + ungrouped singles)
     reps = db.query(StagedSupplier.id).filter(
         StagedSupplier.data_source_id.in_(source_ids),
-        StagedSupplier.status == "active",
+        StagedSupplier.status == SupplierStatus.ACTIVE,
         or_(
             StagedSupplier.intra_source_group_id == StagedSupplier.id,
             StagedSupplier.intra_source_group_id.is_(None),
@@ -256,7 +260,7 @@ def run_matching_pipeline(
     existing_pairs: set[tuple[int, int]] = set()
     existing = (
         db.query(MatchCandidate.supplier_a_id, MatchCandidate.supplier_b_id)
-        .filter(MatchCandidate.status != "invalidated")
+        .filter(MatchCandidate.status != CandidateStatus.INVALIDATED)
         .all()
     )
     for ea, eb in existing:
@@ -277,7 +281,7 @@ def run_matching_pipeline(
             supplier_b_id=pair_key[1],
             confidence=confidence,
             match_signals=signals,
-            status="pending",
+            status=CandidateStatus.PENDING,
             group_id=group.id if group else None,
         )
         db.add(candidate)

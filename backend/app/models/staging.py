@@ -7,6 +7,7 @@ except ImportError:
     Vector = None
 
 from app.models.base import Base
+from app.models.enums import SupplierStatus
 
 
 class StagedSupplier(Base):
@@ -22,7 +23,7 @@ class StagedSupplier(Base):
     payment_terms = Column(String(50), nullable=True)
     contact_name = Column(String(255), nullable=True)
     supplier_type = Column(String(50), nullable=True)
-    status = Column(String(20), default="active")  # active/superseded
+    status = Column(String(20), default=SupplierStatus.ACTIVE)  # active/superseded
     raw_data = Column(JSON, nullable=False)
     normalized_name = Column(String(255), nullable=True)
     name_embedding = Column(Vector(384) if Vector else LargeBinary, nullable=True)

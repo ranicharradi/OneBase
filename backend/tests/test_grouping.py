@@ -3,6 +3,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, SupplierStatus
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
 
@@ -19,7 +20,7 @@ def _make_batch(db: Session, source: DataSource) -> ImportBatch:
         data_source_id=source.id,
         filename="test.csv",
         uploaded_by="testuser",
-        status="completed",
+        status=BatchStatus.COMPLETED,
     )
     db.add(batch)
     db.flush()
@@ -45,7 +46,7 @@ def _make_supplier(
         name=name,
         normalized_name=normalized_name or name.upper(),
         raw_data={"name": name},
-        status="active",
+        status=SupplierStatus.ACTIVE,
         short_name=short_name,
         currency=currency,
         contact_name=contact_name,

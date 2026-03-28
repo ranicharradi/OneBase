@@ -2,13 +2,23 @@
 
 import logging
 
+from sqlalchemy.exc import OperationalError
+
 from app.database import SessionLocal
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, name="run_matching")
+@celery_app.task(
+    bind=True,
+    name="run_matching",
+    max_retries=2,
+    autoretry_for=(OperationalError, ConnectionError),
+    retry_backoff=True,
+    retry_backoff_max=120,
+    retry_jitter=True,
+)
 def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
     """Run the matching pipeline for a given batch.
 
@@ -23,6 +33,8 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
     db = SessionLocal()
     try:
         from app.models.batch import ImportBatch
+        from app.models.match import MatchCandidate
+        from app.models.staging import StagedSupplier
         from app.services.matching import run_matching_pipeline
 
         # Store matching task ID on batch — commit immediately so it
@@ -31,6 +43,25 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
         batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
         batch.matching_task_id = self.request.id
         db.commit()
+
+        # Idempotency guard: skip if candidates already exist for this batch
+        # (unless this is a re-upload where we need to invalidate and rematch)
+        if invalidate_source_id is None:
+            batch_supplier_ids = (
+                db.query(StagedSupplier.id).filter(StagedSupplier.import_batch_id == batch_id).subquery()
+            )
+            existing_candidates = (
+                db.query(MatchCandidate.id)
+                .filter(
+                    (MatchCandidate.supplier_a_id.in_(batch_supplier_ids))
+                    | (MatchCandidate.supplier_b_id.in_(batch_supplier_ids))
+                )
+                .limit(1)
+                .count()
+            )
+            if existing_candidates > 0:
+                logger.info("Matching for batch %d already has candidates, skipping", batch_id)
+                return {"status": "completed", "batch_id": batch_id}
 
         # Progress callback for Celery state updates + WebSocket push
         def progress_callback(stage: str, pct: int):

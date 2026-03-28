@@ -13,6 +13,7 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.models.enums import SupplierStatus
 from app.models.staging import StagedSupplier
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ def text_block(db: Session, source_ids: list[int], representative_ids: set[int] 
     # Query all active suppliers for given sources
     query = db.query(StagedSupplier).filter(
         StagedSupplier.data_source_id.in_(source_ids),
-        StagedSupplier.status == "active",
+        StagedSupplier.status == SupplierStatus.ACTIVE,
     )
     if representative_ids is not None:
         query = query.filter(StagedSupplier.id.in_(representative_ids))
@@ -111,7 +112,7 @@ def _get_embedding_neighbors(
     query = db.query(StagedSupplier.id).filter(
         StagedSupplier.data_source_id != supplier.data_source_id,
         StagedSupplier.data_source_id.in_(source_ids),
-        StagedSupplier.status == "active",
+        StagedSupplier.status == SupplierStatus.ACTIVE,
         StagedSupplier.name_embedding.isnot(None),
     )
     if representative_ids is not None:
@@ -137,7 +138,7 @@ def _get_suppliers_with_embeddings(
     """
     query = db.query(StagedSupplier).filter(
         StagedSupplier.data_source_id.in_(source_ids),
-        StagedSupplier.status == "active",
+        StagedSupplier.status == SupplierStatus.ACTIVE,
         StagedSupplier.name_embedding.isnot(None),
     )
     if representative_ids is not None:

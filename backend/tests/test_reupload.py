@@ -5,6 +5,7 @@ from unittest.mock import patch
 import numpy as np
 
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
@@ -32,7 +33,7 @@ class TestReuploadSupersession:
             data_source_id=source.id,
             filename="test.csv",
             uploaded_by="testuser",
-            status="pending",
+            status=BatchStatus.PENDING,
         )
         test_db.add(batch)
         test_db.flush()
@@ -53,7 +54,7 @@ class TestReuploadSupersession:
             test_db.query(StagedSupplier)
             .filter(
                 StagedSupplier.data_source_id == source.id,
-                StagedSupplier.status == "active",
+                StagedSupplier.status == SupplierStatus.ACTIVE,
             )
             .all()
         )
@@ -76,7 +77,7 @@ class TestReuploadSupersession:
             data_source_id=source.id,
             filename="test_v2.csv",
             uploaded_by="testuser",
-            status="pending",
+            status=BatchStatus.PENDING,
         )
         test_db.add(batch2)
         test_db.flush()
@@ -89,7 +90,7 @@ class TestReuploadSupersession:
             test_db.query(StagedSupplier)
             .filter(
                 StagedSupplier.import_batch_id == batch1.id,
-                StagedSupplier.status == "superseded",
+                StagedSupplier.status == SupplierStatus.SUPERSEDED,
             )
             .all()
         )
@@ -100,7 +101,7 @@ class TestReuploadSupersession:
             test_db.query(StagedSupplier)
             .filter(
                 StagedSupplier.import_batch_id == batch2.id,
-                StagedSupplier.status == "active",
+                StagedSupplier.status == SupplierStatus.ACTIVE,
             )
             .all()
         )
@@ -125,7 +126,7 @@ class TestReuploadSupersession:
             supplier_b_id=suppliers[1].id,
             confidence=0.85,
             match_signals={"name": 0.9},
-            status="pending",
+            status=CandidateStatus.PENDING,
         )
         test_db.add(match)
         test_db.commit()
@@ -135,7 +136,7 @@ class TestReuploadSupersession:
             data_source_id=source.id,
             filename="test_v2.csv",
             uploaded_by="testuser",
-            status="pending",
+            status=BatchStatus.PENDING,
         )
         test_db.add(batch2)
         test_db.flush()
@@ -145,7 +146,7 @@ class TestReuploadSupersession:
 
         # Pending match should be invalidated
         test_db.refresh(match)
-        assert match.status == "invalidated"
+        assert match.status == CandidateStatus.INVALIDATED
 
     @patch("app.services.ingestion.compute_embeddings")
     def test_reupload_preserves_confirmed_matches(self, mock_embed, test_db):
@@ -166,7 +167,7 @@ class TestReuploadSupersession:
             supplier_b_id=suppliers[1].id,
             confidence=0.95,
             match_signals={"name": 0.95},
-            status="confirmed",
+            status=CandidateStatus.CONFIRMED,
         )
         test_db.add(match)
         test_db.commit()
@@ -176,7 +177,7 @@ class TestReuploadSupersession:
             data_source_id=source.id,
             filename="test_v2.csv",
             uploaded_by="testuser",
-            status="pending",
+            status=BatchStatus.PENDING,
         )
         test_db.add(batch2)
         test_db.flush()
@@ -186,4 +187,4 @@ class TestReuploadSupersession:
 
         # Confirmed match should be preserved
         test_db.refresh(match)
-        assert match.status == "confirmed"
+        assert match.status == CandidateStatus.CONFIRMED

@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
@@ -25,7 +26,7 @@ def _make_batch(db: Session, source: DataSource) -> ImportBatch:
         data_source_id=source.id,
         filename="test.csv",
         uploaded_by="testuser",
-        status="completed",
+        status=BatchStatus.COMPLETED,
     )
     db.add(batch)
     db.flush()
@@ -48,7 +49,7 @@ def _make_supplier(
         name=name,
         normalized_name=name.upper(),
         raw_data={"name": name},
-        status="active",
+        status=SupplierStatus.ACTIVE,
         short_name=short_name,
         currency=currency,
         contact_name=contact_name,
@@ -74,7 +75,7 @@ def _make_candidate(
             "currency_match": 1.0,
             "contact_match": 0.0,
         },
-        status="pending",
+        status=CandidateStatus.PENDING,
     )
     db.add(c)
     db.flush()
@@ -204,7 +205,7 @@ class TestExecuteMerge:
         assert unified.provenance["contact_name"]["source_entity"] == "EOT"
 
         # Candidate marked confirmed
-        assert candidate.status == "confirmed"
+        assert candidate.status == CandidateStatus.CONFIRMED
         assert candidate.reviewed_by == "testuser"
 
     def test_merge_missing_conflict_selection_raises(self, test_db):
@@ -258,7 +259,7 @@ class TestRejectSkip:
         reject_candidate(test_db, candidate, "reviewer1")
         test_db.commit()
 
-        assert candidate.status == "rejected"
+        assert candidate.status == CandidateStatus.REJECTED
         assert candidate.reviewed_by == "reviewer1"
 
     def test_skip_candidate(self, test_db):
@@ -267,7 +268,7 @@ class TestRejectSkip:
         skip_candidate(test_db, candidate, "reviewer1")
         test_db.commit()
 
-        assert candidate.status == "skipped"
+        assert candidate.status == CandidateStatus.SKIPPED
         assert candidate.reviewed_by == "reviewer1"
 
 

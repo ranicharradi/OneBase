@@ -1,6 +1,7 @@
 """Tests for unified suppliers — browse, detail, singleton promotion, export, dashboard."""
 
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
@@ -19,7 +20,11 @@ def _seed_sources(db):
 def _seed_batch(db, source):
     """Create an import batch."""
     b = ImportBatch(
-        data_source_id=source.id, filename="test.csv", uploaded_by="testuser", status="completed", row_count=10
+        data_source_id=source.id,
+        filename="test.csv",
+        uploaded_by="testuser",
+        status=BatchStatus.COMPLETED,
+        row_count=10,
     )
     db.add(b)
     db.flush()
@@ -36,7 +41,7 @@ def _seed_staged(db, source, batch, name, source_code="FE001"):
         short_name="TST",
         currency="EUR",
         raw_data={"BPSNAM": name},
-        status="active",
+        status=SupplierStatus.ACTIVE,
     )
     db.add(s)
     db.flush()
@@ -190,7 +195,7 @@ class TestSingletonPromotion:
             supplier_b_id=sup_b.id,
             confidence=0.85,
             match_signals={"jw": 0.9},
-            status="pending",
+            status=CandidateStatus.PENDING,
         )
         test_db.add(mc)
         test_db.commit()
@@ -294,7 +299,7 @@ class TestDashboard:
             supplier_b_id=sup_b.id,
             confidence=0.80,
             match_signals={"jw": 0.8},
-            status="pending",
+            status=CandidateStatus.PENDING,
         )
         test_db.add(mc)
 

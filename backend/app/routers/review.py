@@ -7,6 +7,7 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
+from app.models.enums import CandidateStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
@@ -241,7 +242,7 @@ def merge_candidate(
             detail=f"Match candidate {candidate_id} not found",
         )
 
-    if candidate.status != "pending":
+    if candidate.status != CandidateStatus.PENDING:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Candidate is already {candidate.status}, cannot merge",
@@ -293,7 +294,7 @@ def reject_match(
             detail=f"Match candidate {candidate_id} not found",
         )
 
-    if candidate.status not in ("pending", "skipped"):
+    if candidate.status not in (CandidateStatus.PENDING, CandidateStatus.SKIPPED):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Candidate is {candidate.status}, cannot reject",
@@ -322,7 +323,7 @@ def skip_match(
             detail=f"Match candidate {candidate_id} not found",
         )
 
-    if candidate.status != "pending":
+    if candidate.status != CandidateStatus.PENDING:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Candidate is {candidate.status}, cannot skip",
@@ -347,10 +348,10 @@ def get_review_stats(
 ):
     """Get summary stats for the review queue."""
     counts = db.query(
-        func.count(case((MatchCandidate.status == "pending", 1))).label("pending"),
-        func.count(case((MatchCandidate.status == "confirmed", 1))).label("confirmed"),
-        func.count(case((MatchCandidate.status == "rejected", 1))).label("rejected"),
-        func.count(case((MatchCandidate.status == "skipped", 1))).label("skipped"),
+        func.count(case((MatchCandidate.status == CandidateStatus.PENDING, 1))).label("pending"),
+        func.count(case((MatchCandidate.status == CandidateStatus.CONFIRMED, 1))).label("confirmed"),
+        func.count(case((MatchCandidate.status == CandidateStatus.REJECTED, 1))).label("rejected"),
+        func.count(case((MatchCandidate.status == CandidateStatus.SKIPPED, 1))).label("skipped"),
     ).one()
 
     unified_count = db.query(func.count(UnifiedSupplier.id)).scalar() or 0

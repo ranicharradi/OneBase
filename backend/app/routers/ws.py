@@ -8,8 +8,9 @@ import asyncio
 import json
 import logging
 
+import jwt as pyjwt
 import redis.asyncio as aioredis
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, WebSocketException, status
 
 from app.config import settings
 from app.services.notifications import CHANNEL
@@ -23,16 +24,28 @@ router = APIRouter()
 async def ws_notifications(websocket: WebSocket, token: str | None = None):
     """WebSocket endpoint that relays Redis pub/sub notifications to the client.
 
-    Optionally accepts a `token` query param for authentication.
-    Anonymous connections are still allowed (backwards-compatible) with a warning.
-    The client receives JSON messages with type, data, and timestamp fields.
+    Requires a valid JWT token via the `token` query parameter.
+    Rejects connections before accept if token is missing or invalid.
     """
-    await websocket.accept()
+    if not token:
+        raise WebSocketException(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="Missing authentication token",
+        )
 
-    if token:
-        logger.info("WebSocket client connected (authenticated)")
-    else:
-        logger.warning("WebSocket client connected without token (anonymous)")
+    try:
+        payload = pyjwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        username = payload.get("sub")
+        if not username:
+            raise pyjwt.PyJWTError("Missing subject")
+    except pyjwt.PyJWTError as exc:
+        raise WebSocketException(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="Invalid authentication token",
+        ) from exc
+
+    await websocket.accept()
+    logger.info("WebSocket client connected: %s", username)
 
     async_redis = aioredis.from_url(settings.redis_url, decode_responses=True)
     pubsub = async_redis.pubsub()
@@ -40,7 +53,6 @@ async def ws_notifications(websocket: WebSocket, token: str | None = None):
 
     try:
         while True:
-            # Non-blocking check for Redis messages with a short timeout
             message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
             if message and message["type"] == "message":
                 try:
@@ -48,10 +60,8 @@ async def ws_notifications(websocket: WebSocket, token: str | None = None):
                 except (WebSocketDisconnect, RuntimeError):
                     break
 
-            # Also check for incoming client messages (ping/pong)
             try:
                 client_msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
-                # Respond to pings with pong
                 if client_msg == "ping":
                     await websocket.send_text(json.dumps({"type": "pong"}))
             except TimeoutError:
@@ -60,11 +70,11 @@ async def ws_notifications(websocket: WebSocket, token: str | None = None):
                 break
 
     except WebSocketDisconnect:
-        logger.info("WebSocket client disconnected")
+        logger.info("WebSocket client disconnected: %s", username)
     except Exception as e:
         logger.error("WebSocket error: %s", e)
     finally:
         await pubsub.unsubscribe(CHANNEL)
         await pubsub.close()
         await async_redis.close()
-        logger.info("WebSocket cleanup complete")
+        logger.info("WebSocket cleanup complete for %s", username)

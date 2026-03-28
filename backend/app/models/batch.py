@@ -2,6 +2,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
+from app.models.enums import BatchStatus
 
 
 class ImportBatch(Base):
@@ -12,7 +13,7 @@ class ImportBatch(Base):
     filename = Column(String(255), nullable=False)
     uploaded_by = Column(String(100), nullable=False)
     row_count = Column(Integer, nullable=True)
-    status = Column(String(20), default="pending")  # pending/processing/completed/failed
+    status = Column(String(20), default=BatchStatus.PENDING)  # pending/processing/completed/failed
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     task_id = Column(String(255), nullable=True)  # Celery task ID

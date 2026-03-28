@@ -6,6 +6,7 @@ import lightgbm as lgb
 import numpy as np
 
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, SupplierStatus
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
 from app.services.ml_training import ModelBundle
@@ -21,7 +22,7 @@ def _make_supplier(db, source, batch, name, **kwargs):
         short_name="TST",
         currency="EUR",
         raw_data={"name": name},
-        status="active",
+        status=SupplierStatus.ACTIVE,
     )
     defaults.update(kwargs)
     s = StagedSupplier(**defaults)
@@ -34,7 +35,7 @@ def _seed_pair(db):
     s = DataSource(name="S", file_format="csv", column_mapping={"supplier_name": "n"})
     db.add(s)
     db.flush()
-    b = ImportBatch(data_source_id=s.id, filename="x.csv", uploaded_by="u", status="completed", row_count=2)
+    b = ImportBatch(data_source_id=s.id, filename="x.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=2)
     db.add(b)
     db.flush()
     sup_a = _make_supplier(db, s, b, "ACME CORP")

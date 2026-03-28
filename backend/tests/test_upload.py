@@ -150,6 +150,189 @@ class TestTaskStatusEndpoint:
         assert data["progress"] == 50
 
 
+class TestDeleteBatchEndpoint:
+    """Tests for DELETE /api/import/batches/{batch_id}."""
+
+    def test_delete_batch_removes_file(self, authenticated_client, test_db):
+        """Deleting a batch also removes its file from disk."""
+        import os
+
+        from app.models.batch import ImportBatch
+        from app.models.enums import BatchStatus
+        from app.models.source import DataSource
+
+        source = DataSource(
+            name="Test Source",
+            file_format="csv",
+            delimiter=";",
+            column_mapping={"supplier_name": "Name1"},
+        )
+        test_db.add(source)
+        test_db.flush()
+
+        os.makedirs("data/uploads", exist_ok=True)
+        test_filename = "delete_test.csv"
+        test_filepath = os.path.join("data", "uploads", test_filename)
+        with open(test_filepath, "wb") as f:
+            f.write(b"code;name\n001;Acme\n")
+
+        batch = ImportBatch(
+            data_source_id=source.id,
+            filename=test_filename,
+            uploaded_by="testuser",
+            status=BatchStatus.FAILED,
+        )
+        test_db.add(batch)
+        test_db.commit()
+
+        response = authenticated_client.delete(f"/api/import/batches/{batch.id}")
+        assert response.status_code == 204
+        assert not os.path.exists(test_filepath)
+
+    def test_delete_batch_missing_file_succeeds(self, authenticated_client, test_db):
+        """Deleting a batch succeeds even if the file is already gone."""
+        from app.models.batch import ImportBatch
+        from app.models.enums import BatchStatus
+        from app.models.source import DataSource
+
+        source = DataSource(
+            name="Test Source",
+            file_format="csv",
+            delimiter=";",
+            column_mapping={"supplier_name": "Name1"},
+        )
+        test_db.add(source)
+        test_db.flush()
+
+        batch = ImportBatch(
+            data_source_id=source.id,
+            filename="nonexistent.csv",
+            uploaded_by="testuser",
+            status=BatchStatus.PENDING,
+        )
+        test_db.add(batch)
+        test_db.commit()
+
+        response = authenticated_client.delete(f"/api/import/batches/{batch.id}")
+        assert response.status_code == 204
+
+
+class TestReuploadGuard:
+    """Tests for preventing concurrent re-uploads."""
+
+    def test_reupload_blocked_while_pending(self, authenticated_client, test_db):
+        """Upload returns 409 if source already has a pending batch."""
+        from app.models.batch import ImportBatch
+        from app.models.enums import BatchStatus
+        from app.models.source import DataSource
+
+        source = DataSource(
+            name="Test Source",
+            file_format="csv",
+            delimiter=";",
+            column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
+        )
+        test_db.add(source)
+        test_db.flush()
+
+        existing_batch = ImportBatch(
+            data_source_id=source.id,
+            filename="first.csv",
+            uploaded_by="testuser",
+            status=BatchStatus.PENDING,
+        )
+        test_db.add(existing_batch)
+        test_db.commit()
+
+        with patch("app.routers.upload.process_upload") as mock_task:
+            mock_result = MagicMock()
+            mock_result.id = "test-task-123"
+            mock_task.delay.return_value = mock_result
+
+            response = authenticated_client.post(
+                "/api/import/upload",
+                data={"data_source_id": str(source.id)},
+                files={"file": ("second.csv", b"code;name\n001;Acme\n", "text/csv")},
+            )
+
+        assert response.status_code == 409
+        assert "in-progress" in response.json()["detail"]
+
+    def test_reupload_blocked_while_processing(self, authenticated_client, test_db):
+        """Upload returns 409 if source already has a processing batch."""
+        from app.models.batch import ImportBatch
+        from app.models.enums import BatchStatus
+        from app.models.source import DataSource
+
+        source = DataSource(
+            name="Test Source",
+            file_format="csv",
+            delimiter=";",
+            column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
+        )
+        test_db.add(source)
+        test_db.flush()
+
+        existing_batch = ImportBatch(
+            data_source_id=source.id,
+            filename="first.csv",
+            uploaded_by="testuser",
+            status=BatchStatus.PROCESSING,
+        )
+        test_db.add(existing_batch)
+        test_db.commit()
+
+        with patch("app.routers.upload.process_upload") as mock_task:
+            mock_result = MagicMock()
+            mock_result.id = "test-task-123"
+            mock_task.delay.return_value = mock_result
+
+            response = authenticated_client.post(
+                "/api/import/upload",
+                data={"data_source_id": str(source.id)},
+                files={"file": ("second.csv", b"code;name\n001;Acme\n", "text/csv")},
+            )
+
+        assert response.status_code == 409
+
+    def test_reupload_allowed_after_completion(self, authenticated_client, test_db):
+        """Upload succeeds if prior batch is completed."""
+        from app.models.batch import ImportBatch
+        from app.models.enums import BatchStatus
+        from app.models.source import DataSource
+
+        source = DataSource(
+            name="Test Source",
+            file_format="csv",
+            delimiter=";",
+            column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
+        )
+        test_db.add(source)
+        test_db.flush()
+
+        existing_batch = ImportBatch(
+            data_source_id=source.id,
+            filename="first.csv",
+            uploaded_by="testuser",
+            status=BatchStatus.COMPLETED,
+        )
+        test_db.add(existing_batch)
+        test_db.commit()
+
+        with patch("app.routers.upload.process_upload") as mock_task:
+            mock_result = MagicMock()
+            mock_result.id = "test-task-456"
+            mock_task.delay.return_value = mock_result
+
+            response = authenticated_client.post(
+                "/api/import/upload",
+                data={"data_source_id": str(source.id)},
+                files={"file": ("second.csv", b"code;name\n001;Acme\n", "text/csv")},
+            )
+
+        assert response.status_code == 201
+
+
 class TestUploadAuditTrail:
     """Tests for upload audit logging."""
 

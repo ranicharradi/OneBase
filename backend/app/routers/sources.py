@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
+from app.models.enums import SupplierStatus
 from app.models.staging import StagedSupplier
 from app.models.user import User
 from app.schemas.source import (
@@ -236,7 +237,7 @@ async def match_source(
                     for row in db.query(StagedSupplier.source_code)
                     .filter(
                         StagedSupplier.data_source_id == source.id,
-                        StagedSupplier.status == "active",
+                        StagedSupplier.status == SupplierStatus.ACTIVE,
                         StagedSupplier.source_code.in_(csv_codes),
                     )
                     .all()

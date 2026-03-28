@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus
 from app.models.source import DataSource
 from app.models.user import User
 from app.schemas.upload import BatchResponse, TaskStatusResponse, UploadResponse
@@ -100,12 +101,28 @@ async def upload_file(
             detail="Data source not found",
         )
 
+    # Block re-upload while a batch is still processing for this source
+    active_batch = (
+        db.query(ImportBatch)
+        .filter(
+            ImportBatch.data_source_id == data_source_id,
+            ImportBatch.status.in_([BatchStatus.PENDING, BatchStatus.PROCESSING]),
+        )
+        .first()
+    )
+    if active_batch:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Source already has an in-progress upload (batch {active_batch.id}). "
+            f"Wait for it to complete before re-uploading.",
+        )
+
     # Create import batch
     batch = ImportBatch(
         data_source_id=data_source_id,
         filename=stored_filename,
         uploaded_by=current_user.username,
-        status="pending",
+        status=BatchStatus.PENDING,
     )
     db.add(batch)
     db.flush()
@@ -160,11 +177,17 @@ def delete_batch(
     batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).first()
     if batch is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found")
-    if batch.status not in ("pending", "failed", "failure"):
+    if batch.status not in (BatchStatus.PENDING, BatchStatus.FAILED):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Cannot delete batch with status '{batch.status}'. Only pending or failed batches can be deleted.",
         )
+    # Clean up file from disk
+    if batch.filename:
+        file_full_path = os.path.join(UPLOAD_DIR, batch.filename)
+        if os.path.exists(file_full_path):
+            os.unlink(file_full_path)
+
     db.delete(batch)
     log_action(
         db,

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, SupplierStatus
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
 from app.services.blocking import combine_blocks, embedding_block, text_block
@@ -29,7 +30,7 @@ def _make_batch(db, batch_id, source_id):
         data_source_id=source_id,
         filename="test.csv",
         uploaded_by="testuser",
-        status="completed",
+        status=BatchStatus.COMPLETED,
     )
     db.add(batch)
     db.flush()
@@ -39,7 +40,7 @@ def _make_batch(db, batch_id, source_id):
 def _make_supplier(db, supplier_id, source_id, batch_id, normalized_name, **kwargs):
     """Create a StagedSupplier for testing."""
     defaults = {
-        "status": "active",
+        "status": SupplierStatus.ACTIVE,
     }
     defaults.update(kwargs)
     supplier = StagedSupplier(

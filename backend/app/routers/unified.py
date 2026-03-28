@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_current_user, get_db
 from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
@@ -268,7 +269,7 @@ def list_singletons(
             DataSource.name.label("data_source_name"),
         )
         .join(DataSource, StagedSupplier.data_source_id == DataSource.id)
-        .filter(StagedSupplier.status == "active")
+        .filter(StagedSupplier.status == SupplierStatus.ACTIVE)
         # Exclude non-representative group members (they are handled via their representative)
         .filter(
             or_(
@@ -324,7 +325,7 @@ def promote_singleton(
             detail=f"Staged supplier {supplier_id} not found",
         )
 
-    if supplier.status != "active":
+    if supplier.status != SupplierStatus.ACTIVE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Supplier is {supplier.status}, cannot promote",
@@ -432,7 +433,7 @@ def bulk_promote_singletons(
 
     for sid in body.supplier_ids:
         supplier = db.get(StagedSupplier, sid)
-        if not supplier or supplier.status != "active" or sid in already:
+        if not supplier or supplier.status != SupplierStatus.ACTIVE or sid in already:
             continue
         if not supplier.name:
             continue
@@ -605,10 +606,12 @@ def get_dashboard(
     # Upload stats
     batch_counts = db.query(
         func.count(ImportBatch.id).label("total"),
-        func.count(case((ImportBatch.status == "completed", 1))).label("completed"),
-        func.count(case((ImportBatch.status == "failed", 1))).label("failed"),
+        func.count(case((ImportBatch.status == BatchStatus.COMPLETED, 1))).label("completed"),
+        func.count(case((ImportBatch.status == BatchStatus.FAILED, 1))).label("failed"),
     ).one()
-    total_staged = db.query(func.count(StagedSupplier.id)).filter(StagedSupplier.status == "active").scalar() or 0
+    total_staged = (
+        db.query(func.count(StagedSupplier.id)).filter(StagedSupplier.status == SupplierStatus.ACTIVE).scalar() or 0
+    )
 
     # Match stats
     total_candidates = db.query(func.count(MatchCandidate.id)).scalar() or 0
@@ -617,10 +620,10 @@ def get_dashboard(
 
     # Review progress
     review_counts = db.query(
-        func.count(case((MatchCandidate.status == "pending", 1))).label("pending"),
-        func.count(case((MatchCandidate.status == "confirmed", 1))).label("confirmed"),
-        func.count(case((MatchCandidate.status == "rejected", 1))).label("rejected"),
-        func.count(case((MatchCandidate.status == "skipped", 1))).label("skipped"),
+        func.count(case((MatchCandidate.status == CandidateStatus.PENDING, 1))).label("pending"),
+        func.count(case((MatchCandidate.status == CandidateStatus.CONFIRMED, 1))).label("confirmed"),
+        func.count(case((MatchCandidate.status == CandidateStatus.REJECTED, 1))).label("rejected"),
+        func.count(case((MatchCandidate.status == CandidateStatus.SKIPPED, 1))).label("skipped"),
     ).one()
 
     # Unified stats
