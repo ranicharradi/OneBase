@@ -67,5 +67,6 @@ def create_initial_user(db: Session) -> None:
         username=settings.admin_username,
         password_hash=hash_password(settings.admin_password),
         is_active=True,
+        role="admin",
     )
     db.add(admin)

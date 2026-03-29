@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, require_role
+from app.models.enums import UserRole
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.staging import StagedSupplier
 from app.models.user import User
@@ -123,7 +124,7 @@ def list_candidates(
 @router.post("/retrain", response_model=RetrainResponse)
 def trigger_retrain(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Trigger retraining of signal weights from reviewer decisions.
 
@@ -146,7 +147,7 @@ def trigger_retrain(
 @router.post("/train-model", response_model=TrainModelResponse)
 def train_ml_model(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Train ML scorer and blocker models from reviewed match candidates.
 

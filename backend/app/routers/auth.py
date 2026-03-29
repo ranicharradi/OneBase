@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, require_role
+from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.auth import TokenResponse, UserCreate, UserResponse
 from app.services.audit import log_action
@@ -53,9 +54,9 @@ def get_me(current_user: User = Depends(get_current_user)):
 def create_user(
     user_data: UserCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Create a new user (requires authentication)."""
+    """Create a new user (admin only)."""
     # Check for duplicate username
     existing = db.query(User).filter(User.username == user_data.username).first()
     if existing:
@@ -68,6 +69,7 @@ def create_user(
         username=user_data.username,
         password_hash=hash_password(user_data.password),
         is_active=True,
+        role=user_data.role.value if user_data.role else "viewer",
     )
     db.add(new_user)
     db.commit()

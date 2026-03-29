@@ -9,10 +9,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, require_role
 from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
+from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus, UserRole
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
@@ -315,7 +315,7 @@ def list_singletons(
 def promote_singleton(
     supplier_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
     """Promote a singleton supplier directly into the unified database."""
     supplier = db.get(StagedSupplier, supplier_id)
@@ -421,7 +421,7 @@ def promote_singleton(
 def bulk_promote_singletons(
     body: BulkPromoteRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
     """Promote multiple singletons at once."""
     from app.services.merge import CANONICAL_FIELDS

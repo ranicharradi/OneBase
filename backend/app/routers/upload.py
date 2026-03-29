@@ -6,9 +6,9 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, require_role
 from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus
+from app.models.enums import BatchStatus, UserRole
 from app.models.source import DataSource
 from app.models.user import User
 from app.schemas.upload import BatchResponse, TaskStatusResponse, UploadResponse
@@ -31,7 +31,7 @@ async def upload_file(
     file_ref: str | None = Form(None),
     data_source_id: int = Form(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Upload a CSV file for processing.
 
@@ -168,7 +168,7 @@ def list_batches(
 def delete_batch(
     batch_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Delete a stuck or unwanted import batch.
 

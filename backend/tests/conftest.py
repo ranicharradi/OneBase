@@ -70,6 +70,7 @@ def authenticated_client(test_client, test_db):
         username="testuser",
         password_hash=hash_password("testpass123"),
         is_active=True,
+        role="admin",
     )
     test_db.add(user)
     test_db.commit()

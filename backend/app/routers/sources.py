@@ -12,8 +12,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db
-from app.models.enums import SupplierStatus
+from app.dependencies import get_current_user, get_db, require_role
+from app.models.enums import SupplierStatus, UserRole
 from app.models.staging import StagedSupplier
 from app.models.user import User
 from app.schemas.source import (
@@ -49,7 +49,7 @@ router = APIRouter(prefix="/api/sources", tags=["sources"])
 def create_data_source(
     data: DataSourceCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Create a new data source with column mapping."""
     try:
@@ -358,7 +358,7 @@ def update_data_source(
     source_id: int,
     data: DataSourceUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Update a data source."""
     try:
@@ -384,7 +384,7 @@ def update_data_source(
 def delete_data_source(
     source_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Delete a data source."""
     deleted = delete_source(db, source_id)

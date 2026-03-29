@@ -26,3 +26,9 @@ class CandidateStatus(StrEnum):
     REJECTED = "rejected"
     SKIPPED = "skipped"
     INVALIDATED = "invalidated"
+
+
+class UserRole(StrEnum):
+    ADMIN = "admin"
+    REVIEWER = "reviewer"
+    VIEWER = "viewer"

@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.models.enums import UserRole
 from app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -48,3 +49,18 @@ def get_current_user(
             detail="User not found",
         )
     return user
+
+
+def require_role(*allowed_roles: UserRole):
+    """Return a FastAPI dependency that checks the current user's role."""
+
+    def dependency(current_user: User = Depends(get_current_user)):
+        if current_user.role not in [r.value for r in allowed_roles]:
+            required = ", ".join(r.value for r in allowed_roles)
+            raise HTTPException(
+                status_code=403,
+                detail=f"Role '{current_user.role}' not authorized. Required: {required}",
+            )
+        return current_user
+
+    return dependency

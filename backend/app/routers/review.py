@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db
-from app.models.enums import CandidateStatus
+from app.dependencies import get_current_user, get_db, require_role
+from app.models.enums import CandidateStatus, UserRole
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
@@ -228,7 +228,7 @@ def merge_candidate(
     candidate_id: int,
     body: MergeRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
     """Confirm a match and create a unified (golden) supplier record.
 
@@ -284,7 +284,7 @@ def merge_candidate(
 def reject_match(
     candidate_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
     """Reject a match candidate — suppliers are not duplicates."""
     candidate = db.get(MatchCandidate, candidate_id)
@@ -313,7 +313,7 @@ def reject_match(
 def skip_match(
     candidate_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
     """Skip a match candidate for later review."""
     candidate = db.get(MatchCandidate, candidate_id)
