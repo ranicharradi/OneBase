@@ -121,6 +121,48 @@ def list_candidates(
     ]
 
 
+@router.get("/model-status")
+def get_model_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get current ML model and weight retraining status."""
+    from app.config import settings
+    from app.models.ml import MLModelVersion
+
+    # Latest scorer model
+    scorer = (
+        db.query(MLModelVersion)
+        .filter(MLModelVersion.model_type == "scorer")
+        .order_by(MLModelVersion.created_at.desc())
+        .first()
+    )
+
+    # Count reviewed candidates
+    review_count = (
+        db.query(func.count(MatchCandidate.id)).filter(MatchCandidate.status.in_(["confirmed", "rejected"])).scalar()
+        or 0
+    )
+
+    # Current weights from config
+    current_weights = {
+        "jaro_winkler": settings.matching_weight_jaro_winkler,
+        "token_jaccard": settings.matching_weight_token_jaccard,
+        "embedding_cosine": settings.matching_weight_embedding_cosine,
+        "short_name": settings.matching_weight_short_name,
+        "currency": settings.matching_weight_currency,
+        "contact": settings.matching_weight_contact,
+    }
+
+    return {
+        "last_trained": scorer.created_at.isoformat() if scorer else None,
+        "last_retrained": None,
+        "review_count": review_count,
+        "current_weights": current_weights,
+        "ml_model_exists": scorer is not None,
+    }
+
+
 @router.post("/retrain", response_model=RetrainResponse)
 def trigger_retrain(
     db: Session = Depends(get_db),

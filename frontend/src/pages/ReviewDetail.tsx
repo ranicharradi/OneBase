@@ -11,16 +11,7 @@ import type {
   FieldSelection,
   ReviewActionResponse,
 } from '../api/types';
-
-// ── Signal display config ──
-const SIGNAL_CONFIG: Record<string, { label: string; icon: string }> = {
-  jaro_winkler: { label: 'Jaro-Winkler', icon: '⌨' },
-  token_jaccard: { label: 'Token Jaccard', icon: '∩' },
-  embedding_cosine: { label: 'Embedding Cosine', icon: '⟡' },
-  short_name_match: { label: 'Short Name', icon: '◈' },
-  currency_match: { label: 'Currency', icon: '¤' },
-  contact_match: { label: 'Contact', icon: '◉' },
-};
+import { SIGNAL_CONFIG } from '../utils/signals';
 
 function SignalBar({ label, icon, value }: { label: string; icon: string; value: number }) {
   const pct = Math.round(value * 100);

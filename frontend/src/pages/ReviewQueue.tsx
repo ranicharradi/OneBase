@@ -2,10 +2,13 @@
 // Light glassmorphism aesthetic — data-dense queue with airy depth
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import Pagination from '../components/Pagination';
 import { useNavigate } from 'react-router';
 import { api } from '../api/client';
+import { useSearch } from '../contexts/SearchContext';
 import type { ReviewQueueResponse, ReviewStats, DataSource } from '../api/types';
+import { SIGNAL_CONFIG } from '../utils/signals';
 
 function ConfidenceBadge({ value }: { value: number }) {
   const pct = Math.round(value * 100);
@@ -40,12 +43,15 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function ReviewQueue() {
   const navigate = useNavigate();
+  const { query: searchQuery } = useSearch();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('pending');
   const [minConfidence, setMinConfidence] = useState('');
   const [maxConfidence, setMaxConfidence] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
+  const [page, setPage] = useState(0);
+  const pageSize = 50;
 
   // Build query params
   const params = new URLSearchParams();
@@ -53,11 +59,14 @@ export default function ReviewQueue() {
   if (minConfidence) params.set('min_confidence', minConfidence);
   if (maxConfidence) params.set('max_confidence', maxConfidence);
   if (sourceFilter) params.set('source_a_id', sourceFilter);
+  params.set('limit', String(pageSize));
+  params.set('offset', String(page * pageSize));
 
   // Data queries
   const { data: queue, isLoading } = useQuery({
-    queryKey: ['review-queue', statusFilter, minConfidence, maxConfidence, sourceFilter],
+    queryKey: ['review-queue', statusFilter, minConfidence, maxConfidence, sourceFilter, page],
     queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
+    placeholderData: keepPreviousData,
   });
 
   const { data: stats } = useQuery({
@@ -126,7 +135,7 @@ export default function ReviewQueue() {
             </label>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
               className="input-field w-36 text-sm"
             >
               <option value="pending">Pending</option>
@@ -144,7 +153,7 @@ export default function ReviewQueue() {
             </label>
             <select
               value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
+              onChange={(e) => { setSourceFilter(e.target.value); setPage(0); }}
               className="input-field w-40 text-sm"
             >
               <option value="">All Sources</option>
@@ -166,7 +175,7 @@ export default function ReviewQueue() {
               step="0.05"
               placeholder="0.00"
               value={minConfidence}
-              onChange={(e) => setMinConfidence(e.target.value)}
+              onChange={(e) => { setMinConfidence(e.target.value); setPage(0); }}
               className="input-field w-28 text-sm font-mono"
             />
           </div>
@@ -181,7 +190,7 @@ export default function ReviewQueue() {
               step="0.05"
               placeholder="1.00"
               value={maxConfidence}
-              onChange={(e) => setMaxConfidence(e.target.value)}
+              onChange={(e) => { setMaxConfidence(e.target.value); setPage(0); }}
               className="input-field w-28 text-sm font-mono"
             />
           </div>
@@ -231,82 +240,110 @@ export default function ReviewQueue() {
             </div>
 
             {/* Rows */}
-            <div className="divide-y divide-on-surface/[0.06]">
-              {queue.items.map((item, i) => (
+            <div>
+              {(() => {
+                const filteredItems = queue.items.filter(item => {
+                  if (!searchQuery) return true;
+                  const q = searchQuery.toLowerCase();
+                  return (
+                    item.supplier_a_name?.toLowerCase().includes(q) ||
+                    item.supplier_b_name?.toLowerCase().includes(q) ||
+                    item.supplier_a_source?.toLowerCase().includes(q) ||
+                    item.supplier_b_source?.toLowerCase().includes(q)
+                  );
+                });
+                return filteredItems.map((item, i) => (
                 <div
                   key={item.id}
-                  className="group grid grid-cols-[1fr_1fr_100px_90px_80px] gap-4 items-center px-5 py-3.5 hover:bg-white/30 transition-colors cursor-pointer"
+                  className="group hover:bg-white/30 transition-colors cursor-pointer border-b border-on-surface/[0.06] last:border-b-0"
                   style={{ animationDelay: `${i * 0.03}s` }}
                   onClick={() => navigate(`/review/${item.id}`)}
                 >
-                  {/* Supplier A */}
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-on-surface truncate">
-                      {item.supplier_a_name || '—'}
-                    </p>
-                    {item.supplier_a_source && (
-                      <span className="text-[11px] font-mono text-on-surface-variant/60">
-                        {item.supplier_a_source}
-                      </span>
-                    )}
+                  <div className="grid grid-cols-[1fr_1fr_100px_90px_80px] gap-4 items-center px-5 py-3.5">
+                    {/* Supplier A */}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-on-surface truncate">
+                        {item.supplier_a_name || '—'}
+                      </p>
+                      {item.supplier_a_source && (
+                        <span className="text-[11px] font-mono text-on-surface-variant/60">
+                          {item.supplier_a_source}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Supplier B */}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-on-surface truncate">
+                        {item.supplier_b_name || '—'}
+                      </p>
+                      {item.supplier_b_source && (
+                        <span className="text-[11px] font-mono text-on-surface-variant/60">
+                          {item.supplier_b_source}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Confidence */}
+                    <div className="text-center">
+                      <ConfidenceBadge value={item.confidence} />
+                    </div>
+
+                    {/* Status */}
+                    <div className="text-center">
+                      <StatusBadge status={item.status} />
+                    </div>
+
+                    {/* Action */}
+                    <div className="text-center">
+                      <button
+                        className="inline-flex items-center gap-1 text-xs font-medium text-accent-600 hover:text-accent-600/80 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/review/${item.id}`);
+                        }}
+                      >
+                        Review
+                        <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Supplier B */}
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-on-surface truncate">
-                      {item.supplier_b_name || '—'}
-                    </p>
-                    {item.supplier_b_source && (
-                      <span className="text-[11px] font-mono text-on-surface-variant/60">
-                        {item.supplier_b_source}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Confidence */}
-                  <div className="text-center">
-                    <ConfidenceBadge value={item.confidence} />
-                  </div>
-
-                  {/* Status */}
-                  <div className="text-center">
-                    <StatusBadge status={item.status} />
-                  </div>
-
-                  {/* Action */}
-                  <div className="text-center">
-                    <button
-                      className="inline-flex items-center gap-1 text-xs font-medium text-accent-600 hover:text-accent-600/80 transition-colors"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/review/${item.id}`);
-                      }}
-                    >
-                      Review
-                      <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                      </svg>
-                    </button>
-                  </div>
+                  {/* Signal badges */}
+                  {item.match_signals && Object.keys(item.match_signals).length > 0 && (
+                    <div className="px-5 pb-2 -mt-1 flex gap-2 flex-wrap">
+                      {Object.entries(item.match_signals).map(([key, value]) => {
+                        const config = SIGNAL_CONFIG[key];
+                        if (!config) return null;
+                        return (
+                          <span
+                            key={key}
+                            className="text-[10px] font-mono text-on-surface-variant/60 bg-white/30 px-1.5 py-0.5 rounded"
+                            title={config.label}
+                          >
+                            {config.shortLabel}: {(value * 100).toFixed(0)}%
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              ))}
+              ));
+              })()}
             </div>
           </>
         )}
       </div>
 
-      {/* Footer status */}
       {queue && queue.total > 0 && (
-        <div className="flex items-center justify-between px-1 text-xs text-outline">
-          <span>
-            Showing {queue.items.length} of {queue.total} candidates
-          </span>
-          {queue.has_more && (
-            <span className="text-on-surface-variant/60">
-              Scroll or adjust filters to see more
-            </span>
-          )}
-        </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={queue.total}
+          onPageChange={setPage}
+        />
       )}
     </div>
   );

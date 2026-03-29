@@ -4,6 +4,7 @@ export interface User {
   id: number;
   username: string;
   is_active: boolean;
+  role: string;
   created_at: string;
 }
 
@@ -180,6 +181,7 @@ export interface ReviewQueueItem {
   supplier_a_source: string | null;
   supplier_b_source: string | null;
   confidence: number;
+  match_signals: Record<string, number>;
   status: string;
   group_id: number | null;
   created_at: string | null;
@@ -337,4 +339,21 @@ export interface DashboardResponse {
   review: ReviewProgress;
   unified: UnifiedStatsData;
   recent_activity: RecentActivity[];
+}
+
+// ── Upload stats (re-upload dialog) ──
+
+export interface UploadStatsResponse {
+  staged_count: number;
+  pending_match_count: number;
+}
+
+// ── ML Model status ──
+
+export interface ModelStatusResponse {
+  last_retrained: string | null;
+  last_trained: string | null;
+  review_count: number;
+  current_weights: Record<string, number>;
+  ml_model_exists: boolean;
 }

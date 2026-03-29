@@ -140,6 +140,7 @@ def get_review_queue(
                 supplier_a_source=a_info[1],
                 supplier_b_source=b_info[1],
                 confidence=c.confidence,
+                match_signals=c.match_signals or {},
                 status=c.status,
                 group_id=c.group_id,
                 created_at=c.created_at,

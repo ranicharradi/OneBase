@@ -2,11 +2,12 @@
 // Hero progress ring · pipeline stage cards · contextual next actions
 
 import { useState, useCallback, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api } from '../api/client';
-import type { DashboardResponse, MatchingNotification } from '../api/types';
+import type { DashboardResponse, MatchingNotification, ModelStatusResponse } from '../api/types';
 import { useMatchingNotifications } from '../hooks/useMatchingNotifications';
+import { useAuth } from '../hooks/useAuth';
 
 const REFRESH_MS = 30_000;
 
@@ -325,13 +326,46 @@ function Skeleton() {
 // ── Dashboard ──────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
   const { data, isLoading, error } = useQuery<DashboardResponse>({
     queryKey: ['dashboard'],
     queryFn: () => api.get('/api/unified/dashboard'),
     refetchInterval: REFRESH_MS,
   });
 
+  const { data: modelStatus } = useQuery<ModelStatusResponse>({
+    queryKey: ['model-status'],
+    queryFn: () => api.get('/api/matching/model-status'),
+    enabled: isAdmin,
+  });
+
   const [matchProgress, setMatchProgress] = useState<MatchProgress | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'retrain' | 'train' | null>(null);
+
+  const retrainMutation = useMutation({
+    mutationFn: () => api.post('/api/matching/retrain'),
+    onSuccess: () => {
+      setConfirmAction(null);
+      queryClient.invalidateQueries({ queryKey: ['model-status'] });
+    },
+    onError: () => {
+      setConfirmAction(null);
+    },
+  });
+
+  const trainMutation = useMutation({
+    mutationFn: () => api.post('/api/matching/train-model'),
+    onSuccess: () => {
+      setConfirmAction(null);
+      queryClient.invalidateQueries({ queryKey: ['model-status'] });
+    },
+    onError: () => {
+      setConfirmAction(null);
+    },
+  });
 
   useMatchingNotifications(
     useCallback((n: MatchingNotification) => {
@@ -429,6 +463,81 @@ export default function Dashboard() {
           />
         </div>
       </div>
+
+      {/* ── ML & Matching ── */}
+      {isAdmin && modelStatus && (
+        <div className="card p-5 space-y-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-on-surface-variant/60">
+            ML & Matching
+          </h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="text-center">
+              <p className="text-lg font-mono font-bold text-on-surface">{modelStatus.review_count}</p>
+              <p className="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Reviews</p>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-mono font-bold text-on-surface">
+                {modelStatus.ml_model_exists ? 'Trained' : 'None'}
+              </p>
+              <p className="text-[10px] uppercase tracking-wider text-on-surface-variant/60">ML Model</p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-mono text-on-surface truncate">
+                {modelStatus.last_trained
+                  ? new Date(modelStatus.last_trained).toLocaleDateString()
+                  : '—'}
+              </p>
+              <p className="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Last Trained</p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-mono text-on-surface">
+                {Object.values(modelStatus.current_weights).map(w => w.toFixed(2)).join(' · ')}
+              </p>
+              <p className="text-[10px] uppercase tracking-wider text-on-surface-variant/60">Weights</p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setConfirmAction('retrain')}
+              disabled={modelStatus.review_count < 20 || retrainMutation.isPending}
+              className="btn-secondary text-xs disabled:opacity-40"
+              title={modelStatus.review_count < 20 ? 'Need at least 20 reviews' : ''}
+            >
+              {retrainMutation.isPending ? 'Retraining...' : 'Retrain Signal Weights'}
+            </button>
+            <button
+              onClick={() => setConfirmAction('train')}
+              disabled={modelStatus.review_count < 50 || trainMutation.isPending}
+              className="btn-secondary text-xs disabled:opacity-40"
+              title={modelStatus.review_count < 50 ? 'Need at least 50 reviews' : ''}
+            >
+              {trainMutation.isPending ? 'Training...' : 'Train ML Model'}
+            </button>
+          </div>
+
+          {confirmAction && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-warning-500/[0.06] border border-warning-500/20">
+              <span className="material-symbols-outlined text-warning-500">warning</span>
+              <p className="text-xs text-on-surface flex-1">
+                {confirmAction === 'retrain'
+                  ? 'This will recalculate signal weights from review decisions. Affects all future matching.'
+                  : 'This will train a new ML model from review decisions. Affects all future matching.'}
+              </p>
+              <button
+                onClick={() => confirmAction === 'retrain' ? retrainMutation.mutate() : trainMutation.mutate()}
+                className="btn-primary text-xs"
+              >
+                Confirm
+              </button>
+              <button onClick={() => setConfirmAction(null)} className="btn-secondary text-xs">
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Next Actions ── */}
       <div className="card p-5 rounded-2xl animate-fadeIn" style={{ animationDelay: '0.15s' }}>

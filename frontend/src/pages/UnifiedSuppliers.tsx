@@ -1,9 +1,11 @@
 // ── Unified Suppliers — browse golden records with provenance badges ──
 
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import Pagination from '../components/Pagination';
 import { useNavigate } from 'react-router';
 import { api } from '../api/client';
+import { useSearch } from '../contexts/SearchContext';
 import type { UnifiedSupplierListResponse, SingletonListResponse, DataSource } from '../api/types';
 
 type Tab = 'unified' | 'singletons';
@@ -27,6 +29,7 @@ function TypeBadge({ isSingleton }: { isSingleton: boolean }) {
 export default function UnifiedSuppliers() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { query: searchQuery } = useSearch();
   const [tab, setTab] = useState<Tab>('unified');
   const [search, setSearch] = useState('');
   const [sourceType, setSourceType] = useState<string>('');
@@ -35,31 +38,38 @@ export default function UnifiedSuppliers() {
   const [selectedSingletons, setSelectedSingletons] = useState<Set<number>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [unifiedPage, setUnifiedPage] = useState(0);
+  const [singletonsPage, setSingletonsPage] = useState(0);
+  const pageSize = 50;
 
   // Unified suppliers query
   const { data: unifiedData, isLoading: unifiedLoading } = useQuery<UnifiedSupplierListResponse>({
-    queryKey: ['unified-suppliers', search, sourceType],
+    queryKey: ['unified-suppliers', search, sourceType, unifiedPage],
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
       if (sourceType) params.set('source_type', sourceType);
-      params.set('limit', '100');
+      params.set('limit', String(pageSize));
+      params.set('offset', String(unifiedPage * pageSize));
       return api.get(`/api/unified/suppliers?${params}`);
     },
     enabled: tab === 'unified',
+    placeholderData: keepPreviousData,
   });
 
   // Singletons query
   const { data: singletonData, isLoading: singletonsLoading } = useQuery<SingletonListResponse>({
-    queryKey: ['singletons', singletonSearch, singletonSourceId],
+    queryKey: ['singletons', singletonSearch, singletonSourceId, singletonsPage],
     queryFn: () => {
       const params = new URLSearchParams();
       if (singletonSearch) params.set('search', singletonSearch);
       if (singletonSourceId) params.set('source_id', singletonSourceId);
-      params.set('limit', '100');
+      params.set('limit', String(pageSize));
+      params.set('offset', String(singletonsPage * pageSize));
       return api.get(`/api/unified/singletons?${params}`);
     },
     enabled: tab === 'singletons',
+    placeholderData: keepPreviousData,
   });
 
   // Sources for filter
@@ -187,13 +197,13 @@ export default function UnifiedSuppliers() {
                 type="text"
                 placeholder="Search unified suppliers…"
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={e => { setSearch(e.target.value); setUnifiedPage(0); }}
                 className="input-field w-full pl-10 pr-4 py-2.5 text-sm"
               />
             </div>
             <select
               value={sourceType}
-              onChange={e => setSourceType(e.target.value)}
+              onChange={e => { setSourceType(e.target.value); setUnifiedPage(0); }}
               className="input-field px-3 py-2.5 text-sm"
             >
               <option value="">All types</option>
@@ -240,7 +250,11 @@ export default function UnifiedSuppliers() {
                     </td>
                   </tr>
                 ) : (
-                  unifiedData?.items.map((supplier, i) => (
+                  unifiedData?.items.filter(s => {
+                    if (!searchQuery) return true;
+                    const q = searchQuery.toLowerCase();
+                    return s.name?.toLowerCase().includes(q) || s.source_code?.toLowerCase().includes(q);
+                  }).map((supplier, i) => (
                     <tr
                       key={supplier.id}
                       onClick={() => navigate(`/unified/${supplier.id}`)}
@@ -286,6 +300,14 @@ export default function UnifiedSuppliers() {
               </div>
             )}
           </div>
+          {unifiedData && unifiedData.total > 0 && (
+            <Pagination
+              page={unifiedPage}
+              pageSize={pageSize}
+              totalItems={unifiedData.total}
+              onPageChange={setUnifiedPage}
+            />
+          )}
         </div>
       )}
 
@@ -302,13 +324,13 @@ export default function UnifiedSuppliers() {
                 type="text"
                 placeholder="Search singletons…"
                 value={singletonSearch}
-                onChange={e => setSingletonSearch(e.target.value)}
+                onChange={e => { setSingletonSearch(e.target.value); setSingletonsPage(0); }}
                 className="input-field w-full pl-10 pr-4 py-2.5 text-sm"
               />
             </div>
             <select
               value={singletonSourceId}
-              onChange={e => setSingletonSourceId(e.target.value)}
+              onChange={e => { setSingletonSourceId(e.target.value); setSingletonsPage(0); }}
               className="input-field px-3 py-2.5 text-sm"
             >
               <option value="">All sources</option>
@@ -374,7 +396,11 @@ export default function UnifiedSuppliers() {
                     </td>
                   </tr>
                 ) : (
-                  singletonData?.items.map((s) => (
+                  singletonData?.items.filter(s => {
+                    if (!searchQuery) return true;
+                    const q = searchQuery.toLowerCase();
+                    return s.name?.toLowerCase().includes(q) || s.source_code?.toLowerCase().includes(q);
+                  }).map((s) => (
                     <tr key={s.id} className="hover:bg-white/30 transition-colors">
                       <td className="px-4 py-3">
                         <input
@@ -417,6 +443,14 @@ export default function UnifiedSuppliers() {
               </div>
             )}
           </div>
+          {singletonData && singletonData.total > 0 && (
+            <Pagination
+              page={singletonsPage}
+              pageSize={pageSize}
+              totalItems={singletonData.total}
+              onPageChange={setSingletonsPage}
+            />
+          )}
         </div>
       )}
     </div>

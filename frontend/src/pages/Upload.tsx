@@ -12,6 +12,7 @@ import type {
   SourceMatch,
   SourceMatchResponse,
   GuessMappingResponse,
+  UploadStatsResponse,
 } from '../api/types';
 import DropZone from '../components/DropZone';
 import ProgressTracker from '../components/ProgressTracker';
@@ -36,6 +37,7 @@ export default function Upload() {
   const [showReUpload, setShowReUpload] = useState(false);
   const [pendingSourceId, setPendingSourceId] = useState<number | null>(null);
   const [pendingFileRef, setPendingFileRef] = useState<string | null>(null);
+  const [reUploadStats, setReUploadStats] = useState<UploadStatsResponse>({ staged_count: 0, pending_match_count: 0 });
   const [error, setError] = useState<string | null>(null);
 
   // Sources query (for re-upload detection — need batch counts)
@@ -182,6 +184,13 @@ export default function Upload() {
     try {
       const batches = await api.get<BatchResponse[]>(`/api/import/batches?data_source_id=${sourceId}`);
       if (batches && batches.length > 0) {
+        // Fetch real counts for the dialog
+        try {
+          const stats = await api.get<UploadStatsResponse>(`/api/sources/${sourceId}/upload-stats`);
+          setReUploadStats(stats);
+        } catch {
+          setReUploadStats({ staged_count: 0, pending_match_count: 0 });
+        }
         setPendingSourceId(sourceId);
         setPendingFileRef(fileRef);
         setShowReUpload(true);
@@ -552,8 +561,8 @@ export default function Upload() {
       {showReUpload && (
         <ReUploadDialog
           sourceName={reUploadSourceName}
-          existingCount={0}
-          pendingMatchCount={0}
+          existingCount={reUploadStats.staged_count}
+          pendingMatchCount={reUploadStats.pending_match_count}
           onConfirm={handleReUploadConfirm}
           onCancel={handleReUploadCancel}
         />

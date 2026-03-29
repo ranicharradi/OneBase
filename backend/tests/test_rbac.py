@@ -3,8 +3,10 @@
 import pytest
 from fastapi import HTTPException
 
+from app.models.audit import AuditLog
 from app.models.enums import UserRole
 from app.models.user import User
+from app.services.audit import log_action as audit_log_action
 from app.services.auth import create_token, hash_password
 
 
@@ -293,3 +295,23 @@ class TestUserManagement:
             headers=_auth_header("admin"),
         )
         assert resp.status_code == 422
+
+
+class TestAuditNullUserId:
+    """Verify system audit entries with user_id=None."""
+
+    def test_system_audit_entry_with_null_user(self, test_db):
+        entry = audit_log_action(
+            test_db,
+            user_id=None,
+            action="system_test",
+            entity_type="test",
+            entity_id=1,
+            details={"source": "celery"},
+        )
+        test_db.commit()
+
+        loaded = test_db.get(AuditLog, entry.id)
+        assert loaded is not None
+        assert loaded.user_id is None
+        assert loaded.action == "system_test"

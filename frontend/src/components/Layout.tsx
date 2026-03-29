@@ -1,6 +1,6 @@
 // ── App shell — light glassmorphism with icon sidebar + top navbar ──
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
@@ -8,6 +8,9 @@ import { useMatchingNotifications } from '../hooks/useMatchingNotifications';
 import { ToastContainer } from './Toast';
 import type { ToastData } from './Toast';
 import type { MatchingNotification } from '../api/types';
+import { SearchProvider, useSearch } from '../contexts/SearchContext';
+import NotificationCenter from './NotificationCenter';
+import { useNotifications } from '../hooks/useNotifications';
 
 const navItems = [
   { to: '/dashboard', icon: 'home', label: 'Dashboard' },
@@ -18,12 +21,62 @@ const navItems = [
   { to: '/users', icon: 'group', label: 'Users' },
 ];
 
+function SearchButton() {
+  const { query, isOpen, setQuery, toggle, close } = useSearch();
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        toggle();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggle]);
+
+  if (isOpen) {
+    return (
+      <div className="flex items-center gap-2">
+        <label htmlFor="global-search" className="sr-only">Search</label>
+        <input
+          id="global-search"
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') close(); }}
+          placeholder="Search..."
+          autoFocus
+          className="input-field w-48 text-sm"
+          aria-expanded={true}
+        />
+        <button onClick={close} className="w-10 h-10 rounded-full bg-white/40 flex items-center justify-center border border-white/60 shadow-sm hover:bg-white/60 transition-colors" aria-label="Close search">
+          <span className="material-symbols-outlined text-on-surface-variant">close</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      className="w-10 h-10 rounded-full bg-white/40 flex items-center justify-center border border-white/60 shadow-sm hover:bg-white/60 transition-colors"
+      aria-label="Open search"
+      aria-expanded={false}
+    >
+      <span className="material-symbols-outlined text-on-surface-variant">search</span>
+    </button>
+  );
+}
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastData[]>([]);
+  const notifs = useNotifications();
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const addToast = useCallback((toast: Omit<ToastData, 'id'>) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -34,7 +87,7 @@ export default function Layout() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Wire WebSocket notifications to toast system
+  // Wire WebSocket notifications to toast system and notification center
   useMatchingNotifications(useCallback((notification: MatchingNotification) => {
     if (notification.type === 'matching_complete') {
       const { candidate_count = 0, group_count = 0 } = notification.data;
@@ -44,14 +97,16 @@ export default function Layout() {
         detail: `${candidate_count} candidate pairs found in ${group_count} groups`,
         action: { label: 'View results →', href: '/review' },
       });
+      notifs.add('matching_complete', `Matching complete: ${candidate_count} candidates in ${group_count} groups`);
     } else if (notification.type === 'matching_failed') {
       addToast({
         type: 'error',
         message: 'Matching failed',
         detail: notification.data.error || 'An unexpected error occurred during matching',
       });
+      notifs.add('matching_failed', `Matching failed: ${notification.data.error || 'Unknown error'}`);
     }
-  }, [addToast]));
+  }, [addToast, notifs]));
 
   const handleLogout = () => {
     logout();
@@ -59,6 +114,7 @@ export default function Layout() {
   };
 
   return (
+    <SearchProvider>
     <div className="flex min-h-screen">
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -140,13 +196,15 @@ export default function Layout() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Notification badge */}
-            <div className="flex items-center bg-white/40 px-3 py-1.5 rounded-full border border-white/60 shadow-sm">
-              <span className="material-symbols-outlined text-sm text-on-surface-variant mr-1">notifications</span>
-              <span className="text-[10px] font-bold text-accent-600">
-                {toasts.length > 0 ? `+${toasts.length}` : '0'}
-              </span>
-            </div>
+            {/* Notification center */}
+            <NotificationCenter
+              notifications={notifs.notifications}
+              unreadCount={notifs.unreadCount}
+              isOpen={notifOpen}
+              onToggle={() => setNotifOpen(prev => !prev)}
+              onMarkRead={notifs.markRead}
+              onMarkAllRead={notifs.markAllRead}
+            />
 
             {/* Theme toggle */}
             <button
@@ -161,9 +219,7 @@ export default function Layout() {
             </button>
 
             {/* Search button */}
-            <button className="w-10 h-10 rounded-full bg-white/40 flex items-center justify-center border border-white/60 shadow-sm hover:bg-white/60 transition-colors">
-              <span className="material-symbols-outlined text-on-surface-variant">search</span>
-            </button>
+            <SearchButton />
 
             {/* Profile avatar */}
             <div className="ml-2 w-10 h-10 rounded-full bg-accent-600/10 border-2 border-white shadow-sm flex items-center justify-center">
@@ -183,5 +239,6 @@ export default function Layout() {
       {/* Global toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
+    </SearchProvider>
   );
 }

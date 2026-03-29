@@ -10,6 +10,7 @@ from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db, require_role
@@ -414,3 +415,49 @@ async def detect_source_columns(
     content = await file.read()
     columns = detect_columns(content, delimiter=source.delimiter)
     return ColumnDetectResponse(columns=columns)
+
+
+@router.get("/{source_id}/upload-stats")
+def get_upload_stats(
+    source_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get counts of active staged suppliers and pending match candidates for a source."""
+    from app.models.enums import CandidateStatus
+    from app.models.match import MatchCandidate
+
+    source = get_source(db, source_id)
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
+
+    staged_count = (
+        db.query(func.count(StagedSupplier.id))
+        .filter(
+            StagedSupplier.data_source_id == source_id,
+            StagedSupplier.status == SupplierStatus.ACTIVE,
+        )
+        .scalar()
+        or 0
+    )
+
+    source_supplier_ids = (
+        db.query(StagedSupplier.id)
+        .filter(
+            StagedSupplier.data_source_id == source_id,
+            StagedSupplier.status == SupplierStatus.ACTIVE,
+        )
+        .subquery()
+    )
+    pending_match_count = (
+        db.query(func.count(MatchCandidate.id))
+        .filter(
+            MatchCandidate.status == CandidateStatus.PENDING,
+            (MatchCandidate.supplier_a_id.in_(source_supplier_ids))
+            | (MatchCandidate.supplier_b_id.in_(source_supplier_ids)),
+        )
+        .scalar()
+        or 0
+    )
+
+    return {"staged_count": staged_count, "pending_match_count": pending_match_count}

@@ -77,6 +77,7 @@ class ReviewQueueItem(BaseModel):
     supplier_a_source: str | None = None
     supplier_b_source: str | None = None
     confidence: float
+    match_signals: dict[str, float] = {}
     status: str
     group_id: int | None = None
     created_at: datetime | None = None
