@@ -26,6 +26,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSearch(): SearchContextType {
   const context = useContext(SearchContext);
   if (!context) throw new Error('useSearch must be used within SearchProvider');
