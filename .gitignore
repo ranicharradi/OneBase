@@ -96,15 +96,5 @@ docs/pfe/
 docs/revamp/
 revamp.md
 
-# ── AI agent / tool runtime ──
-.claude/
-.gsd/
-.opencode/
-.superpowers/
-.bg-shell/
-.agents/runtime/
 .playwright-cli/
 tmp/
-
-# ── Git worktrees ──
-.worktrees/

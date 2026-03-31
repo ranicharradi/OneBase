@@ -8,7 +8,7 @@
 
 ## Local Setup
 
-See [CLAUDE.md](./CLAUDE.md) for detailed setup instructions. Quick start:
+See the [README](./README.md) for detailed setup instructions. Quick start:
 
 ```bash
 # Start databases

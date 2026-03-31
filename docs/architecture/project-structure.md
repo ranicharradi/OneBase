@@ -4,7 +4,7 @@
 
 | File | Purpose |
 |------|---------|
-| `CLAUDE.md` | AI assistant instructions — tech stack, commands, architecture |
+| `README.md` | Project overview, setup instructions, and architecture reference |
 | `README.md` | Project readme with setup, API usage, and configuration |
 | `docker-compose.yml` | Docker Compose — postgres, redis, api, worker, frontend services |
 | `.env.example` | Template for environment variables |
