@@ -40,7 +40,7 @@ const mockQueue = {
       supplier_b_name: 'Beta Industries',
       supplier_a_source: 'SAP',
       supplier_b_source: 'Oracle',
-      confidence: 0.55,
+      confidence: 0.75,
       match_signals: {},
       status: 'confirmed',
       group_id: 2,
@@ -98,7 +98,6 @@ function setupFetch(queueOverride?: Partial<typeof mockQueue>) {
   })
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 function SearchSetter({ query }: { query: string }) {
   const { setQuery } = useSearch()
   useEffect(() => { setQuery(query) }, [query, setQuery])
@@ -170,15 +169,15 @@ describe('ReviewQueue page', () => {
     // Wait for data to load
     await screen.findByText('Acme Corp')
 
-    // High confidence: 92% -> text-success-500
+    // High confidence: 92% (>=85) -> text-success-500
     const badge92 = screen.getByText('92%')
     expect(badge92.className).toContain('text-success-500')
 
-    // Mid confidence: 55% -> text-danger-500 (55 < 65)
-    const badge55 = screen.getByText('55%')
-    expect(badge55.className).toContain('text-danger-500')
+    // Mid confidence: 75% (>=65, <85) -> text-secondary-500
+    const badge75 = screen.getByText('75%')
+    expect(badge75.className).toContain('text-secondary-500')
 
-    // Low confidence: 40% -> text-danger-500
+    // Low confidence: 40% (<65) -> text-danger-500
     const badge40 = screen.getByText('40%')
     expect(badge40.className).toContain('text-danger-500')
   })
@@ -222,9 +221,8 @@ describe('ReviewQueue page', () => {
 
     await screen.findByText('Acme Corp')
 
-    // Click the row containing 'Acme Corp'
-    const acmeRow = screen.getByText('Acme Corp').closest('[class*="cursor-pointer"]')!
-    await user.click(acmeRow)
+    // Click the supplier name — event bubbles up to the row's onClick handler
+    await user.click(screen.getByText('Acme Corp'))
 
     expect(mockNavigate).toHaveBeenCalledWith('/review/1')
   })

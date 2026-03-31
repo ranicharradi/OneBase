@@ -128,7 +128,7 @@ def get_model_status(
 ):
     """Get current ML model and weight retraining status."""
     from app.config import settings
-    from app.models.ml import MLModelVersion
+    from app.models.ml_model import MLModelVersion
 
     # Latest scorer model
     scorer = (

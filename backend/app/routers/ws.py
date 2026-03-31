@@ -13,6 +13,8 @@ import redis.asyncio as aioredis
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, WebSocketException, status
 
 from app.config import settings
+from app.database import SessionLocal
+from app.models.user import User
 from app.services.notifications import CHANNEL
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,18 @@ async def ws_notifications(websocket: WebSocket, token: str | None = None):
             code=status.WS_1008_POLICY_VIOLATION,
             reason="Invalid authentication token",
         ) from exc
+
+    # Verify user exists and is active in the database
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if user is None or not user.is_active:
+            raise WebSocketException(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="User not found or inactive",
+            )
+    finally:
+        db.close()
 
     await websocket.accept()
     logger.info("WebSocket client connected: %s", username)

@@ -8,6 +8,8 @@ Both produce cross-entity pairs only (never within same data source).
 """
 
 import logging
+import math
+import random
 from collections import defaultdict
 
 from sqlalchemy.orm import Session
@@ -61,16 +63,30 @@ def text_block(db: Session, source_ids: list[int], representative_ids: set[int] 
         if first_token:
             token_buckets[first_token].append(s)
 
+    max_bucket_pairs = settings.matching_max_bucket_pairs
+
     # Generate cross-entity pairs from buckets
     pairs: set[tuple[int, int]] = set()
+    rng = random.Random(42)  # noqa: S311 — deterministic subsampling, not crypto
 
     def _add_cross_pairs(bucket: list[StagedSupplier]) -> None:
-        for i in range(len(bucket)):
-            for j in range(i + 1, len(bucket)):
-                a, b = bucket[i], bucket[j]
-                if a.data_source_id != b.data_source_id:
-                    pair = (min(a.id, b.id), max(a.id, b.id))
-                    pairs.add(pair)
+        by_source: dict[int, list[StagedSupplier]] = defaultdict(list)
+        for s in bucket:
+            by_source[s.data_source_id].append(s)
+
+        source_lists = list(by_source.values())
+        for i in range(len(source_lists)):
+            for j in range(i + 1, len(source_lists)):
+                side_a = source_lists[i]
+                side_b = source_lists[j]
+                if len(side_a) * len(side_b) > max_bucket_pairs:
+                    k = max(1, math.isqrt(max_bucket_pairs))
+                    side_a = rng.sample(side_a, min(k, len(side_a)))
+                    side_b = rng.sample(side_b, min(k, len(side_b)))
+                for a in side_a:
+                    for b in side_b:
+                        pair = (min(a.id, b.id), max(a.id, b.id))
+                        pairs.add(pair)
 
     for bucket in prefix_buckets.values():
         _add_cross_pairs(bucket)

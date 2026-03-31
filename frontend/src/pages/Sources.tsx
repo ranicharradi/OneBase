@@ -161,7 +161,12 @@ function SourceModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (mutation.isPending) return;
     setFormError('');
+    if (!name.trim()) {
+      setFormError('Source name is required');
+      return;
+    }
     if (!mapping.supplier_name || !mapping.supplier_code) {
       setFormError('Supplier Name and Supplier Code column mappings are required');
       return;
@@ -217,7 +222,6 @@ function SourceModal({
             </label>
             <input
               type="text"
-              required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. SAP Vendor Export"
@@ -350,7 +354,7 @@ function DeleteConfirm({
               Cancel
             </button>
             <button
-              onClick={() => mutation.mutate()}
+              onClick={() => { if (!mutation.isPending) mutation.mutate(); }}
               disabled={mutation.isPending}
               className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-danger-500 px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-danger-400 disabled:opacity-50 shadow-lg shadow-danger-500/20"
             >

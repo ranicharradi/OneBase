@@ -33,12 +33,19 @@ class Settings(BaseSettings):
     matching_confidence_threshold: float = 0.45
     matching_blocking_k: int = 20
     matching_max_cluster_size: int = 50
+    matching_max_bucket_pairs: int = 500
     matching_weight_jaro_winkler: float = 0.30
     matching_weight_token_jaccard: float = 0.20
     matching_weight_embedding_cosine: float = 0.25
     matching_weight_short_name: float = 0.10
     matching_weight_currency: float = 0.05
     matching_weight_contact: float = 0.10
+
+    # CORS
+    cors_origins: str = "http://localhost:5173"
+
+    # Upload directory
+    upload_dir: str = "data/uploads"
 
     model_config = {"env_file": _env_files(), "extra": "ignore"}
 

@@ -128,13 +128,20 @@ class TestWebSocketEndpoint:
         ws_routes = [route for route in app.routes if hasattr(route, "path") and route.path == "/ws/notifications"]
         assert len(ws_routes) == 1, "WebSocket route /ws/notifications should be registered"
 
-    def test_websocket_accepts_connection(self, test_client):
+    def test_websocket_accepts_connection(self, test_client, test_db):
         """WebSocket endpoint accepts connections with a valid token (mocked Redis)."""
-        from app.services.auth import create_token
+        from app.models.user import User
+        from app.services.auth import create_token, hash_password
 
+        user = User(username="testuser", password_hash=hash_password("pass"), is_active=True)
+        test_db.add(user)
+        test_db.commit()
         token = create_token("testuser")
 
-        with patch("app.routers.ws.aioredis") as mock_aioredis:
+        with (
+            patch("app.routers.ws.SessionLocal", return_value=test_db),
+            patch("app.routers.ws.aioredis") as mock_aioredis,
+        ):
             mock_aioredis.from_url.return_value = _make_mock_redis()
 
             with test_client.websocket_connect(f"/ws/notifications?token={token}") as ws:
@@ -170,7 +177,10 @@ class TestWebSocketAuth:
         test_db.commit()
         token = create_token("wsuser")
 
-        with patch("app.routers.ws.aioredis") as mock_aioredis:
+        with (
+            patch("app.routers.ws.SessionLocal", return_value=test_db),
+            patch("app.routers.ws.aioredis") as mock_aioredis,
+        ):
             mock_aioredis.from_url.return_value = _make_mock_redis()
 
             with test_client.websocket_connect(f"/ws/notifications?token={token}") as ws:

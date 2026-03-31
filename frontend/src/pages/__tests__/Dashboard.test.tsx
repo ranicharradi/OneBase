@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { render } from '../../test/test-utils'
 import Dashboard from '../Dashboard'
 import { useAuth } from '../../hooks/useAuth'
@@ -126,14 +126,15 @@ describe('Dashboard page', () => {
     // Wait for pipeline cards to appear
     await screen.findByText('Ingestion')
 
-    // Ingestion card: 1 failed upload → shows "1 failed"
-    expect(screen.getByText('1 failed')).toBeInTheDocument()
+    // Scope assertions to specific pipeline cards via their label
+    const ingestionCard = screen.getByText('Ingestion').closest('div[class*="card"]')!
+    expect(within(ingestionCard as HTMLElement).getByText('1 failed')).toBeInTheDocument()
 
-    // Review card: 25 pending
-    expect(screen.getByText('pending review')).toBeInTheDocument()
+    const reviewCard = screen.getByText('Review').closest('div[class*="card"]')!
+    expect(within(reviewCard as HTMLElement).getByText('pending review')).toBeInTheDocument()
 
-    // Unified card: 60 total
-    expect(screen.getByText('60')).toBeInTheDocument()
+    const unifiedCard = screen.getByText('Unified').closest('div[class*="card"]')!
+    expect(within(unifiedCard as HTMLElement).getByText('60')).toBeInTheDocument()
   })
 
   it('renders pipeline stage cards', async () => {

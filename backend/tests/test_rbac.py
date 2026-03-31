@@ -144,7 +144,7 @@ class TestEndpointRoleGating:
         _create_user_with_role(test_db, "viewer6", "viewer")
         resp = test_client.post(
             "/api/auth/users",
-            json={"username": "newuser", "password": "password123"},
+            json={"username": "newuser", "password": "NewPass123"},
             headers=_auth_header("viewer6"),
         )
         assert resp.status_code == 403
@@ -262,7 +262,7 @@ class TestUserManagement:
         admin = self._setup_admin(test_db)
         resp = test_client.post(
             f"/api/users/{admin.id}/change-password",
-            json={"new_password": "newpassword123"},
+            json={"new_password": "NewPassword1"},
             headers=_auth_header("admin"),
         )
         assert resp.status_code == 200

@@ -66,7 +66,7 @@ def test_user_creation_creates_audit_entry(authenticated_client, test_db):
 
     authenticated_client.post(
         "/api/auth/users",
-        json={"username": "audited_user", "password": "pass123456"},
+        json={"username": "audited_user", "password": "AuditPass1"},
     )
 
     entry = test_db.query(AuditLog).filter_by(action="create_user").first()

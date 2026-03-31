@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
 from app.models.enums import SupplierStatus, UserRole
 from app.models.staging import StagedSupplier
@@ -37,8 +38,9 @@ from app.services.source import (
     update_source,
 )
 from app.utils.csv_parser import detect_columns
+from app.utils.paths import safe_upload_path
 
-UPLOAD_DIR = os.path.join("data", "uploads")
+UPLOAD_DIR = settings.upload_dir
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 SAMPLE_ROWS = 20
 FILENAME_PATTERN_TIMEOUT = 0.1  # 100ms
@@ -301,7 +303,13 @@ async def guess_mapping(
     maps to each canonical field.
     """
     if file_ref:
-        filepath = os.path.join(UPLOAD_DIR, file_ref)
+        try:
+            filepath = safe_upload_path(UPLOAD_DIR, file_ref)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file reference",
+            ) from None
         if not os.path.exists(filepath):
             raise HTTPException(status_code=404, detail="File reference not found")
         with open(filepath, "rb") as f:

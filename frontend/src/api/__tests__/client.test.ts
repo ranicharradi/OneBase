@@ -8,7 +8,7 @@ function makeResponse(body: unknown, status = 200): Promise<Response> {
   return Promise.resolve(
     new Response(isString ? body : JSON.stringify(body), {
       status,
-      headers: { 'Content-Type': 'application/json' },
+      headers: isString ? {} : { 'Content-Type': 'application/json' },
     }),
   )
 }
@@ -215,6 +215,22 @@ describe('api.upload', () => {
     const [, init] = fetchSpy.mock.calls[0]
     const headers = init?.headers as Headers
     expect(headers.get('Content-Type')).toBeNull()
+  })
+})
+
+// ── api.delete ───────────────────────────────────────────────────────────────
+
+describe('api.delete', () => {
+  it('sends DELETE request to the given URL', async () => {
+    const fetchSpy = vi
+      .spyOn(global, 'fetch')
+      .mockReturnValueOnce(makeEmptyResponse(204))
+
+    await api.delete('/api/suppliers/42')
+
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(url).toBe('/api/suppliers/42')
+    expect(init?.method).toBe('DELETE')
   })
 })
 

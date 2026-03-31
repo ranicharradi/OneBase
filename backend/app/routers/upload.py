@@ -6,6 +6,7 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
 from app.models.batch import ImportBatch
 from app.models.enums import BatchStatus, UserRole
@@ -15,11 +16,12 @@ from app.schemas.upload import BatchResponse, TaskStatusResponse, UploadResponse
 from app.services.audit import log_action
 from app.tasks.celery_app import celery_app
 from app.tasks.ingestion import process_upload
+from app.utils.paths import safe_upload_path
 
 router = APIRouter(prefix="/api/import", tags=["import"])
 
 # Ensure upload directory exists
-UPLOAD_DIR = os.path.join("data", "uploads")
+UPLOAD_DIR = settings.upload_dir
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
@@ -40,7 +42,13 @@ async def upload_file(
     """
     if file_ref and file is None:
         # Load from previously saved file
-        filepath = os.path.join(UPLOAD_DIR, file_ref)
+        try:
+            filepath = safe_upload_path(UPLOAD_DIR, file_ref)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file reference",
+            ) from None
         if not os.path.isfile(filepath):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -184,8 +192,11 @@ def delete_batch(
         )
     # Clean up file from disk
     if batch.filename:
-        file_full_path = os.path.join(UPLOAD_DIR, batch.filename)
-        if os.path.exists(file_full_path):
+        try:
+            file_full_path = safe_upload_path(UPLOAD_DIR, batch.filename)
+        except ValueError:
+            file_full_path = None
+        if file_full_path and os.path.exists(file_full_path):
             os.unlink(file_full_path)
 
     db.delete(batch)

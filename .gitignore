@@ -103,7 +103,6 @@ revamp.md
 .superpowers/
 .bg-shell/
 .agents/runtime/
-.github/instructions/
 .playwright-cli/
 tmp/
 

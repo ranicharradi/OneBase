@@ -1,32 +1,57 @@
 """Authentication and user management service."""
 
+import base64
 import hashlib
 import hmac
-import secrets
+import re
 from datetime import UTC, datetime, timedelta
 
+import bcrypt
 import jwt
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.user import User
 
+MIN_PASSWORD_LENGTH = 8
+
+
+def validate_password_strength(password: str) -> str | None:
+    """Returns an error message if password is too weak, None if OK."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters"
+    if not re.search(r"[A-Z]", password):
+        return "Password must contain at least one uppercase letter"
+    if not re.search(r"[a-z]", password):
+        return "Password must contain at least one lowercase letter"
+    if not re.search(r"\d", password):
+        return "Password must contain at least one digit"
+    return None
+
+
+def _prehash(password: str) -> bytes:
+    """Pre-hash with SHA256+base64 to safely handle passwords > 72 bytes.
+    bcrypt 5.0+ raises ValueError for passwords exceeding 72 bytes."""
+    return base64.b64encode(hashlib.sha256(password.encode()).digest())
+
 
 def hash_password(password: str) -> str:
-    """Hash a password using PBKDF2-SHA256."""
-    salt = secrets.token_hex(16)
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
-    return f"{salt}${dk.hex()}"
+    """Hash a password using bcrypt with SHA256 pre-hashing."""
+    return bcrypt.hashpw(_prehash(password), bcrypt.gensalt()).decode()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """Verify a password against a PBKDF2-SHA256 hash."""
-    try:
-        salt, stored_hash = password_hash.split("$", 1)
-    except ValueError:
-        return False
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
-    return hmac.compare_digest(dk.hex(), stored_hash)
+    """Verify a password against a bcrypt or legacy PBKDF2-SHA256 hash."""
+    if "$" in password_hash and not password_hash.startswith("$2"):
+        # Legacy PBKDF2 hash: format is "salt$hash" (salt is hex, never starts with $2)
+        try:
+            salt, stored_hash = password_hash.split("$", 1)
+        except ValueError:
+            return False
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
+        return hmac.compare_digest(dk.hex(), stored_hash)
+    # bcrypt hash: starts with "$2b$" or "$2a$"
+    return bcrypt.checkpw(_prehash(password), password_hash.encode())
 
 
 def create_token(username: str) -> str:
@@ -53,6 +78,9 @@ def authenticate_user(db: Session, username: str, password: str) -> User | None:
         return None
     if not user.is_active:
         return None
+    # Silently migrate legacy PBKDF2 hashes to bcrypt on successful login
+    if not user.password_hash.startswith("$2"):
+        user.password_hash = hash_password(password)
     return user
 
 

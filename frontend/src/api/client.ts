@@ -43,8 +43,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (response.status === 401) {
     clearToken();
-    window.location.href = '/login';
-    throw new ApiError(401, 'Unauthorized');
+    if (!path.includes('/api/auth/login')) {
+      window.location.href = '/login';
+    }
+    const body = await response.text();
+    let message = 'Unauthorized';
+    try {
+      const json = JSON.parse(body);
+      message = json.detail || message;
+    } catch {
+      // use default message
+    }
+    throw new ApiError(401, message);
   }
 
   if (!response.ok) {

@@ -8,7 +8,7 @@ from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.auth import PasswordChange, UserResponse, UserUpdate
 from app.services.audit import log_action
-from app.services.auth import hash_password
+from app.services.auth import hash_password, validate_password_strength
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -188,6 +188,11 @@ def change_password(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can change other users' passwords",
         )
+
+    # Validate password strength
+    error = validate_password_strength(body.new_password)
+    if error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error)
 
     target = db.get(User, user_id)
     if not target:

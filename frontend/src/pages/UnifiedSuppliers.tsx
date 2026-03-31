@@ -53,7 +53,6 @@ export default function UnifiedSuppliers() {
       params.set('offset', String(unifiedPage * pageSize));
       return api.get(`/api/unified/suppliers?${params}`);
     },
-    enabled: tab === 'unified',
     placeholderData: keepPreviousData,
   });
 
@@ -68,7 +67,6 @@ export default function UnifiedSuppliers() {
       params.set('offset', String(singletonsPage * pageSize));
       return api.get(`/api/unified/singletons?${params}`);
     },
-    enabled: tab === 'singletons',
     placeholderData: keepPreviousData,
   });
 

@@ -73,7 +73,7 @@ def test_create_user_success(authenticated_client, test_db):
     """POST /api/auth/users creates new user (requires auth)."""
     response = authenticated_client.post(
         "/api/auth/users",
-        json={"username": "newuser", "password": "newpass123"},
+        json={"username": "newuser", "password": "NewPass123"},
     )
     assert response.status_code == 201
     data = response.json()
@@ -89,12 +89,12 @@ def test_create_user_duplicate(authenticated_client, test_db):
     # First creation should succeed
     authenticated_client.post(
         "/api/auth/users",
-        json={"username": "dupuser", "password": "pass123456"},
+        json={"username": "dupuser", "password": "DupPass123"},
     )
     # Second creation with same username should fail
     response = authenticated_client.post(
         "/api/auth/users",
-        json={"username": "dupuser", "password": "pass789012"},
+        json={"username": "dupuser", "password": "DupPass456"},
     )
     assert response.status_code == 409
 

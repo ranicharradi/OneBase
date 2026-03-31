@@ -1,4 +1,4 @@
-.PHONY: dev test lint build clean
+.PHONY: dev test lint build clean test-ui
 
 # Backend
 test:
@@ -25,6 +25,9 @@ build-ui:
 
 lint-ui:
 	cd frontend && npm run lint
+
+test-ui:
+	cd frontend && npm run test
 
 # Docker
 up:

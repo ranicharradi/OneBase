@@ -263,9 +263,23 @@ def _score_currency(values: list[str]) -> float:
     return 0.0
 
 
+_DATETIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}|^\d{2}/\d{2}/\d{4}|^\d{2}-\d{2}-\d{4}")
+
+
+def _is_datetime_column(values: list[str]) -> bool:
+    if not values:
+        return False
+    match_count = sum(
+        1 for v in values if _DATETIME_RE.search(v) or (len(v) > 10 and any(c.isdigit() for c in v) and ":" in v)
+    )
+    return match_count / len(values) > 0.5
+
+
 def _score_supplier_name(values: list[str]) -> float:
     """Long text, company tokens, high uniqueness."""
     if not values:
+        return 0.0
+    if _is_datetime_column(values):
         return 0.0
     avg_len = _avg_length(values)
     uniqueness = _uniqueness_ratio(values)
@@ -335,6 +349,8 @@ def _score_short_name(values: list[str], name_avg_len: float) -> float:
 def _score_contact_name(values: list[str]) -> float:
     """Person-name patterns: multi-word, title case (not ALL CAPS)."""
     if not values:
+        return 0.0
+    if _is_datetime_column(values):
         return 0.0
     # Multi-word strings (2-4 words)
     multi_word_count = sum(1 for v in values if 2 <= len(v.split()) <= 4)

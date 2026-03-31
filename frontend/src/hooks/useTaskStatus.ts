@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import type { TaskStatus } from '../api/types';
 
 const TERMINAL_STATES = ['COMPLETE', 'FAILURE'];
+const FAST_STAGES = ['PENDING', 'PARSING', 'NORMALIZING', 'EMBEDDING'];
 
 export function useTaskStatus(taskId: string | null) {
   const query = useQuery({
@@ -14,7 +15,8 @@ export function useTaskStatus(taskId: string | null) {
     refetchInterval: (query) => {
       const state = query.state.data?.state;
       if (state && TERMINAL_STATES.includes(state)) return false;
-      return 1000;
+      const stage = query.state.data?.stage;
+      return stage && FAST_STAGES.includes(stage) ? 2000 : 5000;
     },
   });
 
