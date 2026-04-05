@@ -1,3 +1,33 @@
+[project]
+name = "onebase-backend"
+version = "0.1.0"
+description = "OneBase enterprise supplier data unification platform"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]==0.135.1",
+    "sqlalchemy==2.0.48",
+    "psycopg2-binary==2.9.11",
+    "alembic==1.18.4",
+    "celery[redis]==5.6.2",
+    "pydantic-settings==2.13.1",
+    "sentence-transformers==5.3.0",
+    "PyJWT==2.12.1",
+    "pgvector==0.4.2",
+    "rapidfuzz==3.14.3",
+    "lightgbm==4.6.0",
+    "scikit-learn==1.8.0",
+    "slowapi==0.1.9",
+    "bcrypt>=4.2,<6",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.0.2",
+    "pytest-cov==7.1.0",
+    "ruff==0.15.8",
+    "pre-commit==4.5.1",
+]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 120
