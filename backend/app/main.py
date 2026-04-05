@@ -34,9 +34,10 @@ class SecurityHeadersMiddleware:
 
         async def send_with_headers(message):
             if message["type"] == "http.response.start":
+                message.setdefault("headers", [])
                 headers = MutableHeaders(scope=message)
                 for key, value in self.HEADERS.items():
-                    headers.append(key, value)
+                    headers[key] = value
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
