@@ -1,20 +1,22 @@
 .PHONY: dev test lint build clean test-ui
 
-# Backend
+# Backend (venv at project root)
+PYTHON = .venv/bin/python
+
 test:
-	cd backend && source .venv/bin/activate && pytest
+	cd backend && ../$(PYTHON) -m pytest
 
 lint:
-	cd backend && source .venv/bin/activate && ruff check app/ && ruff format --check app/
+	cd backend && ../$(PYTHON) -m ruff check app/ && ../$(PYTHON) -m ruff format --check app/
 
 lint-fix:
-	cd backend && source .venv/bin/activate && ruff check app/ --fix && ruff format app/
+	cd backend && ../$(PYTHON) -m ruff check app/ --fix && ../$(PYTHON) -m ruff format app/
 
 dev-api:
-	cd backend && source .venv/bin/activate && ENV_PROFILE=dev uvicorn app.main:app --reload
+	cd backend && ENV_PROFILE=dev ../$(PYTHON) -m uvicorn app.main:app --reload
 
 dev-worker:
-	cd backend && source .venv/bin/activate && ENV_PROFILE=dev celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+	cd backend && ENV_PROFILE=dev ../.venv/bin/celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
 
 # Frontend
 dev-ui:
