@@ -31,6 +31,18 @@ TestSessionLocal = sessionmaker(bind=test_engine)
 
 
 @pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset the in-memory rate limiter storage before each test."""
+    from app.rate_limit import limiter
+
+    try:
+        limiter._storage.reset()
+    except Exception:
+        pass
+    yield
+
+
+@pytest.fixture(autouse=True)
 def test_db():
     """Create tables before each test, drop after."""
     # Import all models so Base.metadata knows about them
