@@ -37,7 +37,7 @@ def reset_rate_limiter():
 
     try:
         limiter._storage.reset()
-    except Exception:
+    except AttributeError:
         pass
     yield
 
