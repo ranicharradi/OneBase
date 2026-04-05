@@ -66,7 +66,7 @@ services:
     entrypoint: []
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://onebase:changeme@postgres:5432/onebase}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://onebase:${POSTGRES_PASSWORD:-changeme}@postgres:5432/onebase}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     volumes:
       - ./backend:/app
