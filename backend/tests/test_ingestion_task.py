@@ -1,5 +1,6 @@
 """Tests for ingestion task and service."""
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -9,6 +10,17 @@ from app.models.batch import ImportBatch
 from app.models.enums import BatchStatus
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
+
+
+def _mock_task_session(db):
+    """Create a mock get_task_session that yields the given db."""
+
+    @contextmanager
+    def _session():
+        yield db
+
+    return _session
+
 
 SAMPLE_CSV = (
     b"\xef\xbb\xbfVendorCode;Name1;ShortName;Currency\n"
@@ -186,10 +198,10 @@ class TestProcessUploadIdempotency:
         test_db.flush()
         return source, batch
 
-    @patch("app.tasks.ingestion.SessionLocal")
-    def test_skips_already_completed_batch(self, mock_session_local, test_db):
+    @patch("app.tasks.ingestion.get_task_session")
+    def test_skips_already_completed_batch(self, mock_get_session, test_db):
         """process_upload returns early for COMPLETED batches without doing work."""
-        mock_session_local.return_value = test_db
+        mock_get_session.side_effect = _mock_task_session(test_db)
         source, batch = self._create_source_and_batch(test_db, status=BatchStatus.COMPLETED)
 
         from app.tasks.ingestion import process_upload
@@ -199,10 +211,10 @@ class TestProcessUploadIdempotency:
         assert result["status"] == BatchStatus.COMPLETED
         assert result["batch_id"] == batch.id
 
-    @patch("app.tasks.ingestion.SessionLocal")
-    def test_skips_already_processing_batch(self, mock_session_local, test_db):
+    @patch("app.tasks.ingestion.get_task_session")
+    def test_skips_already_processing_batch(self, mock_get_session, test_db):
         """process_upload returns early for PROCESSING batches without doing work."""
-        mock_session_local.return_value = test_db
+        mock_get_session.side_effect = _mock_task_session(test_db)
         source, batch = self._create_source_and_batch(test_db, status=BatchStatus.PROCESSING)
 
         from app.tasks.ingestion import process_upload
@@ -212,10 +224,10 @@ class TestProcessUploadIdempotency:
         assert result["status"] == BatchStatus.PROCESSING
         assert result["batch_id"] == batch.id
 
-    @patch("app.tasks.ingestion.SessionLocal")
-    def test_sets_processing_status_before_work(self, mock_session_local, test_db):
+    @patch("app.tasks.ingestion.get_task_session")
+    def test_sets_processing_status_before_work(self, mock_get_session, test_db):
         """process_upload sets batch to PROCESSING before calling run_ingestion."""
-        mock_session_local.return_value = test_db
+        mock_get_session.side_effect = _mock_task_session(test_db)
         source, batch = self._create_source_and_batch(test_db, status=BatchStatus.PENDING)
 
         status_at_call_time = []
@@ -292,7 +304,7 @@ class TestFileCleanupOnFailure:
         test_db.commit()
 
         with (
-            patch("app.tasks.ingestion.SessionLocal", return_value=test_db),
+            patch("app.tasks.ingestion.get_task_session", side_effect=_mock_task_session(test_db)),
             patch("app.services.ingestion.run_ingestion", side_effect=RuntimeError("Parse error")),
         ):
             from app.tasks.ingestion import process_upload
@@ -334,7 +346,7 @@ class TestFileCleanupOnFailure:
         batch_id = batch.id  # save before session closes
 
         with (
-            patch("app.tasks.ingestion.SessionLocal", return_value=test_db),
+            patch("app.tasks.ingestion.get_task_session", side_effect=_mock_task_session(test_db)),
             patch("app.services.ingestion.run_ingestion", side_effect=RuntimeError("Fail")),
             patch("os.unlink", side_effect=OSError("Permission denied")),
         ):

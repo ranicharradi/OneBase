@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -16,3 +18,17 @@ if settings.database_url.startswith("postgresql"):
 engine = create_engine(settings.database_url, **_engine_kwargs)
 
 SessionLocal = sessionmaker(bind=engine)
+
+
+@contextmanager
+def get_task_session():
+    """Context manager for Celery task database sessions.
+
+    Guarantees session.close() even if an exception occurs
+    between session creation and the task's try block.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
