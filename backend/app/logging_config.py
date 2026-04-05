@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.datastructures import MutableHeaders
 
 
 class JSONFormatter(logging.Formatter):
@@ -22,14 +22,28 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_data)
 
 
-class RequestIDMiddleware(BaseHTTPMiddleware):
-    """Adds a traceable X-Request-ID header to every response."""
+class RequestIDMiddleware:
+    """Adds a traceable X-Request-ID header to every HTTP response (pure ASGI)."""
 
-    async def dispatch(self, request, call_next):
-        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Read request ID from incoming headers, or generate one
+        request_headers = dict(scope.get("headers", []))
+        request_id = request_headers.get(b"x-request-id", b"").decode() or str(uuid.uuid4())
+
+        async def send_with_request_id(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers.append("X-Request-ID", request_id)
+            await send(message)
+
+        await self.app(scope, receive, send_with_request_id)
 
 
 def configure_logging(environment: str) -> None:
