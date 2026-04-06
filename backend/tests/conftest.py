@@ -48,6 +48,7 @@ def test_db():
 @pytest.fixture
 def test_client(test_db):
     """FastAPI test client with DB dependency override."""
+    from app.rate_limit import limiter
 
     def override_get_db():
         try:
@@ -56,6 +57,7 @@ def test_client(test_db):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    limiter.reset()
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()

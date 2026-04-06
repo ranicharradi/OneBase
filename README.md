@@ -37,8 +37,8 @@ docker-compose up -d
 docker-compose up -d postgres redis
 
 # 2. Backend (from backend/)
-cd backend
 python3 -m venv .venv && source .venv/bin/activate
+cd backend
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements-dev.txt
 ENV_PROFILE=dev alembic upgrade head
@@ -180,7 +180,8 @@ docker-compose up -d                            # .env only (Docker hostnames)
 ```bash
 cd backend && source .venv/bin/activate
 
-python3 -m pytest                                # full suite (243 tests, SQLite)
+python3 -m pytest                                # full suite (~336 tests, SQLite)
+python3 -m pytest -m "not slow"                  # skip ML/embedding tests (fast dev loop)
 python3 -m pytest tests/test_auth.py -v          # single file
 python3 -m pytest tests/test_auth.py::test_login_success -v  # single test
 
@@ -199,6 +200,7 @@ npm install       # install dependencies
 npm run dev       # Vite dev server on :5173
 npm run build     # tsc + Vite production build
 npm run lint      # ESLint
+npm run test      # vitest (run once)
 ```
 
 ## Tech Stack

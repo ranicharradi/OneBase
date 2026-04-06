@@ -3,11 +3,15 @@
 import tempfile
 from unittest.mock import patch
 
+import pytest
+
 from app.models.batch import ImportBatch
 from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
+
+pytestmark = pytest.mark.slow
 
 
 def _seed_reviewed(db, count=60, confirm_ratio=0.5):

@@ -8,6 +8,8 @@ import pytest
 
 from app.services.embedding import EmbeddingTimeoutError, compute_embeddings
 
+pytestmark = pytest.mark.slow
+
 
 class TestComputeEmbeddings:
     """Tests for compute_embeddings function."""
