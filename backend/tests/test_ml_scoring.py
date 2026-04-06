@@ -4,12 +4,15 @@ from unittest.mock import MagicMock
 
 import lightgbm as lgb
 import numpy as np
+import pytest
 
 from app.models.batch import ImportBatch
 from app.models.enums import BatchStatus, SupplierStatus
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
 from app.services.ml_training import ModelBundle
+
+pytestmark = pytest.mark.slow
 
 
 def _make_supplier(db, source, batch, name, **kwargs):

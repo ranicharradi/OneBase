@@ -198,7 +198,7 @@ describe('login', () => {
       act(async () => {
         await result.current.login('alice', 'wrongpassword')
       }),
-    ).rejects.toThrow('Unauthorized')
+    ).rejects.toThrow('Invalid credentials')
 
     expect(result.current.user).toBeNull()
     expect(result.current.isAuthenticated).toBe(false)

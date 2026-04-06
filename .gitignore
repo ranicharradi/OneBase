@@ -93,6 +93,7 @@ vendor/
 
 # ── Local documentation (not tracked) ──
 docs/pfe/
+docs/rapport/
 docs/revamp/
 revamp.md
 
