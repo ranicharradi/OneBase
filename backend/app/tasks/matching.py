@@ -47,9 +47,7 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
             # Idempotency guard: skip if candidates already exist for this batch
             # (unless this is a re-upload where we need to invalidate and rematch)
             if invalidate_source_id is None:
-                batch_supplier_ids = (
-                    db.query(StagedSupplier.id).filter(StagedSupplier.import_batch_id == batch_id).subquery()
-                )
+                batch_supplier_ids = db.query(StagedSupplier.id).filter(StagedSupplier.import_batch_id == batch_id)
                 existing_candidates = (
                     db.query(MatchCandidate.id)
                     .filter(

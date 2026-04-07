@@ -221,6 +221,90 @@ _EMPTY_RESULT = {field: {"column": None, "confidence": 0.0} for field in _ALL_FI
 
 _MIN_SCORE = 0.15
 
+# Column name patterns — map header text to canonical fields.
+# Keys are matched against the lowercased, stripped column name.
+_HEADER_EXACT: dict[str, str] = {
+    "supplier_name": "supplier_name",
+    "supplier name": "supplier_name",
+    "vendor_name": "supplier_name",
+    "vendor name": "supplier_name",
+    "company_name": "supplier_name",
+    "company name": "supplier_name",
+    "name": "supplier_name",
+    "supplier_code": "supplier_code",
+    "supplier code": "supplier_code",
+    "vendor_code": "supplier_code",
+    "vendor code": "supplier_code",
+    "code": "supplier_code",
+    "short_name": "short_name",
+    "short name": "short_name",
+    "abbreviation": "short_name",
+    "abbrev": "short_name",
+    "alias": "short_name",
+    "currency": "currency",
+    "currency_code": "currency",
+    "currency code": "currency",
+    "cur": "currency",
+    "payment_terms": "payment_terms",
+    "payment terms": "payment_terms",
+    "pay_terms": "payment_terms",
+    "terms": "payment_terms",
+    "contact_name": "contact_name",
+    "contact name": "contact_name",
+    "contact_person": "contact_name",
+    "contact person": "contact_name",
+    "contact": "contact_name",
+    "supplier_type": "supplier_type",
+    "supplier type": "supplier_type",
+    "vendor_type": "supplier_type",
+    "vendor type": "supplier_type",
+    "type": "supplier_type",
+    "category": "supplier_type",
+}
+
+# Column names that should NOT be mapped to any canonical field.
+# These are common CSV columns that the guesser might mis-classify
+# because their data profile superficially matches a canonical field.
+_HEADER_EXCLUDE = {
+    "email",
+    "e-mail",
+    "contact_email",
+    "contact email",
+    "phone",
+    "telephone",
+    "tel",
+    "fax",
+    "mobile",
+    "address",
+    "street",
+    "city",
+    "state",
+    "province",
+    "zip",
+    "zip_code",
+    "postal_code",
+    "postal code",
+    "country",
+    "country_code",
+    "country code",
+    "region",
+    "website",
+    "url",
+    "tax_id",
+    "tax id",
+    "vat",
+    "vat_number",
+    "duns",
+    "created_at",
+    "updated_at",
+    "modified_at",
+    "date",
+    "id",
+    "notes",
+    "description",
+    "comments",
+}
+
 
 def _non_empty_values(rows: list[dict[str, str]], col: str) -> list[str]:
     """Extract non-empty, non-whitespace values for a column."""
@@ -481,13 +565,29 @@ def guess_column_mapping(
     result: dict[str, dict[str, str | float | None]] = {}
     used: set[str] = set()
 
+    # --- Pass 0: Header-based assignment ---
+    # Exact column name matches are high-confidence and override data heuristics.
+    # Also mark excluded columns so they can't be mis-assigned by data scoring.
+    excluded: set[str] = set()
+    for col in columns:
+        norm = col.strip().lower()
+        if norm in _HEADER_EXCLUDE:
+            excluded.add(col)
+            continue
+        field = _HEADER_EXACT.get(norm)
+        if field and field not in result and col not in used:
+            result[field] = {"column": col, "confidence": 0.9}
+            used.add(col)
+
     def _assign(field: str, scorer, **kwargs) -> None:
-        col, score = _best_column(scorer, columns, col_values, col_coverage, used, **kwargs)
+        if field in result:
+            return  # already assigned by header matching
+        col, score = _best_column(scorer, columns, col_values, col_coverage, used | excluded, **kwargs)
         if col and score >= _MIN_SCORE:
             result[field] = {"column": col, "confidence": round(score, 3)}
             used.add(col)
 
-    # Priority-ordered assignment passes
+    # Priority-ordered assignment passes (skip fields already matched by header)
     # 1. Currency — ISO codes are unambiguous
     _assign("currency", _score_currency)
 
