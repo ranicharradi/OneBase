@@ -194,3 +194,41 @@ class TestEdgeCases:
         result = guess_column_mapping(["A", "B", "C", "D"], rows)
         assigned_cols = [f["column"] for f in result.values() if f["column"] is not None]
         assert len(assigned_cols) == len(set(assigned_cols)), "Columns were reused across fields"
+
+
+class TestHeaderMatching:
+    """Column name matching should take priority over data heuristics."""
+
+    def test_exact_header_match(self):
+        """Columns named 'supplier_name', 'currency' etc. are matched by header."""
+        rows = [
+            {"supplier_name": "Acme Corp", "currency": "USD", "phone": "+1-555-0101"},
+            {"supplier_name": "Beta Inc", "currency": "EUR", "phone": "+44-20-7946"},
+        ]
+        result = guess_column_mapping(list(rows[0].keys()), rows)
+        assert result["supplier_name"]["column"] == "supplier_name"
+        assert result["currency"]["column"] == "currency"
+        assert result["supplier_name"]["confidence"] == 0.9
+
+    def test_excluded_columns_not_assigned(self):
+        """Columns like email, phone, address should never be assigned."""
+        rows = [
+            {"supplier_name": "Acme", "contact_email": "a@b.com", "phone": "555", "country": "US"},
+            {"supplier_name": "Beta", "contact_email": "c@d.com", "phone": "666", "country": "GB"},
+            {"supplier_name": "Gamma", "contact_email": "e@f.com", "phone": "777", "country": "DE"},
+        ]
+        result = guess_column_mapping(list(rows[0].keys()), rows)
+        assigned_cols = {f["column"] for f in result.values() if f["column"] is not None}
+        assert "contact_email" not in assigned_cols
+        assert "phone" not in assigned_cols
+        assert "country" not in assigned_cols
+
+    def test_header_match_prevents_data_misclassification(self):
+        """Email column should not be classified as short_name even if data fits."""
+        rows = [
+            {"supplier_name": "Acme Corp", "contact_email": "john@acme.com", "currency": "USD"},
+            {"supplier_name": "Beta Inc", "contact_email": "jane@beta.com", "currency": "EUR"},
+            {"supplier_name": "Gamma Ltd", "contact_email": "info@gamma.com", "currency": "GBP"},
+        ]
+        result = guess_column_mapping(list(rows[0].keys()), rows)
+        assert result["short_name"]["column"] != "contact_email"

@@ -88,11 +88,9 @@ def delete_source(db: Session, source_id: int) -> bool:
 
     # Use subqueries for bulk deletes — keeps all work in the database
     # instead of loading thousands of IDs into Python memory.
-    staged_subq = db.query(StagedSupplier.id).filter(StagedSupplier.data_source_id == source_id).subquery()
-    candidate_subq = (
-        db.query(MatchCandidate.id)
-        .filter((MatchCandidate.supplier_a_id.in_(staged_subq)) | (MatchCandidate.supplier_b_id.in_(staged_subq)))
-        .subquery()
+    staged_subq = db.query(StagedSupplier.id).filter(StagedSupplier.data_source_id == source_id)
+    candidate_subq = db.query(MatchCandidate.id).filter(
+        (MatchCandidate.supplier_a_id.in_(staged_subq)) | (MatchCandidate.supplier_b_id.in_(staged_subq))
     )
 
     # Nullify unified supplier references to match candidates being deleted
