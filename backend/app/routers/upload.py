@@ -250,12 +250,13 @@ def get_task_status(
             matching_info = matching_result.info or {}
 
             if matching_result.state in ("PENDING", "STARTED", "RETRY"):
-                # Matching is queued / just started
+                # Matching is queued / just started — keep showing the
+                # "Match Enqueued" stage so progress doesn't drop to 0%.
                 return TaskStatusResponse(
                     task_id=task_id,
-                    state=matching_result.state,
-                    stage="MATCHING",
-                    progress=0,
+                    state="MATCHING_ENQUEUED",
+                    stage="MATCHING_ENQUEUED",
+                    progress=None,
                     detail="Matching pipeline starting...",
                     row_count=row_count,
                 )
