@@ -69,3 +69,27 @@ class TestNormalizeName:
     def test_whitespace_only(self, test_db):
         """Whitespace-only input returns empty string."""
         assert normalize_name("   ") == ""
+
+    def test_remove_tunisie_stopword(self, test_db):
+        """Removes 'Tunisie' domain stopword from name."""
+        assert normalize_name("Société Tunisie") == "SOCIETE"
+
+    def test_remove_tunisia_variant(self, test_db):
+        """Removes 'Tunisia' variant stopword."""
+        assert normalize_name("Company Tunisia") == "COMPANY"
+
+    def test_remove_tunisienne_stopword(self, test_db):
+        """Removes 'Tunisienne' stopword."""
+        assert normalize_name("Banque Tunisienne de Commerce") == "BANQUE DE COMMERCE"
+
+    def test_stopword_only_name(self, test_db):
+        """Name consisting only of stopwords returns empty string."""
+        assert normalize_name("Tunisie") == ""
+
+    def test_stopword_preserves_non_stopwords(self, test_db):
+        """Substrings like TUNISAIR are NOT stripped (token-level match only)."""
+        assert normalize_name("Tunisair") == "TUNISAIR"
+
+    def test_stopword_combined_with_legal_suffix(self, test_db):
+        """Both legal suffix and domain stopword are stripped."""
+        assert normalize_name("Société Tunisie SARL") == "SOCIETE"

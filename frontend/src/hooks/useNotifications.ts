@@ -51,7 +51,15 @@ export function useNotifications() {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   }, []);
 
+  const remove = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
+  const clearAll = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  return { notifications, add, markRead, markAllRead, unreadCount };
+  return { notifications, add, markRead, markAllRead, remove, clearAll, unreadCount };
 }

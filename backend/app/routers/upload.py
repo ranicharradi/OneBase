@@ -125,7 +125,8 @@ async def upload_file(
             f"Wait for it to complete before re-uploading.",
         )
 
-    # Create import batch
+    # Create import batch and commit before dispatching Celery task,
+    # so the worker's separate DB session can find the batch row.
     batch = ImportBatch(
         data_source_id=data_source_id,
         filename=stored_filename,
@@ -133,14 +134,6 @@ async def upload_file(
         status=BatchStatus.PENDING,
     )
     db.add(batch)
-    db.flush()
-
-    # Dispatch Celery task
-    task = process_upload.delay(batch.id)
-    batch.task_id = task.id
-    db.flush()
-
-    # Audit trail
     log_action(
         db,
         user_id=current_user.id,
@@ -149,6 +142,11 @@ async def upload_file(
         entity_id=batch.id,
         details={"filename": original_filename, "data_source_id": data_source_id},
     )
+    db.commit()
+
+    # Dispatch Celery task — batch is now visible to the worker
+    task = process_upload.delay(batch.id)
+    batch.task_id = task.id
     db.commit()
 
     return UploadResponse(

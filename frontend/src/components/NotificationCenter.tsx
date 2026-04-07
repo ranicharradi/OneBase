@@ -8,6 +8,8 @@ interface NotificationCenterProps {
   onToggle: () => void;
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
+  onRemove: (id: string) => void;
+  onClearAll: () => void;
 }
 
 function timeAgo(timestamp: string): string {
@@ -29,7 +31,7 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 export default function NotificationCenter({
-  notifications, unreadCount, isOpen, onToggle, onMarkRead, onMarkAllRead,
+  notifications, unreadCount, isOpen, onToggle, onMarkRead, onMarkAllRead, onRemove, onClearAll,
 }: NotificationCenterProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -69,17 +71,27 @@ export default function NotificationCenter({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto bg-surface border border-on-surface/10 rounded-xl shadow-lg z-50">
+        <div className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto bg-surface-100 border border-on-surface/10 rounded-xl shadow-lg z-50">
           <div className="flex items-center justify-between px-4 py-3 border-b border-on-surface/5">
             <span className="text-sm font-semibold text-on-surface">Notifications</span>
-            {unreadCount > 0 && (
-              <button
-                onClick={onMarkAllRead}
-                className="text-xs text-accent-600 hover:text-accent-600/80 font-medium"
-              >
-                Mark all read
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <button
+                  onClick={onMarkAllRead}
+                  className="text-xs text-accent-600 hover:text-accent-600/80 font-medium"
+                >
+                  Mark all read
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={onClearAll}
+                  className="text-xs text-danger-500 hover:text-danger-400 font-medium"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
           </div>
 
           {notifications.length === 0 ? (
@@ -89,26 +101,39 @@ export default function NotificationCenter({
           ) : (
             <div className="divide-y divide-on-surface/5">
               {notifications.map(n => (
-                <button
+                <div
                   key={n.id}
-                  onClick={() => onMarkRead(n.id)}
-                  className={`w-full text-left px-4 py-3 hover:bg-white/30 transition-colors ${
+                  className={`group/notif w-full text-left px-4 py-3 hover:bg-white/30 transition-colors ${
                     !n.read ? 'bg-accent-600/[0.04]' : ''
                   }`}
                 >
                   <div className="flex items-start gap-2">
-                    <span className="material-symbols-outlined text-sm mt-0.5 text-on-surface-variant">
-                      {TYPE_ICONS[n.type] || 'info'}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-on-surface leading-relaxed">{n.message}</p>
-                      <p className="text-[10px] text-on-surface-variant/60 mt-0.5">{timeAgo(n.timestamp)}</p>
+                    <button
+                      onClick={() => onMarkRead(n.id)}
+                      className="flex items-start gap-2 flex-1 min-w-0"
+                    >
+                      <span className="material-symbols-outlined text-sm mt-0.5 text-on-surface-variant">
+                        {TYPE_ICONS[n.type] || 'info'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-on-surface leading-relaxed text-left">{n.message}</p>
+                        <p className="text-[10px] text-on-surface-variant/60 mt-0.5 text-left">{timeAgo(n.timestamp)}</p>
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                      {!n.read && (
+                        <span className="w-2 h-2 rounded-full bg-accent-600" />
+                      )}
+                      <button
+                        onClick={() => onRemove(n.id)}
+                        className="opacity-0 group-hover/notif:opacity-100 transition-opacity p-0.5 rounded hover:bg-danger-500/10"
+                        aria-label="Delete notification"
+                      >
+                        <span className="material-symbols-outlined text-[14px] text-on-surface-variant/40 hover:text-danger-500">close</span>
+                      </button>
                     </div>
-                    {!n.read && (
-                      <span className="w-2 h-2 rounded-full bg-accent-600 mt-1 shrink-0" />
-                    )}
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}

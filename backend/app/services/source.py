@@ -86,32 +86,29 @@ def delete_source(db: Session, source_id: int) -> bool:
     if source is None:
         return False
 
-    # Find all staged supplier IDs for this source
-    staged_ids = [
-        row[0] for row in db.query(StagedSupplier.id).filter(StagedSupplier.data_source_id == source_id).all()
-    ]
+    # Use subqueries for bulk deletes — keeps all work in the database
+    # instead of loading thousands of IDs into Python memory.
+    staged_subq = db.query(StagedSupplier.id).filter(StagedSupplier.data_source_id == source_id).subquery()
+    candidate_subq = (
+        db.query(MatchCandidate.id)
+        .filter((MatchCandidate.supplier_a_id.in_(staged_subq)) | (MatchCandidate.supplier_b_id.in_(staged_subq)))
+        .subquery()
+    )
 
-    if staged_ids:
-        # Nullify unified supplier references to match candidates involving these suppliers
-        candidate_ids = [
-            row[0]
-            for row in db.query(MatchCandidate.id)
-            .filter((MatchCandidate.supplier_a_id.in_(staged_ids)) | (MatchCandidate.supplier_b_id.in_(staged_ids)))
-            .all()
-        ]
-        if candidate_ids:
-            db.query(UnifiedSupplier).filter(UnifiedSupplier.match_candidate_id.in_(candidate_ids)).update(
-                {UnifiedSupplier.match_candidate_id: None},
-                synchronize_session="fetch",
-            )
-            # Delete match candidates
-            db.query(MatchCandidate).filter(MatchCandidate.id.in_(candidate_ids)).delete(synchronize_session="fetch")
+    # Nullify unified supplier references to match candidates being deleted
+    db.query(UnifiedSupplier).filter(UnifiedSupplier.match_candidate_id.in_(candidate_subq)).update(
+        {UnifiedSupplier.match_candidate_id: None},
+        synchronize_session=False,
+    )
 
-        # Delete staged suppliers
-        db.query(StagedSupplier).filter(StagedSupplier.data_source_id == source_id).delete(synchronize_session="fetch")
+    # Delete match candidates
+    db.query(MatchCandidate).filter(MatchCandidate.id.in_(candidate_subq)).delete(synchronize_session=False)
+
+    # Delete staged suppliers
+    db.query(StagedSupplier).filter(StagedSupplier.data_source_id == source_id).delete(synchronize_session=False)
 
     # Delete import batches
-    db.query(ImportBatch).filter(ImportBatch.data_source_id == source_id).delete(synchronize_session="fetch")
+    db.query(ImportBatch).filter(ImportBatch.data_source_id == source_id).delete(synchronize_session=False)
 
     # Delete the source itself
     db.delete(source)
