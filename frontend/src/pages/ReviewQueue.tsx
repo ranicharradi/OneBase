@@ -47,8 +47,8 @@ export default function ReviewQueue() {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('pending');
-  const [minConfidence, setMinConfidence] = useState('');
-  const [maxConfidence, setMaxConfidence] = useState('');
+  const [minConfidence, setMinConfidence] = useState(0);
+  const [maxConfidence, setMaxConfidence] = useState(100);
   const [sourceFilter, setSourceFilter] = useState('');
   const [page, setPage] = useState(0);
   const pageSize = 50;
@@ -62,8 +62,8 @@ export default function ReviewQueue() {
   // Build query params
   const params = new URLSearchParams();
   params.set('status', statusFilter);
-  if (minConfidence) params.set('min_confidence', minConfidence);
-  if (maxConfidence) params.set('max_confidence', maxConfidence);
+  if (minConfidence > 0) params.set('min_confidence', (minConfidence / 100).toFixed(2));
+  if (maxConfidence < 100) params.set('max_confidence', (maxConfidence / 100).toFixed(2));
   if (sourceFilter) params.set('source_a_id', sourceFilter);
   params.set('limit', String(pageSize));
   params.set('offset', String(page * pageSize));
@@ -169,36 +169,51 @@ export default function ReviewQueue() {
             </select>
           </div>
 
-          {/* Confidence range */}
-          <div className="flex flex-col gap-1.5">
+          {/* Confidence range slider */}
+          <div className="flex flex-col gap-1.5 min-w-[220px]">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
-              Min Confidence
+              Confidence Range
+              <span className="ml-2 font-mono text-accent-600 normal-case tracking-normal">
+                {minConfidence}% – {maxConfidence}%
+              </span>
             </label>
-            <input
-              type="number"
-              min="0"
-              max="1"
-              step="0.05"
-              placeholder="0.00"
-              value={minConfidence}
-              onChange={(e) => { setMinConfidence(e.target.value); setPage(0); }}
-              className="input-field w-28 text-sm font-mono"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
-              Max Confidence
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="1"
-              step="0.05"
-              placeholder="1.00"
-              value={maxConfidence}
-              onChange={(e) => { setMaxConfidence(e.target.value); setPage(0); }}
-              className="input-field w-28 text-sm font-mono"
-            />
+            <div className="relative h-6 flex items-center">
+              {/* Track background */}
+              <div className="absolute inset-x-0 h-1.5 rounded-full bg-on-surface/10" />
+              {/* Active range fill */}
+              <div
+                className="absolute h-1.5 rounded-full bg-accent-600/50"
+                style={{ left: `${minConfidence}%`, right: `${100 - maxConfidence}%` }}
+              />
+              {/* Min thumb */}
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={minConfidence}
+                onChange={(e) => {
+                  const v = Math.min(Number(e.target.value), maxConfidence - 5);
+                  setMinConfidence(v);
+                  setPage(0);
+                }}
+                className="range-thumb absolute inset-x-0"
+              />
+              {/* Max thumb */}
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={maxConfidence}
+                onChange={(e) => {
+                  const v = Math.max(Number(e.target.value), minConfidence + 5);
+                  setMaxConfidence(v);
+                  setPage(0);
+                }}
+                className="range-thumb absolute inset-x-0"
+              />
+            </div>
           </div>
 
           {/* Result count */}
