@@ -1,7 +1,7 @@
 // ── Review Queue page — pending match candidates sorted by confidence ──
 // Light glassmorphism aesthetic — data-dense queue with airy depth
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import Pagination from '../components/Pagination';
 import { useNavigate } from 'react-router';
@@ -52,6 +52,12 @@ export default function ReviewQueue() {
   const [sourceFilter, setSourceFilter] = useState('');
   const [page, setPage] = useState(0);
   const pageSize = 50;
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  const handlePageChange = useCallback((p: number) => {
+    setPage(p);
+    tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   // Build query params
   const params = new URLSearchParams();
@@ -207,6 +213,18 @@ export default function ReviewQueue() {
         </div>
       </div>
 
+      {/* Pagination (top) */}
+      {queue && queue.total > 0 && (
+        <div ref={tableRef} className="scroll-mt-4">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={queue.total}
+            onPageChange={handlePageChange}
+          />
+        </div>
+      )}
+
       {/* Queue table */}
       <div className="card overflow-hidden">
         {isLoading ? (
@@ -337,12 +355,13 @@ export default function ReviewQueue() {
         )}
       </div>
 
+      {/* Pagination (bottom) */}
       {queue && queue.total > 0 && (
         <Pagination
           page={page}
           pageSize={pageSize}
           totalItems={queue.total}
-          onPageChange={setPage}
+          onPageChange={handlePageChange}
         />
       )}
     </div>

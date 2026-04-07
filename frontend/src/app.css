@@ -483,6 +483,16 @@
   /* Shadow override for modals */
   .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important; }
 
+  /* Select dropdowns — force dark background on native option elements */
+  select {
+    color-scheme: dark;
+  }
+
+  select option {
+    background-color: var(--color-surface-300) !important;
+    color: var(--color-on-surface) !important;
+  }
+
   /* Dark shimmer — subtle light pulse on dark surfaces */
   .animate-shimmer {
     background: linear-gradient(

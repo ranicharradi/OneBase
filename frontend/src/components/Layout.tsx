@@ -160,7 +160,7 @@ export default function Layout() {
             >
               <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
               {/* Tooltip */}
-              <span className="absolute left-full ml-3 px-2.5 py-1 rounded-lg bg-on-surface text-white text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              <span className="absolute left-full ml-3 px-2.5 py-1 rounded-lg bg-on-surface text-surface-50 text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                 {item.label}
               </span>
             </NavLink>
@@ -204,6 +204,8 @@ export default function Layout() {
               onToggle={() => setNotifOpen(prev => !prev)}
               onMarkRead={notifs.markRead}
               onMarkAllRead={notifs.markAllRead}
+              onRemove={notifs.remove}
+              onClearAll={notifs.clearAll}
             />
 
             {/* Theme toggle */}

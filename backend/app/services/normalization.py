@@ -3,6 +3,16 @@
 import re
 import unicodedata
 
+# Domain-specific stopwords — common location/region tokens that appear in many
+# supplier names but carry no discriminative value for matching.
+# Compared against uppercased, accent-stripped tokens.
+DOMAIN_STOPWORDS = {
+    "TUNISIE",
+    "TUNISIA",
+    "TUNISIEN",
+    "TUNISIENNE",
+}
+
 # Legal suffixes sorted by length (longest first) to match longest first
 LEGAL_SUFFIXES = [
     "GMBH & CO KG",
@@ -74,6 +84,9 @@ def normalize_name(name: str | None) -> str:
 
     # Remove legal suffixes
     result = LEGAL_PATTERN.sub("", result)
+
+    # Remove domain stopwords (token-level, preserves substrings like TUNISAIR)
+    result = " ".join(t for t in result.split() if t not in DOMAIN_STOPWORDS)
 
     # Collapse multiple spaces and strip
     result = re.sub(r"\s+", " ", result).strip()

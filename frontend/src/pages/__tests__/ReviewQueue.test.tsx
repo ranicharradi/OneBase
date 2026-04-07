@@ -235,16 +235,15 @@ describe('ReviewQueue page', () => {
     // Wait for data to load
     await screen.findByText('Acme Corp')
 
-    // Pagination nav should be present
+    // Pagination navs should be present (top and bottom)
     await waitFor(() => {
-      expect(screen.getByRole('navigation', { name: /pagination/i })).toBeInTheDocument()
+      expect(screen.getAllByRole('navigation', { name: /pagination/i })).toHaveLength(2)
     })
-    expect(screen.getByRole('button', { name: /next page/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /previous page/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /next page/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /previous page/i })).toHaveLength(2)
 
-    // Verify pagination displays the total count (100 appears in both the
-    // filter result count and in pagination, so scope to the nav element)
-    const paginationNav = screen.getByRole('navigation', { name: /pagination/i })
-    expect(paginationNav).toHaveTextContent('100')
+    // Verify pagination displays the total count (scope to the first nav)
+    const paginationNavs = screen.getAllByRole('navigation', { name: /pagination/i })
+    expect(paginationNavs[0]).toHaveTextContent('100')
   })
 })
