@@ -15,6 +15,12 @@ currency first (most distinctive), then name, code, contact, type, terms, short.
 
 import re
 
+from app.canonical import (
+    CANONICAL_FIELDS,
+    GLOBAL_EXCLUDE_HEADERS,
+    build_header_synonym_index,
+)
+
 # ISO 4217 currency codes (common subset)
 _ISO_CURRENCIES = {
     "AED",
@@ -207,15 +213,12 @@ _COMPANY_TOKENS = {
     "systems",
 }
 
-_ALL_FIELDS = [
-    "supplier_name",
-    "supplier_code",
-    "short_name",
-    "currency",
-    "payment_terms",
-    "contact_name",
-    "supplier_type",
-]
+# --- Canonical field metadata --------------------------------------------
+# All canonical-field knowledge (the field list, header synonyms, and the
+# exclude set) lives in `app.canonical` and is the single source of truth.
+# This module used to maintain its own copies; now they are derived.
+
+_ALL_FIELDS: list[str] = [f.key for f in CANONICAL_FIELDS]
 
 _EMPTY_RESULT = {field: {"column": None, "confidence": 0.0} for field in _ALL_FIELDS}
 
@@ -223,87 +226,12 @@ _MIN_SCORE = 0.15
 
 # Column name patterns — map header text to canonical fields.
 # Keys are matched against the lowercased, stripped column name.
-_HEADER_EXACT: dict[str, str] = {
-    "supplier_name": "supplier_name",
-    "supplier name": "supplier_name",
-    "vendor_name": "supplier_name",
-    "vendor name": "supplier_name",
-    "company_name": "supplier_name",
-    "company name": "supplier_name",
-    "name": "supplier_name",
-    "supplier_code": "supplier_code",
-    "supplier code": "supplier_code",
-    "vendor_code": "supplier_code",
-    "vendor code": "supplier_code",
-    "code": "supplier_code",
-    "short_name": "short_name",
-    "short name": "short_name",
-    "abbreviation": "short_name",
-    "abbrev": "short_name",
-    "alias": "short_name",
-    "currency": "currency",
-    "currency_code": "currency",
-    "currency code": "currency",
-    "cur": "currency",
-    "payment_terms": "payment_terms",
-    "payment terms": "payment_terms",
-    "pay_terms": "payment_terms",
-    "terms": "payment_terms",
-    "contact_name": "contact_name",
-    "contact name": "contact_name",
-    "contact_person": "contact_name",
-    "contact person": "contact_name",
-    "contact": "contact_name",
-    "supplier_type": "supplier_type",
-    "supplier type": "supplier_type",
-    "vendor_type": "supplier_type",
-    "vendor type": "supplier_type",
-    "type": "supplier_type",
-    "category": "supplier_type",
-}
+_HEADER_EXACT: dict[str, str] = build_header_synonym_index()
 
 # Column names that should NOT be mapped to any canonical field.
 # These are common CSV columns that the guesser might mis-classify
 # because their data profile superficially matches a canonical field.
-_HEADER_EXCLUDE = {
-    "email",
-    "e-mail",
-    "contact_email",
-    "contact email",
-    "phone",
-    "telephone",
-    "tel",
-    "fax",
-    "mobile",
-    "address",
-    "street",
-    "city",
-    "state",
-    "province",
-    "zip",
-    "zip_code",
-    "postal_code",
-    "postal code",
-    "country",
-    "country_code",
-    "country code",
-    "region",
-    "website",
-    "url",
-    "tax_id",
-    "tax id",
-    "vat",
-    "vat_number",
-    "duns",
-    "created_at",
-    "updated_at",
-    "modified_at",
-    "date",
-    "id",
-    "notes",
-    "description",
-    "comments",
-}
+_HEADER_EXCLUDE: frozenset[str] = GLOBAL_EXCLUDE_HEADERS
 
 
 def _non_empty_values(rows: list[dict[str, str]], col: str) -> list[str]:
