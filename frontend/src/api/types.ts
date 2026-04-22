@@ -18,6 +18,18 @@ export interface ColumnMapping {
   supplier_type?: string;
 }
 
+export interface CanonicalField {
+  key: string;
+  label: string;
+  required: boolean;
+  dtype: string;
+  max_length: number;
+}
+
+export interface CanonicalFieldsResponse {
+  fields: CanonicalField[];
+}
+
 export interface DataSource {
   id: number;
   name: string;
