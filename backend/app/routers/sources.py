@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.canonical import CANONICAL_FIELDS
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
 from app.models.enums import SupplierStatus, UserRole
@@ -339,13 +340,7 @@ async def guess_mapping(
     guesses = guess_column_mapping(columns, sample)
 
     return GuessMappingResponse(
-        supplier_name=FieldGuess(**guesses["supplier_name"]),
-        supplier_code=FieldGuess(**guesses["supplier_code"]),
-        short_name=FieldGuess(**guesses["short_name"]),
-        currency=FieldGuess(**guesses["currency"]),
-        payment_terms=FieldGuess(**guesses["payment_terms"]),
-        contact_name=FieldGuess(**guesses["contact_name"]),
-        supplier_type=FieldGuess(**guesses["supplier_type"]),
+        guesses={f.key: FieldGuess(**guesses[f.key]) for f in CANONICAL_FIELDS},
     )
 
 

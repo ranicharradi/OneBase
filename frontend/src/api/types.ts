@@ -116,13 +116,8 @@ export interface FieldGuess {
 }
 
 export interface GuessMappingResponse {
-  supplier_name: FieldGuess;
-  supplier_code: FieldGuess;
-  short_name: FieldGuess;
-  currency: FieldGuess;
-  payment_terms: FieldGuess;
-  contact_name: FieldGuess;
-  supplier_type: FieldGuess;
+  // Keyed by canonical field key (see GET /api/canonical-fields).
+  guesses: Record<string, FieldGuess>;
 }
 
 // ── Matching notification types (WebSocket) ──

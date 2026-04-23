@@ -27,9 +27,8 @@ export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, 
 
   // Initialize mapping from guessed values
   const initialMapping: Record<string, string> = {};
-  const guessRecord = guessedMapping as unknown as Record<string, { column: string | null; confidence: number }> | undefined;
-  if (guessRecord) {
-    for (const [field, guess] of Object.entries(guessRecord)) {
+  if (guessedMapping) {
+    for (const [field, guess] of Object.entries(guessedMapping.guesses)) {
       if (guess?.column) {
         initialMapping[field] = guess.column;
       }
@@ -334,7 +333,7 @@ export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, 
                   </select>
                   {/* Confidence indicator for auto-guessed fields */}
                   {(() => {
-                    const guess = guessRecord?.[field.key];
+                    const guess = guessedMapping?.guesses[field.key];
                     if (!guess?.column || guess.confidence <= 0) return null;
                     return (
                       <span
