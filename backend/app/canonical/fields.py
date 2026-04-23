@@ -8,7 +8,7 @@ dict previously in `services/column_guesser.py`.
 from dataclasses import dataclass
 from typing import Literal
 
-FieldDType = Literal["string", "code", "currency", "enum", "text"]
+FieldDType = Literal["string", "code", "currency", "enum"]
 
 
 @dataclass(frozen=True)
@@ -138,6 +138,8 @@ CANONICAL_FIELDS: tuple[CanonicalField, ...] = (
 
 CANONICAL_FIELDS_BY_KEY: dict[str, CanonicalField] = {f.key: f for f in CANONICAL_FIELDS}
 
+_HEADER_SYNONYM_INDEX: dict[str, str] = {syn: f.key for f in CANONICAL_FIELDS for syn in f.synonyms}
+
 GLOBAL_EXCLUDE_HEADERS: frozenset[str] = frozenset(
     {
         "email",
@@ -182,14 +184,11 @@ GLOBAL_EXCLUDE_HEADERS: frozenset[str] = frozenset(
 
 
 def build_header_synonym_index() -> dict[str, str]:
-    """Return a {synonym -> canonical key} flat index built from the registry.
+    """Return a {synonym → canonical key} flat index built from the registry.
 
     Replaces the former hand-maintained `_HEADER_EXACT` dict in column_guesser.
     Synonyms are stored in the registry already lowercased and stripped, so the
     index can be looked up directly after normalizing the CSV header the same way.
+    A copy of the cached index is returned — callers are free to mutate the copy.
     """
-    index: dict[str, str] = {}
-    for field in CANONICAL_FIELDS:
-        for syn in field.synonyms:
-            index[syn] = field.key
-    return index
+    return dict(_HEADER_SYNONYM_INDEX)

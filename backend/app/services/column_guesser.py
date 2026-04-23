@@ -1,19 +1,17 @@
-"""Column guesser service — classifies CSV columns by analyzing data values.
+"""Column guesser service — classifies CSV columns against OneBase's canonical
+supplier fields (see `app.canonical`) using data-value heuristics.
 
-Scores each CSV column against 7 canonical fields using heuristics:
-- supplier_name: longest text, company-like tokens, high uniqueness
-- supplier_code: short alphanumeric, very high uniqueness
-- short_name: shorter text than name, moderate uniqueness
-- currency: ISO 4217 3-letter codes
-- payment_terms: low cardinality text/codes
-- contact_name: person-name patterns (multi-word, title case)
-- supplier_type: very low cardinality, short values
+Each CSV column is scored against every canonical field using:
+- Header-name matching against per-field synonym lists (Pass 0, high confidence)
+- A per-field scorer that inspects data values (coverage, cardinality, length,
+  character-class mix, company-token hits, ISO currency-code match, etc.)
 
 Assignment uses priority-based passes to avoid ambiguity:
 currency first (most distinctive), then name, code, contact, type, terms, short.
 """
 
 import re
+import types
 
 from app.canonical import (
     CANONICAL_FIELDS,
@@ -226,7 +224,7 @@ _MIN_SCORE = 0.15
 
 # Column name patterns — map header text to canonical fields.
 # Keys are matched against the lowercased, stripped column name.
-_HEADER_EXACT: dict[str, str] = build_header_synonym_index()
+_HEADER_EXACT: types.MappingProxyType[str, str] = types.MappingProxyType(build_header_synonym_index())
 
 # Column names that should NOT be mapped to any canonical field.
 # These are common CSV columns that the guesser might mis-classify

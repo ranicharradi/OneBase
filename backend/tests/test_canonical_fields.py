@@ -38,10 +38,12 @@ class TestRegistryShape:
             assert f.max_length > 0, f"{f.key} has non-positive max_length"
 
     def test_field_is_frozen_dataclass(self):
+        import dataclasses
+
         f = CANONICAL_FIELDS[0]
         try:
             f.label = "mutated"  # type: ignore[misc]
-        except Exception:
+        except dataclasses.FrozenInstanceError:
             return
         raise AssertionError("CanonicalField should be frozen")
 
