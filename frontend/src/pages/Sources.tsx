@@ -25,9 +25,11 @@ function ColumnMappingEditor({
   const requiredFields = canonicalFields.filter((f) => f.required);
   const optionalFields = canonicalFields.filter((f) => !f.required);
 
-  const requiredKeys = new Set(canonicalFields.filter((f) => f.required).map((f) => f.key));
+  const requiredKeys = new Set(requiredFields.map((f) => f.key));
 
   const updateField = (field: keyof ColumnMapping, csvCol: string) => {
+    // Spread produces a plain object literal type; tsc -b accepts the single-hop
+    // cast here because the source type is anonymous, not the named ColumnMapping.
     const next = { ...value } as Record<string, string | undefined>;
     if (csvCol) {
       next[field] = csvCol;
@@ -441,6 +443,7 @@ export default function Sources() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
+          disabled={!registry}
           className="btn-primary"
         >
           <span className="material-symbols-outlined text-lg">add</span>
@@ -487,6 +490,7 @@ export default function Sources() {
             <div className="flex justify-center">
               <button
                 onClick={() => setShowCreate(true)}
+                disabled={!registry}
                 className="btn-primary"
               >
                 <span className="material-symbols-outlined text-lg">add</span>

@@ -6,7 +6,7 @@ export function useCanonicalFields() {
   return useQuery({
     queryKey: ['canonical-fields'],
     queryFn: () => api.get<CanonicalFieldsResponse>('/api/canonical-fields'),
-    // Registry is deploy-static; never refetch or evict within a session.
+    // Registry is deploy-static — never refetch (staleTime) or evict (gcTime) within a session.
     staleTime: Infinity,
     gcTime: Infinity,
   });
