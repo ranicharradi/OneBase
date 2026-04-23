@@ -95,12 +95,9 @@ class FieldGuess(BaseModel):
 
 
 class GuessMappingResponse(BaseModel):
-    """Response from the guess-mapping endpoint."""
+    """Response from the guess-mapping endpoint.
 
-    supplier_name: FieldGuess
-    supplier_code: FieldGuess
-    short_name: FieldGuess
-    currency: FieldGuess
-    payment_terms: FieldGuess
-    contact_name: FieldGuess
-    supplier_type: FieldGuess
+    `guesses` is keyed by canonical field key (see `app.canonical.CANONICAL_FIELDS`).
+    """
+
+    guesses: dict[str, FieldGuess]

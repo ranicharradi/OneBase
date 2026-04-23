@@ -1,5 +1,7 @@
 """Tests for data source CRUD endpoints."""
 
+from app.canonical import CANONICAL_FIELDS
+
 VALID_SOURCE = {
     "name": "SAP Export",
     "description": "SAP supplier export",
@@ -132,3 +134,38 @@ class TestDetectColumns:
         assert response.status_code == 200
         data = response.json()
         assert data["columns"] == ["code", "name", "city", "country"]
+
+
+class TestGuessMapping:
+    """Tests for POST /api/sources/guess-mapping."""
+
+    _CSV = (
+        b"supplier_name,supplier_code,currency,contact_name\n"
+        b"Acme Industries GmbH,ACM001,EUR,Jane Doe\n"
+        b"Globex Corporation,GLX002,USD,John Smith\n"
+        b"Initech LLC,INI003,USD,Alice Wong\n"
+    )
+
+    def test_response_keys_match_canonical_registry(self, authenticated_client):
+        """Tripwire: guess-mapping response must populate every canonical field key.
+
+        If the registry gains a field and the router loop isn't updated, this fails.
+        """
+        resp = authenticated_client.post(
+            "/api/sources/guess-mapping",
+            files={"file": ("test.csv", self._CSV, "text/csv")},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert set(body["guesses"].keys()) == {f.key for f in CANONICAL_FIELDS}
+
+    def test_guess_entry_shape(self, authenticated_client):
+        resp = authenticated_client.post(
+            "/api/sources/guess-mapping",
+            files={"file": ("test.csv", self._CSV, "text/csv")},
+        )
+        assert resp.status_code == 200
+        for key, guess in resp.json()["guesses"].items():
+            assert set(guess.keys()) == {"column", "confidence"}, f"unexpected shape for {key}"
+            assert guess["column"] is None or isinstance(guess["column"], str)
+            assert isinstance(guess["confidence"], int | float)
