@@ -4,27 +4,9 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { DataSource, DataSourceCreate, ColumnMapping } from '../api/types';
+import type { DataSource, DataSourceCreate, ColumnMapping, CanonicalField } from '../api/types';
 import { ToastContainer, type ToastData } from '../components/Toast';
-
-const REQUIRED_FIELDS: (keyof ColumnMapping)[] = ['supplier_name', 'supplier_code'];
-const OPTIONAL_FIELDS: (keyof ColumnMapping)[] = [
-  'short_name',
-  'currency',
-  'payment_terms',
-  'contact_name',
-  'supplier_type',
-];
-
-const FIELD_LABELS: Record<string, string> = {
-  supplier_name: 'Supplier Name',
-  supplier_code: 'Supplier Code',
-  short_name: 'Short Name',
-  currency: 'Currency',
-  payment_terms: 'Payment Terms',
-  contact_name: 'Contact Name',
-  supplier_type: 'Supplier Type',
-};
+import { useCanonicalFields } from '../hooks/useCanonicalFields';
 
 function emptyMapping(): ColumnMapping {
   return { supplier_name: '', supplier_code: '' };
@@ -34,22 +16,28 @@ function emptyMapping(): ColumnMapping {
 function ColumnMappingEditor({
   value,
   onChange,
+  canonicalFields,
 }: {
   value: ColumnMapping;
   onChange: (mapping: ColumnMapping) => void;
+  canonicalFields: CanonicalField[];
 }) {
+  const requiredFields = canonicalFields.filter((f) => f.required);
+  const optionalFields = canonicalFields.filter((f) => !f.required);
+
+  const requiredKeys = new Set(canonicalFields.filter((f) => f.required).map((f) => f.key));
+
   const updateField = (field: keyof ColumnMapping, csvCol: string) => {
-    const next = { ...value };
+    const next = { ...value } as Record<string, string | undefined>;
     if (csvCol) {
       next[field] = csvCol;
+    } else if (requiredKeys.has(field)) {
+      next[field] = '';
     } else {
-      if (field === 'supplier_name' || field === 'supplier_code') {
-        next[field] = '';
-      } else {
-        delete next[field];
-      }
+      delete next[field];
     }
-    onChange(next);
+    // Dynamic registry keys meet static ColumnMapping type at this boundary
+    onChange(next as unknown as ColumnMapping);
   };
 
   return (
@@ -71,17 +59,17 @@ function ColumnMappingEditor({
           <div className="w-1.5 h-1.5 rounded-full bg-accent-600" />
           <span className="text-[11px] font-semibold uppercase tracking-wider text-accent-600">Required Fields</span>
         </div>
-        {REQUIRED_FIELDS.map((field) => (
-          <div key={field} className="flex items-center gap-3">
+        {requiredFields.map((f) => (
+          <div key={f.key} className="flex items-center gap-3">
             <label className="w-36 text-sm text-on-surface flex items-center gap-1.5 font-medium">
-              {FIELD_LABELS[field]}
+              {f.label}
               <span className="text-danger-500 text-xs">*</span>
             </label>
             <input
               type="text"
-              value={value[field] ?? ''}
-              onChange={(e) => updateField(field, e.target.value)}
-              placeholder={`CSV column for ${FIELD_LABELS[field]}`}
+              value={(value as unknown as Record<string, string | undefined>)[f.key] ?? ''}
+              onChange={(e) => updateField(f.key as keyof ColumnMapping, e.target.value)}
+              placeholder={`CSV column for ${f.label}`}
               className="input-field flex-1"
             />
           </div>
@@ -94,15 +82,13 @@ function ColumnMappingEditor({
           <div className="w-1.5 h-1.5 rounded-full bg-on-surface-variant/60" />
           <span className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Optional Fields</span>
         </div>
-        {OPTIONAL_FIELDS.map((field) => (
-          <div key={field} className="flex items-center gap-3">
-            <label className="w-36 text-sm text-on-surface-variant/60">
-              {FIELD_LABELS[field]}
-            </label>
+        {optionalFields.map((f) => (
+          <div key={f.key} className="flex items-center gap-3">
+            <label className="w-36 text-sm text-on-surface-variant/60">{f.label}</label>
             <input
               type="text"
-              value={value[field] ?? ''}
-              onChange={(e) => updateField(field, e.target.value)}
+              value={(value as unknown as Record<string, string | undefined>)[f.key] ?? ''}
+              onChange={(e) => updateField(f.key as keyof ColumnMapping, e.target.value)}
               placeholder="CSV column (optional)"
               className="input-field flex-1"
             />
@@ -118,10 +104,12 @@ function SourceModal({
   source,
   onClose,
   onSaved,
+  canonicalFields,
 }: {
   source?: DataSource;
   onClose: () => void;
   onSaved: (msg: string) => void;
+  canonicalFields: CanonicalField[];
 }) {
   const queryClient = useQueryClient();
   const isEditing = !!source;
@@ -167,8 +155,11 @@ function SourceModal({
       setFormError('Source name is required');
       return;
     }
-    if (!mapping.supplier_name || !mapping.supplier_code) {
-      setFormError('Supplier Name and Supplier Code column mappings are required');
+    const missingRequired = canonicalFields
+      .filter((f) => f.required)
+      .find((f) => !(mapping as unknown as Record<string, string | undefined>)[f.key]);
+    if (missingRequired) {
+      setFormError(`${missingRequired.label} column mapping is required`);
       return;
     }
     mutation.mutate();
@@ -271,7 +262,11 @@ function SourceModal({
             </p>
           </div>
 
-          <ColumnMappingEditor value={mapping} onChange={setMapping} />
+          <ColumnMappingEditor
+            value={mapping}
+            onChange={setMapping}
+            canonicalFields={canonicalFields}
+          />
 
           {/* Action buttons */}
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-on-surface/[0.06]">
@@ -416,6 +411,8 @@ export default function Sources() {
     queryFn: () => api.get<DataSource[]>('/api/sources'),
   });
 
+  const { data: registry, error: registryError } = useCanonicalFields();
+
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     const id = crypto.randomUUID();
     setToasts(prev => [...prev, { id, message, type }]);
@@ -450,6 +447,13 @@ export default function Sources() {
           New Source
         </button>
       </div>
+
+      {/* Registry error banner — source creation unavailable when field definitions fail to load */}
+      {registryError && (
+        <div className="mb-4 rounded-lg border border-danger-500/20 bg-danger-500/[0.08] px-4 py-2 text-xs text-danger-500">
+          Could not load field definitions — source creation is temporarily unavailable.
+        </div>
+      )}
 
       {/* Error state */}
       {error && (
@@ -580,15 +584,17 @@ export default function Sources() {
       )}
 
       {/* Modals */}
-      {showCreate && (
+      {showCreate && registry && (
         <SourceModal
+          canonicalFields={registry.fields}
           onClose={() => setShowCreate(false)}
           onSaved={(msg) => showToast(msg)}
         />
       )}
-      {editSource && (
+      {editSource && registry && (
         <SourceModal
           source={editSource}
+          canonicalFields={registry.fields}
           onClose={() => setEditSource(null)}
           onSaved={(msg) => showToast(msg)}
         />
