@@ -16,8 +16,9 @@ interface ColumnMapperProps {
 
 export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, initialSourceName, guessedMapping, detectedDelimiter }: ColumnMapperProps) {
   const { data: registry, isLoading: registryLoading, error: registryError } = useCanonicalFields();
-  // Derive canonicalFields early so validate/handleSubmit can close over it.
-  // The loading/error guards below ensure we never reach the main render with this empty.
+  // Derived early so validate/handleSubmit can close over it from the same render.
+  // The ?? [] fallback is structurally unreachable: the loading/error guards below
+  // return early before any event handler or the main JSX can execute.
   const canonicalFields: CanonicalField[] = registry?.fields ?? [];
 
   const [sourceName, setSourceName] = useState(initialSourceName ?? '');
@@ -60,7 +61,7 @@ export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, 
     const newErrors: Record<string, string> = {};
     if (!sourceName.trim()) newErrors.sourceName = 'Source name is required';
     for (const f of canonicalFields) {
-      if (f.required && !(mapping as Record<string, string>)[f.key]) {
+      if (f.required && !mapping[f.key]) {
         newErrors[f.key] = `${f.label} mapping is required`;
       }
     }
@@ -74,7 +75,9 @@ export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, 
 
     const columnMapping: Partial<Record<string, string>> = {};
     for (const f of canonicalFields) {
-      if ((mapping as Record<string, string>)[f.key]) columnMapping[f.key] = (mapping as Record<string, string>)[f.key];
+      if (mapping[f.key]) {
+        columnMapping[f.key] = mapping[f.key];
+      }
     }
 
     onSubmit({
@@ -85,7 +88,7 @@ export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, 
       // The static ColumnMapping type's required fields (supplier_name, supplier_code)
       // are therefore guaranteed; the drift-check test in test_canonical_fields.py keeps the
       // registry and Pydantic schema aligned.
-      column_mapping: columnMapping as ColumnMapping,
+      column_mapping: columnMapping as unknown as ColumnMapping,
     });
   };
 
@@ -108,7 +111,7 @@ export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, 
   const usedColumns = new Set(Object.values(mapping));
   const mappedCount = Object.keys(mapping).length;
   const totalFields = canonicalFields.length;
-  const requiredMapped = canonicalFields.filter(f => f.required && (mapping as Record<string, string>)[f.key]).length;
+  const requiredMapped = canonicalFields.filter(f => f.required && mapping[f.key]).length;
   const requiredTotal = canonicalFields.filter(f => f.required).length;
 
   return (
