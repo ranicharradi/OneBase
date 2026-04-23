@@ -11,6 +11,7 @@ from app.canonical.fields import (
     CANONICAL_FIELDS_BY_KEY,
     GLOBAL_EXCLUDE_HEADERS,
     CanonicalField,
+    FieldDType,
     build_header_synonym_index,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "CANONICAL_FIELDS_BY_KEY",
     "GLOBAL_EXCLUDE_HEADERS",
     "CanonicalField",
+    "FieldDType",
     "build_header_synonym_index",
 ]

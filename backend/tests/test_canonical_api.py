@@ -2,18 +2,20 @@
 
 from fastapi.testclient import TestClient
 
+from app.canonical import CANONICAL_FIELDS
+
 
 class TestCanonicalFieldsEndpoint:
     def test_requires_authentication(self, test_client: TestClient):
         resp = test_client.get("/api/canonical-fields")
         assert resp.status_code == 401
 
-    def test_returns_seven_fields(self, authenticated_client: TestClient):
+    def test_returns_all_registry_fields(self, authenticated_client: TestClient):
         resp = authenticated_client.get("/api/canonical-fields")
         assert resp.status_code == 200
         body = resp.json()
         assert "fields" in body
-        assert len(body["fields"]) == 7
+        assert len(body["fields"]) == len(CANONICAL_FIELDS)
 
     def test_field_shape(self, authenticated_client: TestClient):
         resp = authenticated_client.get("/api/canonical-fields")
@@ -41,7 +43,5 @@ class TestCanonicalFieldsEndpoint:
     def test_required_flag_matches_registry(self, authenticated_client: TestClient):
         resp = authenticated_client.get("/api/canonical-fields")
         by_key = {f["key"]: f for f in resp.json()["fields"]}
-        assert by_key["supplier_name"]["required"] is True
-        assert by_key["supplier_code"]["required"] is True
-        assert by_key["short_name"]["required"] is False
-        assert by_key["currency"]["required"] is False
+        for field in CANONICAL_FIELDS:
+            assert by_key[field.key]["required"] is field.required, f"{field.key}: expected required={field.required}"
