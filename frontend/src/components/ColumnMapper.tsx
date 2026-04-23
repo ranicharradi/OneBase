@@ -2,7 +2,8 @@
 // Light Glassmorphism — polished step indicators, airy form, styled mapping rows
 
 import { useState } from 'react';
-import type { ColumnMapping, DataSourceCreate, GuessMappingResponse } from '../api/types';
+import type { CanonicalField, ColumnMapping, DataSourceCreate, GuessMappingResponse } from '../api/types';
+import { useCanonicalFields } from '../hooks/useCanonicalFields';
 
 interface ColumnMapperProps {
   columns: string[];
@@ -13,17 +14,12 @@ interface ColumnMapperProps {
   detectedDelimiter?: string;
 }
 
-const CANONICAL_FIELDS: { key: keyof ColumnMapping; label: string; required: boolean }[] = [
-  { key: 'supplier_name', label: 'Supplier Name', required: true },
-  { key: 'supplier_code', label: 'Supplier Code', required: true },
-  { key: 'short_name', label: 'Short Name', required: false },
-  { key: 'currency', label: 'Currency', required: false },
-  { key: 'payment_terms', label: 'Payment Terms', required: false },
-  { key: 'contact_name', label: 'Contact Name', required: false },
-  { key: 'supplier_type', label: 'Supplier Type', required: false },
-];
-
 export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, initialSourceName, guessedMapping, detectedDelimiter }: ColumnMapperProps) {
+  const { data: registry, isLoading: registryLoading, error: registryError } = useCanonicalFields();
+  // Derive canonicalFields early so validate/handleSubmit can close over it.
+  // The loading/error guards below ensure we never reach the main render with this empty.
+  const canonicalFields: CanonicalField[] = registry?.fields ?? [];
+
   const [sourceName, setSourceName] = useState(initialSourceName ?? '');
   const [description, setDescription] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -63,8 +59,11 @@ export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!sourceName.trim()) newErrors.sourceName = 'Source name is required';
-    if (!mapping.supplier_name) newErrors.supplier_name = 'Supplier Name mapping is required';
-    if (!mapping.supplier_code) newErrors.supplier_code = 'Supplier Code mapping is required';
+    for (const f of canonicalFields) {
+      if (f.required && !(mapping as Record<string, string>)[f.key]) {
+        newErrors[f.key] = `${f.label} mapping is required`;
+      }
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -73,30 +72,44 @@ export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, 
     e.preventDefault();
     if (!validate()) return;
 
-    const columnMapping: ColumnMapping = {
-      supplier_name: mapping.supplier_name,
-      supplier_code: mapping.supplier_code,
-      ...(mapping.short_name && { short_name: mapping.short_name }),
-      ...(mapping.currency && { currency: mapping.currency }),
-      ...(mapping.payment_terms && { payment_terms: mapping.payment_terms }),
-      ...(mapping.contact_name && { contact_name: mapping.contact_name }),
-      ...(mapping.supplier_type && { supplier_type: mapping.supplier_type }),
-    };
+    const columnMapping: Partial<Record<string, string>> = {};
+    for (const f of canonicalFields) {
+      if ((mapping as Record<string, string>)[f.key]) columnMapping[f.key] = (mapping as Record<string, string>)[f.key];
+    }
 
     onSubmit({
       name: sourceName.trim(),
       description: description.trim() || undefined,
       delimiter: detectedDelimiter || ',',
-      column_mapping: columnMapping,
+      // Cast: validate() ensures required canonical fields are present before we get here.
+      // The static ColumnMapping type's required fields (supplier_name, supplier_code)
+      // are therefore guaranteed; the drift-check test in test_canonical_fields.py keeps the
+      // registry and Pydantic schema aligned.
+      column_mapping: columnMapping as ColumnMapping,
     });
   };
+
+  if (registryLoading) {
+    return (
+      <div className="card p-6 text-sm text-on-surface-variant/60">
+        Loading field definitions…
+      </div>
+    );
+  }
+  if (registryError || !registry) {
+    return (
+      <div className="card p-6 text-sm text-danger-500">
+        Failed to load canonical fields. Please refresh and try again.
+      </div>
+    );
+  }
 
   // Track which CSV columns are already used
   const usedColumns = new Set(Object.values(mapping));
   const mappedCount = Object.keys(mapping).length;
-  const totalFields = CANONICAL_FIELDS.length;
-  const requiredMapped = CANONICAL_FIELDS.filter(f => f.required && mapping[f.key]).length;
-  const requiredTotal = CANONICAL_FIELDS.filter(f => f.required).length;
+  const totalFields = canonicalFields.length;
+  const requiredMapped = canonicalFields.filter(f => f.required && (mapping as Record<string, string>)[f.key]).length;
+  const requiredTotal = canonicalFields.filter(f => f.required).length;
 
   return (
     <form onSubmit={handleSubmit} className="card overflow-hidden">
@@ -232,7 +245,7 @@ export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, 
 
         {/* Mapping rows */}
         <div className="space-y-1.5">
-          {CANONICAL_FIELDS.map((field, index) => {
+          {canonicalFields.map((field, index) => {
             const isMapped = !!mapping[field.key];
             const hasError = !!errors[field.key];
 
@@ -342,14 +355,17 @@ export default function ColumnMapper({ columns, onSubmit, isSubmitting = false, 
         </div>
 
         {/* Validation errors */}
-        {(errors.supplier_name || errors.supplier_code) && (
+        {canonicalFields.some((f) => f.required && errors[f.key]) && (
           <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-danger-500/20 bg-danger-500/[0.08] px-4 py-3 animate-slideUp">
             <svg className="w-4 h-4 text-danger-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
             <div className="text-xs text-danger-500 space-y-0.5">
-              {errors.supplier_name && <p>{errors.supplier_name}</p>}
-              {errors.supplier_code && <p>{errors.supplier_code}</p>}
+              {canonicalFields
+                .filter((f) => f.required && errors[f.key])
+                .map((f) => (
+                  <p key={f.key}>{errors[f.key]}</p>
+                ))}
             </div>
           </div>
         )}
