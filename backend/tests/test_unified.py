@@ -273,6 +273,53 @@ class TestExport:
         assert len(lines) == 3  # header + 2 rows
         assert "EXPORT" in lines[1]
 
+    def test_export_filter_source_type(self, authenticated_client, test_db):
+        _seed_unified(test_db, "MERGED CO", [1, 2], match_candidate_id=1)
+        _seed_unified(test_db, "SINGLE CO", [3])
+        test_db.commit()
+
+        resp = authenticated_client.get("/api/unified/export?source_type=merged")
+        assert resp.status_code == 200
+        lines = resp.text.strip().split("\n")
+        assert len(lines) == 2  # header + 1 merged row
+        assert "MERGED CO" in resp.text
+        assert "SINGLE CO" not in resp.text
+
+    def test_export_filter_date_range(self, authenticated_client, test_db):
+        from datetime import datetime
+
+        u_old = _seed_unified(test_db, "OLD CO", [1])
+        u_old.created_at = datetime(2025, 6, 1, 12, 0, 0)
+        u_new = _seed_unified(test_db, "NEW CO", [2])
+        u_new.created_at = datetime(2026, 3, 15, 12, 0, 0)
+        test_db.commit()
+
+        resp = authenticated_client.get("/api/unified/export?from_date=2026-01-01&to_date=2026-12-31")
+        assert resp.status_code == 200
+        lines = resp.text.strip().split("\n")
+        assert len(lines) == 2  # header + 1 in-range row
+        assert "NEW CO" in resp.text
+        assert "OLD CO" not in resp.text
+
+    def test_export_filter_combined(self, authenticated_client, test_db):
+        from datetime import datetime
+
+        u1 = _seed_unified(test_db, "RECENT MERGED", [1, 2], match_candidate_id=1)
+        u1.created_at = datetime(2026, 3, 15, 12, 0, 0)
+        u2 = _seed_unified(test_db, "OLD MERGED", [3, 4], match_candidate_id=2)
+        u2.created_at = datetime(2025, 6, 1, 12, 0, 0)
+        u3 = _seed_unified(test_db, "RECENT SINGLETON", [5])
+        u3.created_at = datetime(2026, 3, 15, 12, 0, 0)
+        test_db.commit()
+
+        resp = authenticated_client.get("/api/unified/export?source_type=merged&from_date=2026-01-01")
+        assert resp.status_code == 200
+        lines = resp.text.strip().split("\n")
+        assert len(lines) == 2  # header + 1 row
+        assert "RECENT MERGED" in resp.text
+        assert "OLD MERGED" not in resp.text
+        assert "RECENT SINGLETON" not in resp.text
+
 
 # ── Dashboard tests ──
 

@@ -2,7 +2,7 @@
 
 import csv
 import io
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -42,6 +42,27 @@ from app.services.audit import log_action
 router = APIRouter(prefix="/api/unified", tags=["unified"])
 
 
+def _build_unified_filter(
+    query,
+    search: str | None,
+    source_type: str | None,
+    from_date: date | None,
+    to_date: date | None,
+):
+    """Apply optional filters to a UnifiedSupplier query."""
+    if search:
+        query = query.filter(UnifiedSupplier.name.ilike(f"%{search}%"))
+    if source_type == "singleton":
+        query = query.filter(UnifiedSupplier.match_candidate_id.is_(None))
+    elif source_type == "merged":
+        query = query.filter(UnifiedSupplier.match_candidate_id.isnot(None))
+    if from_date:
+        query = query.filter(UnifiedSupplier.created_at >= from_date)
+    if to_date:
+        query = query.filter(UnifiedSupplier.created_at < to_date + timedelta(days=1))
+    return query
+
+
 # ── Browse unified suppliers ──
 
 
@@ -49,6 +70,8 @@ router = APIRouter(prefix="/api/unified", tags=["unified"])
 def list_unified_suppliers(
     search: str | None = Query(None, description="Search by name"),
     source_type: str | None = Query(None, description="Filter: merged or singleton"),
+    from_date: date | None = Query(None, description="Filter: created on or after this date (YYYY-MM-DD)"),
+    to_date: date | None = Query(None, description="Filter: created on or before this date (YYYY-MM-DD)"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -56,14 +79,7 @@ def list_unified_suppliers(
 ):
     """Browse unified suppliers with search and filtering."""
     query = db.query(UnifiedSupplier)
-
-    if search:
-        query = query.filter(UnifiedSupplier.name.ilike(f"%{search}%"))
-
-    if source_type == "singleton":
-        query = query.filter(UnifiedSupplier.match_candidate_id.is_(None))
-    elif source_type == "merged":
-        query = query.filter(UnifiedSupplier.match_candidate_id.isnot(None))
+    query = _build_unified_filter(query, search, source_type, from_date, to_date)
 
     total = query.count()
 
@@ -502,11 +518,17 @@ def bulk_promote_singletons(
 
 @router.get("/export")
 def export_unified_csv(
+    search: str | None = Query(None, description="Search by name"),
+    source_type: str | None = Query(None, description="Filter: merged or singleton"),
+    from_date: date | None = Query(None, description="Filter: created on or after this date (YYYY-MM-DD)"),
+    to_date: date | None = Query(None, description="Filter: created on or before this date (YYYY-MM-DD)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Export unified suppliers as CSV with provenance metadata."""
-    suppliers = db.query(UnifiedSupplier).order_by(UnifiedSupplier.name).all()
+    query = db.query(UnifiedSupplier)
+    query = _build_unified_filter(query, search, source_type, from_date, to_date)
+    suppliers = query.order_by(UnifiedSupplier.name).all()
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -580,7 +602,17 @@ def export_unified_csv(
         action="unified_exported",
         entity_type="unified_supplier",
         entity_id=None,
-        details={"count": len(suppliers), "format": "csv", "exported_by": current_user.username},
+        details={
+            "count": len(suppliers),
+            "format": "csv",
+            "exported_by": current_user.username,
+            "filters": {
+                "search": search,
+                "source_type": source_type,
+                "from_date": from_date.isoformat() if from_date else None,
+                "to_date": to_date.isoformat() if to_date else None,
+            },
+        },
     )
     db.commit()
 
