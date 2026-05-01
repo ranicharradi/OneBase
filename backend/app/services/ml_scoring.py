@@ -30,12 +30,12 @@ def ml_score_pair(
     feature_vector = np.array(
         [
             [
-                signals["jaro_winkler"],
-                signals["token_jaccard"],
-                signals["embedding_cosine"],
-                signals["short_name_match"],
-                signals["currency_match"],
-                signals["contact_match"],
+                signals.get("jaro_winkler", 0.0),
+                signals.get("token_jaccard", 0.0),
+                signals.get("embedding_cosine", 0.0),
+                signals.get("short_name_match", 0.0),
+                signals.get("currency_match", 0.0),
+                signals.get("contact_match", 0.0),
                 nlr,
                 tcd,
             ]

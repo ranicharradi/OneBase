@@ -196,7 +196,7 @@ def train_ml_model(
     Requires at least 50 confirmed/rejected candidates with both classes present.
     Acquires a PostgreSQL advisory lock to prevent concurrent training.
     """
-    # Advisory lock to prevent concurrent training (skip on SQLite)
+    # Advisory lock to prevent concurrent training (no-op on SQLite)
     with contextlib.suppress(Exception):
         db.execute(text("SELECT pg_advisory_xact_lock(737373)"))
 

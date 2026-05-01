@@ -32,7 +32,7 @@ class MatchCandidate(Base):
     supplier_b_id = Column(Integer, ForeignKey("staged_suppliers.id"), nullable=False)
     confidence = Column(Float, nullable=False)
     match_signals = Column(JSON, nullable=False)
-    status = Column(String(20), default=CandidateStatus.PENDING)  # pending/confirmed/rejected/skipped/invalidated
+    status = Column(String(20), default=CandidateStatus.PENDING)  # pending/confirmed/rejected/invalidated
     reviewed_by = Column(String(100), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())

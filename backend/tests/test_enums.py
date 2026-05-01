@@ -27,5 +27,4 @@ class TestCandidateStatus:
         assert CandidateStatus.PENDING == "pending"
         assert CandidateStatus.CONFIRMED == "confirmed"
         assert CandidateStatus.REJECTED == "rejected"
-        assert CandidateStatus.SKIPPED == "skipped"
         assert CandidateStatus.INVALIDATED == "invalidated"

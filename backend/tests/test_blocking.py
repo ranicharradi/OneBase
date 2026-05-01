@@ -126,8 +126,8 @@ class TestTextBlock:
         for a, b in pairs:
             assert a < b, f"Pair ({a}, {b}) not normalized"
 
-    def test_short_names_skipped(self, test_db):
-        """Suppliers with normalized_name shorter than 3 chars are skipped for prefix blocking."""
+    def test_short_names_ignored(self, test_db):
+        """Suppliers with normalized_name shorter than 3 chars are ignored for prefix blocking."""
         _make_source(test_db, 1, "Source A")
         _make_source(test_db, 2, "Source B")
         _make_batch(test_db, 1, 1)

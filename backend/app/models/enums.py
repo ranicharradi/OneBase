@@ -22,9 +22,9 @@ class SupplierStatus(StrEnum):
 
 class CandidateStatus(StrEnum):
     PENDING = "pending"
-    CONFIRMED = "confirmed"
+    CONFIRMED = "confirmed"  # confirmed as dupe, awaiting field reconciliation
+    MERGED = "merged"  # reconciled and merged into a UnifiedSupplier
     REJECTED = "rejected"
-    SKIPPED = "skipped"
     INVALIDATED = "invalidated"
 
 
