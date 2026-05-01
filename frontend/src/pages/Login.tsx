@@ -62,7 +62,7 @@ export default function Login() {
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
             <span style={{ fontSize: 16, fontWeight: 600 }}>OneBase</span>
             <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
-              supplier data ledger
+              records data ledger
             </span>
           </div>
         </div>
