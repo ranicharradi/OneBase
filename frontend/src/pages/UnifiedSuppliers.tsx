@@ -30,6 +30,8 @@ export default function UnifiedSuppliers() {
   const [selectedSingletons, setSelectedSingletons] = useState<Set<number>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [unifiedPage, setUnifiedPage] = useState(0);
   const [singletonsPage, setSingletonsPage] = useState(0);
   const unifiedTableRef = useRef<HTMLDivElement>(null);
@@ -46,11 +48,13 @@ export default function UnifiedSuppliers() {
   }, []);
 
   const { data: unifiedData, isLoading: unifiedLoading } = useQuery<UnifiedSupplierListResponse>({
-    queryKey: ['unified-suppliers', search, sourceType, unifiedPage],
+    queryKey: ['unified-suppliers', search, sourceType, fromDate, toDate, unifiedPage],
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
       if (sourceType) params.set('source_type', sourceType);
+      if (fromDate) params.set('from_date', fromDate);
+      if (toDate) params.set('to_date', toDate);
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', String(unifiedPage * PAGE_SIZE));
       return api.get(`/api/unified/suppliers?${params}`);
@@ -101,7 +105,13 @@ export default function UnifiedSuppliers() {
     setIsExporting(true);
     setExportError(null);
     try {
-      const response = await fetch('/api/unified/export', {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (sourceType) params.set('source_type', sourceType);
+      if (fromDate) params.set('from_date', fromDate);
+      if (toDate) params.set('to_date', toDate);
+      const qs = params.toString();
+      const response = await fetch(`/api/unified/export${qs ? `?${qs}` : ''}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('onebase_token')}` },
       });
       if (!response.ok) throw new Error(`Export failed (${response.status})`);
@@ -173,6 +183,22 @@ export default function UnifiedSuppliers() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input
+              type="date"
+              aria-label="From date"
+              className="input mono"
+              value={fromDate}
+              onChange={e => { setFromDate(e.target.value); setUnifiedPage(0); }}
+              style={{ height: 24, fontSize: 11, padding: '0 6px' }}
+            />
+            <input
+              type="date"
+              aria-label="To date"
+              className="input mono"
+              value={toDate}
+              onChange={e => { setToDate(e.target.value); setUnifiedPage(0); }}
+              style={{ height: 24, fontSize: 11, padding: '0 6px' }}
+            />
             {exportError && (
               <span className="pill danger" style={{ padding: '2px 6px', fontSize: 10 }}>{exportError}</span>
             )}
@@ -182,7 +208,7 @@ export default function UnifiedSuppliers() {
               className="btn btn-sm"
             >
               <span className="material-symbols-outlined" style={{ fontSize: 12 }}>download</span>
-              {isExporting ? 'Exporting…' : 'Export CSV'}
+              {isExporting ? 'Exporting…' : (search || sourceType || fromDate || toDate) ? 'Export CSV (filtered)' : 'Export CSV'}
             </button>
           </div>
         </div>
