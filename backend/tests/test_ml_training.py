@@ -116,7 +116,7 @@ class TestExtractTrainingData:
         assert sum(y) == 30  # 50% confirmed
         assert set(y) == {0, 1}
 
-    def test_excludes_pending_and_skipped(self, test_db):
+    def test_excludes_pending_candidates(self, test_db):
         from app.services.ml_training import extract_training_data
 
         _seed_reviewed_candidates(test_db, count=60)

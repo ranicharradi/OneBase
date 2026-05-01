@@ -271,7 +271,7 @@ def run_matching_pipeline(
     for a_id, b_id, confidence, signals in scored_pairs:
         pair_key = (min(a_id, b_id), max(a_id, b_id))
         if pair_key in existing_pairs:
-            continue  # Skip duplicates
+            continue  # Ignore duplicates
 
         # Find group for this pair
         group = group_map.get(a_id) or group_map.get(b_id)

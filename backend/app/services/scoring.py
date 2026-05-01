@@ -129,34 +129,39 @@ def score_pair(
     else:
         embedding_cosine = 0.5  # Neutral when missing
 
-    # Signal 4: Short name exact match
+    # Core signals (always present in the output dict)
+    signals: dict[str, float] = {
+        "jaro_winkler": jaro_winkler,
+        "token_jaccard": token_jaccard,
+        "embedding_cosine": embedding_cosine,
+    }
+
+    # Optional signals: only included when both sides have the field. Missing
+    # signals are dropped from the weighted sum entirely (and renormalized
+    # below) instead of contributing a noisy 0.5 neutral.
+
+    # Signal 4: Short name fuzzy match (Jaro-Winkler — handles prefix codes
+    # like "IPC INTERN" vs "IPC INTERNATIONAL" that exact equality misses)
     sn_a = supplier_a.short_name
     sn_b = supplier_b.short_name
-    short_name_match = (1.0 if sn_a == sn_b else 0.0) if sn_a is not None and sn_b is not None else 0.5
+    if sn_a is not None and sn_b is not None:
+        signals["short_name_match"] = JaroWinkler.similarity(sn_a, sn_b)
 
     # Signal 5: Currency match (case-insensitive)
     cur_a = supplier_a.currency
     cur_b = supplier_b.currency
     if cur_a is not None and cur_b is not None:
-        currency_match = 1.0 if cur_a.upper() == cur_b.upper() else 0.0
-    else:
-        currency_match = 0.5  # Neutral when missing
+        signals["currency_match"] = 1.0 if cur_a.upper() == cur_b.upper() else 0.0
 
     # Signal 6: Contact name similarity
     con_a = supplier_a.contact_name
     con_b = supplier_b.contact_name
-    contact_match = JaroWinkler.similarity(con_a, con_b) if con_a is not None and con_b is not None else 0.5
+    if con_a is not None and con_b is not None:
+        signals["contact_match"] = JaroWinkler.similarity(con_a, con_b)
 
-    signals = {
-        "jaro_winkler": jaro_winkler,
-        "token_jaccard": token_jaccard,
-        "embedding_cosine": embedding_cosine,
-        "short_name_match": short_name_match,
-        "currency_match": currency_match,
-        "contact_match": contact_match,
-    }
-
-    # Weighted confidence score
+    # Weighted confidence: sum over active signals only, then renormalize by
+    # the sum of active weights. This prevents partial-coverage optional fields
+    # from diluting scores when missing on one side of a pair.
     w = weights or {
         "jaro_winkler": settings.matching_weight_jaro_winkler,
         "token_jaccard": settings.matching_weight_token_jaccard,
@@ -166,14 +171,11 @@ def score_pair(
         "contact_match": settings.matching_weight_contact,
     }
 
-    confidence = (
-        jaro_winkler * w.get("jaro_winkler", 0.0)
-        + token_jaccard * w.get("token_jaccard", 0.0)
-        + embedding_cosine * w.get("embedding_cosine", 0.0)
-        + short_name_match * w.get("short_name_match", 0.0)
-        + currency_match * w.get("currency_match", 0.0)
-        + contact_match * w.get("contact_match", 0.0)
-    )
+    active_weight_sum = sum(w.get(name, 0.0) for name in signals)
+    if active_weight_sum > 0:
+        confidence = sum(value * w.get(name, 0.0) for name, value in signals.items()) / active_weight_sum
+    else:
+        confidence = 0.0
 
     return {
         "confidence": confidence,
