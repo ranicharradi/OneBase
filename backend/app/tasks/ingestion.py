@@ -35,9 +35,9 @@ def process_upload(self, batch_id: int):
 
             batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
 
-            # Idempotency guard: skip if already completed or processing
+            # Idempotency guard: return early if already completed or processing
             if batch.status in (BatchStatus.COMPLETED, BatchStatus.PROCESSING):
-                logger.info("Batch %d already %s, skipping", batch_id, batch.status)
+                logger.info("Batch %d already %s, ignoring", batch_id, batch.status)
                 return {"status": batch.status, "batch_id": batch_id}
 
             # Mark as processing before starting work

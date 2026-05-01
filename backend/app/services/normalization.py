@@ -11,6 +11,11 @@ DOMAIN_STOPWORDS = {
     "TUNISIA",
     "TUNISIEN",
     "TUNISIENNE",
+    # French articles — token-level, so substrings (LELOUCH, LASER) are preserved
+    "LE",
+    "LA",
+    "LES",
+    "EL",
 }
 
 # Legal suffixes sorted by length (longest first) to match longest first
@@ -25,6 +30,7 @@ LEGAL_SUFFIXES = [
     "EURL",
     "CORP",
     "GMBH",
+    "ETS",
     "PLC",
     "LLC",
     "LTD",
@@ -32,11 +38,16 @@ LEGAL_SUFFIXES = [
     "SAS",
     "SCI",
     "SNC",
+    "STE",
+    "SOC",
+    "CIE",
+    "ETT",
     "PTY",
     "OHG",
     "BV",
     "NV",
     "AG",
+    "EI",
     "KG",
     "SA",
 ]
