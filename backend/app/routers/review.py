@@ -1,5 +1,6 @@
-"""Review & merge API router — review queue, match detail, and merge/reject/skip actions."""
+"""Review & merge API router — review queue, match detail, and merge/reject actions."""
 
+from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -27,7 +28,6 @@ from app.services.merge import (
     compare_fields,
     execute_merge,
     reject_candidate,
-    skip_candidate,
 )
 
 router = APIRouter(prefix="/api/review", tags=["review"])
@@ -112,38 +112,49 @@ def get_review_queue(
         supplier_ids.add(c.supplier_a_id)
         supplier_ids.add(c.supplier_b_id)
 
-    supplier_info: dict[int, tuple[str | None, str | None]] = {}
+    supplier_info: dict[int, tuple] = {}
     if supplier_ids:
         rows = (
             db.query(
                 StagedSupplier.id,
                 StagedSupplier.name,
+                StagedSupplier.source_code,
+                StagedSupplier.currency,
+                StagedSupplier.contact_name,
                 DataSource.name.label("source_name"),
             )
             .join(DataSource, StagedSupplier.data_source_id == DataSource.id)
             .filter(StagedSupplier.id.in_(supplier_ids))
             .all()
         )
-        supplier_info = {r.id: (r.name, r.source_name) for r in rows}
+        supplier_info = {r.id: (r.name, r.source_name, r.source_code, r.currency, r.contact_name) for r in rows}
 
     items = []
     for c in candidates:
-        a_info = supplier_info.get(c.supplier_a_id, (None, None))
-        b_info = supplier_info.get(c.supplier_b_id, (None, None))
+        a = supplier_info.get(c.supplier_a_id, (None, None, None, None, None))
+        b = supplier_info.get(c.supplier_b_id, (None, None, None, None, None))
         items.append(
             ReviewQueueItem(
                 id=c.id,
                 supplier_a_id=c.supplier_a_id,
                 supplier_b_id=c.supplier_b_id,
-                supplier_a_name=a_info[0],
-                supplier_b_name=b_info[0],
-                supplier_a_source=a_info[1],
-                supplier_b_source=b_info[1],
+                supplier_a_name=a[0],
+                supplier_b_name=b[0],
+                supplier_a_source=a[1],
+                supplier_b_source=b[1],
+                supplier_a_source_code=a[2],
+                supplier_b_source_code=b[2],
+                supplier_a_currency=a[3],
+                supplier_b_currency=b[3],
+                supplier_a_contact=a[4],
+                supplier_b_contact=b[4],
                 confidence=c.confidence,
                 match_signals=c.match_signals or {},
                 status=c.status,
                 group_id=c.group_id,
                 created_at=c.created_at,
+                reviewed_by=c.reviewed_by,
+                reviewed_at=c.reviewed_at,
             )
         )
 
@@ -224,6 +235,42 @@ def get_match_detail(
 # ── Review actions ──
 
 
+@router.post("/candidates/{candidate_id}/confirm", response_model=ReviewActionResponse)
+def confirm_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
+):
+    """Confirm a match as a duplicate — routes candidate to the merge queue.
+
+    Does NOT create a unified record. Field reconciliation happens separately
+    via the merge step.
+    """
+    candidate = db.get(MatchCandidate, candidate_id)
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Match candidate {candidate_id} not found",
+        )
+
+    if candidate.status != CandidateStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Candidate is already {candidate.status}, cannot confirm",
+        )
+
+    candidate.status = CandidateStatus.CONFIRMED
+    candidate.reviewed_by = current_user.username
+    candidate.reviewed_at = datetime.now(UTC)
+    db.commit()
+
+    return ReviewActionResponse(
+        candidate_id=candidate.id,
+        action="confirmed",
+        unified_supplier_id=None,
+    )
+
+
 @router.post("/candidates/{candidate_id}/merge", response_model=ReviewActionResponse)
 def merge_candidate(
     candidate_id: int,
@@ -243,10 +290,10 @@ def merge_candidate(
             detail=f"Match candidate {candidate_id} not found",
         )
 
-    if candidate.status != CandidateStatus.PENDING:
+    if candidate.status != CandidateStatus.CONFIRMED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Candidate is already {candidate.status}, cannot merge",
+            detail=f"Candidate must be confirmed before merging (current status: {candidate.status})",
         )
 
     supplier_a, source_a = _load_supplier_detail(db, candidate.supplier_a_id)
@@ -295,7 +342,7 @@ def reject_match(
             detail=f"Match candidate {candidate_id} not found",
         )
 
-    if candidate.status not in (CandidateStatus.PENDING, CandidateStatus.SKIPPED):
+    if candidate.status != CandidateStatus.PENDING:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Candidate is {candidate.status}, cannot reject",
@@ -307,35 +354,6 @@ def reject_match(
     return ReviewActionResponse(
         candidate_id=candidate.id,
         action="rejected",
-    )
-
-
-@router.post("/candidates/{candidate_id}/skip", response_model=ReviewActionResponse)
-def skip_match(
-    candidate_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
-):
-    """Skip a match candidate for later review."""
-    candidate = db.get(MatchCandidate, candidate_id)
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Match candidate {candidate_id} not found",
-        )
-
-    if candidate.status != CandidateStatus.PENDING:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Candidate is {candidate.status}, cannot skip",
-        )
-
-    skip_candidate(db, candidate, current_user.username)
-    db.commit()
-
-    return ReviewActionResponse(
-        candidate_id=candidate.id,
-        action="skipped",
     )
 
 
@@ -351,8 +369,8 @@ def get_review_stats(
     counts = db.query(
         func.count(case((MatchCandidate.status == CandidateStatus.PENDING, 1))).label("pending"),
         func.count(case((MatchCandidate.status == CandidateStatus.CONFIRMED, 1))).label("confirmed"),
+        func.count(case((MatchCandidate.status == CandidateStatus.MERGED, 1))).label("merged"),
         func.count(case((MatchCandidate.status == CandidateStatus.REJECTED, 1))).label("rejected"),
-        func.count(case((MatchCandidate.status == CandidateStatus.SKIPPED, 1))).label("skipped"),
     ).one()
 
     unified_count = db.query(func.count(UnifiedSupplier.id)).scalar() or 0
@@ -360,7 +378,7 @@ def get_review_stats(
     return ReviewStatsResponse(
         total_pending=counts.pending,
         total_confirmed=counts.confirmed,
+        total_merged=counts.merged,
         total_rejected=counts.rejected,
-        total_skipped=counts.skipped,
         total_unified=unified_count,
     )

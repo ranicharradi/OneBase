@@ -221,8 +221,8 @@ def execute_merge(
 
     db.add(unified)
 
-    # Mark candidate as confirmed
-    candidate.status = CandidateStatus.CONFIRMED
+    # Mark candidate as merged
+    candidate.status = CandidateStatus.MERGED
     candidate.reviewed_by = username
     candidate.reviewed_at = datetime.now(UTC)
 
@@ -261,26 +261,6 @@ def reject_candidate(
         db,
         user_id=None,
         action="match_rejected",
-        entity_type="match_candidate",
-        entity_id=candidate.id,
-        details={"reviewed_by": username},
-    )
-
-
-def skip_candidate(
-    db: Session,
-    candidate: MatchCandidate,
-    username: str,
-) -> None:
-    """Mark a match candidate as skipped (for later review)."""
-    candidate.status = CandidateStatus.SKIPPED
-    candidate.reviewed_by = username
-    candidate.reviewed_at = datetime.now(UTC)
-
-    log_action(
-        db,
-        user_id=None,
-        action="match_skipped",
         entity_type="match_candidate",
         entity_id=candidate.id,
         details={"reviewed_by": username},

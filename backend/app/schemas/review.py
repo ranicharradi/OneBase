@@ -76,11 +76,19 @@ class ReviewQueueItem(BaseModel):
     supplier_b_name: str | None = None
     supplier_a_source: str | None = None
     supplier_b_source: str | None = None
+    supplier_a_source_code: str | None = None
+    supplier_b_source_code: str | None = None
+    supplier_a_currency: str | None = None
+    supplier_b_currency: str | None = None
+    supplier_a_contact: str | None = None
+    supplier_b_contact: str | None = None
     confidence: float
     match_signals: dict[str, float] = {}
     status: str
     group_id: int | None = None
     created_at: datetime | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
 
 
 class ReviewQueueResponse(BaseModel):
@@ -91,7 +99,7 @@ class ReviewQueueResponse(BaseModel):
     has_more: bool
 
 
-# ── Review actions (confirm/reject/skip) ──
+# ── Review actions (confirm/reject) ──
 
 
 class FieldSelection(BaseModel):
@@ -108,7 +116,7 @@ class MergeRequest(BaseModel):
 
 
 class ReviewActionResponse(BaseModel):
-    """Response after a review action (merge/reject/skip)."""
+    """Response after a review action (merge/reject)."""
 
     candidate_id: int
     action: str
@@ -157,6 +165,6 @@ class ReviewStatsResponse(BaseModel):
 
     total_pending: int
     total_confirmed: int
+    total_merged: int
     total_rejected: int
-    total_skipped: int
     total_unified: int

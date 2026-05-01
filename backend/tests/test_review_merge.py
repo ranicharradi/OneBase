@@ -9,7 +9,7 @@ from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedSupplier
 from app.models.unified import UnifiedSupplier
-from app.services.merge import compare_fields, execute_merge, reject_candidate, skip_candidate
+from app.services.merge import compare_fields, execute_merge, reject_candidate
 
 # ── Helpers ──
 
@@ -204,8 +204,8 @@ class TestExecuteMerge:
         assert unified.provenance["contact_name"]["auto"] is True
         assert unified.provenance["contact_name"]["source_entity"] == "EOT"
 
-        # Candidate marked confirmed
-        assert candidate.status == CandidateStatus.CONFIRMED
+        # Candidate marked merged
+        assert candidate.status == CandidateStatus.MERGED
         assert candidate.reviewed_by == "testuser"
 
     def test_merge_missing_conflict_selection_raises(self, test_db):
@@ -249,10 +249,10 @@ class TestExecuteMerge:
         assert set(unified.source_supplier_ids) == {sup_a.id, sup_b.id}
 
 
-# ── reject/skip tests ──
+# ── reject tests ──
 
 
-class TestRejectSkip:
+class TestReject:
     def test_reject_candidate(self, test_db):
         sup_a, sup_b, candidate, _, _ = _setup_pair(test_db)
 
@@ -260,15 +260,6 @@ class TestRejectSkip:
         test_db.commit()
 
         assert candidate.status == CandidateStatus.REJECTED
-        assert candidate.reviewed_by == "reviewer1"
-
-    def test_skip_candidate(self, test_db):
-        sup_a, sup_b, candidate, _, _ = _setup_pair(test_db)
-
-        skip_candidate(test_db, candidate, "reviewer1")
-        test_db.commit()
-
-        assert candidate.status == CandidateStatus.SKIPPED
         assert candidate.reviewed_by == "reviewer1"
 
 
@@ -332,6 +323,10 @@ class TestReviewAPI:
     def test_merge_endpoint(self, authenticated_client, test_db):
         sup_a, sup_b, candidate = self._setup_data(test_db)
 
+        # Confirm first (new two-step flow: pending → confirmed → merged)
+        confirm_resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/confirm")
+        assert confirm_resp.status_code == 200
+
         resp = authenticated_client.post(
             f"/api/review/candidates/{candidate.id}/merge",
             json={
@@ -358,13 +353,6 @@ class TestReviewAPI:
         resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/reject")
         assert resp.status_code == 200
         assert resp.json()["action"] == "rejected"
-
-    def test_skip_endpoint(self, authenticated_client, test_db):
-        _, _, candidate = self._setup_data(test_db)
-
-        resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/skip")
-        assert resp.status_code == 200
-        assert resp.json()["action"] == "skipped"
 
     def test_cannot_merge_already_rejected(self, authenticated_client, test_db):
         sup_a, sup_b, candidate = self._setup_data(test_db)
