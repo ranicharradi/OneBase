@@ -623,7 +623,6 @@ def get_dashboard(
         func.count(case((MatchCandidate.status == CandidateStatus.PENDING, 1))).label("pending"),
         func.count(case((MatchCandidate.status == CandidateStatus.CONFIRMED, 1))).label("confirmed"),
         func.count(case((MatchCandidate.status == CandidateStatus.REJECTED, 1))).label("rejected"),
-        func.count(case((MatchCandidate.status == CandidateStatus.SKIPPED, 1))).label("skipped"),
     ).one()
 
     # Unified stats
@@ -637,6 +636,42 @@ def get_dashboard(
 
     # Recent activity (last 20 audit entries)
     recent = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(20).all()
+
+    # Resolve entity names in bulk to avoid N+1 queries
+    source_ids = {e.entity_id for e in recent if e.entity_type == "data_source" and e.entity_id}
+    batch_ids = {e.entity_id for e in recent if e.entity_type == "import_batch" and e.entity_id}
+    user_ids = {e.entity_id for e in recent if e.entity_type == "user" and e.entity_id}
+
+    source_names = (
+        {s.id: s.name for s in db.query(DataSource.id, DataSource.name).filter(DataSource.id.in_(source_ids)).all()}
+        if source_ids
+        else {}
+    )
+    batch_names = (
+        {
+            b.id: b.filename
+            for b in db.query(ImportBatch.id, ImportBatch.filename).filter(ImportBatch.id.in_(batch_ids)).all()
+        }
+        if batch_ids
+        else {}
+    )
+    user_names = (
+        {u.id: u.username for u in db.query(User.id, User.username).filter(User.id.in_(user_ids)).all()}
+        if user_ids
+        else {}
+    )
+
+    def _resolve_name(e: AuditLog) -> str | None:
+        if not e.entity_id:
+            return None
+        details_name: str | None = (e.details or {}).get("name")
+        if e.entity_type == "data_source":
+            return source_names.get(e.entity_id) or details_name
+        if e.entity_type == "import_batch":
+            return batch_names.get(e.entity_id) or details_name
+        if e.entity_type == "user":
+            return user_names.get(e.entity_id) or details_name
+        return details_name
 
     return DashboardResponse(
         uploads=UploadStats(
@@ -654,7 +689,6 @@ def get_dashboard(
             pending=review_counts.pending,
             confirmed=review_counts.confirmed,
             rejected=review_counts.rejected,
-            skipped=review_counts.skipped,
         ),
         unified=UnifiedStats(
             total_unified=total_unified,
@@ -667,6 +701,7 @@ def get_dashboard(
                 action=e.action,
                 entity_type=e.entity_type,
                 entity_id=e.entity_id,
+                entity_name=_resolve_name(e),
                 details=e.details,
                 created_at=e.created_at,
             )

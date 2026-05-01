@@ -154,7 +154,6 @@ class ReviewProgress(BaseModel):
     pending: int
     confirmed: int
     rejected: int
-    skipped: int
 
 
 class UnifiedStats(BaseModel):
@@ -168,6 +167,7 @@ class RecentActivity(BaseModel):
     action: str
     entity_type: str | None = None
     entity_id: int | None = None
+    entity_name: str | None = None
     details: dict[str, Any] | None = None
     created_at: datetime | None = None
 
