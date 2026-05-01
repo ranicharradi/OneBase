@@ -44,7 +44,7 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
             batch.matching_task_id = self.request.id
             db.commit()
 
-            # Idempotency guard: skip if candidates already exist for this batch
+            # Idempotency guard: return early if candidates already exist for this batch
             # (unless this is a re-upload where we need to invalidate and rematch)
             if invalidate_source_id is None:
                 batch_supplier_ids = db.query(StagedSupplier.id).filter(StagedSupplier.import_batch_id == batch_id)

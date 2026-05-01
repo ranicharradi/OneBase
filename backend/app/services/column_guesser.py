@@ -513,7 +513,7 @@ def guess_column_mapping(
             result[field] = {"column": col, "confidence": round(score, 3)}
             used.add(col)
 
-    # Priority-ordered assignment passes (skip fields already matched by header)
+    # Priority-ordered assignment passes (ignore fields already matched by header)
     # 1. Currency — ISO codes are unambiguous
     _assign("currency", _score_currency)
 

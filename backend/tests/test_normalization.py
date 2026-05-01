@@ -93,3 +93,43 @@ class TestNormalizeName:
     def test_stopword_combined_with_legal_suffix(self, test_db):
         """Both legal suffix and domain stopword are stripped."""
         assert normalize_name("Société Tunisie SARL") == "SOCIETE"
+
+    def test_remove_ste_suffix(self, test_db):
+        """Removes STE (Société) French legal-form prefix when used as a token."""
+        assert normalize_name("STE Industrie") == "INDUSTRIE"
+
+    def test_remove_ets_suffix(self, test_db):
+        """Removes ETS (Établissements) French legal form."""
+        assert normalize_name("ETS Bouaicha") == "BOUAICHA"
+
+    def test_remove_soc_suffix(self, test_db):
+        """Removes SOC abbreviation."""
+        assert normalize_name("SOC Tunisienne de Commerce") == "DE COMMERCE"
+
+    def test_remove_cie_suffix(self, test_db):
+        """Removes CIE abbreviation."""
+        assert normalize_name("Nestlé CIE") == "NESTLE"
+
+    def test_remove_french_article_le(self, test_db):
+        """Strips the French article 'LE' as a token."""
+        assert normalize_name("Le Comptoir Tunisien") == "COMPTOIR"
+
+    def test_remove_french_article_la(self, test_db):
+        """Strips the French article 'LA' as a token."""
+        assert normalize_name("La Poste") == "POSTE"
+
+    def test_remove_french_article_les(self, test_db):
+        """Strips the French article 'LES' as a token."""
+        assert normalize_name("Les Halles Centrales") == "HALLES CENTRALES"
+
+    def test_remove_arabic_article_el(self, test_db):
+        """Strips the Maghreb article 'EL' as a token (e.g., EL AMEN PALETTE)."""
+        assert normalize_name("EL AMEN PALETTE") == "AMEN PALETTE"
+
+    def test_french_article_preserves_substring(self, test_db):
+        """Articles are only stripped at token boundary — LELOUCH stays intact."""
+        assert normalize_name("Lelouch") == "LELOUCH"
+
+    def test_el_preserves_substring(self, test_db):
+        """EL only stripped as standalone token — ELSIL stays intact."""
+        assert normalize_name("Elsil") == "ELSIL"
