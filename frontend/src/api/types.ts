@@ -187,11 +187,19 @@ export interface ReviewQueueItem {
   supplier_b_name: string | null;
   supplier_a_source: string | null;
   supplier_b_source: string | null;
+  supplier_a_source_code: string | null;
+  supplier_b_source_code: string | null;
+  supplier_a_currency: string | null;
+  supplier_b_currency: string | null;
+  supplier_a_contact: string | null;
+  supplier_b_contact: string | null;
   confidence: number;
   match_signals: Record<string, number>;
   status: string;
   group_id: number | null;
   created_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
 }
 
 export interface ReviewQueueResponse {
@@ -214,8 +222,8 @@ export interface ReviewActionResponse {
 export interface ReviewStats {
   total_pending: number;
   total_confirmed: number;
+  total_merged: number;
   total_rejected: number;
-  total_skipped: number;
   total_unified: number;
 }
 
@@ -322,7 +330,6 @@ export interface ReviewProgress {
   pending: number;
   confirmed: number;
   rejected: number;
-  skipped: number;
 }
 
 export interface UnifiedStatsData {
@@ -336,6 +343,7 @@ export interface RecentActivity {
   action: string;
   entity_type: string | null;
   entity_id: number | null;
+  entity_name: string | null;
   details: Record<string, unknown> | null;
   created_at: string | null;
 }

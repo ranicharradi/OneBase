@@ -1,20 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useEffect } from 'react'
-import { screen, waitFor } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../test/test-utils'
 import ReviewQueue from '../ReviewQueue'
 import { useSearch } from '../../contexts/SearchContext'
-
-// ── Mock useNavigate ──────────────────────────────────────────────────
 
 const mockNavigate = vi.fn()
 vi.mock('react-router', async () => {
   const actual = await vi.importActual('react-router')
   return { ...actual, useNavigate: () => mockNavigate }
 })
-
-// ── Mock data ─────────────────────────────────────────────────────────
 
 const mockQueue = {
   items: [
@@ -55,7 +51,6 @@ const mockStats = {
   total_pending: 25,
   total_confirmed: 40,
   total_rejected: 10,
-  total_skipped: 5,
   total_unified: 60,
 }
 
@@ -63,8 +58,6 @@ const mockSources = [
   { id: 1, name: 'SAP', description: '', column_mapping: {}, created_at: '', updated_at: '' },
   { id: 2, name: 'Oracle', description: '', column_mapping: {}, created_at: '', updated_at: '' },
 ]
-
-// ── Helpers ───────────────────────────────────────────────────────────
 
 function setupFetch(queueOverride?: Partial<typeof mockQueue>) {
   const queue = { ...mockQueue, ...queueOverride }
@@ -104,8 +97,6 @@ function SearchSetter({ query }: { query: string }) {
   return null
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────
-
 describe('ReviewQueue page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -115,39 +106,28 @@ describe('ReviewQueue page', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders loading skeleton while fetching', () => {
-    // Never-resolving fetch keeps us in loading state
+  it('renders loading state while fetching', () => {
     vi.spyOn(global, 'fetch').mockImplementation(() => new Promise(() => {}))
-
     render(<ReviewQueue />)
-
-    const shimmerElements = document.querySelectorAll('.animate-shimmer')
-    expect(shimmerElements.length).toBeGreaterThan(0)
+    expect(screen.getByText(/loading queue/i)).toBeInTheDocument()
   })
 
-  it('renders "No candidates found" when queue is empty', async () => {
+  it('renders empty state when queue is empty', async () => {
     setupFetch({ items: [], total: 0, has_more: false })
-
     render(<ReviewQueue />)
-
-    await screen.findByText('No candidates found')
-    expect(screen.getByText('Try adjusting your filters')).toBeInTheDocument()
+    await screen.findByText(/no candidates match/i)
   })
 
   it('renders candidate rows with supplier names', async () => {
     setupFetch()
-
     render(<ReviewQueue />)
-
-    // Wait for supplier names to appear
     await screen.findByText('Acme Corp')
     expect(screen.getByText('ACME Corporation')).toBeInTheDocument()
     expect(screen.getByText('Beta Inc')).toBeInTheDocument()
     expect(screen.getByText('Beta Industries')).toBeInTheDocument()
   })
 
-  it('renders confidence badges with correct colors (high/mid/low)', async () => {
-    // Add a third item with low confidence (<65%)
+  it('renders confidence values with correct tone colors', async () => {
     const lowConfItem = {
       id: 3,
       supplier_a_id: 50,
@@ -163,52 +143,39 @@ describe('ReviewQueue page', () => {
       created_at: '2026-03-28T12:00:00Z',
     }
     setupFetch({ items: [...mockQueue.items, lowConfItem], total: 3 })
-
     render(<ReviewQueue />)
 
-    // Wait for data to load
     await screen.findByText('Acme Corp')
 
-    // High confidence: 92% (>=85) -> text-success-500
-    const badge92 = screen.getByText('92%')
-    expect(badge92.className).toContain('text-success-500')
+    // ConfMini renders confidence as N.NN with var(--tone) color in inline style
+    const value92 = screen.getByText('0.92')
+    expect(value92.getAttribute('style') || '').toMatch(/--ok/)
 
-    // Mid confidence: 75% (>=65, <85) -> text-secondary-500
-    const badge75 = screen.getByText('75%')
-    expect(badge75.className).toContain('text-secondary-500')
+    const value75 = screen.getByText('0.75')
+    expect(value75.getAttribute('style') || '').toMatch(/--warn/)
 
-    // Low confidence: 40% (<65) -> text-danger-500
-    const badge40 = screen.getByText('40%')
-    expect(badge40.className).toContain('text-danger-500')
+    const value40 = screen.getByText('0.40')
+    expect(value40.getAttribute('style') || '').toMatch(/--danger/)
   })
 
-  it('renders status badges', async () => {
+  it('renders status pills', async () => {
     setupFetch()
-
     render(<ReviewQueue />)
-
     await screen.findByText('Acme Corp')
-
-    // Item 1 has status 'pending', item 2 has status 'confirmed'
     expect(screen.getByText('pending')).toBeInTheDocument()
     expect(screen.getByText('confirmed')).toBeInTheDocument()
   })
 
   it('filters by search query from SearchContext', async () => {
     setupFetch()
-
     render(
       <>
         <SearchSetter query="Acme" />
         <ReviewQueue />
       </>,
     )
-
-    // Wait for data and search filter to apply
     await screen.findByText('Acme Corp')
     expect(screen.getByText('ACME Corporation')).toBeInTheDocument()
-
-    // Beta items should be filtered out (search is "Acme")
     expect(screen.queryByText('Beta Inc')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta Industries')).not.toBeInTheDocument()
   })
@@ -216,34 +183,19 @@ describe('ReviewQueue page', () => {
   it('navigates to /review/:id when clicking a row', async () => {
     setupFetch()
     const user = userEvent.setup()
-
     render(<ReviewQueue />)
-
     await screen.findByText('Acme Corp')
-
-    // Click the supplier name — event bubbles up to the row's onClick handler
     await user.click(screen.getByText('Acme Corp'))
-
     expect(mockNavigate).toHaveBeenCalledWith('/review/1')
   })
 
-  it('renders pagination when total > pageSize', async () => {
+  it('renders pagination when total exceeds page size', async () => {
     setupFetch({ total: 100, has_more: true })
-
     render(<ReviewQueue />)
-
-    // Wait for data to load
     await screen.findByText('Acme Corp')
-
-    // Pagination navs should be present (top and bottom)
-    await waitFor(() => {
-      expect(screen.getAllByRole('navigation', { name: /pagination/i })).toHaveLength(2)
-    })
-    expect(screen.getAllByRole('button', { name: /next page/i })).toHaveLength(2)
-    expect(screen.getAllByRole('button', { name: /previous page/i })).toHaveLength(2)
-
-    // Verify pagination displays the total count (scope to the first nav)
-    const paginationNavs = screen.getAllByRole('navigation', { name: /pagination/i })
-    expect(paginationNavs[0]).toHaveTextContent('100')
+    // Pagination renders both top + bottom (each is a <nav aria-label="Pagination">)
+    expect(screen.getAllByRole('navigation', { name: /pagination/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /page 1/i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: /page 2/i }).length).toBeGreaterThan(0)
   })
 })
