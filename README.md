@@ -17,7 +17,7 @@ CSV Upload → Ingestion → Blocking → Scoring → Clustering → Human Revie
    - Embedding cosine similarity (0.25)
    - Short name (0.10), currency (0.05), contact match (0.10)
    - Optional: LightGBM classifier trained from review decisions replaces weighted-sum scoring
-4. **Review queue** presents match candidates for human confirmation, rejection, or skip
+4. **Review queue** presents match candidates for human confirmation or rejection
 5. **Merge** creates a unified supplier record with per-field provenance tracking source, reviewer, and timestamp
 
 ## Quick Start (Docker)
