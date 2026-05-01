@@ -87,7 +87,7 @@ describe('Login page', () => {
     })
   })
 
-  it('navigates to /sources on successful login', async () => {
+  it('navigates to /dashboard on successful login', async () => {
     setupAuth()
     const user = userEvent.setup()
     render(<Login />)
@@ -97,7 +97,7 @@ describe('Login page', () => {
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/sources', { replace: true })
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true })
     })
   })
 
