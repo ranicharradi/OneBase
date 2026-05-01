@@ -96,6 +96,6 @@ docs/pfe/
 docs/rapport/
 docs/revamp/
 revamp.md
-
+/mockup
 .playwright-cli/
 tmp/

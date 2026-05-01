@@ -46,7 +46,7 @@
 | `sources.py` | Data source CRUD + `POST /sources/detect-columns` for CSV auto-detection |
 | `upload.py` | `POST /import/upload` — CSV upload, `GET /import/batches/{id}/status` — task polling |
 | `matching.py` | `POST /matching/run`, `POST /matching/train-model`, `GET /matching/stats` |
-| `review.py` | Review queue, match detail, `POST merge/reject/skip` actions |
+| `review.py` | Review queue, match detail, `POST merge/reject` actions |
 | `unified.py` | Browse unified suppliers, singleton list/promote, CSV export, dashboard analytics |
 | `ws.py` | WebSocket `/ws` — real-time matching notifications via Redis pub/sub |
 
@@ -207,7 +207,7 @@
 | `Upload.tsx` | Upload-first flow — file drop, auto source detection, column mapping, batch tracking |
 | `Sources.tsx` | Data source CRUD — card grid with column mapping editor |
 | `ReviewQueue.tsx` | Filterable candidate queue — confidence badges, status filters |
-| `ReviewDetail.tsx` | Match review — confidence ring, signal breakdown, side-by-side field comparison, merge/reject/skip |
+| `ReviewDetail.tsx` | Match review — confidence ring, signal breakdown, side-by-side field comparison, merge/reject |
 | `UnifiedSuppliers.tsx` | Tabbed view — unified records + singletons with bulk promote, CSV export |
 | `UnifiedSupplierDetail.tsx` | Single unified supplier — provenance tags, source records, audit trail |
 | `Users.tsx` | User list + create, deterministic avatar gradients |
