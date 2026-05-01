@@ -1,35 +1,27 @@
-// ── Unified Suppliers — browse golden records with provenance badges ──
+// ── Unified Suppliers — terminal aesthetic, browse unified records ──
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import Pagination from '../components/Pagination';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { api } from '../api/client';
 import { useSearch } from '../contexts/SearchContext';
-import type { UnifiedSupplierListResponse, SingletonListResponse, DataSource } from '../api/types';
+import type { DataSource, SingletonListResponse, UnifiedSupplierListResponse } from '../api/types';
+import Panel, { PanelHead } from '../components/ui/Panel';
+import Seg from '../components/ui/Seg';
+import IdChip from '../components/ui/IdChip';
+import SourcePill from '../components/ui/SourcePill';
+import Pill from '../components/ui/Pill';
+import Pagination from '../components/Pagination';
 
 type Tab = 'unified' | 'singletons';
 
-function TypeBadge({ isSingleton }: { isSingleton: boolean }) {
-  return (
-    <span
-      className={`
-        inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider
-        ${isSingleton
-          ? 'bg-secondary-500/10 text-secondary-500 border border-secondary-500/20'
-          : 'bg-success-bg text-success-500 border border-success-500/20'
-        }
-      `}
-    >
-      {isSingleton ? 'Singleton' : 'Merged'}
-    </span>
-  );
-}
+const PAGE_SIZE = 50;
 
 export default function UnifiedSuppliers() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { query: searchQuery } = useSearch();
+
   const [tab, setTab] = useState<Tab>('unified');
   const [search, setSearch] = useState('');
   const [sourceType, setSourceType] = useState<string>('');
@@ -40,45 +32,53 @@ export default function UnifiedSuppliers() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [unifiedPage, setUnifiedPage] = useState(0);
   const [singletonsPage, setSingletonsPage] = useState(0);
-  const pageSize = 50;
+  const unifiedTableRef = useRef<HTMLDivElement>(null);
+  const singletonsTableRef = useRef<HTMLDivElement>(null);
 
-  // Unified suppliers query
+  const handleUnifiedPageChange = useCallback((p: number) => {
+    setUnifiedPage(p);
+    unifiedTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  const handleSingletonsPageChange = useCallback((p: number) => {
+    setSingletonsPage(p);
+    singletonsTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
   const { data: unifiedData, isLoading: unifiedLoading } = useQuery<UnifiedSupplierListResponse>({
     queryKey: ['unified-suppliers', search, sourceType, unifiedPage],
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
       if (sourceType) params.set('source_type', sourceType);
-      params.set('limit', String(pageSize));
-      params.set('offset', String(unifiedPage * pageSize));
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String(unifiedPage * PAGE_SIZE));
       return api.get(`/api/unified/suppliers?${params}`);
     },
     placeholderData: keepPreviousData,
   });
 
-  // Singletons query
   const { data: singletonData, isLoading: singletonsLoading } = useQuery<SingletonListResponse>({
     queryKey: ['singletons', singletonSearch, singletonSourceId, singletonsPage],
     queryFn: () => {
       const params = new URLSearchParams();
       if (singletonSearch) params.set('search', singletonSearch);
       if (singletonSourceId) params.set('source_id', singletonSourceId);
-      params.set('limit', String(pageSize));
-      params.set('offset', String(singletonsPage * pageSize));
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String(singletonsPage * PAGE_SIZE));
       return api.get(`/api/unified/singletons?${params}`);
     },
     placeholderData: keepPreviousData,
   });
 
-  // Sources for filter
   const { data: sources } = useQuery<DataSource[]>({
     queryKey: ['sources'],
     queryFn: () => api.get('/api/sources'),
   });
 
-  // Promote single
   const promoteMutation = useMutation({
-    mutationFn: (id: number) => api.post<{ unified_supplier_id: number }>(`/api/unified/singletons/${id}/promote`),
+    mutationFn: (id: number) =>
+      api.post<{ unified_supplier_id: number }>(`/api/unified/singletons/${id}/promote`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['singletons'] });
       queryClient.invalidateQueries({ queryKey: ['unified-suppliers'] });
@@ -86,9 +86,9 @@ export default function UnifiedSuppliers() {
     },
   });
 
-  // Bulk promote
   const bulkPromoteMutation = useMutation({
-    mutationFn: (ids: number[]) => api.post<{ promoted_count: number }>('/api/unified/singletons/bulk-promote', { supplier_ids: ids }),
+    mutationFn: (ids: number[]) =>
+      api.post<{ promoted_count: number }>('/api/unified/singletons/bulk-promote', { supplier_ids: ids }),
     onSuccess: () => {
       setSelectedSingletons(new Set());
       queryClient.invalidateQueries({ queryKey: ['singletons'] });
@@ -97,7 +97,6 @@ export default function UnifiedSuppliers() {
     },
   });
 
-  // Export
   const handleExport = async () => {
     setIsExporting(true);
     setExportError(null);
@@ -115,8 +114,7 @@ export default function UnifiedSuppliers() {
       URL.revokeObjectURL(url);
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Export failed';
-      setExportError(message);
+      setExportError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setIsExporting(false);
     }
@@ -125,7 +123,8 @@ export default function UnifiedSuppliers() {
   const toggleSingleton = (id: number) => {
     setSelectedSingletons(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -139,318 +138,347 @@ export default function UnifiedSuppliers() {
     }
   };
 
+  const filteredUnified = useMemo(() => {
+    if (!unifiedData?.items) return [];
+    if (!searchQuery) return unifiedData.items;
+    const q = searchQuery.toLowerCase();
+    return unifiedData.items.filter(s =>
+      s.name?.toLowerCase().includes(q) ||
+      s.source_code?.toLowerCase().includes(q),
+    );
+  }, [unifiedData, searchQuery]);
+
+  const filteredSingletons = useMemo(() => {
+    if (!singletonData?.items) return [];
+    if (!searchQuery) return singletonData.items;
+    const q = searchQuery.toLowerCase();
+    return singletonData.items.filter(s =>
+      s.name?.toLowerCase().includes(q) ||
+      s.source_code?.toLowerCase().includes(q),
+    );
+  }, [singletonData, searchQuery]);
+
+  const unifiedTotal = unifiedData?.total ?? 0;
+  const singletonTotal = singletonData?.total ?? 0;
+
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-display font-extrabold tracking-tight text-on-surface">Unified Suppliers</h1>
-          <p className="text-sm text-on-surface-variant/60 mt-1">Golden records with full provenance tracking</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {exportError && (
-            <span className="text-xs text-danger-500">{exportError}</span>
-          )}
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            aria-label="Export unified suppliers as CSV"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-600/10 text-accent-600 border border-accent-600/20 hover:bg-accent-600/20 transition-all duration-200 text-sm font-medium disabled:opacity-50"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-            </svg>
-            {isExporting ? 'Exporting…' : 'Export CSV'}
-          </button>
-        </div>
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex gap-1 p-1 rounded-lg bg-white/45 border border-white/70 w-fit">
-        {(['unified', 'singletons'] as Tab[]).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-              tab === t
-                ? 'bg-accent-600/[0.08] text-accent-600 border border-accent-600/20'
-                : 'text-on-surface-variant/60 hover:text-on-surface border border-transparent'
-            }`}
-          >
-            {t === 'unified' ? `Unified Records${unifiedData ? ` (${unifiedData.total})` : ''}` : `Singletons${singletonData ? ` (${singletonData.total})` : ''}`}
-          </button>
-        ))}
-      </div>
-
-      {/* Unified tab */}
-      {tab === 'unified' && (
-        <div className="space-y-4">
-          {/* Filters */}
-          <div className="flex gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-md">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search unified suppliers…"
-                value={search}
-                onChange={e => { setSearch(e.target.value); setUnifiedPage(0); }}
-                className="input-field w-full pl-10 pr-4 py-2.5 text-sm"
-              />
+    <div className="scroll" style={{ height: '100%' }}>
+      <div style={{ padding: 20 }}>
+        {/* Header */}
+        <div className="fade" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Unified records</h1>
+            <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>
+              {unifiedTotal.toLocaleString()} unified · {singletonTotal.toLocaleString()} singletons awaiting promotion
             </div>
-            <select
-              value={sourceType}
-              onChange={e => { setSourceType(e.target.value); setUnifiedPage(0); }}
-              className="input-field px-3 py-2.5 text-sm"
-            >
-              <option value="">All types</option>
-              <option value="merged">Merged</option>
-              <option value="singleton">Singleton</option>
-            </select>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {exportError && (
+              <span className="pill danger" style={{ padding: '2px 6px', fontSize: 10 }}>{exportError}</span>
+            )}
+            <button
+              onClick={handleExport}
+              disabled={isExporting}
+              className="btn btn-sm"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>download</span>
+              {isExporting ? 'Exporting…' : 'Export CSV'}
+            </button>
+          </div>
+        </div>
 
-          {/* Table */}
-          <div className="card overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-white/40 border-b border-on-surface/5">
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Name</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Code</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Type</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Currency</th>
-                  <th className="text-center px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Sources</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Origin</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-on-surface/[0.06]">
-                {unifiedLoading ? (
-                  [...Array(5)].map((_, i) => (
-                    <tr key={i}>
-                      {[...Array(7)].map((_, j) => (
-                        <td key={j} className="px-4 py-3">
-                          <div className="h-4 bg-white/30 rounded animate-pulse" style={{ width: `${60 + j * 10}%` }} />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : unifiedData?.items.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-16 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <svg className="w-12 h-12 text-on-surface-variant/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
-                        </svg>
-                        <p className="text-on-surface-variant/60 text-sm">No unified suppliers yet</p>
-                        <p className="text-outline text-xs">Merge match candidates or promote singletons to build your golden records</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  unifiedData?.items.filter(s => {
-                    if (!searchQuery) return true;
-                    const q = searchQuery.toLowerCase();
-                    return s.name?.toLowerCase().includes(q) || s.source_code?.toLowerCase().includes(q);
-                  }).map((supplier, i) => (
-                    <tr
-                      key={supplier.id}
-                      onClick={() => navigate(`/unified/${supplier.id}`)}
-                      className="hover:bg-white/30 cursor-pointer transition-colors"
-                      style={{ animationDelay: `${i * 0.02}s` }}
-                    >
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-medium text-on-surface">{supplier.name}</span>
-                        {supplier.short_name && (
-                          <span className="ml-2 text-xs text-on-surface-variant/60">({supplier.short_name})</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-mono text-on-surface-variant">{supplier.source_code || '—'}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm text-on-surface-variant">{supplier.supplier_type || '—'}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-mono text-on-surface-variant">{supplier.currency || '—'}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/30 text-xs font-semibold text-on-surface-variant border border-on-surface/[0.06]">
-                          {supplier.source_count}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <TypeBadge isSingleton={supplier.is_singleton} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-on-surface-variant/60">
-                          {supplier.created_at ? new Date(supplier.created_at).toLocaleDateString() : '—'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+        <Panel className="fade">
+          <PanelHead>
+            <Seg<Tab>
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: 'unified', label: 'Unified', count: unifiedTotal },
+                { value: 'singletons', label: 'Singletons', count: singletonTotal },
+              ]}
+            />
+            {tab === 'unified' ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  className="input"
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setUnifiedPage(0); }}
+                  placeholder="Filter by name or code…"
+                  style={{ width: 260, height: 24, fontSize: 11 }}
+                />
+                <select
+                  value={sourceType}
+                  onChange={e => { setSourceType(e.target.value); setUnifiedPage(0); }}
+                  className="input mono"
+                  style={{ height: 24, fontSize: 11, padding: '0 8px' }}
+                >
+                  <option value="">All types</option>
+                  <option value="merged">Merged</option>
+                  <option value="singleton">Singleton</option>
+                </select>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  className="input"
+                  value={singletonSearch}
+                  onChange={e => { setSingletonSearch(e.target.value); setSingletonsPage(0); }}
+                  placeholder="Search singletons…"
+                  style={{ width: 220, height: 24, fontSize: 11 }}
+                />
+                <select
+                  value={singletonSourceId}
+                  onChange={e => { setSingletonSourceId(e.target.value); setSingletonsPage(0); }}
+                  className="input mono"
+                  style={{ height: 24, fontSize: 11, padding: '0 8px' }}
+                >
+                  <option value="">All sources</option>
+                  {sources?.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                {selectedSingletons.size > 0 && (
+                  <button
+                    onClick={() => bulkPromoteMutation.mutate([...selectedSingletons])}
+                    disabled={bulkPromoteMutation.isPending}
+                    className="btn btn-sm btn-accent"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>verified</span>
+                    {bulkPromoteMutation.isPending
+                      ? 'Promoting…'
+                      : `Promote ${selectedSingletons.size}`}
+                  </button>
                 )}
-              </tbody>
-            </table>
-            {unifiedData && unifiedData.total > 0 && (
-              <div className="px-4 py-2.5 bg-white/30 border-t border-on-surface/5">
-                <span className="text-[11px] text-on-surface-variant/60">{unifiedData.total} unified suppliers</span>
               </div>
             )}
-          </div>
-          {unifiedData && unifiedData.total > 0 && (
-            <Pagination
-              page={unifiedPage}
-              pageSize={pageSize}
-              totalItems={unifiedData.total}
-              onPageChange={setUnifiedPage}
-            />
-          )}
-        </div>
-      )}
+          </PanelHead>
 
-      {/* Singletons tab */}
-      {tab === 'singletons' && (
-        <div className="space-y-4">
-          {/* Filters + bulk action */}
-          <div className="flex gap-3 flex-wrap items-center">
-            <div className="relative flex-1 min-w-[200px] max-w-md">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search singletons…"
-                value={singletonSearch}
-                onChange={e => { setSingletonSearch(e.target.value); setSingletonsPage(0); }}
-                className="input-field w-full pl-10 pr-4 py-2.5 text-sm"
-              />
-            </div>
-            <select
-              value={singletonSourceId}
-              onChange={e => { setSingletonSourceId(e.target.value); setSingletonsPage(0); }}
-              className="input-field px-3 py-2.5 text-sm"
-            >
-              <option value="">All sources</option>
-              {sources?.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            {selectedSingletons.size > 0 && (
-              <button
-                onClick={() => bulkPromoteMutation.mutate([...selectedSingletons])}
-                disabled={bulkPromoteMutation.isPending}
-                className="ml-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent-600/10 text-accent-600 border border-accent-600/20 hover:bg-accent-600/20 transition-all duration-200 text-sm font-medium disabled:opacity-50"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-                {bulkPromoteMutation.isPending ? 'Promoting…' : `Promote ${selectedSingletons.size} selected`}
-              </button>
-            )}
-          </div>
+          {/* Unified table */}
+          {tab === 'unified' && (
+            <>
+              {unifiedTotal > PAGE_SIZE && (
+                <div
+                  ref={unifiedTableRef}
+                  style={{
+                    padding: '8px 14px',
+                    borderBottom: '1px solid var(--border-0)',
+                    scrollMarginTop: 56,
+                  }}
+                >
+                  <Pagination
+                    page={unifiedPage}
+                    pageSize={PAGE_SIZE}
+                    totalItems={unifiedTotal}
+                    onPageChange={handleUnifiedPageChange}
+                  />
+                </div>
+              )}
+
+              {unifiedLoading && !unifiedData ? (
+                <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
+                  Loading unified records…
+                </div>
+              ) : filteredUnified.length === 0 ? (
+                <div style={{ padding: 36, textAlign: 'center' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>
+                    inbox
+                  </span>
+                  <div style={{ fontSize: 13, marginTop: 8 }}>No unified records yet</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
+                    Merge match candidates or promote singletons to build your unified records.
+                  </div>
+                </div>
+              ) : (
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 80 }}>ID</th>
+                      <th>Name</th>
+                      <th>Code</th>
+                      <th>Type</th>
+                      <th style={{ width: 60 }}>Ccy</th>
+                      <th className="num" style={{ width: 80 }}>Sources</th>
+                      <th>Origin</th>
+                      <th>Created</th>
+                      <th style={{ width: 30 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUnified.map(s => (
+                      <tr
+                        key={s.id}
+                        className="clickable"
+                        onClick={() => navigate(`/unified/${s.id}`)}
+                      >
+                        <td><IdChip>{s.id}</IdChip></td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontWeight: 500 }}>{s.name || '—'}</span>
+                            {s.short_name && (
+                              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
+                                ({s.short_name})
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="mono" style={{ fontSize: 11, color: 'var(--fg-1)' }}>
+                          {s.source_code || '—'}
+                        </td>
+                        <td>{s.supplier_type || <span style={{ color: 'var(--fg-3)' }}>—</span>}</td>
+                        <td className="mono">{s.currency || <span style={{ color: 'var(--fg-3)' }}>—</span>}</td>
+                        <td className="num mono">{s.source_count}</td>
+                        <td>
+                          {s.is_singleton ? (
+                            <Pill tone="warn">singleton</Pill>
+                          ) : (
+                            <Pill tone="ok">merged</Pill>
+                          )}
+                        </td>
+                        <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+                          {s.created_at ? new Date(s.created_at).toLocaleDateString() : '—'}
+                        </td>
+                        <td>
+                          <span className="material-symbols-outlined" style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+                            chevron_right
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {unifiedTotal > 0 && (
+                <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border-0)' }}>
+                  <Pagination
+                    page={unifiedPage}
+                    pageSize={PAGE_SIZE}
+                    totalItems={unifiedTotal}
+                    onPageChange={handleUnifiedPageChange}
+                  />
+                </div>
+              )}
+            </>
+          )}
 
           {/* Singletons table */}
-          <div className="card overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-white/40 border-b border-on-surface/5">
-                  <th className="px-4 py-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={singletonData ? selectedSingletons.size === singletonData.items.length && singletonData.items.length > 0 : false}
-                      onChange={toggleAllSingletons}
-                      className="rounded border-on-surface-variant/30 bg-white/40 text-accent-600 focus:ring-accent-600/30"
-                    />
-                  </th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Name</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Code</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Source</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Currency</th>
-                  <th className="text-right px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-on-surface/[0.06]">
-                {singletonsLoading ? (
-                  [...Array(5)].map((_, i) => (
-                    <tr key={i}>
-                      {[...Array(6)].map((_, j) => (
-                        <td key={j} className="px-4 py-3">
-                          <div className="h-4 bg-white/30 rounded animate-pulse" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : singletonData?.items.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-16 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <svg className="w-12 h-12 text-on-surface-variant/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                        <p className="text-on-surface-variant/60 text-sm">All suppliers are matched or unified</p>
-                        <p className="text-outline text-xs">No singleton candidates available for promotion</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  singletonData?.items.filter(s => {
-                    if (!searchQuery) return true;
-                    const q = searchQuery.toLowerCase();
-                    return s.name?.toLowerCase().includes(q) || s.source_code?.toLowerCase().includes(q);
-                  }).map((s) => (
-                    <tr key={s.id} className="hover:bg-white/30 transition-colors">
-                      <td className="px-4 py-3">
+          {tab === 'singletons' && (
+            <>
+              {singletonTotal > PAGE_SIZE && (
+                <div
+                  ref={singletonsTableRef}
+                  style={{
+                    padding: '8px 14px',
+                    borderBottom: '1px solid var(--border-0)',
+                    scrollMarginTop: 56,
+                  }}
+                >
+                  <Pagination
+                    page={singletonsPage}
+                    pageSize={PAGE_SIZE}
+                    totalItems={singletonTotal}
+                    onPageChange={handleSingletonsPageChange}
+                  />
+                </div>
+              )}
+
+              {singletonsLoading && !singletonData ? (
+                <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
+                  Loading singletons…
+                </div>
+              ) : filteredSingletons.length === 0 ? (
+                <div style={{ padding: 36, textAlign: 'center' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--ok)' }}>
+                    check_circle
+                  </span>
+                  <div style={{ fontSize: 13, marginTop: 8 }}>All records matched or unified</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
+                    No singleton candidates available for promotion.
+                  </div>
+                </div>
+              ) : (
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 34 }}>
                         <input
                           type="checkbox"
-                          checked={selectedSingletons.has(s.id)}
-                          onChange={() => toggleSingleton(s.id)}
-                          className="rounded border-on-surface-variant/30 bg-white/40 text-accent-600 focus:ring-accent-600/30"
+                          checked={
+                            !!singletonData &&
+                            selectedSingletons.size === singletonData.items.length &&
+                            singletonData.items.length > 0
+                          }
+                          onChange={toggleAllSingletons}
+                          aria-label="Select all singletons"
                         />
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-medium text-on-surface">{s.name || '—'}</span>
-                        {s.short_name && <span className="ml-2 text-xs text-on-surface-variant/60">({s.short_name})</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-mono text-on-surface-variant">{s.source_code || '—'}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs font-medium text-accent-600">{s.data_source_name || '—'}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-mono text-on-surface-variant">{s.currency || '—'}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => promoteMutation.mutate(s.id)}
-                          disabled={promoteMutation.isPending}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-success-bg text-success-500 border border-success-500/20 hover:bg-success-bg/80 transition-all text-xs font-medium disabled:opacity-50"
-                        >
-                          Promote
-                        </button>
-                      </td>
+                      </th>
+                      <th style={{ width: 80 }}>ID</th>
+                      <th>Name</th>
+                      <th>Code</th>
+                      <th style={{ width: 100 }}>Source</th>
+                      <th style={{ width: 60 }}>Ccy</th>
+                      <th style={{ width: 110 }} />
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-            {singletonData && singletonData.total > 0 && (
-              <div className="px-4 py-2.5 bg-white/30 border-t border-on-surface/5">
-                <span className="text-[11px] text-on-surface-variant/60">{singletonData.total} singleton candidates</span>
-              </div>
-            )}
-          </div>
-          {singletonData && singletonData.total > 0 && (
-            <Pagination
-              page={singletonsPage}
-              pageSize={pageSize}
-              totalItems={singletonData.total}
-              onPageChange={setSingletonsPage}
-            />
+                  </thead>
+                  <tbody>
+                    {filteredSingletons.map(s => (
+                      <tr key={s.id}>
+                        <td onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedSingletons.has(s.id)}
+                            onChange={() => toggleSingleton(s.id)}
+                            aria-label={`Select singleton ${s.id}`}
+                          />
+                        </td>
+                        <td><IdChip>{s.id}</IdChip></td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontWeight: 500 }}>{s.name || '—'}</span>
+                            {s.short_name && (
+                              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
+                                ({s.short_name})
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="mono" style={{ fontSize: 11, color: 'var(--fg-1)' }}>
+                          {s.source_code || '—'}
+                        </td>
+                        <td>
+                          {s.data_source_name ? <SourcePill short={s.data_source_name} /> : <span style={{ color: 'var(--fg-3)' }}>—</span>}
+                        </td>
+                        <td className="mono">{s.currency || <span style={{ color: 'var(--fg-3)' }}>—</span>}</td>
+                        <td>
+                          <button
+                            onClick={() => promoteMutation.mutate(s.id)}
+                            disabled={promoteMutation.isPending}
+                            className="btn btn-sm"
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>verified</span>
+                            Promote
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {singletonTotal > 0 && (
+                <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border-0)' }}>
+                  <Pagination
+                    page={singletonsPage}
+                    pageSize={PAGE_SIZE}
+                    totalItems={singletonTotal}
+                    onPageChange={handleSingletonsPageChange}
+                  />
+                </div>
+              )}
+            </>
           )}
-        </div>
-      )}
+        </Panel>
+      </div>
     </div>
   );
 }

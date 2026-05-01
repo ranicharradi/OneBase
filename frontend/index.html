@@ -8,19 +8,20 @@
     <!-- Font preconnects -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Display font: Manrope — bold geometric for headlines -->
-    <!-- Body font: Inter — clean geometric for interface text -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- IBM Plex Sans (UI), Plex Mono (data/code), Plex Serif (occasional editorial accents) -->
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet" />
     <!-- Material Symbols Outlined — icon system -->
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300,0,0&display=swap" rel="stylesheet" />
   </head>
-  <body class="text-on-surface antialiased">
-    <!-- Prevent flash of wrong theme before React hydrates -->
+  <body>
+    <!-- Prevent flash of wrong theme/density before React hydrates -->
     <script>
       (function() {
         var t = localStorage.getItem('onebase_theme');
         if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         document.documentElement.setAttribute('data-theme', t);
+        var d = localStorage.getItem('onebase_density') || 'comfortable';
+        document.documentElement.setAttribute('data-density', d);
       })();
     </script>
     <div id="root"></div>

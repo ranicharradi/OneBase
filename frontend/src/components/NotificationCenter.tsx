@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Notification } from '../hooks/useNotifications';
 
 interface NotificationCenterProps {
@@ -21,6 +21,14 @@ function timeAgo(timestamp: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
 }
+
+const TYPE_TONE: Record<string, 'ok' | 'warn' | 'danger' | 'info' | 'accent'> = {
+  matching_complete: 'ok',
+  matching_failed: 'danger',
+  matching_progress: 'info',
+  upload: 'info',
+  info: 'info',
+};
 
 const TYPE_ICONS: Record<string, string> = {
   matching_complete: 'check_circle',
@@ -56,87 +64,133 @@ export default function NotificationCenter({
   }, [isOpen, onToggle]);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div ref={dropdownRef} style={{ position: 'relative' }}>
       <button
         onClick={onToggle}
-        className="flex items-center bg-white/40 px-3 py-1.5 rounded-full border border-white/60 shadow-sm hover:bg-white/60 transition-colors"
+        className="btn btn-ghost btn-sm"
+        style={{ padding: 4, position: 'relative' }}
         aria-haspopup="true"
         aria-expanded={isOpen}
-        aria-label="Notifications"
+        aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
       >
-        <span className="material-symbols-outlined text-sm text-on-surface-variant mr-1">notifications</span>
-        <span className="text-[10px] font-bold text-accent-600">
-          {unreadCount > 0 ? `+${unreadCount}` : '0'}
-        </span>
+        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>notifications</span>
+        {unreadCount > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: 2,
+              right: 2,
+              minWidth: 14,
+              height: 14,
+              padding: '0 4px',
+              borderRadius: 7,
+              background: 'var(--accent)',
+              color: '#fff',
+              fontSize: 9,
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: 'IBM Plex Mono, monospace',
+              lineHeight: 1,
+            }}
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto bg-surface-100 border border-on-surface/10 rounded-xl shadow-lg z-50">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-on-surface/5">
-            <span className="text-sm font-semibold text-on-surface">Notifications</span>
-            <div className="flex items-center gap-3">
+        <div
+          className="panel"
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 'calc(100% + 6px)',
+            width: 360,
+            maxHeight: '70vh',
+            overflow: 'hidden',
+            zIndex: 90,
+            boxShadow: 'var(--shadow-lg)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div className="panel-head">
+            <span className="panel-title">Notifications</span>
+            <div style={{ display: 'flex', gap: 6 }}>
               {unreadCount > 0 && (
-                <button
-                  onClick={onMarkAllRead}
-                  className="text-xs text-accent-600 hover:text-accent-600/80 font-medium"
-                >
+                <button onClick={onMarkAllRead} className="btn btn-ghost btn-sm">
                   Mark all read
                 </button>
               )}
               {notifications.length > 0 && (
-                <button
-                  onClick={onClearAll}
-                  className="text-xs text-danger-500 hover:text-danger-400 font-medium"
-                >
-                  Clear all
+                <button onClick={onClearAll} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>
+                  Clear
                 </button>
               )}
             </div>
           </div>
 
-          {notifications.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-on-surface-variant/60">
-              No notifications yet
-            </div>
-          ) : (
-            <div className="divide-y divide-on-surface/5">
-              {notifications.map(n => (
-                <div
-                  key={n.id}
-                  className={`group/notif w-full text-left px-4 py-3 hover:bg-white/30 transition-colors ${
-                    !n.read ? 'bg-accent-600/[0.04]' : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
+          <div className="scroll" style={{ flex: 1, minHeight: 0 }}>
+            {notifications.length === 0 ? (
+              <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
+                No notifications yet
+              </div>
+            ) : (
+              notifications.map((n, i) => {
+                const tone = TYPE_TONE[n.type] || 'info';
+                const icon = TYPE_ICONS[n.type] || 'info';
+                return (
+                  <div
+                    key={n.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '20px 1fr auto',
+                      gap: 10,
+                      padding: '10px 14px',
+                      borderBottom: i < notifications.length - 1 ? '1px solid var(--border-0)' : 'none',
+                      background: !n.read ? 'var(--accent-soft)' : 'transparent',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontSize: 14, color: `var(--${tone})`, marginTop: 1 }}
+                    >
+                      {icon}
+                    </span>
                     <button
                       onClick={() => onMarkRead(n.id)}
-                      className="flex items-start gap-2 flex-1 min-w-0"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        color: 'inherit',
+                        font: 'inherit',
+                        minWidth: 0,
+                      }}
                     >
-                      <span className="material-symbols-outlined text-sm mt-0.5 text-on-surface-variant">
-                        {TYPE_ICONS[n.type] || 'info'}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-on-surface leading-relaxed text-left">{n.message}</p>
-                        <p className="text-[10px] text-on-surface-variant/60 mt-0.5 text-left">{timeAgo(n.timestamp)}</p>
+                      <div style={{ fontSize: 12, color: 'var(--fg-0)', lineHeight: 1.4 }}>{n.message}</div>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginTop: 2 }}>
+                        {timeAgo(n.timestamp)}
                       </div>
                     </button>
-                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                      {!n.read && (
-                        <span className="w-2 h-2 rounded-full bg-accent-600" />
-                      )}
-                      <button
-                        onClick={() => onRemove(n.id)}
-                        className="opacity-0 group-hover/notif:opacity-100 transition-opacity p-0.5 rounded hover:bg-danger-500/10"
-                        aria-label="Delete notification"
-                      >
-                        <span className="material-symbols-outlined text-[14px] text-on-surface-variant/40 hover:text-danger-500">close</span>
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => onRemove(n.id)}
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: 2, height: 18 }}
+                      aria-label="Dismiss"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
+                    </button>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
       )}
     </div>

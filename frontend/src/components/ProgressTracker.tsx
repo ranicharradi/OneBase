@@ -1,8 +1,11 @@
-// ── Real-time pipeline progress tracker ──
-// Light Glassmorphism — alive pipeline animation, connecting lines, celebration state
+// ── Pipeline progress tracker — terminal aesthetic ──
 
 import { useEffect, useRef } from 'react';
 import { useTaskStatus } from '../hooks/useTaskStatus';
+import Panel, { PanelHead } from './ui/Panel';
+import Hbar from './ui/Hbar';
+import Spinner from './ui/Spinner';
+import Pill from './ui/Pill';
 
 interface ProgressTrackerProps {
   taskId: string;
@@ -10,35 +13,22 @@ interface ProgressTrackerProps {
 }
 
 const STAGES = [
-  { key: 'PARSING', label: 'Parsing', icon: ParseIcon },
-  { key: 'NORMALIZING', label: 'Normalizing', icon: NormalizeIcon },
-  { key: 'EMBEDDING', label: 'Embedding', icon: EmbedIcon },
-  { key: 'MATCHING_ENQUEUED', label: 'Match Enqueued', icon: MatchEnqueuedIcon },
-  { key: 'MATCHING', label: 'Matching', icon: MatchingRunIcon },
+  { key: 'PARSING', label: 'Parsing CSV' },
+  { key: 'NORMALIZING', label: 'Normalizing fields' },
+  { key: 'EMBEDDING', label: 'Generating embeddings (384d)' },
+  { key: 'MATCHING_ENQUEUED', label: 'Matching enqueued' },
+  { key: 'MATCHING', label: 'Blocking, scoring, clustering' },
 ];
 
-// Matching task stages reported via Celery progress callback
 const MATCHING_STAGES = new Set(['BLOCKING', 'SCORING', 'CLUSTERING', 'INSERTING', 'MATCHING']);
 
-// Map backend states to stage index
 function getActiveStageIndex(state: string, stage: string | null): number {
-  if (state === 'COMPLETE') return STAGES.length; // all done
+  if (state === 'COMPLETE') return STAGES.length;
   if (state === 'FAILURE') return -1;
   if (!stage) return 0;
-
-  // Matching-related stages map to index 4 (the MATCHING stage)
   if (MATCHING_STAGES.has(stage)) return 4;
-
-  const idx = STAGES.findIndex((s) => s.key === stage);
+  const idx = STAGES.findIndex(s => s.key === stage);
   return idx >= 0 ? idx : 0;
-}
-
-function getStageStatus(stageIndex: number, activeIndex: number, state: string): 'pending' | 'active' | 'complete' {
-  if (state === 'COMPLETE') return 'complete';
-  if (state === 'FAILURE' && stageIndex <= activeIndex) return stageIndex === activeIndex ? 'active' : 'complete';
-  if (stageIndex < activeIndex) return 'complete';
-  if (stageIndex === activeIndex) return 'active';
-  return 'pending';
 }
 
 export default function ProgressTracker({ taskId, onComplete }: ProgressTrackerProps) {
@@ -53,233 +43,129 @@ export default function ProgressTracker({ taskId, onComplete }: ProgressTrackerP
     }
   }, [isComplete, onComplete]);
 
+  const overallPct = isComplete ? 100 : isFailed ? 0 : progress ?? 0;
+
   return (
-    <div className="card overflow-hidden">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between p-6 pb-5 border-b border-on-surface/5">
-        <div className="flex items-center gap-3">
-          <div className={`relative flex items-center justify-center w-10 h-10 rounded-xl border transition-all duration-500 ${
-            isComplete
-              ? 'bg-success-bg border-success-500/25'
-              : isFailed
-                ? 'bg-danger-500/[0.08] border-danger-500/15'
-                : 'bg-accent-600/10 border-accent-600/20'
-          }`}>
-            {isComplete ? (
-              <svg className="w-5 h-5 text-success-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            ) : isFailed ? (
-              <svg className="w-5 h-5 text-danger-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-              </svg>
-            ) : (
-              <div className="w-5 h-5 border-2 border-accent-600/40 border-t-accent-600 rounded-full animate-spin" />
-            )}
-          </div>
-          <div>
-            <p className="text-sm font-display font-bold text-on-surface tracking-wide">
-              {isComplete ? 'Processing Complete' : isFailed ? 'Processing Failed' : 'Processing Upload'}
-            </p>
-            <p className="text-xs text-on-surface-variant/60 font-body">
-              {isComplete
-                ? `${row_count?.toLocaleString() ?? '--'} rows processed`
-                : isFailed
-                  ? 'An error occurred during processing'
-                  : detail || 'Pipeline in progress...'
-              }
-            </p>
-          </div>
+    <Panel className="fade">
+      <PanelHead>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {isComplete ? (
+            <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--ok)' }}>check_circle</span>
+          ) : isFailed ? (
+            <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--danger)' }}>error</span>
+          ) : (
+            <Spinner size={14} />
+          )}
+          <span className="panel-title">
+            {isComplete ? 'Ingestion complete' : isFailed ? 'Ingestion failed' : 'Ingestion in progress'}
+          </span>
+          {isComplete && row_count != null && (
+            <Pill tone="ok">{row_count.toLocaleString()} rows</Pill>
+          )}
+        </div>
+        {!isComplete && !isFailed && (
+          <span
+            className="mono tnum"
+            style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}
+          >
+            {Math.round(overallPct)}%
+          </span>
+        )}
+      </PanelHead>
+
+      <div style={{ padding: 14 }}>
+        <Hbar
+          value={overallPct}
+          tone={isComplete ? 'ok' : isFailed ? 'danger' : 'accent'}
+          style={{ height: 6 }}
+        />
+
+        <div style={{ marginTop: 16 }}>
+          {STAGES.map((s, i) => {
+            const done = isComplete || activeIndex > i;
+            const active = !isComplete && !isFailed && activeIndex === i;
+            const stagePct = active ? Math.round(progress ?? 0) : done ? 100 : 0;
+            return (
+              <div
+                key={s.key}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '20px 1fr 60px 60px',
+                  padding: '8px 0',
+                  gap: 12,
+                  alignItems: 'center',
+                  borderBottom: i < STAGES.length - 1 ? '1px solid var(--border-0)' : 'none',
+                }}
+              >
+                <span style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                  {done ? (
+                    <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--ok)' }}>
+                      check
+                    </span>
+                  ) : active ? (
+                    <Spinner size={10} />
+                  ) : (
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        border: '1.5px solid var(--border-1)',
+                      }}
+                    />
+                  )}
+                </span>
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: done ? 'var(--fg-1)' : active ? 'var(--fg-0)' : 'var(--fg-2)',
+                  }}
+                >
+                  {s.label}
+                </span>
+                <Hbar
+                  value={stagePct}
+                  tone={done ? 'ok' : active ? 'accent' : undefined}
+                  style={{ height: 3 }}
+                />
+                <span
+                  className="mono tnum"
+                  style={{ fontSize: 11, textAlign: 'right', color: 'var(--fg-2)' }}
+                >
+                  {done ? 'done' : active ? `${stagePct}%` : 'queued'}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
-        {/* Overall progress percentage */}
-        {!isComplete && !isFailed && progress != null && (
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-display font-extrabold tabular-nums text-accent-600">
-              {Math.round(progress)}
-            </span>
-            <span className="text-xs text-accent-600/60 font-medium">%</span>
+        {detail && (
+          <div
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--fg-2)',
+              marginTop: 12,
+              padding: '6px 10px',
+              background: 'var(--bg-2)',
+              borderRadius: 4,
+            }}
+          >
+            {detail}
+          </div>
+        )}
+
+        {isFailed && detail && (
+          <div
+            className="pill danger"
+            style={{ marginTop: 12, padding: '6px 10px', width: '100%', justifyContent: 'flex-start' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
+            {detail}
           </div>
         )}
       </div>
-
-      {/* ── Pipeline stages — horizontal with connecting lines ── */}
-      <div className="p-6">
-        <div className="relative">
-          {/* Connection line — base track */}
-          <div className="absolute top-6 left-8 right-8 h-[2px] bg-on-surface/5 rounded-full" />
-
-          {/* Connection line — animated fill */}
-          <div
-            className="absolute top-6 left-8 h-[2px] rounded-full transition-all duration-1000 ease-out"
-            style={{
-              width: isComplete
-                ? 'calc(100% - 4rem)'
-                : activeIndex > 0
-                  ? `calc(${(activeIndex / (STAGES.length - 1)) * 100}% - 2rem)`
-                  : '0%',
-              background: isComplete
-                ? 'linear-gradient(90deg, rgba(34,197,94,0.6), rgba(34,197,94,0.4))'
-                : isFailed
-                  ? 'linear-gradient(90deg, rgba(239,68,68,0.5), rgba(239,68,68,0.3))'
-                  : 'linear-gradient(90deg, rgba(59,130,246,0.6), rgba(59,130,246,0.3))',
-            }}
-          />
-
-          {/* Stage nodes */}
-          <div className="relative grid grid-cols-5 gap-2">
-            {STAGES.map((s, i) => {
-              const status = getStageStatus(i, activeIndex, state);
-              const StageIcon = s.icon;
-
-              return (
-                <div key={s.key} className="flex flex-col items-center text-center">
-                  {/* Icon node */}
-                  <div className={`
-                    relative z-10 flex items-center justify-center w-12 h-12 rounded-xl border
-                    transition-all duration-700 ease-out
-                    ${status === 'complete'
-                      ? 'bg-success-bg border-success-500/25 text-success-500'
-                      : status === 'active'
-                        ? 'bg-accent-600/15 border-accent-600/30 text-accent-600'
-                        : 'bg-white/40 border-on-surface/10 text-outline'
-                    }
-                  `}>
-                    {/* Active stage pulse */}
-                    {status === 'active' && (
-                      <div className="absolute inset-0 rounded-xl border border-accent-600/20 animate-pulse" />
-                    )}
-
-                    {status === 'complete' ? (
-                      <svg className="w-5 h-5 animate-fadeIn" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                    ) : status === 'active' ? (
-                      <div className="relative">
-                        <StageIcon className="w-5 h-5" />
-                        {/* Spinning border indicator */}
-                        <div className="absolute -inset-1.5 border border-accent-600/30 border-t-accent-600/60 rounded-lg animate-spin" style={{ animationDuration: '3s' }} />
-                      </div>
-                    ) : (
-                      <StageIcon className="w-5 h-5" />
-                    )}
-                  </div>
-
-                  {/* Label */}
-                  <p className={`mt-3 text-xs font-medium transition-colors duration-500 ${
-                    status === 'complete'
-                      ? 'text-success-500'
-                      : status === 'active'
-                        ? 'text-accent-600 font-semibold'
-                        : 'text-outline'
-                  }`}>
-                    {s.label}
-                  </p>
-
-                  {/* Active indicator dot with pulse */}
-                  {status === 'active' && !isFailed && (
-                    <div className="mt-2 relative">
-                      <div className="w-1.5 h-1.5 rounded-full bg-accent-600" />
-                      <div className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-accent-600 animate-ping" />
-                    </div>
-                  )}
-
-                  {/* Failed indicator */}
-                  {status === 'active' && isFailed && (
-                    <div className="mt-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-danger-500" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Completion summary — celebration treatment ── */}
-      {isComplete && (
-        <div className="px-6 pb-6 animate-slideUp">
-          <div className="relative rounded-xl bg-success-bg border border-success-500/15 px-5 py-4 overflow-hidden">
-            <div className="relative flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-success-500/15 border border-success-500/25">
-                <svg className="w-5 h-5 text-success-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-display font-bold text-success-500">
-                  <span className="font-semibold tabular-nums">{row_count?.toLocaleString() ?? '--'}</span> rows processed
-                </p>
-                {detail && <p className="text-xs text-success-500/70 mt-0.5">{detail}</p>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Failure message ── */}
-      {isFailed && (
-        <div className="px-6 pb-6 animate-slideUp">
-          <div className="relative rounded-xl bg-danger-500/[0.08] border border-danger-500/15 px-5 py-4 overflow-hidden">
-            <div className="relative flex items-start gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-danger-500/10 border border-danger-500/20 shrink-0">
-                <svg className="w-5 h-5 text-danger-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-display font-bold text-danger-500">Processing failed</p>
-                {detail && <p className="text-xs text-danger-500/80 mt-1 leading-relaxed">{detail}</p>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Stage icons ──
-
-function ParseIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-    </svg>
-  );
-}
-
-function NormalizeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
-    </svg>
-  );
-}
-
-function EmbedIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
-    </svg>
-  );
-}
-
-function MatchEnqueuedIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-    </svg>
-  );
-}
-
-function MatchingRunIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      {/* Interlocking circles — represents matching/merging records */}
-      <circle cx="9" cy="12" r="5.5" />
-      <circle cx="15" cy="12" r="5.5" />
-    </svg>
+    </Panel>
   );
 }

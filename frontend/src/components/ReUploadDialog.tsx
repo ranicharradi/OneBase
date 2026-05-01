@@ -1,5 +1,6 @@
-// ── Re-upload confirmation dialog ──
-// Light Glassmorphism — light modal with warning treatment
+// ── Re-upload confirmation — terminal aesthetic ──
+
+import Panel, { PanelHead } from './ui/Panel';
 
 interface ReUploadDialogProps {
   sourceName: string;
@@ -17,77 +18,79 @@ export default function ReUploadDialog({
   onCancel,
 }: ReUploadDialogProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancel}>
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-md" />
-
-      {/* Modal */}
-      <div
-        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl animate-scaleIn overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+    <div className="backdrop" onClick={onCancel} role="dialog" aria-modal="true">
+      <Panel
+        className="fade"
+        style={{
+          width: '100%',
+          maxWidth: 440,
+          boxShadow: 'var(--shadow-lg)',
+        }}
       >
-        <div className="relative p-6">
-          {/* Warning icon */}
-          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-warning-500/10 border border-warning-500/15 mx-auto mb-4">
-            <svg className="w-7 h-7 text-warning-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
-          </div>
+        <div onClick={(e) => e.stopPropagation()}>
+          <PanelHead>
+            <span className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--warn)' }}>
+                warning
+              </span>
+              Re-upload confirmation
+            </span>
+            <button onClick={onCancel} className="btn btn-ghost btn-sm" style={{ padding: 4 }} aria-label="Close">
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+            </button>
+          </PanelHead>
 
-          <h3 className="text-lg font-display font-extrabold text-on-surface text-center mb-2">Re-upload Confirmation</h3>
-          <p className="text-xs text-on-surface-variant/60 text-center mb-5">This action will supersede existing data</p>
-
-          {/* Impact details */}
-          <div className="rounded-xl border border-on-surface/[0.06] bg-surface-100 p-4 space-y-3 mb-4">
-            <p className="text-sm text-on-surface leading-relaxed">
-              <span className="font-semibold text-on-surface">{sourceName}</span> already has{' '}
-              <span className="font-display text-base text-warning-500 tabular-nums">{existingCount.toLocaleString()}</span>{' '}
-              staged suppliers from previous uploads.
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 13, margin: 0, color: 'var(--fg-0)' }}>
+              <b>{sourceName}</b> already has{' '}
+              <span className="mono tnum" style={{ color: 'var(--warn)', fontWeight: 600 }}>
+                {existingCount.toLocaleString()}
+              </span>{' '}
+              staged records from previous uploads.
             </p>
 
             {pendingMatchCount > 0 ? (
-              <p className="text-sm text-on-surface leading-relaxed">
-                Uploading will supersede those records and invalidate{' '}
-                <span className="font-display text-base text-warning-500 tabular-nums">{pendingMatchCount.toLocaleString()}</span>{' '}
+              <p style={{ fontSize: 12, margin: 0, color: 'var(--fg-1)' }}>
+                Re-uploading supersedes those records and invalidates{' '}
+                <span className="mono tnum" style={{ color: 'var(--warn)', fontWeight: 600 }}>
+                  {pendingMatchCount.toLocaleString()}
+                </span>{' '}
                 pending match candidates.
               </p>
             ) : (
-              <p className="text-sm text-on-surface-variant/60 leading-relaxed">
-                New upload will supersede existing staged records.
+              <p style={{ fontSize: 12, margin: 0, color: 'var(--fg-2)' }}>
+                Re-uploading supersedes existing staged records for this source.
               </p>
             )}
+
+            <div
+              className="pill warn"
+              style={{ padding: '6px 10px', width: '100%', justifyContent: 'flex-start' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>info</span>
+              <span style={{ fontSize: 11 }}>
+                Cannot be undone. Old records get marked as superseded.
+              </span>
+            </div>
           </div>
 
-          {/* Warning callout */}
-          <div className="flex items-start gap-2.5 rounded-xl bg-warning-500/[0.08] border border-warning-500/15 px-4 py-3 mb-6">
-            <svg className="w-4 h-4 text-warning-500/70 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-            </svg>
-            <p className="text-xs text-warning-500/80 leading-relaxed">
-              This action cannot be undone. Previously staged records will be marked as superseded.
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onCancel}
-              className="flex-1 rounded-lg border border-white/60 bg-white/40 px-4 py-2.5 text-sm font-medium text-on-surface-variant transition-all duration-200 hover:bg-white/60 hover:text-on-surface"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onConfirm}
-              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-warning-500 px-4 py-2.5 text-sm font-semibold text-black transition-all duration-200 hover:bg-warning-400 active:scale-[0.98] shadow-lg shadow-warning-500/15"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-              </svg>
-              Continue Upload
+          <div
+            style={{
+              padding: '10px 14px',
+              borderTop: '1px solid var(--border-0)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 8,
+            }}
+          >
+            <button onClick={onCancel} className="btn btn-sm">Cancel</button>
+            <button onClick={onConfirm} className="btn btn-sm btn-accent">
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>cloud_upload</span>
+              Continue upload
             </button>
           </div>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }
