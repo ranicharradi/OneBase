@@ -165,9 +165,9 @@ export default function MergeDetail() {
             <span className="pill accent" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 2 · MERGE</span>
             <IdChip style={{ fontSize: 13, padding: '3px 8px' }}>#{detail.id}</IdChip>
             <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, minWidth: 0 }}>
-              {supplier_a.name || `Supplier #${supplier_a.id}`}{' '}
+              {supplier_a.name || `Record #${supplier_a.id}`}{' '}
               <span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>↔</span>{' '}
-              {supplier_b.name || `Supplier #${supplier_b.id}`}
+              {supplier_b.name || `Record #${supplier_b.id}`}
             </h1>
             <Pill tone={tone} dot>
               {detail.confidence.toFixed(3)} confidence
