@@ -1,6 +1,6 @@
 # OneBase
 
-> Enterprise supplier data unification platform. Ingest supplier CSVs from multiple sources, deduplicate via multi-signal matching (text similarity + vector embeddings + ML classification), review matches with a human-in-the-loop UI, and produce golden unified supplier records with full field-level provenance.
+> Enterprise records unification platform. Ingest CSVs from multiple sources (suppliers, customers, products, or any entity type), deduplicate via multi-signal matching (text similarity + vector embeddings + ML classification), review matches with a human-in-the-loop UI, and produce golden unified records with full field-level provenance. The current build ships with supplier-shaped fields out of the box.
 
 ## How It Works
 
@@ -18,7 +18,7 @@ CSV Upload → Ingestion → Blocking → Scoring → Clustering → Human Revie
    - Short name (0.10), currency (0.05), contact match (0.10)
    - Optional: LightGBM classifier trained from review decisions replaces weighted-sum scoring
 4. **Review queue** presents match candidates for human confirmation or rejection
-5. **Merge** creates a unified supplier record with per-field provenance tracking source, reviewer, and timestamp
+5. **Merge** creates a unified record with per-field provenance tracking source, reviewer, and timestamp
 
 ## Quick Start (Docker)
 
@@ -123,7 +123,7 @@ curl -X POST http://localhost:8000/api/review/43/reject \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Unified Suppliers with Provenance
+### Unified Records with Provenance
 
 ```bash
 curl http://localhost:8000/api/unified/1 \
@@ -173,7 +173,7 @@ docker-compose up -d                            # .env only (Docker hostnames)
 | `ADMIN_PASSWORD` | — | Initial admin password |
 | `MATCHING_CONFIDENCE_THRESHOLD` | `0.45` | Minimum score to surface a match candidate |
 | `MATCHING_BLOCKING_K` | `20` | Nearest neighbors for vector blocking |
-| `MATCHING_MAX_CLUSTER_SIZE` | `50` | Maximum suppliers in one match cluster |
+| `MATCHING_MAX_CLUSTER_SIZE` | `50` | Maximum records in one match cluster |
 
 ## Testing
 
