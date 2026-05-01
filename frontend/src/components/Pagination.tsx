@@ -1,4 +1,4 @@
-// ── Reusable pagination — Previous / page numbers / Next ──
+// ── Pagination — terminal aesthetic ──
 
 interface PaginationProps {
   page: number;
@@ -7,10 +7,6 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
 }
 
-/**
- * Build a list of page numbers to render, collapsing ranges into ellipses.
- * Always shows first, last, and up to 2 pages around the current page.
- */
 function getPageNumbers(current: number, total: number): (number | 'ellipsis')[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i);
 
@@ -27,11 +23,6 @@ function getPageNumbers(current: number, total: number): (number | 'ellipsis')[]
   return pages;
 }
 
-const btnBase =
-  'inline-flex items-center justify-center text-xs font-medium rounded-md border transition-colors';
-const navBtn = `${btnBase} gap-1 px-3 py-1.5 border-on-surface/10 bg-white/40 hover:bg-white/60 disabled:opacity-40 disabled:cursor-not-allowed`;
-const pageBtn = `${btnBase} min-w-[28px] py-1.5 border-on-surface/10`;
-
 export default function Pagination({ page, pageSize, totalItems, onPageChange }: PaginationProps) {
   const totalPages = Math.ceil(totalItems / pageSize);
   const start = page * pageSize + 1;
@@ -42,28 +33,35 @@ export default function Pagination({ page, pageSize, totalItems, onPageChange }:
   return (
     <nav
       aria-label="Pagination"
-      className="flex items-center justify-between px-1 py-3 text-xs text-on-surface-variant/60"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '6px 4px',
+        fontSize: 11,
+        color: 'var(--fg-2)',
+      }}
     >
-      <span className="font-mono">
-        Showing <span className="text-on-surface font-semibold">{start}&ndash;{end}</span> of{' '}
-        <span className="text-on-surface font-semibold">{totalItems.toLocaleString()}</span>
+      <span className="mono">
+        Showing <span style={{ color: 'var(--fg-0)', fontWeight: 600 }}>{start}–{end}</span> of{' '}
+        <span style={{ color: 'var(--fg-0)', fontWeight: 600 }}>{totalItems.toLocaleString()}</span>
       </span>
 
-      <div className="flex items-center gap-1.5">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page === 0}
           aria-label="Previous page"
-          className={navBtn}
+          className="btn btn-sm"
         >
-          <span className="material-symbols-outlined text-sm">chevron_left</span>
+          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>chevron_left</span>
           Prev
         </button>
 
         {getPageNumbers(page, totalPages).map((p, i) =>
           p === 'ellipsis' ? (
-            <span key={`e${i}`} className="px-1 text-on-surface-variant/40 select-none">
-              &hellip;
+            <span key={`e${i}`} className="mono" style={{ padding: '0 6px', color: 'var(--fg-3)' }}>
+              …
             </span>
           ) : (
             <button
@@ -71,11 +69,8 @@ export default function Pagination({ page, pageSize, totalItems, onPageChange }:
               onClick={() => onPageChange(p)}
               aria-label={`Page ${p + 1}`}
               aria-current={p === page ? 'page' : undefined}
-              className={`${pageBtn} ${
-                p === page
-                  ? 'bg-accent-600 text-white border-accent-600 font-bold'
-                  : 'bg-white/40 hover:bg-white/60 text-on-surface'
-              }`}
+              className={p === page ? 'btn btn-sm btn-accent' : 'btn btn-sm'}
+              style={{ minWidth: 28, padding: '0 8px' }}
             >
               {p + 1}
             </button>
@@ -86,10 +81,10 @@ export default function Pagination({ page, pageSize, totalItems, onPageChange }:
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages - 1}
           aria-label="Next page"
-          className={navBtn}
+          className="btn btn-sm"
         >
           Next
-          <span className="material-symbols-outlined text-sm">chevron_right</span>
+          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>chevron_right</span>
         </button>
       </div>
     </nav>

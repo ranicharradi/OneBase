@@ -1,4 +1,4 @@
-import { Component, type ReactNode, type ErrorInfo } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -30,26 +30,62 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 animate-fadeIn">
-          <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-danger-500/10 border border-danger-500/20 mb-6">
-            <svg className="w-8 h-8 text-danger-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-display font-extrabold text-on-surface mb-2">Something went wrong</h2>
-          <p className="text-sm text-on-surface-variant/60 mb-6 text-center max-w-md">
-            {this.state.error?.message || 'An unexpected error occurred'}
-          </p>
-          <button
-            onClick={this.handleRetry}
-            className="btn-primary"
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '60vh',
+            padding: 24,
+            background: 'var(--bg-0)',
+          }}
+        >
+          <section
+            className="panel fade"
+            style={{ width: '100%', maxWidth: 480, boxShadow: 'var(--shadow-md)' }}
           >
-            Try again
-          </button>
+            <div className="panel-head">
+              <span className="panel-title" style={{ color: 'var(--danger)' }}>
+                Something went wrong
+              </span>
+              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
+                client error
+              </span>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+                <span
+                  className="material-symbols-outlined"
+                  style={{ fontSize: 18, color: 'var(--danger)' }}
+                >
+                  error
+                </span>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--fg-1)', wordBreak: 'break-word' }}>
+                  {this.state.error?.message || 'An unexpected error occurred'}
+                </div>
+              </div>
+            </div>
+            <div
+              style={{
+                padding: '10px 14px',
+                borderTop: '1px solid var(--border-0)',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+              }}
+            >
+              <button onClick={() => window.location.reload()} className="btn btn-sm">
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>refresh</span>
+                Reload page
+              </button>
+              <button onClick={this.handleRetry} className="btn btn-sm btn-accent">
+                Try again
+              </button>
+            </div>
+          </section>
         </div>
       );
     }
-
     return this.props.children;
   }
 }

@@ -1,57 +1,89 @@
-// ── Review Queue page — pending match candidates sorted by confidence ──
-// Light glassmorphism aesthetic — data-dense queue with airy depth
+// ── Review Queue — terminal aesthetic, card-first ──
 
-import { useCallback, useRef, useState } from 'react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import Pagination from '../components/Pagination';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { api } from '../api/client';
 import { useSearch } from '../contexts/SearchContext';
-import type { ReviewQueueResponse, ReviewStats, DataSource } from '../api/types';
-import { SIGNAL_CONFIG } from '../utils/signals';
+import type { ReviewQueueResponse, ReviewActionResponse, ReviewStats, DataSource } from '../api/types';
+import Panel, { PanelHead } from '../components/ui/Panel';
+import Pagination from '../components/Pagination';
 
-function ConfidenceBadge({ value }: { value: number }) {
+type BucketFilter = 'pending' | 'confirmed' | 'rejected';
+
+const BUCKETS: { id: BucketFilter; label: string; desc: string; tone: string }[] = [
+  { id: 'pending',   label: 'Pending',       desc: 'awaiting decision',   tone: 'warn'   },
+  { id: 'confirmed', label: 'Confirmed dupe', desc: '→ sent to merge',     tone: 'ok'     },
+  { id: 'rejected',  label: 'Not a dupe',     desc: 'split into separate', tone: 'danger' },
+];
+
+const PAGE_SIZE = 20;
+
+// Small confidence ring — SVG donut centred on a number
+function ConfRing({ value }: { value: number }) {
   const pct = Math.round(value * 100);
-  const color =
-    pct >= 85
-      ? 'text-success-500 bg-success-bg border-success-500/20'
-      : pct >= 65
-        ? 'text-secondary-500 bg-secondary-500/10 border-secondary-500/20'
-        : 'text-danger-500 bg-danger-500/10 border-danger-500/20';
-
+  const tone = pct >= 85 ? 'ok' : pct >= 65 ? 'warn' : 'danger';
+  const r = 16;
+  const circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 text-xs font-mono font-semibold rounded-md border ${color}`}>
-      {pct}%
+    <div style={{ position: 'relative', width: 48, height: 48 }}>
+      <svg viewBox="0 0 40 40" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+        <circle cx="20" cy="20" r={r} fill="none" stroke="var(--border-0)" strokeWidth="3" />
+        <circle
+          cx="20" cy="20" r={r} fill="none"
+          stroke={`var(--${tone})`} strokeWidth="3"
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+        />
+      </svg>
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <span className="mono tnum" style={{ fontSize: 11, fontWeight: 600, color: `var(--${tone})`, lineHeight: 1 }}>{pct}</span>
+        <span style={{ fontSize: 7, color: 'var(--fg-3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>conf</span>
+      </div>
+    </div>
+  );
+}
+
+// Source pill fixed to record-identity color
+function RecordPill({ short, tone }: { short: string; tone: 'a' | 'b' }) {
+  const style =
+    tone === 'a'
+      ? { background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', color: 'var(--accent)' }
+      : { background: 'var(--info-soft)', border: '1px solid var(--info-border)', color: 'var(--info)' };
+  return (
+    <span
+      className="mono"
+      style={{ ...style, display: 'inline-flex', alignItems: 'center', padding: '2px 7px', borderRadius: 3, fontSize: 10, fontWeight: 600 }}
+    >
+      {short.toUpperCase()}
     </span>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    pending: 'text-accent-600 bg-accent-600/10 rounded-full text-[10px] font-bold px-4 py-1',
-    confirmed: 'text-success-500 bg-success-bg rounded-full text-[10px] font-bold px-4 py-1',
-    rejected: 'text-danger-500 bg-danger-500/10 rounded-full text-[10px] font-bold px-4 py-1',
-    skipped: 'text-outline bg-white/40 rounded-full text-[10px] font-bold px-4 py-1',
-  };
-
-  return (
-    <span className={`inline-flex items-center uppercase tracking-wider ${styles[status] || styles.pending}`}>
-      {status}
-    </span>
-  );
+// Relative time from ISO string
+function relativeTime(iso: string | null): string {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
 }
 
 export default function ReviewQueue() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { query: searchQuery } = useSearch();
 
-  // Filters
-  const [statusFilter, setStatusFilter] = useState('pending');
+  const [bucket, setBucket] = useState<BucketFilter>('pending');
   const [minConfidence, setMinConfidence] = useState(0);
-  const [maxConfidence, setMaxConfidence] = useState(100);
   const [sourceFilter, setSourceFilter] = useState('');
   const [page, setPage] = useState(0);
-  const pageSize = 50;
   const tableRef = useRef<HTMLDivElement>(null);
 
   const handlePageChange = useCallback((p: number) => {
@@ -59,18 +91,18 @@ export default function ReviewQueue() {
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
-  // Build query params
-  const params = new URLSearchParams();
-  params.set('status', statusFilter);
-  if (minConfidence > 0) params.set('min_confidence', (minConfidence / 100).toFixed(2));
-  if (maxConfidence < 100) params.set('max_confidence', (maxConfidence / 100).toFixed(2));
-  if (sourceFilter) params.set('source_a_id', sourceFilter);
-  params.set('limit', String(pageSize));
-  params.set('offset', String(page * pageSize));
+  const params = useMemo(() => {
+    const p = new URLSearchParams();
+    p.set('status', bucket);
+    if (minConfidence > 0) p.set('min_confidence', (minConfidence / 100).toFixed(2));
+    if (sourceFilter) p.set('source_a_id', sourceFilter);
+    p.set('limit', String(PAGE_SIZE));
+    p.set('offset', String(page * PAGE_SIZE));
+    return p;
+  }, [bucket, minConfidence, sourceFilter, page]);
 
-  // Data queries
   const { data: queue, isLoading } = useQuery({
-    queryKey: ['review-queue', statusFilter, minConfidence, maxConfidence, sourceFilter, page],
+    queryKey: ['review-queue', bucket, minConfidence, sourceFilter, page],
     queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
     placeholderData: keepPreviousData,
   });
@@ -85,300 +117,351 @@ export default function ReviewQueue() {
     queryFn: () => api.get<DataSource[]>('/api/sources'),
   });
 
+  const rejectMutation = useMutation({
+    mutationFn: (id: number) =>
+      api.post<ReviewActionResponse>(`/api/review/candidates/${id}/reject`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
+    },
+  });
+
+  const bucketCounts: Record<BucketFilter, number> = {
+    pending:   stats?.total_pending   ?? 0,
+    confirmed: stats?.total_confirmed ?? 0,
+    rejected:  stats?.total_rejected  ?? 0,
+  };
+
+  const filteredItems = useMemo(() => {
+    if (!queue?.items) return [];
+    if (!searchQuery) return queue.items;
+    const q = searchQuery.toLowerCase();
+    return queue.items.filter(item =>
+      item.supplier_a_name?.toLowerCase().includes(q) ||
+      item.supplier_b_name?.toLowerCase().includes(q) ||
+      item.supplier_a_source?.toLowerCase().includes(q) ||
+      item.supplier_b_source?.toLowerCase().includes(q),
+    );
+  }, [queue, searchQuery]);
+
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* Page header */}
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-3xl font-display font-extrabold tracking-tight text-on-surface">
-            Review Queue
-          </h1>
-          <p className="mt-1 text-sm text-on-surface-variant/60">
-            Match candidates awaiting human review
-          </p>
-        </div>
-      </div>
+    <div className="scroll" style={{ height: '100%' }}>
+      <div style={{ padding: 20 }}>
 
-      {/* Stats bar */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 animate-slideUp">
-          {[
-            { label: 'Pending', value: stats.total_pending, color: 'accent' },
-            { label: 'Confirmed', value: stats.total_confirmed, color: 'success' },
-            { label: 'Rejected', value: stats.total_rejected, color: 'danger' },
-            { label: 'Skipped', value: stats.total_skipped, color: 'surface' },
-            { label: 'Unified', value: stats.total_unified, color: 'secondary' },
-          ].map((stat, i) => (
-            <div
-              key={stat.label}
-              className="card px-4 py-3 flex flex-col items-center gap-1"
-              style={{ animationDelay: `${i * 0.05}s` }}
-            >
-              <span className="text-2xl font-mono font-bold text-on-surface">
-                {stat.value}
-              </span>
-              <span className={`text-[11px] font-semibold uppercase tracking-wider ${
-                stat.color === 'accent' ? 'text-accent-600' :
-                stat.color === 'success' ? 'text-success-500' :
-                stat.color === 'danger' ? 'text-danger-500' :
-                stat.color === 'secondary' ? 'text-secondary-500' :
-                'text-on-surface-variant'
-              }`}>
-                {stat.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="card p-4">
-        <div className="flex flex-wrap items-end gap-4">
-          {/* Status filter */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
-              Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-              className="input-field w-36 text-sm"
-            >
-              <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="rejected">Rejected</option>
-              <option value="skipped">Skipped</option>
-              <option value="">All</option>
-            </select>
-          </div>
-
-          {/* Source filter */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
-              Source Entity
-            </label>
-            <select
-              value={sourceFilter}
-              onChange={(e) => { setSourceFilter(e.target.value); setPage(0); }}
-              className="input-field w-40 text-sm"
-            >
-              <option value="">All Sources</option>
-              {sources?.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Confidence range slider */}
-          <div className="flex flex-col gap-1.5 min-w-[220px]">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
-              Confidence Range
-              <span className="ml-2 font-mono text-accent-600 normal-case tracking-normal">
-                {minConfidence}% – {maxConfidence}%
-              </span>
-            </label>
-            <div className="relative h-6 flex items-center">
-              {/* Track background */}
-              <div className="absolute inset-x-0 h-1.5 rounded-full bg-on-surface/10" />
-              {/* Active range fill */}
-              <div
-                className="absolute h-1.5 rounded-full bg-accent-600/50"
-                style={{ left: `${minConfidence}%`, right: `${100 - maxConfidence}%` }}
-              />
-              {/* Min thumb */}
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={minConfidence}
-                onChange={(e) => {
-                  const v = Math.min(Number(e.target.value), maxConfidence - 5);
-                  setMinConfidence(v);
-                  setPage(0);
-                }}
-                className="range-thumb absolute inset-x-0"
-              />
-              {/* Max thumb */}
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={maxConfidence}
-                onChange={(e) => {
-                  const v = Math.max(Number(e.target.value), minConfidence + 5);
-                  setMaxConfidence(v);
-                  setPage(0);
-                }}
-                className="range-thumb absolute inset-x-0"
-              />
+        {/* ── Stage rail ── */}
+        <div className="fade" style={{
+          display: 'flex', alignItems: 'stretch',
+          background: 'var(--bg-1)', border: '1px solid var(--border-0)', borderRadius: 6,
+          overflow: 'hidden', marginBottom: 12,
+        }}>
+          {/* 01 Review — active */}
+          <div style={{ padding: '10px 16px', minWidth: 180, background: 'var(--warn-soft)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden' }}>
+            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--warn)', opacity: 0.08, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>01</span>
+            <div className="label" style={{ color: 'var(--warn)', fontWeight: 600, position: 'relative' }}>Review</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Same record?</div>
+            <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--warn)', marginTop: 4, position: 'relative' }}>
+              {stats?.total_pending ?? '—'}{' '}
+              <span style={{ fontSize: 10, color: 'var(--fg-2)', fontWeight: 400 }}>pending</span>
             </div>
           </div>
-
-          {/* Result count */}
-          <div className="ml-auto flex items-center gap-2 text-sm text-on-surface-variant/60">
-            {queue && (
-              <>
-                <span className="font-mono text-accent-600">{queue.total}</span>
-                <span>candidates</span>
-              </>
-            )}
+          <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
+          {/* 02 Merge — dimmed but clickable */}
+          <div
+            onClick={() => navigate('/merge')}
+            style={{ padding: '10px 16px', minWidth: 180, opacity: 0.5, background: 'var(--bg-2)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+            title="Go to Merge queue"
+          >
+            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>02</span>
+            <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Merge</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Reconcile fields</div>
+            <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
+              {stats?.total_confirmed ?? '—'}{' '}
+              <span style={{ fontSize: 10, color: 'var(--fg-2)', fontWeight: 400 }}>queued</span>
+            </div>
+          </div>
+          <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
+          {/* 03 Unified — dimmed */}
+          <div style={{ padding: '10px 16px', flex: 1, opacity: 0.45, background: 'var(--bg-2)', position: 'relative', overflow: 'hidden' }}>
+            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>03</span>
+            <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Unified</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Unified records</div>
+            <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
+              {stats?.total_unified ?? '—'}{' '}
+              <span style={{ fontSize: 10, color: 'var(--fg-2)', fontWeight: 400 }}>records</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Pagination (top) */}
-      {queue && queue.total > 0 && (
-        <div ref={tableRef} className="scroll-mt-4">
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={queue.total}
-            onPageChange={handlePageChange}
-          />
+        {/* ── Title row ── */}
+        <div className="fade" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <span className="pill warn" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 1 · REVIEW</span>
+          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Review queue</h1>
         </div>
-      )}
 
-      {/* Queue table */}
-      <div className="card overflow-hidden">
-        {isLoading ? (
-          <div className="space-y-0">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-on-surface/[0.06]">
-                <div className="animate-shimmer h-4 w-16 rounded" />
-                <div className="animate-shimmer h-4 w-40 rounded flex-1" />
-                <div className="animate-shimmer h-4 w-40 rounded flex-1" />
-                <div className="animate-shimmer h-4 w-16 rounded" />
+        {/* ── Bucket tabs ── */}
+        <div className="fade" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+          {BUCKETS.map(b => {
+            const active = bucket === b.id;
+            return (
+              <button
+                key={b.id}
+                onClick={() => { setBucket(b.id); setPage(0); }}
+                style={{
+                  padding: '12px 14px', textAlign: 'left', cursor: 'pointer',
+                  background: active ? `var(--${b.tone}-soft)` : 'var(--bg-1)',
+                  border: `1px solid ${active ? `var(--${b.tone})` : 'var(--border-0)'}`,
+                  borderRadius: 6, fontFamily: 'inherit', color: 'var(--fg-0)',
+                  display: 'flex', flexDirection: 'column', gap: 4,
+                  boxShadow: active ? `inset 0 -3px 0 var(--${b.tone})` : 'none',
+                  transition: 'background 0.1s, border-color 0.1s, box-shadow 0.1s',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: `var(--${b.tone})`, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    {b.label}
+                  </span>
+                  <span className="pill-dot" style={{ background: `var(--${b.tone})` }} />
+                </div>
+                <span className="mono tnum" style={{
+                  fontSize: 26, fontWeight: 600, lineHeight: 1,
+                  color: active ? `var(--${b.tone})` : 'var(--fg-0)',
+                  transition: 'color 0.15s',
+                }}>
+                  {bucketCounts[b.id]}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--fg-2)' }}>{b.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── Handoff banner ── */}
+        <div className="fade" style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '8px 14px', marginBottom: 14,
+          background: 'var(--accent-soft)', border: '1px dashed var(--accent-border)',
+          borderRadius: 6, fontSize: 12, color: 'var(--fg-1)',
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--accent)' }}>call_split</span>
+          <span>
+            <b>Handoff:</b> items confirmed here move to the{' '}
+            <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Merge queue</span>{' '}
+            for field-level reconciliation by a data steward.
+          </span>
+          <span style={{ flex: 1 }} />
+          <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>auto-routed · no merging on this screen</span>
+        </div>
+
+        {/* ── Filters ── */}
+        <Panel className="fade">
+          <PanelHead>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <select
+                className="input mono"
+                value={sourceFilter}
+                onChange={(e) => { setSourceFilter(e.target.value); setPage(0); }}
+                style={{ height: 24, fontSize: 11, padding: '0 8px', maxWidth: 200 }}
+              >
+                <option value="">All sources</option>
+                {sources?.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="label">min confidence</span>
+              <input
+                type="range" min={0} max={100} step={5} value={minConfidence}
+                onChange={(e) => { setMinConfidence(Number(e.target.value)); setPage(0); }}
+                style={{ width: 120, accentColor: 'var(--accent)' }}
+                aria-label="Minimum confidence"
+              />
+              <span className="mono tnum" style={{ fontSize: 11, width: 36 }}>
+                {(minConfidence / 100).toFixed(2)}
+              </span>
+            </div>
+          </PanelHead>
+
+          {/* Top pagination */}
+          {queue && queue.total > PAGE_SIZE && (
+            <div ref={tableRef} style={{ padding: '8px 14px', borderBottom: '1px solid var(--border-0)', scrollMarginTop: 56 }}>
+              <Pagination page={page} pageSize={PAGE_SIZE} totalItems={queue.total} onPageChange={handlePageChange} />
+            </div>
+          )}
+
+          {/* Card list */}
+          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {isLoading && !queue ? (
+              <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
+                Loading queue…
               </div>
-            ))}
-          </div>
-        ) : !queue?.items.length ? (
-          <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant/60">
-            <svg className="w-12 h-12 mb-3 text-outline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-sm font-medium">No candidates found</p>
-            <p className="text-xs mt-1 text-outline">Try adjusting your filters</p>
-          </div>
-        ) : (
-          <>
-            {/* Table header */}
-            <div className="grid grid-cols-[1fr_1fr_100px_90px_80px] gap-4 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 border-b border-on-surface/5 bg-white/40">
-              <span>Supplier A</span>
-              <span>Supplier B</span>
-              <span className="text-center">Confidence</span>
-              <span className="text-center">Status</span>
-              <span className="text-center">Action</span>
-            </div>
+            ) : filteredItems.length === 0 ? (
+              <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>inbox</span>
+                <div style={{ marginTop: 8 }}>No candidates match the current filters.</div>
+              </div>
+            ) : filteredItems.map((item, i) => {
+              const isPending = item.status === 'pending';
+              const statusTone = item.status === 'confirmed' ? 'ok' : item.status === 'rejected' ? 'danger' : null;
 
-            {/* Rows */}
-            <div>
-              {(() => {
-                const filteredItems = queue.items.filter(item => {
-                  if (!searchQuery) return true;
-                  const q = searchQuery.toLowerCase();
-                  return (
-                    item.supplier_a_name?.toLowerCase().includes(q) ||
-                    item.supplier_b_name?.toLowerCase().includes(q) ||
-                    item.supplier_a_source?.toLowerCase().includes(q) ||
-                    item.supplier_b_source?.toLowerCase().includes(q)
-                  );
-                });
-                return filteredItems.map((item, i) => (
+              return (
                 <div
                   key={item.id}
-                  className="group hover:bg-white/30 transition-colors cursor-pointer border-b border-on-surface/[0.06] last:border-b-0"
-                  style={{ animationDelay: `${i * 0.03}s` }}
-                  onClick={() => navigate(`/review/${item.id}`)}
+                  className="review-card"
+                  style={{
+                    background: 'var(--bg-1)',
+                    border: '1px solid var(--border-0)',
+                    borderLeft: statusTone ? `3px solid var(--${statusTone})` : '3px solid transparent',
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    opacity: !isPending ? 0.75 : 1,
+                    transition: 'opacity 0.2s, border-color 0.2s, transform 0.12s, box-shadow 0.12s',
+                  animation: 'fadeIn 0.2s ease both',
+                  animationDelay: `${i * 35}ms`,
+                  }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)';
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-md)';
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLDivElement).style.transform = '';
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = '';
+                  }}
                 >
-                  <div className="grid grid-cols-[1fr_1fr_100px_90px_80px] gap-4 items-center px-5 py-3.5">
-                    {/* Supplier A */}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-on-surface truncate">
-                        {item.supplier_a_name || '—'}
-                      </p>
-                      {item.supplier_a_source && (
-                        <span className="text-[11px] font-mono text-on-surface-variant/60">
-                          {item.supplier_a_source}
-                        </span>
-                      )}
-                    </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 260px', alignItems: 'stretch' }}>
 
-                    {/* Supplier B */}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-on-surface truncate">
-                        {item.supplier_b_name || '—'}
-                      </p>
-                      {item.supplier_b_source && (
-                        <span className="text-[11px] font-mono text-on-surface-variant/60">
-                          {item.supplier_b_source}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Confidence */}
-                    <div className="text-center">
-                      <ConfidenceBadge value={item.confidence} />
-                    </div>
-
-                    {/* Status */}
-                    <div className="text-center">
-                      <StatusBadge status={item.status} />
-                    </div>
-
-                    {/* Action */}
-                    <div className="text-center">
-                      <button
-                        className="inline-flex items-center gap-1 text-xs font-medium text-accent-600 hover:text-accent-600/80 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/review/${item.id}`);
-                        }}
-                      >
-                        Review
-                        <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Signal badges */}
-                  {item.match_signals && Object.keys(item.match_signals).length > 0 && (
-                    <div className="px-5 pb-2 -mt-1 flex gap-2 flex-wrap">
-                      {Object.entries(item.match_signals).map(([key, value]) => {
-                        const config = SIGNAL_CONFIG[key];
-                        if (!config) return null;
-                        return (
-                          <span
-                            key={key}
-                            className="text-[10px] font-mono text-on-surface-variant/60 bg-white/30 px-1.5 py-0.5 rounded"
-                            title={config.label}
-                          >
-                            {config.shortLabel}: {(value * 100).toFixed(0)}%
+                    {/* ── Record A ── */}
+                    <div style={{ padding: '14px 16px', borderRight: '1px solid var(--border-0)', borderLeft: '3px solid var(--accent-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
+                        <RecordPill short={item.supplier_a_source ?? '?'} tone="a" />
+                        {item.supplier_a_source_code && (
+                          <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
+                            {item.supplier_a_source_code}
                           </span>
-                        );
-                      })}
+                        )}
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--fg-0)', lineHeight: 1.3 }}>
+                        {item.supplier_a_name || '—'}
+                      </div>
+                      {(item.supplier_a_currency || item.supplier_a_contact) && (
+                        <div className="mono" style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 5 }}>
+                          {[item.supplier_a_currency, item.supplier_a_contact].filter(Boolean).join(' · ')}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ));
-              })()}
-            </div>
-          </>
-        )}
-      </div>
 
-      {/* Pagination (bottom) */}
-      {queue && queue.total > 0 && (
-        <Pagination
-          page={page}
-          pageSize={pageSize}
-          totalItems={queue.total}
-          onPageChange={handlePageChange}
-        />
-      )}
+                    {/* ── Confidence ring + age ── */}
+                    <div style={{
+                      padding: '14px 8px',
+                      borderRight: '1px solid var(--border-0)',
+                      background: 'var(--bg-2)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    }}>
+                      <ConfRing value={item.confidence} />
+                      <span className="mono" style={{ fontSize: 9, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {relativeTime(item.created_at)}
+                      </span>
+                    </div>
+
+                    {/* ── Record B ── */}
+                    <div style={{ padding: '14px 16px', borderRight: '1px solid var(--border-0)', borderLeft: '3px solid var(--info-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
+                        <RecordPill short={item.supplier_b_source ?? '?'} tone="b" />
+                        {item.supplier_b_source_code && (
+                          <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
+                            {item.supplier_b_source_code}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--fg-0)', lineHeight: 1.3 }}>
+                        {item.supplier_b_name || '—'}
+                      </div>
+                      {(item.supplier_b_currency || item.supplier_b_contact) && (
+                        <div className="mono" style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 5 }}>
+                          {[item.supplier_b_currency, item.supplier_b_contact].filter(Boolean).join(' · ')}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Decision column ── */}
+                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>
+                      {!isPending ? (
+                        <span className={`pill ${statusTone ?? 'accent'}`} style={{ padding: '3px 8px', justifyContent: 'center' }}>
+                          <span className="pill-dot" />
+                          {item.status === 'confirmed' ? 'Confirmed dupe' : 'Not a duplicate'}
+                        </span>
+                      ) : (
+                        <>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                            <button
+                              onClick={() => navigate(`/review/${item.id}`)}
+                              style={{
+                                padding: '5px 10px', cursor: 'pointer',
+                                background: 'transparent', color: 'var(--ok)',
+                                border: '1px solid var(--ok)', borderRadius: 3,
+                                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                                letterSpacing: '0.02em', transition: 'background 0.1s, filter 0.1s',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--ok-soft)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              ✓ Same
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); rejectMutation.mutate(item.id); }}
+                              disabled={rejectMutation.isPending}
+                              style={{
+                                padding: '5px 10px', cursor: 'pointer',
+                                background: 'transparent', color: 'var(--danger)',
+                                border: '1px solid var(--danger)', borderRadius: 3,
+                                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                                letterSpacing: '0.02em', transition: 'background 0.1s',
+                                opacity: rejectMutation.isPending ? 0.5 : 1,
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--danger-soft)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              ✕ Diff
+                            </button>
+                          </div>
+                          <div style={{ borderTop: '1px solid var(--border-0)', paddingTop: 6, marginTop: 2 }}>
+                            <button
+                              onClick={() => navigate(`/review/${item.id}`)}
+                              style={{
+                                width: '100%', padding: '5px 8px', cursor: 'pointer',
+                                background: 'transparent', border: 'none',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                                fontFamily: 'var(--font-mono)', fontSize: 11,
+                                color: 'var(--accent)', letterSpacing: '0.03em',
+                                transition: 'opacity 0.1s',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+                              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                            >
+                              See evidence
+                              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_forward</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bottom pagination */}
+          {queue && queue.total > 0 && (
+            <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border-0)' }}>
+              <Pagination page={page} pageSize={PAGE_SIZE} totalItems={queue.total} onPageChange={handlePageChange} />
+            </div>
+          )}
+        </Panel>
+      </div>
     </div>
   );
 }

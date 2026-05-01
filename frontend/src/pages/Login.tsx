@@ -1,8 +1,9 @@
-// ── Login page — light glassmorphism with subtle depth ──
+// ── Login — terminal aesthetic, centered panel ──
 
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
+import Spinner from '../components/ui/Spinner';
 
 export default function Login() {
   const { login } = useAuth();
@@ -19,7 +20,7 @@ export default function Login() {
 
     try {
       await login(username, password);
-      navigate('/sources', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -28,133 +29,126 @@ export default function Login() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4 overflow-hidden">
-      {/* ── Subtle background accents ── */}
-      <div className="pointer-events-none absolute inset-0">
-        {/* Soft blue gradient accent — top-right */}
-        <div
-          className="absolute -top-1/3 -right-1/4 w-[900px] h-[900px] rounded-full opacity-[0.12]"
-          style={{
-            background: 'radial-gradient(circle, var(--color-accent-300) 0%, transparent 70%)',
-          }}
-        />
-        {/* Secondary accent — bottom-left */}
-        <div
-          className="absolute -bottom-1/4 -left-1/4 w-[700px] h-[700px] rounded-full opacity-[0.08]"
-          style={{
-            background: 'radial-gradient(circle, var(--color-accent-400) 0%, transparent 65%)',
-          }}
-        />
-      </div>
-
-      {/* ── Content ── */}
-      <div className="relative w-full max-w-[400px]">
-        {/* Brand — hero-level treatment */}
-        <div className="mb-12 flex flex-col items-center animate-fadeIn">
-          {/* Logo mark */}
-          <div className="relative mb-6 animate-float" style={{ animationDuration: '6s' }}>
-            <div className="absolute -inset-3 rounded-2xl bg-accent-600/10 blur-xl" />
-            <div className="relative flex items-center justify-center w-14 h-14 rounded-2xl bg-white/60 border border-accent-600/20 shadow-lg">
-              <svg className="w-7 h-7 text-accent-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
-              </svg>
-            </div>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        background: 'var(--bg-0)',
+      }}
+    >
+      <div className="fade" style={{ width: '100%', maxWidth: 360 }}>
+        {/* Brand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
+          <div
+            style={{
+              width: 30,
+              height: 30,
+              background: 'var(--fg-0)',
+              color: 'var(--bg-1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 700,
+              fontSize: 14,
+              fontFamily: 'IBM Plex Mono, monospace',
+              borderRadius: 4,
+            }}
+          >
+            1B
           </div>
-          {/* Brand name */}
-          <h1 className="font-display text-4xl tracking-tight text-on-surface animate-slideUp stagger-1">
-            OneBase
-          </h1>
-          <p className="mt-3 text-sm tracking-[0.15em] uppercase font-light text-on-surface-variant/60 animate-slideUp stagger-2">
-            Supplier Data Platform
-          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>OneBase</span>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
+              supplier data ledger
+            </span>
+          </div>
         </div>
 
-        {/* Login form — glass card */}
-        <form
-          onSubmit={handleSubmit}
-          className="relative animate-slideUp stagger-3"
-        >
-          <div className="relative rounded-2xl bg-white/45 backdrop-blur-[40px] border border-white/70 p-8 shadow-2xl">
-            <h2 className="mb-8 text-center text-base font-medium text-on-surface tracking-wide">
-              Sign in to your account
-            </h2>
+        <form onSubmit={handleSubmit} className="panel" style={{ padding: 0 }}>
+          <div className="panel-head">
+            <span className="panel-title">Sign in</span>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>SSO unavailable · use credentials</span>
+          </div>
 
+          <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
             {error && (
-              <div className="mb-6 rounded-xl border border-danger-500/20 bg-danger-500/[0.07] px-4 py-3 text-sm text-danger-500 animate-scaleIn">
-                <div className="flex items-center gap-2.5">
-                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                  </svg>
-                  {error}
-                </div>
+              <div
+                className="pill danger"
+                style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}
+                role="alert"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
+                {error}
               </div>
             )}
 
-            <div className="space-y-5">
-              <div className="animate-slideUp stagger-4">
-                <label htmlFor="username" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant/60">
-                  Username
-                </label>
-                <input
-                  id="username"
-                  type="text"
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="input-field"
-                  placeholder="Enter username"
-                  autoComplete="username"
-                  autoFocus
-                />
-              </div>
-
-              <div className="animate-slideUp stagger-5">
-                <label htmlFor="password" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant/60">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input-field"
-                  placeholder="Enter password"
-                  autoComplete="current-password"
-                />
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label htmlFor="username" className="label">Username</label>
+              <input
+                id="username"
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="input"
+                placeholder="admin"
+                autoComplete="username"
+                autoFocus
+              />
             </div>
 
-            <div className="animate-slideUp stagger-6 mt-8">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="btn-primary w-full py-3 text-sm"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign in'
-                )}
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label htmlFor="password" className="label">Password</label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input"
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
             </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn btn-accent"
+              style={{ height: 32, justifyContent: 'center' }}
+            >
+              {isSubmitting ? (
+                <>
+                  <Spinner size={12} color="#fff" />
+                  Signing in…
+                </>
+              ) : (
+                <>
+                  Sign in
+                  <span className="kbd" style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', borderColor: 'rgba(255,255,255,0.25)' }}>↵</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          <div
+            style={{
+              padding: '8px 14px',
+              borderTop: '1px solid var(--border-0)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: 10,
+              color: 'var(--fg-2)',
+              fontFamily: 'IBM Plex Mono, monospace',
+            }}
+          >
+            <span>v4.2.1</span>
+            <span>onebase · enterprise edition</span>
           </div>
         </form>
-
-        {/* Footer */}
-        <p className="mt-8 text-center animate-slideUp stagger-7">
-          <span className="font-display text-sm italic text-outline tracking-wide">
-            OneBase
-          </span>
-          <span className="mx-2 text-on-surface-variant/40">&middot;</span>
-          <span className="text-[11px] uppercase tracking-[0.1em] text-outline">
-            Supplier Deduplication
-          </span>
-        </p>
       </div>
     </div>
   );

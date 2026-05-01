@@ -13,6 +13,8 @@ import Users from './pages/Users';
 import Upload from './pages/Upload';
 import ReviewQueue from './pages/ReviewQueue';
 import ReviewDetail from './pages/ReviewDetail';
+import MergeQueue from './pages/MergeQueue';
+import MergeDetail from './pages/MergeDetail';
 import Dashboard from './pages/Dashboard';
 import UnifiedSuppliers from './pages/UnifiedSuppliers';
 import UnifiedSupplierDetail from './pages/UnifiedSupplierDetail';
@@ -54,6 +56,8 @@ export default function App() {
               <Route path="unified/:id" element={<UnifiedSupplierDetail />} />
               <Route path="review" element={<ReviewQueue />} />
               <Route path="review/:id" element={<ReviewDetail />} />
+              <Route path="merge" element={<MergeQueue />} />
+              <Route path="merge/:id" element={<MergeDetail />} />
               <Route path="upload" element={<Upload />} />
               <Route path="sources" element={<Sources />} />
               <Route path="users" element={<Users />} />

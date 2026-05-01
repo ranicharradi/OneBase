@@ -1,66 +1,35 @@
-// ── Review Detail page — side-by-side match comparison + merge UI ──
-// Light glassmorphism aesthetic — field-level conflict resolution
+// ── Review Detail — triage only: confirm duplicate or reject ──
 
-import { useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type {
-  MatchDetailResponse,
   FieldComparison,
-  FieldSelection,
+  MatchDetailResponse,
   ReviewActionResponse,
+  SupplierDetail,
 } from '../api/types';
 import { SIGNAL_CONFIG } from '../utils/signals';
+import Panel, { PanelHead } from '../components/ui/Panel';
+import Pill from '../components/ui/Pill';
+import IdChip from '../components/ui/IdChip';
+import SourcePill from '../components/ui/SourcePill';
+import Hbar from '../components/ui/Hbar';
 
-function SignalBar({ label, icon, value }: { label: string; icon: string; value: number }) {
-  const pct = Math.round(value * 100);
-  const barColor =
-    pct >= 80 ? 'bg-success-500' : pct >= 50 ? 'bg-secondary-500' : 'bg-danger-500';
+type Layout = 'sideBySide' | 'stacked' | 'diff';
 
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-base w-5 text-center opacity-60">{icon}</span>
-      <span className="text-xs text-on-surface-variant w-28 shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-white/30 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-700 ${barColor}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="text-xs font-mono text-on-surface-variant w-10 text-right">{pct}%</span>
-    </div>
-  );
+const LAYOUT_KEY = 'onebase_review_layout';
+
+function getInitialLayout(): Layout {
+  const stored = localStorage.getItem(LAYOUT_KEY);
+  if (stored === 'sideBySide' || stored === 'stacked' || stored === 'diff') return stored;
+  return 'sideBySide';
 }
 
-function ConfidenceRing({ value }: { value: number }) {
-  const pct = Math.round(value * 100);
-  const circumference = 2 * Math.PI * 36;
-  const offset = circumference - (value * circumference);
-  const color =
-    pct >= 85 ? '#4CAF50' : pct >= 65 ? '#fbbf24' : '#f87171';
-
-  return (
-    <div className="relative inline-flex items-center justify-center w-24 h-24">
-      <svg className="w-24 h-24 -rotate-90" viewBox="0 0 80 80">
-        <circle cx="40" cy="40" r="36" fill="none" stroke="var(--ring-track)" strokeWidth="4" />
-        <circle
-          cx="40" cy="40" r="36" fill="none"
-          stroke={color}
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-1000"
-          style={{ filter: `drop-shadow(0 0 6px ${color}40)` }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-mono font-bold text-on-surface">{pct}%</span>
-        <span className="text-[9px] uppercase tracking-wider text-on-surface-variant/60 mt-0.5">match</span>
-      </div>
-    </div>
-  );
+function confidenceTone(conf: number): 'ok' | 'warn' | 'danger' {
+  const pct = conf * 100;
+  return pct >= 85 ? 'ok' : pct >= 70 ? 'warn' : 'danger';
 }
 
 export default function ReviewDetail() {
@@ -68,67 +37,43 @@ export default function ReviewDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Field selections for merge conflicts
-  const [selections, setSelections] = useState<Record<string, number>>({});
   const [actionInFlight, setActionInFlight] = useState<string | null>(null);
+  const [layout, setLayout] = useState<Layout>(getInitialLayout);
 
-  // Load match detail
+  useEffect(() => {
+    localStorage.setItem(LAYOUT_KEY, layout);
+  }, [layout]);
+
   const { data: detail, isLoading, error } = useQuery({
     queryKey: ['review-detail', id],
     queryFn: () => api.get<MatchDetailResponse>(`/api/review/candidates/${id}`),
     enabled: !!id,
   });
 
-  // Conflict analysis
-  const conflicts = useMemo(
-    () => detail?.field_comparisons.filter((f) => f.is_conflict) ?? [],
-    [detail],
-  );
-  const allConflictsResolved = conflicts.every((f) => selections[f.field] !== undefined);
   const isPending = detail?.status === 'pending';
 
-  // Mutations
-  const mergeMutation = useMutation({
-    mutationFn: (body: { field_selections: FieldSelection[] }) =>
-      api.post<ReviewActionResponse>(`/api/review/candidates/${id}/merge`, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
-      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['review-detail', id] });
-      setActionInFlight(null);
-    },
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+    queryClient.invalidateQueries({ queryKey: ['review-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['review-detail', id] });
+    setActionInFlight(null);
+  };
+
+  const confirmMutation = useMutation({
+    mutationFn: () => api.post<ReviewActionResponse>(`/api/review/candidates/${id}/confirm`),
+    onSuccess: invalidate,
     onError: () => setActionInFlight(null),
   });
 
   const rejectMutation = useMutation({
     mutationFn: () => api.post<ReviewActionResponse>(`/api/review/candidates/${id}/reject`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
-      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['review-detail', id] });
-      setActionInFlight(null);
-    },
+    onSuccess: invalidate,
     onError: () => setActionInFlight(null),
   });
 
-  const skipMutation = useMutation({
-    mutationFn: () => api.post<ReviewActionResponse>(`/api/review/candidates/${id}/skip`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
-      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['review-detail', id] });
-      setActionInFlight(null);
-    },
-    onError: () => setActionInFlight(null),
-  });
-
-  const handleMerge = () => {
-    if (!allConflictsResolved || !detail) return;
-    setActionInFlight('merge');
-    const fieldSelections: FieldSelection[] = Object.entries(selections).map(
-      ([field, chosen_supplier_id]) => ({ field, chosen_supplier_id }),
-    );
-    mergeMutation.mutate({ field_selections: fieldSelections });
+  const handleConfirm = () => {
+    setActionInFlight('confirm');
+    confirmMutation.mutate();
   };
 
   const handleReject = () => {
@@ -136,357 +81,395 @@ export default function ReviewDetail() {
     rejectMutation.mutate();
   };
 
-  const handleSkip = () => {
-    setActionInFlight('skip');
-    skipMutation.mutate();
-  };
+  // Keyboard shortcuts: Enter = confirm, R = reject
+  useEffect(() => {
+    if (!isPending) return;
+    const handler = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((e.key === 'r' || e.key === 'R') && !actionInFlight) { e.preventDefault(); handleReject(); }
+      else if (e.key === 'Enter' && !actionInFlight) { e.preventDefault(); handleConfirm(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPending, actionInFlight]);
 
   if (isLoading) {
     return (
-      <div className="space-y-6 animate-fadeIn">
-        <div className="animate-shimmer h-8 w-64 rounded" />
-        <div className="animate-shimmer h-64 w-full rounded-xl" />
-        <div className="animate-shimmer h-96 w-full rounded-xl" />
+      <div className="scroll" style={{ height: '100%' }}>
+        <div style={{ padding: 20, fontSize: 12, color: 'var(--fg-2)' }}>Loading candidate…</div>
       </div>
     );
   }
 
   if (error || !detail) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant/60">
-        <p className="text-sm">Match candidate not found</p>
-        <button
-          onClick={() => navigate('/review')}
-          className="mt-4 text-xs text-accent-600 hover:text-accent-600/80"
-        >
-          ← Back to queue
-        </button>
+      <div className="scroll" style={{ height: '100%' }}>
+        <div style={{ padding: 20 }}>
+          <Panel>
+            <div style={{ padding: 28, textAlign: 'center' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--danger)' }}>error</span>
+              <div style={{ marginTop: 8, fontSize: 12 }}>
+                {error instanceof Error ? error.message : 'Match candidate not found'}
+              </div>
+              <button onClick={() => navigate('/review')} className="btn btn-sm" style={{ marginTop: 12 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_back</span>
+                Back to queue
+              </button>
+            </div>
+          </Panel>
+        </div>
       </div>
     );
   }
 
   const { supplier_a, supplier_b, field_comparisons, match_signals } = detail;
+  const tone = confidenceTone(detail.confidence);
+  const conflictCount = field_comparisons.filter(f => f.is_conflict).length;
 
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* Header with back nav */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => navigate('/review')}
-          aria-label="Back to review queue"
-          className="p-2 rounded-lg text-on-surface-variant/60 hover:text-accent-600 hover:bg-accent-600/10 transition-all"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-        </button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-display font-extrabold tracking-tight text-on-surface">
-            Match Review
-          </h1>
-          <p className="text-sm text-on-surface-variant/60">
-            Candidate #{detail.id} · {supplier_a.data_source_name} ↔ {supplier_b.data_source_name}
-          </p>
-        </div>
+    <div className="scroll" style={{ height: '100%' }}>
+      <div style={{ padding: 20, paddingBottom: 80 }}>
 
-        {/* Status badge */}
-        {!isPending && (
-          <span className={`px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded-md border ${
-            detail.status === 'confirmed'
-              ? 'text-success-500 bg-success-bg border-success-500/20'
-              : detail.status === 'rejected'
-                ? 'text-danger-500 bg-danger-500/10 border-danger-500/20'
-                : 'text-outline bg-white/40 border-on-surface/5'
-          }`}>
-            {detail.status}
-            {detail.reviewed_by && (
-              <span className="ml-1.5 text-on-surface-variant/60 normal-case">
-                by {detail.reviewed_by}
+        {/* Header */}
+        <div className="fade" style={{ marginBottom: 12 }}>
+          <button onClick={() => navigate('/review')} className="btn btn-sm btn-ghost" style={{ marginBottom: 8 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_back</span>
+            Review queue
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <IdChip style={{ fontSize: 13, padding: '3px 8px' }}>#{detail.id}</IdChip>
+            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, minWidth: 0 }}>
+              {supplier_a.name || `Supplier #${supplier_a.id}`}{' '}
+              <span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>↔</span>{' '}
+              {supplier_b.name || `Supplier #${supplier_b.id}`}
+            </h1>
+            <Pill tone={tone} dot>
+              {detail.confidence.toFixed(3)} confidence
+            </Pill>
+            {conflictCount > 0 && (
+              <Pill tone="warn" icon="warning">
+                {conflictCount} conflict{conflictCount !== 1 ? 's' : ''}
+              </Pill>
+            )}
+            {!isPending && (
+              <Pill tone={detail.status === 'confirmed' ? 'ok' : detail.status === 'rejected' ? 'danger' : 'neutral'} dot>
+                {detail.status === 'confirmed' ? 'confirmed dupe' : detail.status}
+                {detail.reviewed_by && (
+                  <span className="mono" style={{ marginLeft: 4, opacity: 0.7 }}>· {detail.reviewed_by}</span>
+                )}
+              </Pill>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8, fontSize: 11, color: 'var(--fg-2)' }}>
+            {supplier_a.data_source_name && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <SourcePill short={supplier_a.data_source_name} />
+                <span className="mono">{supplier_a.source_code || `#${supplier_a.id}`}</span>
               </span>
             )}
-          </span>
-        )}
-      </div>
-
-      {/* Top section: confidence + signals */}
-      <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
-        {/* Confidence ring */}
-        <div className="card p-6 flex flex-col items-center justify-center gap-2">
-          <ConfidenceRing value={detail.confidence} />
-          <span className="text-[11px] uppercase tracking-wider text-on-surface-variant/60 font-semibold">
-            Overall Confidence
-          </span>
-        </div>
-
-        {/* Signal breakdowns */}
-        <div className="card p-5">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60 mb-4">
-            Signal Breakdown
-          </h3>
-          <div className="space-y-3">
-            {Object.entries(match_signals).map(([key, value]) => {
-              const config = SIGNAL_CONFIG[key] || { label: key, icon: '·' };
-              return (
-                <SignalBar
-                  key={key}
-                  label={config.label}
-                  icon={config.icon}
-                  value={value}
-                />
-              );
-            })}
+            {supplier_b.data_source_name && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <SourcePill short={supplier_b.data_source_name} />
+                <span className="mono">{supplier_b.source_code || `#${supplier_b.id}`}</span>
+              </span>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Side-by-side field comparison */}
-      <div className="card overflow-hidden">
-        <div className="px-5 py-3 border-b border-on-surface/5 bg-white/40">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
-            Field Comparison
-          </h3>
-        </div>
+        {/* Signals */}
+        <Panel className="fade" style={{ marginBottom: 12 }}>
+          <PanelHead title="Signals" />
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Object.keys(match_signals).length + 1}, 1fr)`, gap: 0 }}>
+            {Object.entries(match_signals).map(([k, v]) => {
+              const meta = SIGNAL_CONFIG[k] ?? { label: k, shortLabel: k, icon: '·' };
+              const pct = Math.round(v * 100);
+              const t = pct >= 85 ? 'ok' : pct >= 60 ? 'warn' : 'danger';
+              return (
+                <div key={k} style={{ padding: '10px 14px', borderRight: '1px solid var(--border-0)' }}>
+                  <div className="label">{meta.label}</div>
+                  <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: `var(--${t})`, marginTop: 4 }}>
+                    {v.toFixed(2)}
+                  </div>
+                  <Hbar value={pct} tone={t} style={{ marginTop: 6 }} />
+                </div>
+              );
+            })}
+            <div style={{ padding: '10px 14px', background: 'var(--bg-2)' }}>
+              <div className="label">Overall</div>
+              <div className="mono tnum" style={{ fontSize: 20, fontWeight: 600, color: `var(--${tone})`, marginTop: 4 }}>
+                {detail.confidence.toFixed(3)}
+              </div>
+              <Hbar value={Math.round(detail.confidence * 100)} tone={tone} style={{ marginTop: 6 }} />
+            </div>
+          </div>
+        </Panel>
 
-        {/* Column headers */}
-        <div className="grid grid-cols-[160px_1fr_40px_1fr] gap-0 px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 border-b border-on-surface/5">
-          <span>Field</span>
-          <span className="px-3">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-accent-600/60" />
-              {supplier_a.data_source_name}
-            </span>
-          </span>
-          <span />
-          <span className="px-3">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-secondary-500/60" />
-              {supplier_b.data_source_name}
-            </span>
-          </span>
-        </div>
-
-        {/* Field rows */}
-        {field_comparisons.map((comp) => (
-          <FieldRow
-            key={comp.field}
-            comp={comp}
-            supplierAId={supplier_a.id}
-            supplierBId={supplier_b.id}
-            selectedId={selections[comp.field]}
-            onSelect={(supplierId) =>
-              setSelections((prev) => ({ ...prev, [comp.field]: supplierId }))
-            }
-            isPending={isPending}
-          />
-        ))}
-      </div>
-
-      {/* Action buttons */}
-      {isPending && (
-        <div className="card p-5">
-          <div className="flex items-center justify-between">
-            <div className="text-sm">
-              {conflicts.length > 0 ? (
-                <span className="text-on-surface-variant">
-                  {Object.keys(selections).length}/{conflicts.length} conflicts resolved
-                  {!allConflictsResolved && (
-                    <span className="ml-2 text-secondary-500">
-                      — resolve all conflicts to merge
-                    </span>
-                  )}
+        {/* Field comparison — read-only */}
+        <Panel className="fade" style={{ marginBottom: 12 }}>
+          <PanelHead>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span className="panel-title">Field comparison</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: 'var(--fg-2)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, background: 'var(--warn)', borderRadius: 2 }} />
+                  conflict
                 </span>
-              ) : (
-                <span className="text-success-500">
-                  No conflicts — all fields match or are source-only
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, background: 'var(--ok)', borderRadius: 2 }} />
+                  identical
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, background: 'var(--info)', borderRadius: 2 }} />
+                  source-only
+                </span>
+              </div>
+              {conflictCount > 0 && (
+                <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+                  conflicts resolved in <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Merge step</span>
                 </span>
               )}
             </div>
+            <div className="seg">
+              <button className={layout === 'sideBySide' ? 'active' : ''} onClick={() => setLayout('sideBySide')}>Side</button>
+              <button className={layout === 'stacked' ? 'active' : ''} onClick={() => setLayout('stacked')}>Stacked</button>
+              <button className={layout === 'diff' ? 'active' : ''} onClick={() => setLayout('diff')}>Diff</button>
+            </div>
+          </PanelHead>
 
-            <div className="flex items-center gap-3">
+          {layout === 'sideBySide' && (
+            <SideBySideLayout comparisons={field_comparisons} supplierA={supplier_a} supplierB={supplier_b} />
+          )}
+          {layout === 'stacked' && (
+            <StackedLayout comparisons={field_comparisons} supplierA={supplier_a} supplierB={supplier_b} />
+          )}
+          {layout === 'diff' && (
+            <DiffLayout comparisons={field_comparisons} supplierA={supplier_a} supplierB={supplier_b} />
+          )}
+        </Panel>
+
+        {/* Sticky verdict bar */}
+        {isPending && (
+          <div
+            className="fade"
+            style={{
+              position: 'sticky', bottom: 0,
+              background: 'var(--bg-1)', border: '1px solid var(--border-0)',
+              borderRadius: 6, padding: '10px 14px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              boxShadow: 'var(--shadow-md)',
+            }}
+          >
+            <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+              {conflictCount > 0
+                ? <span><span className="mono tnum" style={{ color: 'var(--warn)', fontWeight: 600 }}>{conflictCount}</span> field conflict{conflictCount !== 1 ? 's' : ''} — will be reconciled in Merge step</span>
+                : <span style={{ color: 'var(--ok)' }}>No field conflicts</span>
+              }
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
               <button
-                onClick={handleSkip}
-                disabled={actionInFlight !== null}
-                className="px-4 py-2 text-sm font-medium text-on-surface-variant hover:text-on-surface border border-white/70 hover:border-on-surface/20 rounded-lg transition-all disabled:opacity-50"
-              >
-                {actionInFlight === 'skip' ? 'Skipping…' : 'Skip'}
-              </button>
-              <button
+                className="btn btn-sm btn-danger"
                 onClick={handleReject}
                 disabled={actionInFlight !== null}
-                className="px-4 py-2 text-sm font-medium text-danger-500 hover:text-danger-500/80 border border-danger-500/20 hover:border-danger-500/40 hover:bg-danger-500/10 rounded-lg transition-all disabled:opacity-50"
               >
-                {actionInFlight === 'reject' ? 'Rejecting…' : 'Reject'}
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
+                {actionInFlight === 'reject' ? 'Rejecting…' : 'Not a duplicate'}
+                <span className="kbd">R</span>
               </button>
               <button
-                onClick={handleMerge}
-                disabled={!allConflictsResolved || actionInFlight !== null}
-                className="btn-primary"
+                className="btn btn-sm btn-accent"
+                onClick={handleConfirm}
+                disabled={actionInFlight !== null}
               >
-                {actionInFlight === 'merge' ? (
-                  'Merging…'
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                    Confirm Merge
-                  </>
-                )}
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>check</span>
+                {actionInFlight === 'confirm' ? 'Confirming…' : 'Confirm duplicate'}
+                <span className="kbd" style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', borderColor: 'rgba(255,255,255,0.25)' }}>↵</span>
               </button>
             </div>
           </div>
+        )}
 
-          {/* Error display */}
-          {(mergeMutation.error || rejectMutation.error || skipMutation.error) && (
-            <div className="mt-3 p-3 rounded-lg bg-danger-500/10 border border-danger-500/20 text-sm text-danger-500">
-              {(mergeMutation.error as Error)?.message ||
-               (rejectMutation.error as Error)?.message ||
-               (skipMutation.error as Error)?.message}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Post-action banner */}
-      {!isPending && detail.status === 'confirmed' && (
-        <div className="card p-4 border-success-500/20 bg-success-bg/60">
-          <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 text-success-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm text-success-500">
-              This match has been merged into a unified supplier record.
-            </span>
+        {/* Post-action banners */}
+        {!isPending && detail.status === 'confirmed' && (
+          <div className="fade" style={{
+            marginTop: 10, padding: '10px 14px',
+            background: 'var(--ok-soft)', border: '1px solid var(--ok)',
+            borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--ok)' }}>check_circle</span>
+            <span style={{ color: 'var(--ok)', fontWeight: 600 }}>Confirmed duplicate</span>
+            <span style={{ color: 'var(--fg-2)' }}>— routed to Merge queue for field reconciliation</span>
           </div>
-        </div>
-      )}
+        )}
+        {!isPending && detail.status === 'rejected' && (
+          <div className="fade" style={{
+            marginTop: 10, padding: '10px 14px',
+            background: 'var(--danger-soft)', border: '1px solid var(--danger)',
+            borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--danger)' }}>cancel</span>
+            <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Not a duplicate</span>
+            {detail.reviewed_by && (
+              <span style={{ color: 'var(--fg-2)' }}>— reviewed by <span className="mono">{detail.reviewed_by}</span></span>
+            )}
+          </div>
+        )}
+
+        {(confirmMutation.error || rejectMutation.error) && (
+          <div className="pill danger" style={{ marginTop: 10, padding: '6px 10px', width: '100%', justifyContent: 'flex-start' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
+            {(confirmMutation.error as Error)?.message || (rejectMutation.error as Error)?.message}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
+// ─────────────── Layouts (read-only) ───────────────
 
-// ── Field comparison row ──
+interface LayoutProps {
+  comparisons: FieldComparison[];
+  supplierA: SupplierDetail;
+  supplierB: SupplierDetail;
+}
 
-function FieldRow({
-  comp,
-  supplierAId,
-  supplierBId,
-  selectedId,
-  onSelect,
-  isPending,
-}: {
-  comp: FieldComparison;
-  supplierAId: number;
-  supplierBId: number;
-  selectedId?: number;
-  onSelect: (id: number) => void;
-  isPending: boolean;
-}) {
-  // Row styling based on field status
-  let rowBg = '';
-  let indicator = null;
+function StatusPill({ comp }: { comp: FieldComparison }) {
+  if (comp.is_conflict) return <span className="pill warn" style={{ padding: '1px 6px', fontSize: 10 }}>conflict</span>;
+  if (comp.is_identical) return <span className="pill ok" style={{ padding: '1px 6px', fontSize: 10 }}>identical</span>;
+  if (comp.is_a_only || comp.is_b_only) return <span className="pill info" style={{ padding: '1px 6px', fontSize: 10 }}>source-only</span>;
+  return null;
+}
 
-  if (comp.is_conflict) {
-    rowBg = 'bg-secondary-500/[0.04]';
-    indicator = (
-      <div className="flex items-center justify-center" title="Conflict — pick one">
-        <svg className="w-4 h-4 text-secondary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-        </svg>
-      </div>
-    );
-  } else if (comp.is_identical) {
-    rowBg = '';
-    indicator = (
-      <div className="flex items-center justify-center" title="Identical">
-        <svg className="w-4 h-4 text-success-500/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-        </svg>
-      </div>
-    );
-  } else if (comp.is_a_only || comp.is_b_only) {
-    indicator = (
-      <div className="flex items-center justify-center" title="Source-only">
-        <span className="text-xs text-accent-600/60">→</span>
-      </div>
-    );
-  } else {
-    indicator = <div />;
-  }
-
-  const canSelect = comp.is_conflict && isPending;
-
+function SideBySideLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
   return (
-    <div className={`grid grid-cols-[160px_1fr_40px_1fr] gap-0 px-5 py-3 border-b border-on-surface/[0.06] transition-colors ${rowBg}`}>
-      {/* Field label */}
-      <div className="flex items-center">
-        <span className="text-xs font-medium text-on-surface-variant">{comp.label}</span>
-      </div>
-
-      {/* Value A */}
-      <div
-        className={`px-3 py-1.5 rounded-md transition-all cursor-${canSelect ? 'pointer' : 'default'} ${
-          canSelect && selectedId === supplierAId
-            ? 'bg-accent-600/10 border border-accent-600/30 ring-1 ring-accent-600/20'
-            : canSelect
-              ? 'hover:bg-white/30 border border-transparent'
-              : 'border border-transparent'
-        }`}
-        onClick={() => canSelect && onSelect(supplierAId)}
-      >
-        <div className="flex items-center gap-2">
-          {canSelect && (
-            <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-              selectedId === supplierAId
-                ? 'border-accent-600 bg-accent-600'
-                : 'border-on-surface-variant/40'
-            }`}>
-              {selectedId === supplierAId && (
-                <div className="w-1.5 h-1.5 rounded-full bg-on-surface" />
+    <table className="table">
+      <thead>
+        <tr>
+          <th style={{ width: 180 }}>Field</th>
+          <th style={{ borderLeft: '2px solid var(--accent-border)', color: 'var(--accent)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {supplierA.data_source_name && <SourcePill short={supplierA.data_source_name} />}
+              {supplierA.name || `#${supplierA.id}`}
+            </span>
+          </th>
+          <th style={{ width: 40 }} />
+          <th style={{ borderLeft: '2px solid var(--info-border)', color: 'var(--info)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {supplierB.data_source_name && <SourcePill short={supplierB.data_source_name} />}
+              {supplierB.name || `#${supplierB.id}`}
+            </span>
+          </th>
+          <th style={{ width: 90 }}>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {comparisons.map(f => (
+          <tr key={f.field} style={{ background: f.is_conflict ? 'var(--warn-soft)' : 'transparent' }}>
+            <td>
+              <div style={{ fontWeight: 500 }}>{f.label}</div>
+              <div className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>{f.field}</div>
+            </td>
+            <td style={{ borderLeft: '2px solid var(--accent-border)' }}>
+              <span className="mono" style={{ fontSize: 12, color: f.value_a ? 'var(--fg-0)' : 'var(--fg-3)' }}>
+                {f.value_a || '∅'}
+              </span>
+            </td>
+            <td style={{ textAlign: 'center', color: 'var(--fg-3)' }}>
+              {f.is_conflict ? (
+                <span style={{ color: 'var(--warn)', fontSize: 11, fontWeight: 600 }}>vs</span>
+              ) : f.is_identical ? (
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>check</span>
+              ) : (
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_forward</span>
               )}
-            </div>
-          )}
-          <span className={`text-sm font-mono ${
-            comp.value_a ? 'text-on-surface' : 'text-outline italic'
-          }`}>
-            {comp.value_a || '—'}
-          </span>
-        </div>
-      </div>
+            </td>
+            <td style={{ borderLeft: '2px solid var(--info-border)' }}>
+              <span className="mono" style={{ fontSize: 12, color: f.value_b ? 'var(--fg-0)' : 'var(--fg-3)' }}>
+                {f.value_b || '∅'}
+              </span>
+            </td>
+            <td><StatusPill comp={f} /></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
-      {/* Indicator */}
-      {indicator}
-
-      {/* Value B */}
-      <div
-        className={`px-3 py-1.5 rounded-md transition-all cursor-${canSelect ? 'pointer' : 'default'} ${
-          canSelect && selectedId === supplierBId
-            ? 'bg-secondary-500/10 border border-secondary-500/30 ring-1 ring-secondary-500/20'
-            : canSelect
-              ? 'hover:bg-white/30 border border-transparent'
-              : 'border border-transparent'
-        }`}
-        onClick={() => canSelect && onSelect(supplierBId)}
-      >
-        <div className="flex items-center gap-2">
-          {canSelect && (
-            <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-              selectedId === supplierBId
-                ? 'border-secondary-500 bg-secondary-500'
-                : 'border-on-surface-variant/40'
-            }`}>
-              {selectedId === supplierBId && (
-                <div className="w-1.5 h-1.5 rounded-full bg-on-surface" />
-              )}
+function StackedLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
+  return (
+    <div style={{ padding: 12 }}>
+      {comparisons.map(f => (
+        <div key={f.field} style={{ marginBottom: 10, padding: 10, background: 'var(--bg-0)', border: '1px solid var(--border-0)', borderRadius: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{f.label}</span>
+              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 8 }}>{f.field}</span>
             </div>
-          )}
-          <span className={`text-sm font-mono ${
-            comp.value_b ? 'text-on-surface' : 'text-outline italic'
-          }`}>
-            {comp.value_b || '—'}
-          </span>
+            <StatusPill comp={f} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {([['a', supplierA, f.value_a] as const, ['b', supplierB, f.value_b] as const]).map(([key, sup, val]) => (
+              <div key={key} style={{
+                padding: '8px 10px',
+                border: `1px solid ${key === 'a' ? 'var(--accent-border)' : 'var(--info-border)'}`,
+                borderLeft: `3px solid ${key === 'a' ? 'var(--accent-border)' : 'var(--info-border)'}`,
+                background: 'var(--bg-1)', borderRadius: 4,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  {sup.data_source_name && <SourcePill short={sup.data_source_name} />}
+                </div>
+                <div className="mono" style={{ fontSize: 12, color: val ? 'var(--fg-0)' : 'var(--fg-3)' }}>
+                  {val || '∅'}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      ))}
+    </div>
+  );
+}
+
+function DiffLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
+  return (
+    <div>
+      {comparisons.map((f, i) => (
+        <div key={f.field} style={{ borderBottom: i < comparisons.length - 1 ? '1px solid var(--border-0)' : 'none', padding: '10px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div>
+              <span style={{ fontSize: 12, fontWeight: 500 }}>{f.label}</span>
+              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 8 }}>{f.field}</span>
+            </div>
+            <StatusPill comp={f} />
+          </div>
+          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, background: 'var(--bg-0)', border: '1px solid var(--border-0)', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{
+              padding: '6px 10px',
+              background: f.is_conflict ? 'var(--danger-soft)' : 'transparent',
+              borderLeft: `3px solid ${f.is_conflict ? 'var(--danger)' : 'var(--border-0)'}`,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <span className="mono" style={{ width: 20, color: 'var(--danger)', fontWeight: 600 }}>{f.is_conflict ? '−' : ' '}</span>
+              {supplierA.data_source_name && <SourcePill short={supplierA.data_source_name} />}
+              <span style={{ color: 'var(--fg-0)' }}>{f.value_a || '∅'}</span>
+            </div>
+            <div style={{
+              padding: '6px 10px',
+              background: f.is_conflict ? 'var(--ok-soft)' : 'transparent',
+              borderLeft: `3px solid ${f.is_conflict ? 'var(--ok)' : 'var(--border-0)'}`,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <span className="mono" style={{ width: 20, color: 'var(--ok)', fontWeight: 600 }}>{f.is_conflict ? '+' : ' '}</span>
+              {supplierB.data_source_name && <SourcePill short={supplierB.data_source_name} />}
+              <span style={{ color: 'var(--fg-0)' }}>{f.value_b || '∅'}</span>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
