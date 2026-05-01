@@ -391,15 +391,18 @@ def delete_data_source(
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Delete a data source."""
-    deleted = delete_source(db, source_id)
-    if not deleted:
+    source = get_source(db, source_id)
+    if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
+    source_name = source.name
+    delete_source(db, source_id)
     log_action(
         db,
         user_id=current_user.id,
         action="delete_source",
         entity_type="data_source",
         entity_id=source_id,
+        details={"name": source_name},
     )
     db.commit()
 
