@@ -15,6 +15,27 @@ class BatchStatus(StrEnum):
     FAILED = "failed"
 
 
+class FileCheckStatus(StrEnum):
+    PROCESSING = "processing"
+    CLEAN = "clean"
+    WARNING = "warning"
+    FAILED = "failed"
+    ERROR = "error"
+
+
+class FileCheckIssueType(StrEnum):
+    EMPTY_ROW = "empty_row"
+    MISSING_VALUE = "missing_value"
+    CORRUPTED_VALUE = "corrupted_value"
+    PARSE_ERROR = "parse_error"
+
+
+class FileCheckSeverity(StrEnum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+
 class SupplierStatus(StrEnum):
     ACTIVE = "active"
     SUPERSEDED = "superseded"
