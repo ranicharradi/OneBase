@@ -147,15 +147,16 @@ describe('ReviewQueue page', () => {
 
     await screen.findByText('Acme Corp')
 
-    // ConfMini renders confidence as N.NN with var(--tone) color in inline style
-    const value92 = screen.getByText('0.92')
+    // ConfRing renders confidence as integer pct (Math.round(value * 100)) with var(--tone) color
+    const value92 = screen.getByText('92')
     expect(value92.getAttribute('style') || '').toMatch(/--ok/)
 
-    const value75 = screen.getByText('0.75')
+    const value75 = screen.getByText('75')
     expect(value75.getAttribute('style') || '').toMatch(/--warn/)
 
-    const value40 = screen.getByText('0.40')
-    expect(value40.getAttribute('style') || '').toMatch(/--danger/)
+    // '40' also appears as a bucket count; find the ConfRing element by its danger style
+    const value40 = screen.getAllByText('40').find(el => (el.getAttribute('style') || '').includes('--danger'))
+    expect(value40).toBeTruthy()
   })
 
   it('renders status pills', async () => {
@@ -163,7 +164,8 @@ describe('ReviewQueue page', () => {
     render(<ReviewQueue />)
     await screen.findByText('Acme Corp')
     expect(screen.getByText('pending')).toBeInTheDocument()
-    expect(screen.getByText('confirmed')).toBeInTheDocument()
+    // 'Confirmed dupe' appears in both the bucket tab and the status pill
+    expect(screen.getAllByText('Confirmed dupe').length).toBeGreaterThan(0)
   })
 
   it('filters by search query from SearchContext', async () => {
@@ -185,7 +187,7 @@ describe('ReviewQueue page', () => {
     const user = userEvent.setup()
     render(<ReviewQueue />)
     await screen.findByText('Acme Corp')
-    await user.click(screen.getByText('Acme Corp'))
+    await user.click(screen.getByRole('button', { name: /same/i }))
     expect(mockNavigate).toHaveBeenCalledWith('/review/1')
   })
 

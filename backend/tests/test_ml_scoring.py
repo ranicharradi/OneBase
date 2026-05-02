@@ -85,7 +85,6 @@ class TestMlScorePair:
             "embedding_cosine",
             "short_name_match",
             "currency_match",
-            "contact_match",
         }
 
     def test_model_receives_8_features(self, test_db):
