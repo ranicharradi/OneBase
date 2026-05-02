@@ -21,6 +21,10 @@ import SourcePill from '../components/ui/SourcePill';
 // "Stale" if the most recent successful batch is older than 7 days.
 const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
+function sourceStatus(lastSync: string): 'healthy' | 'stale' {
+  return Date.now() - new Date(lastSync).getTime() > STALE_AFTER_MS ? 'stale' : 'healthy';
+}
+
 interface SourceStats {
   rows: number;
   batches: number;
@@ -402,12 +406,7 @@ export default function Sources() {
     }
     // Final pass: derive status from last sync recency
     for (const [, s] of map) {
-      if (!s.lastSync) {
-        s.status = 'new';
-      } else {
-        const age = Date.now() - new Date(s.lastSync).getTime();
-        s.status = age > STALE_AFTER_MS ? 'stale' : 'healthy';
-      }
+      s.status = s.lastSync ? sourceStatus(s.lastSync) : 'new';
     }
     return map;
   }, [batches]);
