@@ -6,7 +6,26 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from app.models.file_check import FileCheckIssue, FileCheckReport
+from app.models.user import User
+from app.services.auth import create_token, hash_password
 from app.services.file_check import FileCheckCriteria, analyze_file_content
+
+
+def _file_check_auth_header(username: str) -> dict:
+    return {"Authorization": f"Bearer {create_token(username)}"}
+
+
+def _create_file_check_user(db, username: str, role: str) -> User:
+    user = User(
+        username=username,
+        password_hash=hash_password("testpass123"),
+        is_active=True,
+        role=role,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def test_file_check_models_have_expected_tables(test_db):
@@ -167,3 +186,82 @@ def test_analyze_extra_value_prevents_empty_row_but_still_checks_required_column
     assert result.missing_value_count == 1
     assert result.issues[0].issue_type == "missing_value"
     assert result.issues[0].column_name == "Name"
+
+
+def test_admin_can_upload_file_check(test_client, test_db):
+    _create_file_check_user(test_db, "filecheck-admin", "admin")
+
+    response = test_client.post(
+        "/api/file-checks",
+        files={"file": ("vendors.csv", b"Code,Name\n001,\n", "text/csv")},
+        headers=_file_check_auth_header("filecheck-admin"),
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["original_filename"] == "vendors.csv"
+    assert data["status"] == "failed"
+    assert data["total_rows"] == 1
+    assert data["missing_value_count"] == 1
+    assert data["stored_issue_count"] == 1
+
+
+def test_viewer_cannot_create_file_check(test_client, test_db):
+    _create_file_check_user(test_db, "filecheck-viewer", "viewer")
+
+    response = test_client.post(
+        "/api/file-checks",
+        files={"file": ("vendors.csv", b"Code,Name\n001,\n", "text/csv")},
+        headers=_file_check_auth_header("filecheck-viewer"),
+    )
+
+    assert response.status_code == 403
+
+
+def test_authenticated_user_can_list_and_view_file_checks(test_client, test_db):
+    _create_file_check_user(test_db, "filecheck-admin-list", "admin")
+    _create_file_check_user(test_db, "filecheck-viewer-list", "viewer")
+    create_response = test_client.post(
+        "/api/file-checks",
+        files={"file": ("vendors.csv", b"Code,Name\n001,\n", "text/csv")},
+        headers=_file_check_auth_header("filecheck-admin-list"),
+    )
+    assert create_response.status_code == 201
+    report_id = create_response.json()["id"]
+
+    list_response = test_client.get(
+        "/api/file-checks",
+        headers=_file_check_auth_header("filecheck-viewer-list"),
+    )
+    detail_response = test_client.get(
+        f"/api/file-checks/{report_id}",
+        headers=_file_check_auth_header("filecheck-viewer-list"),
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["total"] == 1
+    assert list_response.json()["items"][0]["id"] == report_id
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["id"] == report_id
+    assert detail["issue_total"] == 1
+    assert detail["issues"][0]["issue_type"] == "missing_value"
+
+
+def test_file_check_rejects_unsupported_extension(test_client, test_db):
+    _create_file_check_user(test_db, "filecheck-admin-xlsx", "admin")
+
+    response = test_client.post(
+        "/api/file-checks",
+        files={
+            "file": (
+                "vendors.xlsx",
+                b"not really a spreadsheet",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+        headers=_file_check_auth_header("filecheck-admin-xlsx"),
+    )
+
+    assert response.status_code == 400
+    assert "csv or tsv" in response.json()["detail"].lower()
