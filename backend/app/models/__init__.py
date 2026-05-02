@@ -1,6 +1,7 @@
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.batch import ImportBatch
+from app.models.file_check import FileCheckIssue, FileCheckReport
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.ml_model import MLModelVersion
 from app.models.source import DataSource
@@ -14,6 +15,8 @@ __all__ = [
     "AuditLog",
     "DataSource",
     "ImportBatch",
+    "FileCheckReport",
+    "FileCheckIssue",
     "StagedSupplier",
     "MatchCandidate",
     "MatchGroup",
