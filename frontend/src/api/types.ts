@@ -372,3 +372,49 @@ export interface ModelStatusResponse {
   current_weights: Record<string, number>;
   ml_model_exists: boolean;
 }
+
+// ── Standalone file checker types ──
+
+export interface FileCheckIssue {
+  id: number;
+  report_id: number;
+  row_number: number;
+  column_name: string | null;
+  issue_type: 'empty_row' | 'missing_value' | 'corrupted_value' | 'parse_error';
+  severity: 'info' | 'warning' | 'error';
+  value_preview: string | null;
+  message: string;
+  created_at: string | null;
+}
+
+export interface FileCheckReport {
+  id: number;
+  original_filename: string;
+  file_size_bytes: number;
+  delimiter: string;
+  status: 'processing' | 'clean' | 'warning' | 'failed' | 'error';
+  total_rows: number;
+  rows_with_issues: number;
+  empty_row_count: number;
+  missing_value_count: number;
+  corrupted_value_count: number;
+  stored_issue_count: number;
+  issue_cap_reached: boolean;
+  criteria_version: string;
+  error_message: string | null;
+  checked_by: string;
+  created_at: string | null;
+  completed_at: string | null;
+}
+
+export interface FileCheckReportDetail extends FileCheckReport {
+  issues: FileCheckIssue[];
+  issue_total: number;
+  issue_limit: number;
+  issue_offset: number;
+}
+
+export interface FileCheckReportListResponse {
+  items: FileCheckReport[];
+  total: number;
+}

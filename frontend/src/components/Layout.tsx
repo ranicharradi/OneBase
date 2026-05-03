@@ -33,6 +33,7 @@ const NAV: NavSection[] = [
     items: [
       { to: '/dashboard', icon: 'home', label: 'Overview' },
       { to: '/upload', icon: 'cloud_upload', label: 'Upload' },
+      { to: '/file-checker', icon: 'rule', label: 'File checker' },
       { to: '/sources', icon: 'storage', label: 'Sources' },
     ],
   },
@@ -53,7 +54,7 @@ const NAV: NavSection[] = [
 ];
 
 // Routes that render `.table` elements — only these benefit from the density toggle
-const DENSITY_ROUTE_PREFIXES = ['/upload', '/sources', '/review', '/merge', '/unified', '/users'];
+const DENSITY_ROUTE_PREFIXES = ['/upload', '/file-checker', '/sources', '/review', '/merge', '/unified', '/users'];
 
 function routeHasDensity(pathname: string): boolean {
   return DENSITY_ROUTE_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'));
@@ -62,6 +63,7 @@ function routeHasDensity(pathname: string): boolean {
 const BREADCRUMBS: Record<string, string[]> = {
   '/dashboard': ['Pipeline', 'Overview'],
   '/upload': ['Pipeline', 'Upload'],
+  '/file-checker': ['Pipeline', 'File checker'],
   '/sources': ['Pipeline', 'Sources'],
   '/review': ['Matching', 'Review queue'],
   '/merge': ['Matching', 'Merge queue'],
