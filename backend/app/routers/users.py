@@ -192,7 +192,7 @@ def change_password(
     # Validate password strength
     error = validate_password_strength(body.new_password)
     if error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error)
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error)
 
     target = db.get(User, user_id)
     if not target:
