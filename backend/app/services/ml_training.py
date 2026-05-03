@@ -8,7 +8,7 @@ Trains two models from human review decisions:
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 import lightgbm as lgb
 import numpy as np
@@ -210,7 +210,7 @@ def save_model(
     """Save model to disk and record metadata in DB."""
     os.makedirs(MODEL_DIR, exist_ok=True)
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     filename = f"{model_type}_{timestamp}.lgbm"
     filepath = os.path.join(MODEL_DIR, filename)
 
