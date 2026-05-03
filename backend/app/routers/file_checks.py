@@ -110,8 +110,6 @@ async def create_file_check(
             report.completed_at = _utcnow()
 
         db.commit()
-        db.refresh(report)
-        return report
     except Exception as exc:
         logger.exception("File check persistence failed for filename=%s", original_filename)
         db.rollback()
@@ -123,6 +121,17 @@ async def create_file_check(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="File check could not be saved",
         ) from exc
+
+    try:
+        db.refresh(report)
+    except Exception as exc:
+        logger.exception("File check refresh failed after commit for filename=%s", original_filename)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="File check could not be saved",
+        ) from exc
+
+    return report
 
 
 @router.get("", response_model=FileCheckReportListResponse)
