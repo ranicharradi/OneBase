@@ -56,61 +56,73 @@ async def create_file_check(
 
     stored_filename = f"{uuid.uuid4()}{extension}"
     filepath = safe_upload_path(UPLOAD_DIR, stored_filename)
-    with open(filepath, "wb") as uploaded_file:
-        uploaded_file.write(file_content)
-
-    report = FileCheckReport(
-        original_filename=original_filename,
-        stored_filename=stored_filename,
-        file_size_bytes=len(file_content),
-        delimiter=",",
-        status=FileCheckStatus.PROCESSING,
-        criteria_version="v1",
-        checked_by=current_user.username,
-    )
-    db.add(report)
-    db.flush()
-
     try:
-        analysis = analyze_file_content(
-            file_content,
-            filename=original_filename,
-            criteria=FileCheckCriteria(),
-            issue_cap=ISSUE_CAP,
+        with open(filepath, "wb") as uploaded_file:
+            uploaded_file.write(file_content)
+
+        report = FileCheckReport(
+            original_filename=original_filename,
+            stored_filename=stored_filename,
+            file_size_bytes=len(file_content),
+            delimiter=",",
+            status=FileCheckStatus.PROCESSING,
+            criteria_version="v1",
+            checked_by=current_user.username,
         )
-        report.delimiter = analysis.delimiter
-        report.status = analysis.status
-        report.total_rows = analysis.total_rows
-        report.rows_with_issues = analysis.rows_with_issues
-        report.empty_row_count = analysis.empty_row_count
-        report.missing_value_count = analysis.missing_value_count
-        report.corrupted_value_count = analysis.corrupted_value_count
-        report.stored_issue_count = analysis.stored_issue_count
-        report.issue_cap_reached = analysis.issue_cap_reached
-        report.criteria_version = analysis.criteria_version
-        report.completed_at = _utcnow()
+        db.add(report)
+        db.flush()
 
-        for issue in analysis.issues:
-            db.add(
-                FileCheckIssue(
-                    report_id=report.id,
-                    row_number=issue.row_number,
-                    column_name=issue.column_name,
-                    issue_type=issue.issue_type,
-                    severity=issue.severity,
-                    value_preview=issue.value_preview,
-                    message=issue.message,
-                )
+        try:
+            analysis = analyze_file_content(
+                file_content,
+                filename=original_filename,
+                criteria=FileCheckCriteria(),
+                issue_cap=ISSUE_CAP,
             )
-    except Exception:
-        logger.exception("File check analysis failed for report_id=%s filename=%s", report.id, original_filename)
-        report.status = FileCheckStatus.ERROR
-        report.error_message = ANALYSIS_ERROR_MESSAGE
-        report.completed_at = _utcnow()
+            report.delimiter = analysis.delimiter
+            report.status = analysis.status
+            report.total_rows = analysis.total_rows
+            report.rows_with_issues = analysis.rows_with_issues
+            report.empty_row_count = analysis.empty_row_count
+            report.missing_value_count = analysis.missing_value_count
+            report.corrupted_value_count = analysis.corrupted_value_count
+            report.stored_issue_count = analysis.stored_issue_count
+            report.issue_cap_reached = analysis.issue_cap_reached
+            report.criteria_version = analysis.criteria_version
+            report.completed_at = _utcnow()
 
-    db.commit()
-    db.refresh(report)
-    return report
+            for issue in analysis.issues:
+                db.add(
+                    FileCheckIssue(
+                        report_id=report.id,
+                        row_number=issue.row_number,
+                        column_name=issue.column_name,
+                        issue_type=issue.issue_type,
+                        severity=issue.severity,
+                        value_preview=issue.value_preview,
+                        message=issue.message,
+                    )
+                )
+        except Exception:
+            logger.exception("File check analysis failed for report_id=%s filename=%s", report.id, original_filename)
+            report.status = FileCheckStatus.ERROR
+            report.error_message = ANALYSIS_ERROR_MESSAGE
+            report.completed_at = _utcnow()
+
+        db.commit()
+        db.refresh(report)
+        return report
+    except Exception as exc:
+        logger.exception("File check persistence failed for filename=%s", original_filename)
+        db.rollback()
+        try:
+            Path(filepath).unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Failed to remove file check upload after persistence failure: %s", filepath)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="File check could not be saved",
+        ) from exc
 
 
 @router.get("", response_model=FileCheckReportListResponse)
