@@ -16,6 +16,7 @@ import ReviewDetail from './pages/ReviewDetail';
 import MergeQueue from './pages/MergeQueue';
 import MergeDetail from './pages/MergeDetail';
 import Dashboard from './pages/Dashboard';
+import FileChecker from './pages/FileChecker';
 import UnifiedSuppliers from './pages/UnifiedSuppliers';
 import UnifiedSupplierDetail from './pages/UnifiedSupplierDetail';
 import { ApiError } from './api/client';
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="merge" element={<MergeQueue />} />
               <Route path="merge/:id" element={<MergeDetail />} />
               <Route path="upload" element={<Upload />} />
+              <Route path="file-checker" element={<FileChecker />} />
               <Route path="sources" element={<Sources />} />
               <Route path="users" element={<Users />} />
             </Route>
