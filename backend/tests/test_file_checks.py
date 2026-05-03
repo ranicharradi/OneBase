@@ -1,10 +1,12 @@
 """Tests for standalone file check reports."""
 
+import uuid
 from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
+from app.config import settings
 from app.models.file_check import FileCheckIssue, FileCheckReport
 from app.models.user import User
 from app.services.auth import create_token, hash_password
@@ -200,6 +202,7 @@ def test_admin_can_upload_file_check(test_client, test_db):
     assert response.status_code == 201
     data = response.json()
     assert data["original_filename"] == "vendors.csv"
+    assert "stored_filename" not in data
     assert data["status"] == "failed"
     assert data["total_rows"] == 1
     assert data["missing_value_count"] == 1
@@ -240,10 +243,13 @@ def test_authenticated_user_can_list_and_view_file_checks(test_client, test_db):
 
     assert list_response.status_code == 200
     assert list_response.json()["total"] == 1
-    assert list_response.json()["items"][0]["id"] == report_id
+    list_item = list_response.json()["items"][0]
+    assert list_item["id"] == report_id
+    assert "stored_filename" not in list_item
     assert detail_response.status_code == 200
     detail = detail_response.json()
     assert detail["id"] == report_id
+    assert "stored_filename" not in detail
     assert detail["issue_total"] == 1
     assert detail["issues"][0]["issue_type"] == "missing_value"
 
@@ -307,9 +313,38 @@ def test_file_check_bounds_long_filenames(test_client, test_db):
     data = response.json()
     assert len(data["original_filename"]) <= 255
     assert data["original_filename"].endswith(".csv")
-    assert len(data["stored_filename"]) <= 255
-    assert data["stored_filename"].endswith(".csv")
-    assert long_basename not in data["stored_filename"]
+    assert "stored_filename" not in data
+
+    report = test_db.query(FileCheckReport).one()
+    assert len(report.stored_filename) <= 255
+    assert report.stored_filename.endswith(".csv")
+    assert long_basename not in report.stored_filename
+
+
+def test_file_check_cleans_up_uploaded_file_when_db_commit_fails(test_client, test_db, monkeypatch):
+    import app.routers.file_checks as file_checks_router
+
+    _create_file_check_user(test_db, "filecheck-admin-db-error", "admin")
+    fixed_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    expected_path = Path(settings.upload_dir) / f"{fixed_uuid}.csv"
+    expected_path.unlink(missing_ok=True)
+    monkeypatch.setattr(file_checks_router.uuid, "uuid4", lambda: fixed_uuid)
+
+    def raise_commit_error():
+        raise RuntimeError("database detail should not leak")
+
+    monkeypatch.setattr(test_db, "commit", raise_commit_error)
+
+    response = test_client.post(
+        "/api/file-checks",
+        files={"file": ("vendors.csv", b"Code,Name\n001,Acme\n", "text/csv")},
+        headers=_file_check_auth_header("filecheck-admin-db-error"),
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "File check could not be saved"
+    assert test_db.query(FileCheckReport).count() == 0
+    assert not expected_path.exists()
 
 
 def test_file_check_analysis_exception_returns_generic_error(test_client, test_db, monkeypatch):
