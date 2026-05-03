@@ -42,14 +42,14 @@ function fileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function statusTone(status: FileCheckReport['status']): 'ok' | 'warn' | 'danger' | 'accent' {
+function statusTone(status: FileCheckReport['status']): 'ok' | 'warn' | 'danger' | 'accent' {
   if (status === 'clean') return 'ok';
   if (status === 'warning') return 'warn';
   if (status === 'failed' || status === 'error') return 'danger';
   return 'accent';
 }
 
-export function issueLabel(type: FileCheckIssue['issue_type']): string {
+function issueLabel(type: FileCheckIssue['issue_type']): string {
   return type.replace(/_/g, ' ');
 }
 
@@ -72,7 +72,7 @@ export default function FileChecker() {
 
   const detailQuery = useQuery({
     queryKey: ['file-checks', selectedReportId],
-    queryFn: () => api.get<FileCheckReportDetail>(`/api/file-checks/${selectedReportId}`),
+    queryFn: () => api.get<FileCheckReportDetail>(`/api/file-checks/${selectedReportId}?issue_limit=500&issue_offset=0`),
     enabled: selectedReportId !== null,
   });
 
@@ -92,6 +92,9 @@ export default function FileChecker() {
 
   const reportItems = reports?.items ?? [];
   const currentReport = detailQuery.data;
+  const filtersDisabled = !currentReport || detailQuery.isLoading;
+  const loadedIssueCount = currentReport?.issues.length ?? 0;
+  const hasPartialIssues = currentReport ? currentReport.issue_total > loadedIssueCount : false;
   const visibleIssues = useMemo(() => {
     const issues = currentReport?.issues ?? [];
     return issues.filter(issue => {
@@ -102,7 +105,7 @@ export default function FileChecker() {
   }, [currentReport?.issues, issueType, severity]);
 
   const uploadFile = (file: File | undefined) => {
-    if (!file) return;
+    if (!file || uploadMutation.isPending) return;
     uploadMutation.mutate(file);
     if (inputRef.current) inputRef.current.value = '';
   };
@@ -127,6 +130,7 @@ export default function FileChecker() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
             <section
               aria-label="File upload"
+              aria-busy={uploadMutation.isPending}
               onDragEnter={event => {
                 event.preventDefault();
                 setIsDragging(true);
@@ -151,6 +155,7 @@ export default function FileChecker() {
                 aria-label="Upload CSV or TSV file"
                 type="file"
                 accept=".csv,.tsv,text/csv,text/tab-separated-values"
+                disabled={uploadMutation.isPending}
                 style={{ display: 'none' }}
                 onChange={event => uploadFile(event.target.files?.[0])}
               />
@@ -320,6 +325,17 @@ export default function FileChecker() {
                         Issue cap reached. Showing stored issues only.
                       </div>
                     )}
+                    {hasPartialIssues && (
+                      <div className="pill warn" style={{ padding: '6px 10px', justifyContent: 'flex-start' }}>
+                        Showing first {formatNumber(loadedIssueCount)} of {formatNumber(currentReport.issue_total)} issues.
+                        Filters apply to loaded issues.
+                      </div>
+                    )}
+                    {currentReport.status === 'error' && currentReport.error_message && (
+                      <div className="pill danger" style={{ padding: '6px 10px', justifyContent: 'flex-start' }}>
+                        {currentReport.error_message}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <span style={{ color: 'var(--fg-2)', fontSize: 12 }}>Select or upload a report.</span>
@@ -335,6 +351,7 @@ export default function FileChecker() {
                     <select
                       aria-label="Filter issue type"
                       value={issueType}
+                      disabled={filtersDisabled}
                       onChange={event => setIssueType(event.target.value as IssueTypeFilter)}
                       style={{ height: 28, fontSize: 12 }}
                     >
@@ -347,6 +364,7 @@ export default function FileChecker() {
                     <select
                       aria-label="Filter severity"
                       value={severity}
+                      disabled={filtersDisabled}
                       onChange={event => setSeverity(event.target.value as SeverityFilter)}
                       style={{ height: 28, fontSize: 12 }}
                     >
