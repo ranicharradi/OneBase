@@ -54,7 +54,7 @@ const NAV: NavSection[] = [
 ];
 
 // Routes that render `.table` elements — only these benefit from the density toggle
-const DENSITY_ROUTE_PREFIXES = ['/upload', '/sources', '/review', '/merge', '/unified', '/users'];
+const DENSITY_ROUTE_PREFIXES = ['/upload', '/file-checker', '/sources', '/review', '/merge', '/unified', '/users'];
 
 function routeHasDensity(pathname: string): boolean {
   return DENSITY_ROUTE_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'));
