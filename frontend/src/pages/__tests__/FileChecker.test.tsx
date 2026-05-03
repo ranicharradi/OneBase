@@ -148,9 +148,12 @@ describe('FileChecker page', () => {
     const user = userEvent.setup()
     render(<FileChecker />)
 
-    await user.click(await screen.findByRole('button', { name: /vendors\.csv/i }))
+    const historyItem = await screen.findByRole('button', { name: /vendors\.csv/i })
+    expect(historyItem).toHaveAttribute('aria-pressed', 'false')
+    await user.click(historyItem)
 
     expect(await screen.findByText('Required value is missing')).toBeInTheDocument()
+    expect(historyItem).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('supplier_name')).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalledWith('/api/file-checks/42?issue_limit=500&issue_offset=0', expect.any(Object))
   })
@@ -166,7 +169,7 @@ describe('FileChecker page', () => {
       new File(['bad'], 'vendors.csv', { type: 'text/csv' }),
     )
 
-    expect(await screen.findByText('Unsupported delimiter')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unsupported delimiter')
   })
 
   it('shows that filters apply only to the loaded issue page when detail is partial', async () => {
@@ -187,7 +190,8 @@ describe('FileChecker page', () => {
 
     await user.click(await screen.findByRole('button', { name: /vendors\.csv/i }))
 
-    expect(await screen.findByText('Showing first 1 of 250 issues. Filters apply to loaded issues.')).toBeInTheDocument()
+    const notice = await screen.findByText('Showing first 1 of 250 issues. Filters apply to loaded issues.')
+    expect(notice).toHaveAttribute('aria-live', 'polite')
   })
 
   it('does not start a second upload while a file check is pending', async () => {
@@ -299,7 +303,7 @@ describe('FileChecker page', () => {
 
     await user.click(await screen.findByRole('button', { name: /vendors\.csv/i }))
 
-    expect(await screen.findByText('Could not parse vendors.csv')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not parse vendors.csv')
   })
 
   it('disables issue filters until a report detail is loaded', async () => {
@@ -307,5 +311,28 @@ describe('FileChecker page', () => {
 
     expect(screen.getByLabelText('Filter issue type')).toBeDisabled()
     expect(screen.getByLabelText('Filter severity')).toBeDisabled()
+  })
+
+  it('shows a clean empty issue state when a report has no issues and filters are not active', async () => {
+    mockFetch({
+      history: { items: [{ ...baseReport, status: 'clean', rows_with_issues: 0 }], total: 1 },
+      details: {
+        42: {
+          ...baseDetail,
+          status: 'clean',
+          rows_with_issues: 0,
+          issues: [],
+          issue_total: 0,
+        },
+      },
+    })
+
+    const user = userEvent.setup()
+    render(<FileChecker />)
+
+    await user.click(await screen.findByRole('button', { name: /vendors\.csv/i }))
+
+    expect(await screen.findByText('No issues found')).toBeInTheDocument()
+    expect(screen.queryByText('No issues match the current filters.')).not.toBeInTheDocument()
   })
 })
