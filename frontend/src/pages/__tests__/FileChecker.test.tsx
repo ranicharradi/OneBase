@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import userEvent from '@testing-library/user-event'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { render } from '../../test/test-utils'
 import FileChecker from '../FileChecker'
 import type { FileCheckReport, FileCheckReportDetail, FileCheckReportListResponse } from '../../api/types'
@@ -80,7 +80,7 @@ describe('FileChecker page', () => {
         return Promise.resolve(jsonResponse(postReport))
       }
 
-      const detailMatch = path.match(/^\/api\/file-checks\/(\d+)$/)
+      const detailMatch = path.match(/^\/api\/file-checks\/(\d+)(?:\?.*)?$/)
       if (detailMatch && method === 'GET') {
         const detail = details[Number(detailMatch[1])]
         return Promise.resolve(detail ? jsonResponse(detail) : jsonResponse({ detail: 'Not found' }, 404))
@@ -139,7 +139,7 @@ describe('FileChecker page', () => {
     expect(await screen.findByText('Rows with issues')).toBeInTheDocument()
     expect(await screen.findByText('Required value is missing')).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalledWith('/api/file-checks', expect.objectContaining({ method: 'POST' }))
-    expect(global.fetch).toHaveBeenCalledWith('/api/file-checks/42', expect.any(Object))
+    expect(global.fetch).toHaveBeenCalledWith('/api/file-checks/42?issue_limit=500&issue_offset=0', expect.any(Object))
   })
 
   it('loads report detail when a history item is selected', async () => {
@@ -152,7 +152,7 @@ describe('FileChecker page', () => {
 
     expect(await screen.findByText('Required value is missing')).toBeInTheDocument()
     expect(screen.getByText('supplier_name')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith('/api/file-checks/42', expect.any(Object))
+    expect(global.fetch).toHaveBeenCalledWith('/api/file-checks/42?issue_limit=500&issue_offset=0', expect.any(Object))
   })
 
   it('shows an upload error when the backend rejects the file', async () => {
@@ -167,5 +167,145 @@ describe('FileChecker page', () => {
     )
 
     expect(await screen.findByText('Unsupported delimiter')).toBeInTheDocument()
+  })
+
+  it('shows that filters apply only to the loaded issue page when detail is partial', async () => {
+    mockFetch({
+      history: { items: [baseReport], total: 1 },
+      details: {
+        42: {
+          ...baseDetail,
+          issue_total: 250,
+          issue_limit: 100,
+          issues: baseDetail.issues,
+        },
+      },
+    })
+
+    const user = userEvent.setup()
+    render(<FileChecker />)
+
+    await user.click(await screen.findByRole('button', { name: /vendors\.csv/i }))
+
+    expect(await screen.findByText('Showing first 1 of 250 issues. Filters apply to loaded issues.')).toBeInTheDocument()
+  })
+
+  it('does not start a second upload while a file check is pending', async () => {
+    let resolvePost: ((response: Response) => void) | undefined
+    const pendingPost = new Promise<Response>(resolve => {
+      resolvePost = resolve
+    })
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation((url, init) => {
+      const path = String(url)
+      const method = init?.method ?? 'GET'
+
+      if (path === '/api/file-checks' && method === 'GET') {
+        return Promise.resolve(jsonResponse({ items: [], total: 0 }))
+      }
+
+      if (path === '/api/file-checks' && method === 'POST') {
+        return pendingPost
+      }
+
+      if (path === '/api/file-checks/42?issue_limit=500&issue_offset=0' && method === 'GET') {
+        return Promise.resolve(jsonResponse(baseDetail))
+      }
+
+      return Promise.resolve(new Response('Not found', { status: 404 }))
+    })
+
+    const user = userEvent.setup()
+    render(<FileChecker />)
+
+    const input = screen.getByLabelText('Upload CSV or TSV file')
+    await user.upload(input, new File(['supplier_name\n'], 'vendors.csv', { type: 'text/csv' }))
+    await screen.findByRole('button', { name: /checking/i })
+    await user.upload(input, new File(['supplier_name\n'], 'vendors-2.csv', { type: 'text/csv' }))
+
+    expect(fetchSpy.mock.calls.filter(([url, init]) => String(url) === '/api/file-checks' && init?.method === 'POST')).toHaveLength(1)
+    expect(screen.getByLabelText('File upload')).toHaveAttribute('aria-busy', 'true')
+
+    resolvePost?.(jsonResponse(baseReport))
+    expect(await screen.findByText('Required value is missing')).toBeInTheDocument()
+  })
+
+  it('ignores dropped files while a file check is pending', async () => {
+    let resolvePost: ((response: Response) => void) | undefined
+    const pendingPost = new Promise<Response>(resolve => {
+      resolvePost = resolve
+    })
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation((url, init) => {
+      const path = String(url)
+      const method = init?.method ?? 'GET'
+
+      if (path === '/api/file-checks' && method === 'GET') {
+        return Promise.resolve(jsonResponse({ items: [], total: 0 }))
+      }
+
+      if (path === '/api/file-checks' && method === 'POST') {
+        return pendingPost
+      }
+
+      if (path === '/api/file-checks/42?issue_limit=500&issue_offset=0' && method === 'GET') {
+        return Promise.resolve(jsonResponse(baseDetail))
+      }
+
+      return Promise.resolve(new Response('Not found', { status: 404 }))
+    })
+
+    const user = userEvent.setup()
+    render(<FileChecker />)
+
+    const input = screen.getByLabelText('Upload CSV or TSV file')
+    await user.upload(input, new File(['supplier_name\n'], 'vendors.csv', { type: 'text/csv' }))
+    const uploadSection = await screen.findByLabelText('File upload')
+    fireEvent.drop(uploadSection, {
+      dataTransfer: {
+        files: [new File(['supplier_name\n'], 'vendors-2.csv', { type: 'text/csv' })],
+      },
+    })
+
+    expect(fetchSpy.mock.calls.filter(([url, init]) => String(url) === '/api/file-checks' && init?.method === 'POST')).toHaveLength(1)
+
+    resolvePost?.(jsonResponse(baseReport))
+    expect(await screen.findByText('Required value is missing')).toBeInTheDocument()
+  })
+
+  it('shows the backend error message for an errored report detail', async () => {
+    mockFetch({
+      history: {
+        items: [
+          {
+            ...baseReport,
+            status: 'error',
+            error_message: 'Could not parse vendors.csv',
+          },
+        ],
+        total: 1,
+      },
+      details: {
+        42: {
+          ...baseDetail,
+          status: 'error',
+          error_message: 'Could not parse vendors.csv',
+          issues: [],
+          issue_total: 0,
+        },
+      },
+    })
+
+    const user = userEvent.setup()
+    render(<FileChecker />)
+
+    await user.click(await screen.findByRole('button', { name: /vendors\.csv/i }))
+
+    expect(await screen.findByText('Could not parse vendors.csv')).toBeInTheDocument()
+  })
+
+  it('disables issue filters until a report detail is loaded', async () => {
+    render(<FileChecker />)
+
+    expect(screen.getByLabelText('Filter issue type')).toBeDisabled()
+    expect(screen.getByLabelText('Filter severity')).toBeDisabled()
   })
 })
