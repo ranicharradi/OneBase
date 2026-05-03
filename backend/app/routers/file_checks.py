@@ -1,5 +1,6 @@
 """Standalone file check API endpoints."""
 
+import logging
 import os
 import uuid
 from datetime import UTC, datetime
@@ -27,7 +28,12 @@ UPLOAD_DIR = settings.upload_dir
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024
+UPLOAD_CHUNK_SIZE = 1024 * 1024
 ISSUE_CAP = 5000
+MAX_FILENAME_LENGTH = 255
+ANALYSIS_ERROR_MESSAGE = "File analysis failed. Please check the file format and try again."
+
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=FileCheckReportResponse, status_code=status.HTTP_201_CREATED)
@@ -37,21 +43,18 @@ async def create_file_check(
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Upload and analyze a CSV or TSV file check report."""
-    original_filename = file.filename
-    if not original_filename or not original_filename.lower().endswith((".csv", ".tsv")):
+    upload_basename = _upload_basename(file.filename)
+    extension = Path(upload_basename).suffix.lower()
+    if not upload_basename or extension not in {".csv", ".tsv"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only CSV or TSV files are accepted",
         )
 
-    file_content = await file.read()
-    if len(file_content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail=f"File exceeds maximum size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
-        )
+    file_content = await _read_upload(file)
+    original_filename = _bounded_filename(upload_basename)
 
-    stored_filename = f"{uuid.uuid4()}_{Path(original_filename).name}"
+    stored_filename = f"{uuid.uuid4()}{extension}"
     filepath = safe_upload_path(UPLOAD_DIR, stored_filename)
     with open(filepath, "wb") as uploaded_file:
         uploaded_file.write(file_content)
@@ -99,9 +102,10 @@ async def create_file_check(
                     message=issue.message,
                 )
             )
-    except Exception as exc:
+    except Exception:
+        logger.exception("File check analysis failed for report_id=%s filename=%s", report.id, original_filename)
         report.status = FileCheckStatus.ERROR
-        report.error_message = str(exc)[:500] or exc.__class__.__name__
+        report.error_message = ANALYSIS_ERROR_MESSAGE
         report.completed_at = _utcnow()
 
     db.commit()
@@ -159,3 +163,34 @@ def get_file_check(
 
 def _utcnow() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+async def _read_upload(file: UploadFile) -> bytes:
+    content = bytearray()
+    while True:
+        chunk = await file.read(UPLOAD_CHUNK_SIZE)
+        if not chunk:
+            break
+
+        content.extend(chunk)
+        if len(content) > MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"File exceeds maximum size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
+            )
+
+    return bytes(content)
+
+
+def _upload_basename(filename: str | None) -> str:
+    if not filename:
+        return ""
+
+    return Path(filename.replace("\\", "/")).name.strip('"')
+
+
+def _bounded_filename(filename: str) -> str:
+    suffix = Path(filename).suffix
+    stem = Path(filename).stem
+    available_stem_length = MAX_FILENAME_LENGTH - len(suffix)
+    return f"{stem[:available_stem_length]}{suffix}"

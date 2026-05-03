@@ -265,3 +265,71 @@ def test_file_check_rejects_unsupported_extension(test_client, test_db):
 
     assert response.status_code == 400
     assert "csv or tsv" in response.json()["detail"].lower()
+
+
+def test_oversized_file_check_uses_bounded_reads_and_creates_no_report(test_client, test_db, monkeypatch):
+    from starlette.datastructures import UploadFile
+
+    import app.routers.file_checks as file_checks_router
+
+    _create_file_check_user(test_db, "filecheck-admin-oversized", "admin")
+    monkeypatch.setattr(file_checks_router, "MAX_UPLOAD_SIZE", 5)
+    chunks = [b"Code,", b"Name\n", b"001,"]
+
+    async def fake_read(self, size=-1):
+        assert size != -1
+        return chunks.pop(0) if chunks else b""
+
+    monkeypatch.setattr(UploadFile, "read", fake_read)
+
+    response = test_client.post(
+        "/api/file-checks",
+        files={"file": ("vendors.csv", b"ignored", "text/csv")},
+        headers=_file_check_auth_header("filecheck-admin-oversized"),
+    )
+
+    assert response.status_code == 413
+    assert test_db.query(FileCheckReport).count() == 0
+
+
+def test_file_check_bounds_long_filenames(test_client, test_db):
+    _create_file_check_user(test_db, "filecheck-admin-long-name", "admin")
+    long_basename = "vendor-" + ("x" * 300)
+    filename = f"{long_basename}.csv"
+
+    response = test_client.post(
+        "/api/file-checks",
+        files={"file": (filename, b"Code,Name\n001,Acme\n", "text/csv")},
+        headers=_file_check_auth_header("filecheck-admin-long-name"),
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert len(data["original_filename"]) <= 255
+    assert data["original_filename"].endswith(".csv")
+    assert len(data["stored_filename"]) <= 255
+    assert data["stored_filename"].endswith(".csv")
+    assert long_basename not in data["stored_filename"]
+
+
+def test_file_check_analysis_exception_returns_generic_error(test_client, test_db, monkeypatch):
+    import app.routers.file_checks as file_checks_router
+
+    _create_file_check_user(test_db, "filecheck-admin-error", "admin")
+
+    def raise_parser_error(*args, **kwargs):
+        raise RuntimeError("secret parser detail")
+
+    monkeypatch.setattr(file_checks_router, "analyze_file_content", raise_parser_error)
+
+    response = test_client.post(
+        "/api/file-checks",
+        files={"file": ("vendors.csv", b"Code,Name\n001,Acme\n", "text/csv")},
+        headers=_file_check_auth_header("filecheck-admin-error"),
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error_message"] == "File analysis failed. Please check the file format and try again."
+    assert "secret parser detail" not in data["error_message"]
