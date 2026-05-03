@@ -347,6 +347,37 @@ def test_file_check_cleans_up_uploaded_file_when_db_commit_fails(test_client, te
     assert not expected_path.exists()
 
 
+def test_file_check_keeps_uploaded_file_when_refresh_fails_after_commit(test_client, test_db, monkeypatch):
+    import app.routers.file_checks as file_checks_router
+
+    _create_file_check_user(test_db, "filecheck-admin-refresh-error", "admin")
+    fixed_uuid = uuid.UUID("87654321-4321-6789-4321-678987654321")
+    expected_path = Path(settings.upload_dir) / f"{fixed_uuid}.csv"
+    expected_path.unlink(missing_ok=True)
+    monkeypatch.setattr(file_checks_router.uuid, "uuid4", lambda: fixed_uuid)
+
+    original_refresh = test_db.refresh
+
+    def raise_refresh_error(instance, *args, **kwargs):
+        if isinstance(instance, FileCheckReport):
+            raise RuntimeError("refresh detail should not leak")
+        return original_refresh(instance, *args, **kwargs)
+
+    monkeypatch.setattr(test_db, "refresh", raise_refresh_error)
+
+    response = test_client.post(
+        "/api/file-checks",
+        files={"file": ("vendors.csv", b"Code,Name\n001,Acme\n", "text/csv")},
+        headers=_file_check_auth_header("filecheck-admin-refresh-error"),
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "File check could not be saved"
+    report = test_db.query(FileCheckReport).filter_by(stored_filename=f"{fixed_uuid}.csv").one()
+    assert report.original_filename == "vendors.csv"
+    assert expected_path.exists()
+
+
 def test_file_check_analysis_exception_returns_generic_error(test_client, test_db, monkeypatch):
     import app.routers.file_checks as file_checks_router
 
