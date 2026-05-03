@@ -7,7 +7,7 @@ import Panel, { PanelHead } from '../components/ui/Panel';
 import Spinner from '../components/ui/Spinner';
 
 export default function FileChecker() {
-  const { data: reports, isLoading } = useQuery({
+  const { data: reports, isError, isLoading } = useQuery({
     queryKey: ['file-checks'],
     queryFn: () => api.get<FileCheckReportListResponse>('/api/file-checks'),
   });
@@ -26,16 +26,19 @@ export default function FileChecker() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
           <section
-            aria-label="Upload file for checking"
+            aria-disabled="true"
+            aria-label="File upload controls are being prepared"
             style={{
               minHeight: 220,
               border: '1px dashed var(--border-1)',
               borderRadius: 6,
-              background: 'var(--bg-1)',
+              background: 'var(--bg-0)',
+              color: 'var(--fg-2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: 24,
+              opacity: 0.72,
             }}
           >
             <div style={{ textAlign: 'center' }}>
@@ -47,8 +50,8 @@ export default function FileChecker() {
                 rule
               </span>
               <div style={{ fontSize: 15, fontWeight: 600 }}>Drop CSV or TSV file here</div>
-              <div className="mono" style={{ marginTop: 6, fontSize: 11, color: 'var(--fg-2)' }}>
-                Quality checks only
+              <div style={{ marginTop: 6, fontSize: 12 }}>
+                Upload controls are being prepared
               </div>
             </div>
           </section>
@@ -60,6 +63,15 @@ export default function FileChecker() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg-2)', fontSize: 12 }}>
                   <Spinner size={14} />
                   <span>Loading reports</span>
+                </div>
+              ) : isError ? (
+                <div>
+                  <div style={{ color: 'var(--danger)', fontSize: 13, fontWeight: 600 }}>
+                    Could not load file check history
+                  </div>
+                  <div style={{ marginTop: 4, color: 'var(--fg-2)', fontSize: 12 }}>
+                    Refresh the page or try again later.
+                  </div>
                 </div>
               ) : reportCount > 0 ? (
                 <div>
