@@ -63,7 +63,7 @@ def create_user(
     # Validate password strength
     error = validate_password_strength(user_data.password)
     if error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error)
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error)
 
     # Check for duplicate username
     existing = db.query(User).filter(User.username == user_data.username).first()
