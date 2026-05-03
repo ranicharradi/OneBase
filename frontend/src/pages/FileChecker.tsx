@@ -95,6 +95,7 @@ export default function FileChecker() {
   const filtersDisabled = !currentReport || detailQuery.isLoading;
   const loadedIssueCount = currentReport?.issues.length ?? 0;
   const hasPartialIssues = currentReport ? currentReport.issue_total > loadedIssueCount : false;
+  const hasActiveIssueFilters = issueType !== 'all' || severity !== 'all';
   const visibleIssues = useMemo(() => {
     const issues = currentReport?.issues ?? [];
     return issues.filter(issue => {
@@ -191,6 +192,7 @@ export default function FileChecker() {
                 </button>
                 {uploadMutation.isError && (
                   <div
+                    role="alert"
                     className="pill danger"
                     style={{ marginTop: 12, width: '100%', padding: '6px 10px', justifyContent: 'center' }}
                   >
@@ -226,6 +228,7 @@ export default function FileChecker() {
                         key={report.id}
                         type="button"
                         className="btn"
+                        aria-pressed={selectedReportId === report.id}
                         onClick={() => {
                           setSelectedReportId(report.id);
                           setIssueType('all');
@@ -278,7 +281,11 @@ export default function FileChecker() {
                     <span>Loading report</span>
                   </div>
                 ) : detailQuery.isError ? (
-                  <div className="pill danger" style={{ padding: '6px 10px', justifyContent: 'flex-start' }}>
+                  <div
+                    role="alert"
+                    className="pill danger"
+                    style={{ padding: '6px 10px', justifyContent: 'flex-start' }}
+                  >
                     {errorMessage(detailQuery.error)}
                   </div>
                 ) : currentReport ? (
@@ -321,18 +328,30 @@ export default function FileChecker() {
                       </span>
                     </div>
                     {currentReport.issue_cap_reached && (
-                      <div className="pill warn" style={{ padding: '6px 10px', justifyContent: 'flex-start' }}>
+                      <div
+                        aria-live="polite"
+                        className="pill warn"
+                        style={{ padding: '6px 10px', justifyContent: 'flex-start' }}
+                      >
                         Issue cap reached. Showing stored issues only.
                       </div>
                     )}
                     {hasPartialIssues && (
-                      <div className="pill warn" style={{ padding: '6px 10px', justifyContent: 'flex-start' }}>
+                      <div
+                        aria-live="polite"
+                        className="pill warn"
+                        style={{ padding: '6px 10px', justifyContent: 'flex-start' }}
+                      >
                         Showing first {formatNumber(loadedIssueCount)} of {formatNumber(currentReport.issue_total)} issues.
                         Filters apply to loaded issues.
                       </div>
                     )}
                     {currentReport.status === 'error' && currentReport.error_message && (
-                      <div className="pill danger" style={{ padding: '6px 10px', justifyContent: 'flex-start' }}>
+                      <div
+                        role="alert"
+                        className="pill danger"
+                        style={{ padding: '6px 10px', justifyContent: 'flex-start' }}
+                      >
                         {currentReport.error_message}
                       </div>
                     )}
@@ -393,7 +412,7 @@ export default function FileChecker() {
                     {currentReport && visibleIssues.length === 0 && (
                       <tr>
                         <td colSpan={6} style={{ color: 'var(--fg-2)' }}>
-                          No issues match the current filters.
+                          {hasActiveIssueFilters ? 'No issues match the current filters.' : 'No issues found'}
                         </td>
                       </tr>
                     )}
