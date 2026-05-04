@@ -104,4 +104,5 @@ class RecordType:
 
     @property
     def field_keys(self) -> tuple[str, ...]:
+        """Return the ordered keys of all declared fields."""
         return tuple(f.key for f in self.fields)

@@ -132,3 +132,41 @@ def test_embedding_cosine_signal_must_reference_name_field():
             ],
             signals=[Signal(kind="embedding_cosine", field="b", weight=1.0)],
         )
+
+
+def test_recordtype_rejects_non_positive_signal_weight():
+    with pytest.raises(ValueError, match="non-positive weight"):
+        RecordType(
+            key="bad",
+            label="Bad",
+            fields=[FieldDef("a", label="A", role=Role.NAME, required=True)],
+            signals=[Signal(kind="jaro_winkler", field="a", weight=0.0)],
+        )
+
+
+def test_all_types_returns_insertion_order():
+    from app.record_types import _testing_clear_registry, all_types, register
+
+    _testing_clear_registry()
+    a = RecordType(
+        key="a",
+        label="A",
+        fields=[FieldDef("primary", label="Primary", role=Role.NAME, required=True)],
+        signals=[],
+    )
+    b = RecordType(
+        key="b",
+        label="B",
+        fields=[FieldDef("primary", label="Primary", role=Role.NAME, required=True)],
+        signals=[],
+    )
+    c = RecordType(
+        key="c",
+        label="C",
+        fields=[FieldDef("primary", label="Primary", role=Role.NAME, required=True)],
+        signals=[],
+    )
+    register(a)
+    register(b)
+    register(c)
+    assert tuple(rt.key for rt in all_types()) == ("a", "b", "c")
