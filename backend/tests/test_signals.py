@@ -88,3 +88,41 @@ def test_register_kind_rejects_duplicates():
 def test_get_kind_unknown_raises():
     with pytest.raises(KeyError):
         get_kind("never_registered_kind_xyz")
+
+
+def test_exact_kind_case_sensitive():
+    a = _rec(supplier_code="ACME-001")
+    b = _rec(supplier_code="ACME-001")
+    assert compute_signal("exact", a, b, field="supplier_code") == 1.0
+
+
+def test_exact_kind_returns_zero_on_case_difference():
+    a = _rec(supplier_code="ACME-001")
+    b = _rec(supplier_code="acme-001")
+    assert compute_signal("exact", a, b, field="supplier_code") == 0.0
+
+
+def test_embedding_cosine_returns_one_for_identical_embeddings():
+    import numpy as np
+
+    vec = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    a = _rec(supplier_name="anything", name_embedding=vec)
+    b = _rec(supplier_name="something", name_embedding=vec)
+    score = compute_signal("embedding_cosine", a, b, field="supplier_name")
+    assert score == pytest.approx(1.0)
+
+
+def test_embedding_cosine_returns_zero_for_orthogonal_embeddings():
+    import numpy as np
+
+    a = _rec(supplier_name="anything", name_embedding=np.array([1.0, 0.0, 0.0], dtype=np.float32))
+    b = _rec(supplier_name="something", name_embedding=np.array([0.0, 1.0, 0.0], dtype=np.float32))
+    score = compute_signal("embedding_cosine", a, b, field="supplier_name")
+    assert score == pytest.approx(0.0)
+
+
+def test_embedding_cosine_returns_neutral_when_embedding_missing():
+    a = _rec(supplier_name="anything", name_embedding=None)
+    b = _rec(supplier_name="something", name_embedding=None)
+    score = compute_signal("embedding_cosine", a, b, field="supplier_name")
+    assert score == 0.5  # neutral when missing — preserves today's behavior
