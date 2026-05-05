@@ -2,6 +2,10 @@
 
 Processes uploaded CSV files through the full pipeline:
 parse → map → supersede → store → normalize → embed → finalize
+
+Records are written into `StagedRecord.fields` (JSONB) keyed by FieldDef.key.
+The NAME-role field's value is also written to the universal `name` column
+(truncated to 255 chars if needed) so the matcher's HNSW/text indexes work.
 """
 
 import logging
@@ -11,36 +15,26 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
+from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
-from app.models.staging import StagedSupplier
+from app.models.staging import StagedRecord
+from app.record_types import get as get_record_type
 from app.services.embedding import compute_embeddings
 from app.services.normalization import normalize_name
 from app.utils.csv_parser import parse_csv
 
 logger = logging.getLogger(__name__)
 
-# Max lengths matching the DB column definitions
-_FIELD_MAX_LENGTHS = {
-    "source_code": 50,
-    "name": 255,
-    "short_name": 50,
-    "currency": 50,
-    "payment_terms": 50,
-    "contact_name": 255,
-    "supplier_type": 50,
-}
+_NAME_MAX_LEN = 255  # matches StagedRecord.name column
 
 
-def _truncate(value: str | None, field: str) -> str | None:
-    """Truncate a value to fit its DB column, or return None for empty strings."""
-    if not value:
+def _clean(value: str | None) -> str | None:
+    """Strip whitespace and treat empty as None."""
+    if value is None:
         return None
-    max_len = _FIELD_MAX_LENGTHS.get(field)
-    if max_len and len(value) > max_len:
-        return value[:max_len]
-    return value
+    s = str(value).strip()
+    return s if s else None
 
 
 def run_ingestion(
@@ -49,30 +43,12 @@ def run_ingestion(
     file_content: bytes,
     progress_callback: Callable | None = None,
 ) -> int:
-    """Run the full ingestion pipeline for an uploaded CSV file.
-
-    Steps:
-    1. Load batch and data source
-    2. Parse CSV
-    3. Map columns
-    4. Supersede old records (if re-upload)
-    5. Store staged suppliers
-    6. Normalize names
-    7. Compute and store embeddings
-    8. Finalize batch
-
-    Args:
-        db: SQLAlchemy session
-        batch_id: ImportBatch ID
-        file_content: Raw CSV file bytes
-        progress_callback: Optional callback(stage, progress_pct)
-
-    Returns:
-        Number of rows processed
-    """
+    """Run the full ingestion pipeline for an uploaded CSV file."""
     batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
     source = db.query(DataSource).filter(DataSource.id == batch.data_source_id).one()
-    column_mapping = source.column_mapping
+    rt = get_record_type(source.type)
+    column_mapping: dict[str, str] = source.column_mapping or {}
+    valid_field_keys = set(rt.field_keys)
 
     try:
         # 1. PARSE
@@ -88,13 +64,13 @@ def run_ingestion(
                 progress_callback("complete", 100)
             return 0
 
-        # 2. SUPERSEDE old records (if this source has existing active records)
+        # 2. SUPERSEDE old records of the same source
         try:
             existing_active = (
-                db.query(StagedSupplier)
+                db.query(StagedRecord)
                 .filter(
-                    StagedSupplier.data_source_id == source.id,
-                    StagedSupplier.status == SupplierStatus.ACTIVE,
+                    StagedRecord.data_source_id == source.id,
+                    StagedRecord.status == RecordStatus.ACTIVE,
                 )
                 .with_for_update(nowait=True)
                 .all()
@@ -107,60 +83,61 @@ def run_ingestion(
             if "sqlite" not in str(db.bind.url):
                 raise
             existing_active = (
-                db.query(StagedSupplier)
+                db.query(StagedRecord)
                 .filter(
-                    StagedSupplier.data_source_id == source.id,
-                    StagedSupplier.status == SupplierStatus.ACTIVE,
+                    StagedRecord.data_source_id == source.id,
+                    StagedRecord.status == RecordStatus.ACTIVE,
                 )
                 .all()
             )
 
         if existing_active:
-            # Mark all existing active records as superseded
-            superseded_ids = [s.id for s in existing_active]
-            db.query(StagedSupplier).filter(StagedSupplier.id.in_(superseded_ids)).update(
-                {"status": SupplierStatus.SUPERSEDED}, synchronize_session="fetch"
+            superseded_ids = [r.id for r in existing_active]
+            db.query(StagedRecord).filter(StagedRecord.id.in_(superseded_ids)).update(
+                {"status": RecordStatus.SUPERSEDED}, synchronize_session="fetch"
             )
-
-            # Invalidate pending match candidates referencing superseded records
             if superseded_ids:
                 db.query(MatchCandidate).filter(
                     MatchCandidate.status == CandidateStatus.PENDING,
-                    (
-                        MatchCandidate.supplier_a_id.in_(superseded_ids)
-                        | MatchCandidate.supplier_b_id.in_(superseded_ids)
-                    ),
+                    (MatchCandidate.record_a_id.in_(superseded_ids) | MatchCandidate.record_b_id.in_(superseded_ids)),
                 ).update({"status": CandidateStatus.INVALIDATED}, synchronize_session="fetch")
 
-        # 3. MAP columns and STORE staged suppliers
-        suppliers = []
+        # 3. MAP and STORE
+        name_field_key = rt.name_field.key
+        records: list[StagedRecord] = []
         for row in rows:
-            # Extract key fields using column mapping
-            supplier = StagedSupplier(
+            fields: dict[str, str] = {}
+            for field_key, csv_col in column_mapping.items():
+                if field_key not in valid_field_keys:
+                    continue  # silently ignore stale mappings
+                value = _clean(row.get(csv_col))
+                if value is not None:
+                    fields[field_key] = value
+
+            name_value = fields.get(name_field_key)
+            if name_value and len(name_value) > _NAME_MAX_LEN:
+                name_value = name_value[:_NAME_MAX_LEN]
+
+            record = StagedRecord(
                 import_batch_id=batch.id,
                 data_source_id=source.id,
-                source_code=_truncate(row.get(column_mapping.get("supplier_code", ""), ""), "source_code"),
-                name=_truncate(row.get(column_mapping.get("supplier_name", ""), ""), "name"),
-                short_name=_truncate(row.get(column_mapping.get("short_name", ""), None), "short_name"),
-                currency=_truncate(row.get(column_mapping.get("currency", ""), None), "currency"),
-                payment_terms=_truncate(row.get(column_mapping.get("payment_terms", ""), None), "payment_terms"),
-                contact_name=_truncate(row.get(column_mapping.get("contact_name", ""), None), "contact_name"),
-                supplier_type=_truncate(row.get(column_mapping.get("supplier_type", ""), None), "supplier_type"),
-                status=SupplierStatus.ACTIVE,
-                raw_data=row,
+                type=source.type,
+                name=name_value,
+                fields=fields,
+                raw_data=dict(row),
+                status=RecordStatus.ACTIVE,
             )
-            suppliers.append(supplier)
+            records.append(record)
 
-        db.add_all(suppliers)
+        db.add_all(records)
         db.flush()
 
         if progress_callback:
             progress_callback("normalizing", 33)
 
         # 4. NORMALIZE names
-        for supplier in suppliers:
-            supplier.normalized_name = normalize_name(supplier.name)
-
+        for record in records:
+            record.normalized_name = normalize_name(record.name)
         db.flush()
 
         if progress_callback:
@@ -170,13 +147,11 @@ def run_ingestion(
         if progress_callback:
             progress_callback("embedding", 66)
 
-        normalized_names = [s.normalized_name or "" for s in suppliers]
+        normalized_names = [r.normalized_name or "" for r in records]
         embeddings = compute_embeddings(normalized_names)
 
-        for i, supplier in enumerate(suppliers):
-            # Store embedding as list for JSON-compatible storage (SQLite)
-            # In PostgreSQL with pgvector, this would be stored as Vector
-            supplier.name_embedding = embeddings[i].tolist()
+        for i, record in enumerate(records):
+            record.name_embedding = embeddings[i].tolist()
 
         db.flush()
 
