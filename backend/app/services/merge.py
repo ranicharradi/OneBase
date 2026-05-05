@@ -1,11 +1,10 @@
 """Merge service — produces golden records from reviewed match candidates.
 
-Handles:
-- Field-by-field comparison and conflict detection
-- Auto-inclusion of identical and source-only fields
-- User selections for conflicting fields
-- Full provenance tracking on every field
-- Audit trail logging
+Driven by the candidate's RecordType: every FieldDef on the type produces one
+field-comparison entry; the merged UnifiedRecord stores values keyed by FieldDef.key.
+
+Provenance per merged field tracks: source record ID, source entity name,
+auto/manual, chosen_by, chosen_at.
 """
 
 from datetime import UTC, datetime
@@ -15,20 +14,11 @@ from sqlalchemy.orm import Session
 
 from app.models.enums import CandidateStatus
 from app.models.match import MatchCandidate
-from app.models.staging import StagedSupplier
-from app.models.unified import UnifiedSupplier
+from app.models.staging import StagedRecord
+from app.models.unified import UnifiedRecord
+from app.record_types import RecordType
+from app.record_types import get as get_record_type
 from app.services.audit import log_action
-
-# Canonical fields that participate in merge comparison
-CANONICAL_FIELDS = [
-    ("name", "Supplier Name"),
-    ("source_code", "Supplier Code"),
-    ("short_name", "Short Name"),
-    ("currency", "Currency"),
-    ("payment_terms", "Payment Terms"),
-    ("contact_name", "Contact Name"),
-    ("supplier_type", "Supplier Type"),
-]
 
 
 def _normalize_value(val: Any) -> str | None:
@@ -39,25 +29,31 @@ def _normalize_value(val: Any) -> str | None:
     return s if s else None
 
 
+def _field_value(record: StagedRecord, field_key: str) -> str | None:
+    """Read a field value from a record's JSONB store."""
+    fields = record.fields or {}
+    return _normalize_value(fields.get(field_key))
+
+
 def compare_fields(
-    supplier_a: StagedSupplier,
-    supplier_b: StagedSupplier,
+    record_a: StagedRecord,
+    record_b: StagedRecord,
     source_a_name: str,
     source_b_name: str,
+    record_type: RecordType | None = None,
 ) -> list[dict]:
-    """Compare canonical fields between two suppliers.
+    """Compare type-declared fields between two records."""
+    if record_a.type != record_b.type:
+        raise ValueError(f"compare_fields received records of differing types: {record_a.type!r} vs {record_b.type!r}")
+    rt = record_type or get_record_type(record_a.type)
 
-    Returns a list of field comparison dicts with conflict/identical/source-only flags.
-    """
     comparisons = []
-
-    for field, label in CANONICAL_FIELDS:
-        val_a = _normalize_value(getattr(supplier_a, field, None))
-        val_b = _normalize_value(getattr(supplier_b, field, None))
-
+    for fdef in rt.fields:
+        val_a = _field_value(record_a, fdef.key)
+        val_b = _field_value(record_b, fdef.key)
         comp = {
-            "field": field,
-            "label": label,
+            "field": fdef.key,
+            "label": fdef.label,
             "value_a": val_a,
             "value_b": val_b,
             "source_a": source_a_name,
@@ -67,131 +63,117 @@ def compare_fields(
             "is_a_only": False,
             "is_b_only": False,
         }
-
         if val_a is not None and val_b is not None:
-            if val_a == val_b:
-                comp["is_identical"] = True
-            else:
-                comp["is_conflict"] = True
-        elif val_a is not None and val_b is None:
+            comp["is_identical" if val_a == val_b else "is_conflict"] = True
+        elif val_a is not None:
             comp["is_a_only"] = True
-        elif val_b is not None and val_a is None:
+        elif val_b is not None:
             comp["is_b_only"] = True
-        # Both None: leave all flags False (empty field)
-
         comparisons.append(comp)
-
     return comparisons
 
 
-def _expand_group_members(db: Session, supplier_id: int) -> list[int]:
-    """Return all StagedSupplier IDs in the same intra-source group."""
-    supplier = db.get(StagedSupplier, supplier_id)
-    if supplier is None:
-        return [supplier_id]
-    group_id = supplier.intra_source_group_id
+def _expand_group_members(db: Session, record_id: int) -> list[int]:
+    """Return all StagedRecord IDs in the same intra-source group."""
+    record = db.get(StagedRecord, record_id)
+    if record is None:
+        return [record_id]
+    group_id = record.intra_source_group_id
     if group_id is None:
-        return [supplier_id]
-    member_ids = db.query(StagedSupplier.id).filter(StagedSupplier.intra_source_group_id == group_id).all()
+        return [record_id]
+    member_ids = db.query(StagedRecord.id).filter(StagedRecord.intra_source_group_id == group_id).all()
     return [m.id for m in member_ids]
 
 
 def execute_merge(
     db: Session,
     candidate: MatchCandidate,
-    supplier_a: StagedSupplier,
-    supplier_b: StagedSupplier,
+    record_a: StagedRecord,
+    record_b: StagedRecord,
     source_a_name: str,
     source_b_name: str,
     field_selections: list[dict],
     username: str,
-) -> UnifiedSupplier:
-    """Execute a merge, creating a unified supplier with full provenance.
+) -> UnifiedRecord:
+    """Execute a merge, creating a unified record with full provenance.
 
     Args:
-        field_selections: List of {"field": str, "chosen_supplier_id": int}
-            for conflicting fields. Identical and source-only fields are auto-resolved.
-
-    Returns:
-        The created UnifiedSupplier.
+        field_selections: List of {"field": str, "chosen_record_id": int}
+            for conflicting fields.
     """
+    if record_a.type != record_b.type or candidate.type != record_a.type:
+        raise ValueError(
+            f"Type mismatch in merge: candidate={candidate.type!r}, "
+            f"record_a={record_a.type!r}, record_b={record_b.type!r}"
+        )
+    rt = get_record_type(candidate.type)
     now = datetime.now(UTC).isoformat()
-    selection_map = {fs["field"]: fs["chosen_supplier_id"] for fs in field_selections}
-    comparisons = compare_fields(supplier_a, supplier_b, source_a_name, source_b_name)
+    selection_map = {fs["field"]: fs["chosen_record_id"] for fs in field_selections}
+    comparisons = compare_fields(record_a, record_b, source_a_name, source_b_name, rt)
 
     provenance: dict[str, dict] = {}
-    merged_values: dict[str, str | None] = {}
+    merged_fields: dict[str, str | None] = {}
 
     for comp in comparisons:
         field = comp["field"]
-
         if comp["is_identical"]:
-            # Auto-include identical values
-            merged_values[field] = comp["value_a"]
+            merged_fields[field] = comp["value_a"]
             provenance[field] = {
                 "value": comp["value_a"],
                 "source_entity": f"{source_a_name} + {source_b_name}",
-                "source_record_id": supplier_a.id,
+                "source_record_id": record_a.id,
                 "auto": True,
                 "chosen_by": username,
                 "chosen_at": now,
             }
-
         elif comp["is_a_only"]:
-            # Auto-include source-A-only
-            merged_values[field] = comp["value_a"]
+            merged_fields[field] = comp["value_a"]
             provenance[field] = {
                 "value": comp["value_a"],
                 "source_entity": source_a_name,
-                "source_record_id": supplier_a.id,
+                "source_record_id": record_a.id,
                 "auto": True,
                 "chosen_by": username,
                 "chosen_at": now,
             }
-
         elif comp["is_b_only"]:
-            # Auto-include source-B-only
-            merged_values[field] = comp["value_b"]
+            merged_fields[field] = comp["value_b"]
             provenance[field] = {
                 "value": comp["value_b"],
                 "source_entity": source_b_name,
-                "source_record_id": supplier_b.id,
+                "source_record_id": record_b.id,
                 "auto": True,
                 "chosen_by": username,
                 "chosen_at": now,
             }
-
         elif comp["is_conflict"]:
-            # Conflict — must have user selection
             chosen_id = selection_map.get(field)
             if chosen_id is None:
                 raise ValueError(f"Missing field selection for conflicting field '{field}'")
-
-            if chosen_id == supplier_a.id:
-                merged_values[field] = comp["value_a"]
+            if chosen_id == record_a.id:
+                merged_fields[field] = comp["value_a"]
                 provenance[field] = {
                     "value": comp["value_a"],
                     "source_entity": source_a_name,
-                    "source_record_id": supplier_a.id,
+                    "source_record_id": record_a.id,
                     "auto": False,
                     "chosen_by": username,
                     "chosen_at": now,
                 }
-            elif chosen_id == supplier_b.id:
-                merged_values[field] = comp["value_b"]
+            elif chosen_id == record_b.id:
+                merged_fields[field] = comp["value_b"]
                 provenance[field] = {
                     "value": comp["value_b"],
                     "source_entity": source_b_name,
-                    "source_record_id": supplier_b.id,
+                    "source_record_id": record_b.id,
                     "auto": False,
                     "chosen_by": username,
                     "chosen_at": now,
                 }
             else:
-                raise ValueError(f"Invalid chosen_supplier_id {chosen_id} for field '{field}'")
+                raise ValueError(f"Invalid chosen_record_id {chosen_id} for field '{field}'")
         else:
-            # Both None — empty field
-            merged_values[field] = None
+            merged_fields[field] = None
             provenance[field] = {
                 "value": None,
                 "source_entity": None,
@@ -201,49 +183,44 @@ def execute_merge(
                 "chosen_at": now,
             }
 
-    # Name is required for the golden record
-    if not merged_values.get("name"):
-        raise ValueError("Merged record must have a name")
+    name_field_key = rt.name_field.key
+    merged_name = merged_fields.get(name_field_key)
+    if not merged_name:
+        raise ValueError(f"Merged record must have a '{name_field_key}' value")
 
-    unified = UnifiedSupplier(
-        name=merged_values["name"],
-        source_code=merged_values.get("source_code"),
-        short_name=merged_values.get("short_name"),
-        currency=merged_values.get("currency"),
-        payment_terms=merged_values.get("payment_terms"),
-        contact_name=merged_values.get("contact_name"),
-        supplier_type=merged_values.get("supplier_type"),
+    fields_payload = {k: v for k, v in merged_fields.items() if v is not None}
+
+    unified = UnifiedRecord(
+        type=candidate.type,
+        name=merged_name,
+        fields=fields_payload,
         provenance=provenance,
-        source_supplier_ids=(_expand_group_members(db, supplier_a.id) + _expand_group_members(db, supplier_b.id)),
+        source_record_ids=(_expand_group_members(db, record_a.id) + _expand_group_members(db, record_b.id)),
         match_candidate_id=candidate.id,
         created_by=username,
     )
 
     db.add(unified)
 
-    # Mark candidate as merged
     candidate.status = CandidateStatus.MERGED
     candidate.reviewed_by = username
     candidate.reviewed_at = datetime.now(UTC)
 
-    # Audit trail
     log_action(
         db,
-        user_id=None,  # We pass username instead of looking up user
+        user_id=None,
         action="merge_confirmed",
         entity_type="match_candidate",
         entity_id=candidate.id,
         details={
-            "unified_supplier_name": merged_values["name"],
-            "source_supplier_ids": (
-                _expand_group_members(db, supplier_a.id) + _expand_group_members(db, supplier_b.id)
-            ),
+            "type": candidate.type,
+            "unified_record_name": merged_name,
+            "source_record_ids": (_expand_group_members(db, record_a.id) + _expand_group_members(db, record_b.id)),
             "conflict_count": sum(1 for c in comparisons if c["is_conflict"]),
         },
     )
 
-    db.flush()  # Assign ID to unified
-
+    db.flush()
     return unified
 
 
@@ -263,5 +240,5 @@ def reject_candidate(
         action="match_rejected",
         entity_type="match_candidate",
         entity_id=candidate.id,
-        details={"reviewed_by": username},
+        details={"type": candidate.type, "reviewed_by": username},
     )
