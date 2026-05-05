@@ -1,11 +1,7 @@
 """Matching orchestration service — wires blocking → scoring → clustering into a pipeline.
 
-Coordinates the full matching flow:
-1. (Optional) Invalidate old candidates on re-upload
-2. BLOCKING: Generate candidate pairs via text + embedding blocking
-3. SCORING: Score each candidate pair with multi-signal scoring
-4. CLUSTERING: Group above-threshold pairs into transitive clusters
-5. INSERTING: Create MatchGroup and MatchCandidate records
+Type-scoped: every blocking/scoring/clustering call is constrained to records of
+a single RecordType. The type is derived from the batch's DataSource.type.
 """
 
 import logging
@@ -16,76 +12,61 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.batch import ImportBatch
-from app.models.enums import CandidateStatus, SupplierStatus
+from app.models.enums import CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate, MatchGroup
-from app.models.staging import StagedSupplier
+from app.models.source import DataSource
+from app.models.staging import StagedRecord
 from app.services.blocking import combine_blocks, embedding_block, text_block
 from app.services.clustering import find_groups
 from app.services.grouping import group_intra_source
 from app.services.ml_scoring import blocker_filter, ml_score_pair
 from app.services.ml_training import load_active_model
-from app.services.scoring import compute_signal_weights, score_pair
+from app.services.scoring import score_pair
 
 logger = logging.getLogger(__name__)
 
 
 def _invalidate_old_candidates(db: Session, source_id: int) -> int:
-    """Invalidate all match candidates involving suppliers from the given source.
-
-    Clears group_id and sets status to 'invalidated' for candidates where
-    supplier_a or supplier_b belongs to the re-uploaded source.
-
-    Returns:
-        Count of invalidated candidates.
-    """
-    # Get supplier IDs belonging to this source
-    supplier_ids = [
-        sid for (sid,) in db.query(StagedSupplier.id).filter(StagedSupplier.data_source_id == source_id).all()
-    ]
-
-    if not supplier_ids:
+    """Invalidate match candidates referencing records from the given source."""
+    record_ids = [rid for (rid,) in db.query(StagedRecord.id).filter(StagedRecord.data_source_id == source_id).all()]
+    if not record_ids:
         return 0
 
-    # Find candidates involving these suppliers that are not already invalidated
     candidates = (
         db.query(MatchCandidate)
         .filter(
             MatchCandidate.status != CandidateStatus.INVALIDATED,
-            (MatchCandidate.supplier_a_id.in_(supplier_ids) | MatchCandidate.supplier_b_id.in_(supplier_ids)),
+            (MatchCandidate.record_a_id.in_(record_ids) | MatchCandidate.record_b_id.in_(record_ids)),
         )
         .all()
     )
-
     count = 0
     for c in candidates:
         c.status = CandidateStatus.INVALIDATED
         c.group_id = None
         count += 1
-
     if count:
         logger.info("Invalidated %d old candidates for source %d", count, source_id)
-
     return count
 
 
-def _get_active_source_ids(db: Session, batch_id: int) -> list[int]:
-    """Get all source IDs that have active suppliers, including the batch's source."""
+def _get_active_source_ids(db: Session, type_key: str, batch_id: int) -> list[int]:
+    """Get all source IDs with active records of the given type, including the batch's source."""
     batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
     batch_source_id = batch.data_source_id
 
-    # Get all source IDs with active suppliers
     source_ids = [
         sid
-        for (sid,) in db.query(StagedSupplier.data_source_id)
-        .filter(StagedSupplier.status == SupplierStatus.ACTIVE)
+        for (sid,) in db.query(StagedRecord.data_source_id)
+        .filter(
+            StagedRecord.type == type_key,
+            StagedRecord.status == RecordStatus.ACTIVE,
+        )
         .distinct()
         .all()
     ]
-
-    # Ensure batch's source is included
     if batch_source_id not in source_ids:
         source_ids.append(batch_source_id)
-
     return source_ids
 
 
@@ -95,197 +76,155 @@ def run_matching_pipeline(
     progress_callback: Callable[[str, int], None] | None = None,
     invalidate_source_id: int | None = None,
 ) -> dict:
-    """Run the full matching pipeline: blocking → scoring → clustering → insert.
-
-    Args:
-        db: Database session (caller manages commit/rollback).
-        batch_id: The import batch that triggered matching.
-        progress_callback: Optional callback(stage: str, pct: int) for progress.
-        invalidate_source_id: If set, invalidate old candidates for this source
-            before running (re-upload scenario).
-
-    Returns:
-        Dict with candidate_count and group_count.
-    """
+    """Run the full matching pipeline for the type bound to the batch's data source."""
 
     def _report(stage: str, pct: int) -> None:
         if progress_callback:
             progress_callback(stage, pct)
 
-    # Step 0: Invalidate old candidates if re-upload
+    batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
+    source = db.query(DataSource).filter(DataSource.id == batch.data_source_id).one()
+    type_key = source.type
+
     if invalidate_source_id is not None:
         _invalidate_old_candidates(db, invalidate_source_id)
 
-    # Get all active source IDs
-    source_ids = _get_active_source_ids(db, batch_id)
+    source_ids = _get_active_source_ids(db, type_key, batch_id)
 
-    # Step 0.5: Intra-source grouping (runs even for single-source uploads)
     _report("GROUPING", 0)
-    grouping_stats = group_intra_source(db, source_ids)
+    grouping_stats = group_intra_source(db, type_key, source_ids)
     _report("GROUPING", 100)
-    logger.info("Intra-source grouping: %s", grouping_stats)
+    logger.info("Intra-source grouping(type=%s): %s", type_key, grouping_stats)
 
     if len(source_ids) < 2:
-        logger.info("Fewer than 2 sources — skipping matching for batch %d", batch_id)
+        logger.info("Fewer than 2 sources of type %s — skipping matching for batch %d", type_key, batch_id)
         return {"candidate_count": 0, "group_count": 0}
 
-    # Load ML models (None if no trained model exists)
     scorer_bundle = load_active_model(db, "scorer")
     blocker_bundle = load_active_model(db, "blocker")
     using_ml = scorer_bundle is not None
     if using_ml:
         logger.info("Using ML scorer model for this pipeline run")
     else:
-        logger.info("No ML model — using weighted-sum scorer")
+        logger.info("No ML model — using weighted-sum scorer from RecordType config")
 
-    # Compute representative set (grouped reps + ungrouped singles)
-    reps = db.query(StagedSupplier.id).filter(
-        StagedSupplier.data_source_id.in_(source_ids),
-        StagedSupplier.status == SupplierStatus.ACTIVE,
+    reps = db.query(StagedRecord.id).filter(
+        StagedRecord.type == type_key,
+        StagedRecord.data_source_id.in_(source_ids),
+        StagedRecord.status == RecordStatus.ACTIVE,
         or_(
-            StagedSupplier.intra_source_group_id == StagedSupplier.id,
-            StagedSupplier.intra_source_group_id.is_(None),
+            StagedRecord.intra_source_group_id == StagedRecord.id,
+            StagedRecord.intra_source_group_id.is_(None),
         ),
     )
     representative_ids = {r.id for r in reps}
-    logger.info("Representatives: %d out of total active suppliers", len(representative_ids))
+    logger.info("Representatives: %d active records of type %s", len(representative_ids), type_key)
 
-    # Step 1: BLOCKING
     _report("BLOCKING", 0)
-    text_pairs = text_block(db, source_ids, representative_ids=representative_ids)
+    text_pairs = text_block(db, type_key, source_ids, representative_ids=representative_ids)
     try:
-        emb_pairs = embedding_block(db, source_ids, representative_ids=representative_ids)
+        emb_pairs = embedding_block(db, type_key, source_ids, representative_ids=representative_ids)
     except Exception as e:
         logger.warning("embedding_block failed, falling back to text-only blocking: %s", e)
-        db.rollback()  # Reset session state after DB-level error
+        db.rollback()
         emb_pairs = set()
     all_pairs = combine_blocks(text_pairs, emb_pairs)
     _report("BLOCKING", 100)
 
     logger.info("Blocking produced %d candidate pairs", len(all_pairs))
-
     if not all_pairs:
         return {"candidate_count": 0, "group_count": 0}
 
-    # Step 1.5: LEARNED BLOCKER (prune pairs before full scoring)
     if blocker_bundle is not None:
-        blocker_supplier_ids = set()
+        blocker_record_ids = set()
         for a_id, b_id in all_pairs:
-            blocker_supplier_ids.add(a_id)
-            blocker_supplier_ids.add(b_id)
-        blocker_suppliers = db.query(StagedSupplier).filter(StagedSupplier.id.in_(blocker_supplier_ids)).all()
-        blocker_lookup = {s.id: s for s in blocker_suppliers}
-
+            blocker_record_ids.add(a_id)
+            blocker_record_ids.add(b_id)
+        blocker_records = db.query(StagedRecord).filter(StagedRecord.id.in_(blocker_record_ids)).all()
+        blocker_lookup = {r.id: r for r in blocker_records}
         pre_filter_count = len(all_pairs)
         all_pairs = set(blocker_filter(list(all_pairs), blocker_lookup, blocker_bundle))
         logger.info("Blocker pruned %d → %d pairs", pre_filter_count, len(all_pairs))
-
         if not all_pairs:
             return {"candidate_count": 0, "group_count": 0}
 
-    # Compute dynamic signal weights based on representatives only
-    rep_suppliers = db.query(StagedSupplier).filter(StagedSupplier.id.in_(representative_ids)).all()
-    signal_weights = compute_signal_weights(rep_suppliers)
-    logger.info("Auto signal weights: %s", signal_weights)
-
-    # Step 2: SCORING
     _report("SCORING", 0)
     scored_pairs: list[tuple[int, int, float, dict]] = []
     pair_list = list(all_pairs)
-
-    # Cache loaded suppliers for efficiency
-    supplier_cache: dict[int, StagedSupplier] = {}
+    record_cache: dict[int, StagedRecord] = {}
 
     for idx, (a_id, b_id) in enumerate(pair_list):
-        # Load suppliers (with caching)
-        if a_id not in supplier_cache:
-            supplier_cache[a_id] = db.query(StagedSupplier).filter(StagedSupplier.id == a_id).first()
-        if b_id not in supplier_cache:
-            supplier_cache[b_id] = db.query(StagedSupplier).filter(StagedSupplier.id == b_id).first()
-
-        supplier_a = supplier_cache[a_id]
-        supplier_b = supplier_cache[b_id]
-
-        if supplier_a is None or supplier_b is None:
-            logger.warning("Supplier not found for pair (%d, %d) — skipping", a_id, b_id)
+        if a_id not in record_cache:
+            record_cache[a_id] = db.query(StagedRecord).filter(StagedRecord.id == a_id).first()
+        if b_id not in record_cache:
+            record_cache[b_id] = db.query(StagedRecord).filter(StagedRecord.id == b_id).first()
+        record_a = record_cache[a_id]
+        record_b = record_cache[b_id]
+        if record_a is None or record_b is None:
+            logger.warning("Record not found for pair (%d, %d) — skipping", a_id, b_id)
             continue
 
-        if using_ml:
-            result = ml_score_pair(supplier_a, supplier_b, scorer_bundle)
-        else:
-            result = score_pair(supplier_a, supplier_b, weights=signal_weights)
+        result = ml_score_pair(record_a, record_b, scorer_bundle) if using_ml else score_pair(record_a, record_b)
         confidence = result["confidence"]
         signals = result["signals"]
 
         if confidence >= settings.matching_confidence_threshold:
             scored_pairs.append((a_id, b_id, confidence, signals))
 
-        if len(pair_list) > 0:
-            pct = int((idx + 1) / len(pair_list) * 100)
-            _report("SCORING", pct)
+        if pair_list:
+            _report("SCORING", int((idx + 1) / len(pair_list) * 100))
 
     _report("SCORING", 100)
-
     logger.info(
         "Scoring: %d/%d pairs above threshold (%.2f)",
         len(scored_pairs),
         len(pair_list),
         settings.matching_confidence_threshold,
     )
-
     if not scored_pairs:
         return {"candidate_count": 0, "group_count": 0}
 
-    # Step 3: CLUSTERING
     _report("CLUSTERING", 0)
     above_threshold_pairs = [(a_id, b_id) for a_id, b_id, _, _ in scored_pairs]
     groups = find_groups(above_threshold_pairs)
     _report("CLUSTERING", 100)
-
     logger.info("Clustering: %d groups from %d pairs", len(groups), len(scored_pairs))
 
-    # Step 4: INSERTING
     _report("INSERTING", 0)
-
-    # Create MatchGroup records
-    group_map: dict[int, MatchGroup] = {}  # supplier_id -> MatchGroup
+    group_map: dict[int, MatchGroup] = {}
     for group_members in groups:
-        mg = MatchGroup()
+        mg = MatchGroup(type=type_key)
         db.add(mg)
-        db.flush()  # Get mg.id
+        db.flush()
         for member_id in group_members:
             group_map[member_id] = mg
 
-    # Build a set of existing non-invalidated pairs for dedup
     existing_pairs: set[tuple[int, int]] = set()
     existing = (
-        db.query(MatchCandidate.supplier_a_id, MatchCandidate.supplier_b_id)
+        db.query(MatchCandidate.record_a_id, MatchCandidate.record_b_id)
         .filter(MatchCandidate.status != CandidateStatus.INVALIDATED)
         .all()
     )
     for ea, eb in existing:
         existing_pairs.add((min(ea, eb), max(ea, eb)))
 
-    # Create MatchCandidate records
     candidate_count = 0
     for a_id, b_id, confidence, signals in scored_pairs:
         pair_key = (min(a_id, b_id), max(a_id, b_id))
         if pair_key in existing_pairs:
-            continue  # Ignore duplicates
-
-        # Find group for this pair
+            continue
         group = group_map.get(a_id) or group_map.get(b_id)
-
         candidate = MatchCandidate(
-            supplier_a_id=pair_key[0],
-            supplier_b_id=pair_key[1],
+            type=type_key,
+            record_a_id=pair_key[0],
+            record_b_id=pair_key[1],
             confidence=confidence,
             match_signals=signals,
             status=CandidateStatus.PENDING,
             group_id=group.id if group else None,
         )
         db.add(candidate)
-        existing_pairs.add(pair_key)  # Track to avoid dupes within batch
+        existing_pairs.add(pair_key)
         candidate_count += 1
 
     db.flush()
@@ -293,8 +232,9 @@ def run_matching_pipeline(
 
     group_count = len(groups)
     logger.info(
-        "Pipeline complete for batch %d: %d candidates, %d groups",
+        "Pipeline complete for batch %d (type=%s): %d candidates, %d groups",
         batch_id,
+        type_key,
         candidate_count,
         group_count,
     )
