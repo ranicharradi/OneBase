@@ -21,6 +21,7 @@ class BatchResponse(BaseModel):
 
     id: int
     data_source_id: int
+    type: str  # record-type of the batch's source
     filename: str
     uploaded_by: str
     row_count: int | None

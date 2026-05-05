@@ -5,23 +5,23 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-# ── Supplier detail for side-by-side comparison ──
+# ── Record detail for side-by-side comparison ──
 
 
-class SupplierDetail(BaseModel):
-    """Full supplier detail for side-by-side view."""
+class RecordDetail(BaseModel):
+    """Full staged-record detail for side-by-side view.
+
+    `fields` holds the type-specific JSONB; the frontend renders it dynamically
+    using `/api/record-types/{type}` metadata.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    source_code: str | None = None
+    type: str
     name: str | None = None
-    short_name: str | None = None
-    currency: str | None = None
-    payment_terms: str | None = None
-    contact_name: str | None = None
-    supplier_type: str | None = None
     normalized_name: str | None = None
+    fields: dict[str, Any] = {}
     data_source_id: int
     data_source_name: str | None = None
     raw_data: dict[str, Any] | None = None
@@ -31,7 +31,7 @@ class SupplierDetail(BaseModel):
 
 
 class FieldComparison(BaseModel):
-    """Comparison of a single field across two suppliers."""
+    """Comparison of a single field across two records."""
 
     field: str
     label: str
@@ -49,12 +49,13 @@ class MatchDetailResponse(BaseModel):
     """Full match detail with side-by-side comparison and signal breakdowns."""
 
     id: int
+    type: str
     confidence: float
     match_signals: dict[str, float]
     status: str
     group_id: int | None = None
-    supplier_a: SupplierDetail
-    supplier_b: SupplierDetail
+    record_a: RecordDetail
+    record_b: RecordDetail
     field_comparisons: list[FieldComparison]
     reviewed_by: str | None = None
     reviewed_at: datetime | None = None
@@ -70,18 +71,15 @@ class ReviewQueueItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    supplier_a_id: int
-    supplier_b_id: int
-    supplier_a_name: str | None = None
-    supplier_b_name: str | None = None
-    supplier_a_source: str | None = None
-    supplier_b_source: str | None = None
-    supplier_a_source_code: str | None = None
-    supplier_b_source_code: str | None = None
-    supplier_a_currency: str | None = None
-    supplier_b_currency: str | None = None
-    supplier_a_contact: str | None = None
-    supplier_b_contact: str | None = None
+    type: str
+    record_a_id: int
+    record_b_id: int
+    record_a_name: str | None = None
+    record_b_name: str | None = None
+    record_a_source: str | None = None
+    record_b_source: str | None = None
+    record_a_fields: dict[str, Any] = {}
+    record_b_fields: dict[str, Any] = {}
     confidence: float
     match_signals: dict[str, float] = {}
     status: str
@@ -106,7 +104,7 @@ class FieldSelection(BaseModel):
     """User's choice for a conflicting field."""
 
     field: str
-    chosen_supplier_id: int
+    chosen_record_id: int
 
 
 class MergeRequest(BaseModel):
@@ -120,10 +118,10 @@ class ReviewActionResponse(BaseModel):
 
     candidate_id: int
     action: str
-    unified_supplier_id: int | None = None  # set if merged
+    unified_record_id: int | None = None  # set if merged
 
 
-# ── Unified supplier response ──
+# ── Unified record response ──
 
 
 class FieldProvenance(BaseModel):
@@ -137,21 +135,17 @@ class FieldProvenance(BaseModel):
     chosen_at: str | None = None
 
 
-class UnifiedSupplierResponse(BaseModel):
-    """Response schema for a unified (golden) supplier record."""
+class UnifiedRecordResponse(BaseModel):
+    """Response schema for a unified (golden) record."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    type: str
     name: str
-    source_code: str | None = None
-    short_name: str | None = None
-    currency: str | None = None
-    payment_terms: str | None = None
-    contact_name: str | None = None
-    supplier_type: str | None = None
+    fields: dict[str, Any] = {}
     provenance: dict[str, FieldProvenance]
-    source_supplier_ids: list[int]
+    source_record_ids: list[int]
     match_candidate_id: int | None = None
     created_by: str
     created_at: datetime | None = None
