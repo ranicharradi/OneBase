@@ -100,8 +100,8 @@ def run_matching_pipeline(
         logger.info("Fewer than 2 sources of type %s — skipping matching for batch %d", type_key, batch_id)
         return {"candidate_count": 0, "group_count": 0}
 
-    scorer_bundle = load_active_model(db, "scorer")
-    blocker_bundle = load_active_model(db, "blocker")
+    scorer_bundle = load_active_model(db, "scorer", type_key)
+    blocker_bundle = load_active_model(db, "blocker", type_key)
     using_ml = scorer_bundle is not None
     if using_ml:
         logger.info("Using ML scorer model for this pipeline run")
