@@ -140,7 +140,11 @@ async def upload_file(
         action="upload",
         entity_type="import_batch",
         entity_id=batch.id,
-        details={"filename": original_filename, "data_source_id": data_source_id},
+        details={
+            "filename": original_filename,
+            "data_source_id": data_source_id,
+            "type": source.type,
+        },
     )
     db.commit()
 
@@ -160,14 +164,33 @@ async def upload_file(
 @router.get("/batches", response_model=list[BatchResponse])
 def list_batches(
     data_source_id: int | None = None,
+    type: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List import batches, optionally filtered by data source."""
-    query = db.query(ImportBatch)
+    """List import batches, optionally filtered by data source or record type."""
+    query = db.query(ImportBatch).join(DataSource, ImportBatch.data_source_id == DataSource.id)
     if data_source_id is not None:
         query = query.filter(ImportBatch.data_source_id == data_source_id)
-    return query.order_by(ImportBatch.created_at.desc()).all()
+    if type is not None:
+        query = query.filter(DataSource.type == type)
+    batches = query.order_by(ImportBatch.created_at.desc()).all()
+    # Materialize with type from the joined source.
+    return [
+        BatchResponse(
+            id=b.id,
+            data_source_id=b.data_source_id,
+            type=b.data_source.type,
+            filename=b.filename,
+            uploaded_by=b.uploaded_by,
+            row_count=b.row_count,
+            status=b.status,
+            error_message=b.error_message,
+            created_at=b.created_at,
+            task_id=b.task_id,
+        )
+        for b in batches
+    ]
 
 
 @router.delete("/batches/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
