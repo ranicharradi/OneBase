@@ -13,8 +13,19 @@ import numpy as np
 from rapidfuzz import fuzz
 from rapidfuzz.distance import JaroWinkler
 
-from app.config import settings
 from app.models.staging import StagedSupplier
+
+# Default signal weights (supplier record type). These will eventually be
+# driven by the RecordType config; hardcoded here as interim defaults after
+# removal of the MATCHING_WEIGHT_* env-var settings (Task 8).
+_DEFAULT_WEIGHTS: dict[str, float] = {
+    "jaro_winkler": 0.30,
+    "token_jaccard": 0.20,
+    "embedding_cosine": 0.25,
+    "short_name_match": 0.10,
+    "currency_match": 0.05,
+    "contact_match": 0.10,
+}
 
 
 def _embedding_to_array(embedding) -> np.ndarray | None:
@@ -44,28 +55,21 @@ def compute_signal_weights(suppliers: list) -> dict[str, float]:
     Weights are redistributed proportionally among active signals so they sum to 1.0.
     """
     if not suppliers:
-        return {
-            "jaro_winkler": settings.matching_weight_jaro_winkler,
-            "token_jaccard": settings.matching_weight_token_jaccard,
-            "embedding_cosine": settings.matching_weight_embedding_cosine,
-            "short_name_match": settings.matching_weight_short_name,
-            "currency_match": settings.matching_weight_currency,
-            "contact_match": settings.matching_weight_contact,
-        }
+        return dict(_DEFAULT_WEIGHTS)
 
     total = len(suppliers)
 
     # Core signals always active
     active_weights = {
-        "jaro_winkler": settings.matching_weight_jaro_winkler,
-        "token_jaccard": settings.matching_weight_token_jaccard,
-        "embedding_cosine": settings.matching_weight_embedding_cosine,
+        "jaro_winkler": _DEFAULT_WEIGHTS["jaro_winkler"],
+        "token_jaccard": _DEFAULT_WEIGHTS["token_jaccard"],
+        "embedding_cosine": _DEFAULT_WEIGHTS["embedding_cosine"],
     }
 
     optional_signals = [
-        ("short_name_match", "short_name", settings.matching_weight_short_name),
-        ("currency_match", "currency", settings.matching_weight_currency),
-        ("contact_match", "contact_name", settings.matching_weight_contact),
+        ("short_name_match", "short_name", _DEFAULT_WEIGHTS["short_name_match"]),
+        ("currency_match", "currency", _DEFAULT_WEIGHTS["currency_match"]),
+        ("contact_match", "contact_name", _DEFAULT_WEIGHTS["contact_match"]),
     ]
 
     for signal_name, field_name, default_weight in optional_signals:
@@ -162,14 +166,7 @@ def score_pair(
     # Weighted confidence: sum over active signals only, then renormalize by
     # the sum of active weights. This prevents partial-coverage optional fields
     # from diluting scores when missing on one side of a pair.
-    w = weights or {
-        "jaro_winkler": settings.matching_weight_jaro_winkler,
-        "token_jaccard": settings.matching_weight_token_jaccard,
-        "embedding_cosine": settings.matching_weight_embedding_cosine,
-        "short_name_match": settings.matching_weight_short_name,
-        "currency_match": settings.matching_weight_currency,
-        "contact_match": settings.matching_weight_contact,
-    }
+    w = weights or dict(_DEFAULT_WEIGHTS)
 
     active_weight_sum = sum(w.get(name, 0.0) for name in signals)
     if active_weight_sum > 0:

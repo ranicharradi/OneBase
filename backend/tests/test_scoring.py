@@ -254,16 +254,9 @@ class TestScorePairAggregation:
         )
         result = score_pair(a, b)
 
-        from app.config import settings
+        from app.services.scoring import _DEFAULT_WEIGHTS
 
-        weight_map = {
-            "jaro_winkler": settings.matching_weight_jaro_winkler,
-            "token_jaccard": settings.matching_weight_token_jaccard,
-            "embedding_cosine": settings.matching_weight_embedding_cosine,
-            "short_name_match": settings.matching_weight_short_name,
-            "currency_match": settings.matching_weight_currency,
-            "contact_match": settings.matching_weight_contact,
-        }
+        weight_map = dict(_DEFAULT_WEIGHTS)
         active_weights = sum(weight_map[k] for k in result["signals"])
         expected = sum(v * weight_map[k] for k, v in result["signals"].items()) / active_weights
         assert abs(result["confidence"] - expected) < 0.001
@@ -359,11 +352,11 @@ class TestComputeSignalWeights:
         assert weights["embedding_cosine"] > 0
 
     def test_empty_list_returns_defaults(self):
-        """Empty supplier list returns default settings weights."""
+        """Empty supplier list returns default weights."""
         weights = compute_signal_weights([])
-        from app.config import settings
+        from app.services.scoring import _DEFAULT_WEIGHTS
 
-        assert weights["jaro_winkler"] == settings.matching_weight_jaro_winkler
+        assert weights["jaro_winkler"] == _DEFAULT_WEIGHTS["jaro_winkler"]
 
     def test_score_pair_accepts_weights(self):
         """score_pair should use custom weights when provided."""

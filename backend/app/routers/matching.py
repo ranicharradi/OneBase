@@ -127,8 +127,8 @@ def get_model_status(
     current_user: User = Depends(get_current_user),
 ):
     """Get current ML model and weight retraining status."""
-    from app.config import settings
     from app.models.ml_model import MLModelVersion
+    from app.services.scoring import _DEFAULT_WEIGHTS
 
     # Latest scorer model
     scorer = (
@@ -144,14 +144,15 @@ def get_model_status(
         or 0
     )
 
-    # Current weights from config
+    # Current weights (interim defaults from scoring module; will be
+    # driven by RecordType config once that wiring is complete — Task 12)
     current_weights = {
-        "jaro_winkler": settings.matching_weight_jaro_winkler,
-        "token_jaccard": settings.matching_weight_token_jaccard,
-        "embedding_cosine": settings.matching_weight_embedding_cosine,
-        "short_name": settings.matching_weight_short_name,
-        "currency": settings.matching_weight_currency,
-        "contact": settings.matching_weight_contact,
+        "jaro_winkler": _DEFAULT_WEIGHTS["jaro_winkler"],
+        "token_jaccard": _DEFAULT_WEIGHTS["token_jaccard"],
+        "embedding_cosine": _DEFAULT_WEIGHTS["embedding_cosine"],
+        "short_name": _DEFAULT_WEIGHTS["short_name_match"],
+        "currency": _DEFAULT_WEIGHTS["currency_match"],
+        "contact": _DEFAULT_WEIGHTS["contact_match"],
     }
 
     return {
