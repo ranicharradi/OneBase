@@ -1,23 +1,30 @@
-"""Unified suppliers router — browse, detail, singleton promotion, export, and dashboard."""
+"""Unified records API router — list, detail, singleton promotion, export, dashboard."""
 
 import csv
 import io
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import case, func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db, require_role
 from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus, UserRole
-from app.models.match import MatchCandidate, MatchGroup
+from app.models.enums import (
+    BatchStatus,
+    CandidateStatus,
+    RecordStatus,
+    UserRole,
+)
+from app.models.match import MatchCandidate
 from app.models.source import DataSource
-from app.models.staging import StagedSupplier
-from app.models.unified import UnifiedSupplier
+from app.models.staging import StagedRecord
+from app.models.unified import UnifiedRecord
 from app.models.user import User
+from app.record_types import get as get_record_type
 from app.schemas.unified import (
     BulkPromoteRequest,
     BulkPromoteResponse,
@@ -31,10 +38,10 @@ from app.schemas.unified import (
     SingletonCandidate,
     SingletonListResponse,
     SourceRecord,
+    UnifiedRecordDetail,
+    UnifiedRecordListItem,
+    UnifiedRecordListResponse,
     UnifiedStats,
-    UnifiedSupplierDetail,
-    UnifiedSupplierListItem,
-    UnifiedSupplierListResponse,
     UploadStats,
 )
 from app.services.audit import log_action
@@ -44,181 +51,150 @@ router = APIRouter(prefix="/api/unified", tags=["unified"])
 
 def _build_unified_filter(
     query,
-    search: str | None,
-    source_type: str | None,
-    from_date: date | None,
-    to_date: date | None,
+    search: str | None = None,
+    is_singleton: bool | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    type: str | None = None,
 ):
-    """Apply optional filters to a UnifiedSupplier query."""
+    """Apply optional filters to a UnifiedRecord query."""
+    if type is not None:
+        query = query.filter(UnifiedRecord.type == type)
     if search:
-        query = query.filter(UnifiedSupplier.name.ilike(f"%{search}%"))
-    if source_type == "singleton":
-        query = query.filter(UnifiedSupplier.match_candidate_id.is_(None))
-    elif source_type == "merged":
-        query = query.filter(UnifiedSupplier.match_candidate_id.isnot(None))
+        query = query.filter(UnifiedRecord.name.ilike(f"%{search}%"))
+    if is_singleton is True:
+        query = query.filter(UnifiedRecord.match_candidate_id.is_(None))
+    elif is_singleton is False:
+        query = query.filter(UnifiedRecord.match_candidate_id.isnot(None))
     if from_date:
-        query = query.filter(UnifiedSupplier.created_at >= from_date)
+        query = query.filter(UnifiedRecord.created_at >= from_date)
     if to_date:
-        query = query.filter(UnifiedSupplier.created_at < to_date + timedelta(days=1))
+        query = query.filter(UnifiedRecord.created_at < to_date + timedelta(days=1))
     return query
 
 
-# ── Browse unified suppliers ──
-
-
-@router.get("/suppliers", response_model=UnifiedSupplierListResponse)
-def list_unified_suppliers(
-    search: str | None = Query(None, description="Search by name"),
-    source_type: str | None = Query(None, description="Filter: merged or singleton"),
-    from_date: date | None = Query(None, description="Filter: created on or after this date (YYYY-MM-DD)"),
-    to_date: date | None = Query(None, description="Filter: created on or before this date (YYYY-MM-DD)"),
-    limit: int = Query(50, ge=1, le=200),
+@router.get("/records", response_model=UnifiedRecordListResponse)
+def list_unified_records(
+    type: str | None = Query(None, description="Filter by record type"),
+    search: str | None = Query(None),
+    is_singleton: bool | None = Query(None),
+    from_date: date | None = Query(None),
+    to_date: date | None = Query(None),
+    limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Browse unified suppliers with search and filtering."""
-    query = db.query(UnifiedSupplier)
-    query = _build_unified_filter(query, search, source_type, from_date, to_date)
+    """List unified records with optional filters."""
+    query = db.query(UnifiedRecord)
+    query = _build_unified_filter(query, search, is_singleton, from_date, to_date, type)
 
     total = query.count()
-
-    suppliers = query.order_by(UnifiedSupplier.created_at.desc()).offset(offset).limit(limit).all()
+    records = query.order_by(UnifiedRecord.created_at.desc()).offset(offset).limit(limit).all()
 
     items = []
-    for s in suppliers:
-        source_ids = s.source_supplier_ids or []
+    for r in records:
+        source_ids = r.source_record_ids or []
         items.append(
-            UnifiedSupplierListItem(
-                id=s.id,
-                name=s.name,
-                source_code=s.source_code,
-                short_name=s.short_name,
-                currency=s.currency,
-                supplier_type=s.supplier_type,
+            UnifiedRecordListItem(
+                id=r.id,
+                type=r.type,
+                name=r.name,
+                fields=r.fields or {},
                 source_count=len(source_ids),
-                is_singleton=s.match_candidate_id is None,
-                created_by=s.created_by,
-                created_at=s.created_at,
+                is_singleton=r.match_candidate_id is None,
+                created_by=r.created_by,
+                created_at=r.created_at,
             )
         )
 
-    return UnifiedSupplierListResponse(
+    return UnifiedRecordListResponse(
         items=items,
         total=total,
         has_more=(offset + limit) < total,
     )
 
 
-# ── Unified supplier detail with provenance and merge history ──
-
-
-@router.get("/suppliers/{supplier_id}", response_model=UnifiedSupplierDetail)
-def get_unified_supplier(
-    supplier_id: int,
+@router.get("/records/{record_id}", response_model=UnifiedRecordDetail)
+def get_unified_record(
+    record_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get full unified supplier with provenance, source records, and merge history."""
-    unified = db.get(UnifiedSupplier, supplier_id)
-    if not unified:
+    """Get a unified record with provenance, source records, and merge history."""
+    unified = db.get(UnifiedRecord, record_id)
+    if unified is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unified supplier {supplier_id} not found",
+            detail=f"Unified record {record_id} not found",
         )
 
-    # Load source records
-    source_records = []
-    source_ids = unified.source_supplier_ids or []
+    source_ids = unified.source_record_ids or []
+    source_records: list[SourceRecord] = []
     if source_ids:
         rows = (
             db.query(
-                StagedSupplier.id,
-                StagedSupplier.name,
-                StagedSupplier.source_code,
-                StagedSupplier.data_source_id,
-                DataSource.name.label("data_source_name"),
+                StagedRecord.id,
+                StagedRecord.type,
+                StagedRecord.name,
+                StagedRecord.fields,
+                StagedRecord.data_source_id,
+                DataSource.name.label("source_name"),
             )
-            .join(DataSource, StagedSupplier.data_source_id == DataSource.id)
-            .filter(StagedSupplier.id.in_(source_ids))
+            .join(DataSource, StagedRecord.data_source_id == DataSource.id)
+            .filter(StagedRecord.id.in_(source_ids))
             .all()
         )
         source_records = [
             SourceRecord(
                 id=r.id,
+                type=r.type,
                 name=r.name,
-                source_code=r.source_code,
-                data_source_name=r.data_source_name,
+                fields=r.fields or {},
                 data_source_id=r.data_source_id,
+                data_source_name=r.source_name,
             )
             for r in rows
         ]
 
-    # Load merge history from audit log
-    merge_history = []
-    # Match on entity_type='match_candidate' for the merge event
+    # Merge history: audit log entries for the source records and the match candidate
+    history_entity_ids = list(source_ids)
     if unified.match_candidate_id:
-        audit_entries = (
-            db.query(AuditLog)
-            .filter(
-                AuditLog.entity_type == "match_candidate",
-                AuditLog.entity_id == unified.match_candidate_id,
-            )
-            .order_by(AuditLog.created_at.desc())
-            .all()
-        )
-        merge_history = [
-            MergeHistoryEntry(
-                id=e.id,
-                action=e.action,
-                details=e.details,
-                created_at=e.created_at,
-            )
-            for e in audit_entries
-        ]
-
-    # Also include singleton promotion audit entries
-    singleton_entries = (
+        history_entity_ids.append(unified.match_candidate_id)
+    audit_rows = (
         db.query(AuditLog)
         .filter(
-            AuditLog.entity_type == "unified_supplier",
-            AuditLog.entity_id == unified.id,
+            ((AuditLog.entity_type == "staged_record") & (AuditLog.entity_id.in_(source_ids)))
+            | ((AuditLog.entity_type == "match_candidate") & (AuditLog.entity_id == unified.match_candidate_id))
+            | ((AuditLog.entity_type == "unified_record") & (AuditLog.entity_id == unified.id))
         )
         .order_by(AuditLog.created_at.desc())
         .all()
+        if history_entity_ids
+        else []
     )
-    merge_history.extend(
-        [
-            MergeHistoryEntry(
-                id=e.id,
-                action=e.action,
-                details=e.details,
-                created_at=e.created_at,
-            )
-            for e in singleton_entries
-        ]
-    )
+    merge_history = [
+        MergeHistoryEntry(
+            id=a.id,
+            action=a.action,
+            details=a.details,
+            created_at=a.created_at,
+        )
+        for a in audit_rows
+    ]
 
-    # Parse provenance dict
-    prov = {}
-    if unified.provenance:
-        for field, data in unified.provenance.items():
-            if isinstance(data, dict):
-                prov[field] = FieldProvenance(**data)
-            else:
-                prov[field] = FieldProvenance(value=str(data))
+    provenance: dict[str, FieldProvenance] = {}
+    for k, v in (unified.provenance or {}).items():
+        if isinstance(v, dict):
+            provenance[k] = FieldProvenance(**v)
 
-    return UnifiedSupplierDetail(
+    return UnifiedRecordDetail(
         id=unified.id,
+        type=unified.type,
         name=unified.name,
-        source_code=unified.source_code,
-        short_name=unified.short_name,
-        currency=unified.currency,
-        payment_terms=unified.payment_terms,
-        contact_name=unified.contact_name,
-        supplier_type=unified.supplier_type,
-        provenance=prov,
-        source_supplier_ids=source_ids,
+        fields=unified.fields or {},
+        provenance=provenance,
+        source_record_ids=source_ids,
         source_records=source_records,
         match_candidate_id=unified.match_candidate_id,
         merge_history=merge_history,
@@ -227,209 +203,190 @@ def get_unified_supplier(
     )
 
 
-# ── Singleton promotion ──
+def _get_singleton_ids(db: Session, type_key: str | None = None) -> set[int]:
+    """Return record IDs that have appeared as either side of a match candidate."""
+    a_query = db.query(MatchCandidate.record_a_id)
+    b_query = db.query(MatchCandidate.record_b_id)
+    if type_key is not None:
+        a_query = a_query.filter(MatchCandidate.type == type_key)
+        b_query = b_query.filter(MatchCandidate.type == type_key)
+    a_ids = {row[0] for row in a_query.distinct().all()}
+    b_ids = {row[0] for row in b_query.distinct().all()}
+    return a_ids | b_ids
 
 
-def _get_singleton_ids(db: Session) -> set[int]:
-    """Get IDs of staged suppliers that appear in ANY match candidate pair."""
-    # Get all supplier IDs that are part of a match candidate
-    a_ids = db.query(MatchCandidate.supplier_a_id).distinct().subquery()
-    b_ids = db.query(MatchCandidate.supplier_b_id).distinct().subquery()
-
-    matched_a = {r[0] for r in db.query(a_ids).all()}
-    matched_b = {r[0] for r in db.query(b_ids).all()}
-    return matched_a | matched_b
-
-
-def _get_already_unified_ids(db: Session) -> set[int]:
-    """Get staged supplier IDs that are already part of a unified record."""
-    unified_records = db.query(UnifiedSupplier.source_supplier_ids).all()
-    already = set()
-    for (ids,) in unified_records:
+def _get_already_unified_ids(db: Session, type_key: str | None = None) -> set[int]:
+    """Return record IDs that are already part of a unified record."""
+    query = db.query(UnifiedRecord.source_record_ids)
+    if type_key is not None:
+        query = query.filter(UnifiedRecord.type == type_key)
+    rows = query.all()
+    out: set[int] = set()
+    for (ids,) in rows:
         if ids:
-            already.update(ids)
-    return already
+            out.update(ids)
+    return out
 
 
 @router.get("/singletons", response_model=SingletonListResponse)
 def list_singletons(
-    search: str | None = Query(None, description="Search by name"),
-    source_id: int | None = Query(None, description="Filter by data source"),
-    limit: int = Query(50, ge=1, le=200),
+    type: str | None = Query(None, description="Filter by record type"),
+    search: str | None = Query(None),
+    source_id: int | None = Query(None),
+    limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List staged suppliers eligible for singleton promotion.
+    """List staged records eligible for singleton promotion.
 
-    A singleton is a supplier that:
-    - Is active (not superseded)
-    - Does not appear in any match candidate pair
-    - Has not already been unified (not in any unified record's source_supplier_ids)
+    A singleton is an active record that:
+    - Is not a member of any (non-invalidated) match candidate
+    - Has not already been promoted (not in any UnifiedRecord.source_record_ids)
+    - Is the representative of its intra-source group (or has no group)
     """
-    matched_ids = _get_singleton_ids(db)
-    already_unified = _get_already_unified_ids(db)
-    exclude_ids = matched_ids | already_unified
+    paired_ids = _get_singleton_ids(db, type)
+    unified_ids = _get_already_unified_ids(db, type)
+    exclude_ids = paired_ids | unified_ids
 
     query = (
         db.query(
-            StagedSupplier.id,
-            StagedSupplier.name,
-            StagedSupplier.source_code,
-            StagedSupplier.short_name,
-            StagedSupplier.currency,
-            StagedSupplier.payment_terms,
-            StagedSupplier.contact_name,
-            StagedSupplier.supplier_type,
-            StagedSupplier.data_source_id,
-            DataSource.name.label("data_source_name"),
+            StagedRecord.id,
+            StagedRecord.type,
+            StagedRecord.name,
+            StagedRecord.fields,
+            StagedRecord.data_source_id,
+            DataSource.name.label("source_name"),
         )
-        .join(DataSource, StagedSupplier.data_source_id == DataSource.id)
-        .filter(StagedSupplier.status == SupplierStatus.ACTIVE)
-        # Exclude non-representative group members (they are handled via their representative)
-        .filter(
-            or_(
-                StagedSupplier.intra_source_group_id.is_(None),
-                StagedSupplier.intra_source_group_id == StagedSupplier.id,
-            )
-        )
+        .join(DataSource, StagedRecord.data_source_id == DataSource.id)
+        .filter(StagedRecord.status == RecordStatus.ACTIVE)
+        .filter(StagedRecord.intra_source_group_id.is_(None) | (StagedRecord.intra_source_group_id == StagedRecord.id))
     )
-
+    if type is not None:
+        query = query.filter(StagedRecord.type == type)
     if exclude_ids:
-        query = query.filter(StagedSupplier.id.notin_(exclude_ids))
-
+        query = query.filter(StagedRecord.id.notin_(exclude_ids))
     if search:
-        query = query.filter(StagedSupplier.name.ilike(f"%{search}%"))
-
+        query = query.filter(StagedRecord.name.ilike(f"%{search}%"))
     if source_id is not None:
-        query = query.filter(StagedSupplier.data_source_id == source_id)
+        query = query.filter(StagedRecord.data_source_id == source_id)
 
     total = query.count()
-
-    rows = query.order_by(StagedSupplier.name).offset(offset).limit(limit).all()
+    rows = query.order_by(StagedRecord.name).offset(offset).limit(limit).all()
 
     items = [
         SingletonCandidate(
             id=r.id,
+            type=r.type,
             name=r.name,
-            source_code=r.source_code,
-            short_name=r.short_name,
-            currency=r.currency,
-            payment_terms=r.payment_terms,
-            contact_name=r.contact_name,
-            supplier_type=r.supplier_type,
+            fields=r.fields or {},
             data_source_id=r.data_source_id,
-            data_source_name=r.data_source_name,
+            data_source_name=r.source_name,
         )
         for r in rows
     ]
 
-    return SingletonListResponse(items=items, total=total, has_more=(offset + limit) < total)
+    return SingletonListResponse(
+        items=items,
+        total=total,
+        has_more=(offset + limit) < total,
+    )
 
 
-@router.post("/singletons/{supplier_id}/promote", response_model=PromoteResponse)
+def _build_singleton_unified(record: StagedRecord, source_name: str | None, username: str) -> UnifiedRecord:
+    """Construct a UnifiedRecord from a single StagedRecord (no merge — direct promotion)."""
+    rt = get_record_type(record.type)
+    now = datetime.now(tz=None).isoformat()
+    fields_payload: dict[str, Any] = dict(record.fields or {})
+    provenance: dict[str, Any] = {}
+    for fdef in rt.fields:
+        val = fields_payload.get(fdef.key)
+        provenance[fdef.key] = {
+            "value": val,
+            "source_entity": source_name,
+            "source_record_id": record.id,
+            "auto": True,
+            "chosen_by": username,
+            "chosen_at": now,
+        }
+    name = fields_payload.get(rt.name_field.key) or record.name or ""
+    return UnifiedRecord(
+        type=record.type,
+        name=name,
+        fields=fields_payload,
+        provenance=provenance,
+        source_record_ids=[record.id],
+        match_candidate_id=None,
+        created_by=username,
+    )
+
+
+@router.post("/singletons/{record_id}/promote", response_model=PromoteResponse)
 def promote_singleton(
-    supplier_id: int,
+    record_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
-    """Promote a singleton supplier directly into the unified database."""
-    supplier = db.get(StagedSupplier, supplier_id)
-    if not supplier:
+    """Promote a singleton staged record to a unified record."""
+    record = db.get(StagedRecord, record_id)
+    if record is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Staged supplier {supplier_id} not found",
+            detail=f"Staged record {record_id} not found",
         )
-
-    if supplier.status != SupplierStatus.ACTIVE:
+    if record.status != RecordStatus.ACTIVE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Supplier is {supplier.status}, cannot promote",
+            detail=f"Record is {record.status}, cannot promote",
         )
 
-    # Check not already unified
-    already = _get_already_unified_ids(db)
-    if supplier_id in already:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Supplier already exists in unified database",
-        )
-
-    # Get source name
-    source = db.get(DataSource, supplier.data_source_id)
-    source_name = source.name if source else "Unknown"
-
-    now = datetime.now(UTC).isoformat()
-
-    # Build provenance — all fields from single source
-    provenance = {}
-    from app.services.merge import CANONICAL_FIELDS
-
-    for field, _label in CANONICAL_FIELDS:
-        val = getattr(supplier, field, None)
-        if val is not None:
-            val = str(val).strip()
-            if not val:
-                val = None
-        provenance[field] = {
-            "value": val,
-            "source_entity": source_name,
-            "source_record_id": supplier.id,
-            "auto": True,
-            "chosen_by": current_user.username,
-            "chosen_at": now,
-        }
-
-    if not supplier.name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Supplier has no name, cannot promote",
-        )
-
-    unified = UnifiedSupplier(
-        name=supplier.name,
-        source_code=supplier.source_code,
-        short_name=supplier.short_name,
-        currency=supplier.currency,
-        payment_terms=supplier.payment_terms,
-        contact_name=supplier.contact_name,
-        supplier_type=supplier.supplier_type,
-        provenance=provenance,
-        source_supplier_ids=[supplier.id],
-        match_candidate_id=None,  # singleton — no match candidate
-        created_by=current_user.username,
+    # Conflict checks
+    paired = (
+        db.query(MatchCandidate.id)
+        .filter((MatchCandidate.record_a_id == record_id) | (MatchCandidate.record_b_id == record_id))
+        .first()
     )
+    if paired:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Record is part of a match candidate; promote via merge flow instead",
+        )
+    already_unified = (
+        db.query(UnifiedRecord.id).filter(UnifiedRecord.source_record_ids.contains([record_id])).first()
+        if hasattr(UnifiedRecord.source_record_ids, "contains")
+        else None
+    )
+    if already_unified:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Record is already part of a unified record",
+        )
 
+    source = db.get(DataSource, record.data_source_id)
+    source_name = source.name if source else None
+
+    unified = _build_singleton_unified(record, source_name, current_user.username)
     db.add(unified)
+    db.flush()
 
     log_action(
         db,
-        user_id=None,
+        user_id=current_user.id,
         action="singleton_promoted",
-        entity_type="unified_supplier",
-        entity_id=None,  # Will update after flush
+        entity_type="unified_record",
+        entity_id=unified.id,
         details={
-            "staged_supplier_id": supplier.id,
-            "supplier_name": supplier.name,
-            "source": source_name,
+            "type": record.type,
+            "source_record_id": record.id,
+            "name": unified.name,
         },
     )
-
-    db.flush()
-
-    # Update audit entry with the new unified ID
-    latest_audit = (
-        db.query(AuditLog).filter(AuditLog.action == "singleton_promoted").order_by(AuditLog.id.desc()).first()
-    )
-    if latest_audit:
-        latest_audit.entity_id = unified.id
-
     db.commit()
 
     return PromoteResponse(
-        unified_supplier_id=unified.id,
-        supplier_name=supplier.name,
-        message=f"Promoted '{supplier.name}' to unified database",
+        unified_record_id=unified.id,
+        record_name=unified.name,
+        message=f"Singleton {record_id} promoted to unified record {unified.id}",
     )
 
 
@@ -439,304 +396,191 @@ def bulk_promote_singletons(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
-    """Promote multiple singletons at once."""
-    from app.services.merge import CANONICAL_FIELDS
+    """Promote multiple singletons in a single request."""
+    promoted_ids: list[int] = []
 
-    already = _get_already_unified_ids(db)
-    now = datetime.now(UTC).isoformat()
-
-    promoted_ids = []
-
-    for sid in body.supplier_ids:
-        supplier = db.get(StagedSupplier, sid)
-        if not supplier or supplier.status != SupplierStatus.ACTIVE or sid in already:
-            continue
-        if not supplier.name:
+    for sid in body.record_ids:
+        record = db.get(StagedRecord, sid)
+        if record is None or record.status != RecordStatus.ACTIVE:
             continue
 
-        source = db.get(DataSource, supplier.data_source_id)
-        source_name = source.name if source else "Unknown"
-
-        provenance = {}
-        for field, _label in CANONICAL_FIELDS:
-            val = getattr(supplier, field, None)
-            if val is not None:
-                val = str(val).strip()
-                if not val:
-                    val = None
-            provenance[field] = {
-                "value": val,
-                "source_entity": source_name,
-                "source_record_id": supplier.id,
-                "auto": True,
-                "chosen_by": current_user.username,
-                "chosen_at": now,
-            }
-
-        unified = UnifiedSupplier(
-            name=supplier.name,
-            source_code=supplier.source_code,
-            short_name=supplier.short_name,
-            currency=supplier.currency,
-            payment_terms=supplier.payment_terms,
-            contact_name=supplier.contact_name,
-            supplier_type=supplier.supplier_type,
-            provenance=provenance,
-            source_supplier_ids=[supplier.id],
-            match_candidate_id=None,
-            created_by=current_user.username,
+        paired = (
+            db.query(MatchCandidate.id)
+            .filter((MatchCandidate.record_a_id == sid) | (MatchCandidate.record_b_id == sid))
+            .first()
         )
+        if paired:
+            continue
+
+        source = db.get(DataSource, record.data_source_id)
+        source_name = source.name if source else None
+        unified = _build_singleton_unified(record, source_name, current_user.username)
         db.add(unified)
         db.flush()
         promoted_ids.append(unified.id)
 
         log_action(
             db,
-            user_id=None,
+            user_id=current_user.id,
             action="singleton_promoted",
-            entity_type="unified_supplier",
+            entity_type="unified_record",
             entity_id=unified.id,
             details={
-                "staged_supplier_id": supplier.id,
-                "supplier_name": supplier.name,
-                "source": source_name,
+                "type": record.type,
+                "source_record_id": record.id,
+                "name": unified.name,
                 "bulk": True,
             },
         )
-        already.add(sid)
 
     db.commit()
 
     return BulkPromoteResponse(
         promoted_count=len(promoted_ids),
-        unified_supplier_ids=promoted_ids,
+        unified_record_ids=promoted_ids,
     )
-
-
-# ── Export ──
 
 
 @router.get("/export")
 def export_unified_csv(
-    search: str | None = Query(None, description="Search by name"),
-    source_type: str | None = Query(None, description="Filter: merged or singleton"),
-    from_date: date | None = Query(None, description="Filter: created on or after this date (YYYY-MM-DD)"),
-    to_date: date | None = Query(None, description="Filter: created on or before this date (YYYY-MM-DD)"),
+    type: str | None = Query(None, description="Filter by record type"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Export unified suppliers as CSV with provenance metadata."""
-    query = db.query(UnifiedSupplier)
-    query = _build_unified_filter(query, search, source_type, from_date, to_date)
-    suppliers = query.order_by(UnifiedSupplier.name).all()
+    """Export unified records as CSV. With type filter, columns match the type's fields."""
+    query = db.query(UnifiedRecord)
+    if type is not None:
+        query = query.filter(UnifiedRecord.type == type)
+    records = query.order_by(UnifiedRecord.name).all()
+
+    # Build columns
+    if type is not None:
+        rt = get_record_type(type)
+        field_keys = [f.key for f in rt.fields]
+    else:
+        # No type filter: emit a generic header (id, type, name, fields-as-json)
+        field_keys = []
 
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # Header row
-    writer.writerow(
-        [
-            "ID",
-            "Name",
-            "Supplier Code",
-            "Short Name",
-            "Currency",
-            "Payment Terms",
-            "Contact Name",
-            "Supplier Type",
-            "Source Count",
-            "Is Singleton",
-            "Created By",
-            "Created At",
-            # Provenance columns
-            "Name Source",
-            "Code Source",
-            "Short Name Source",
-            "Currency Source",
-            "Payment Terms Source",
-            "Contact Source",
-            "Type Source",
-        ]
-    )
+    if type is not None:
+        writer.writerow(["id", "type", "name", *field_keys, "source_count", "created_by", "created_at"])
+        for r in records:
+            row = [r.id, r.type, r.name]
+            for k in field_keys:
+                row.append((r.fields or {}).get(k) or "")
+            row.append(len(r.source_record_ids or []))
+            row.append(r.created_by or "")
+            row.append(r.created_at.isoformat() if r.created_at else "")
+            writer.writerow(row)
+    else:
+        writer.writerow(["id", "type", "name", "fields_json", "source_count", "created_by", "created_at"])
+        for r in records:
+            import json as _json
 
-    from app.services.merge import CANONICAL_FIELDS
-
-    field_order = [f[0] for f in CANONICAL_FIELDS]
-
-    for s in suppliers:
-        prov = s.provenance or {}
-        source_cols = []
-        for field in field_order:
-            fp = prov.get(field, {})
-            if isinstance(fp, dict):
-                entity = fp.get("source_entity", "")
-                auto = fp.get("auto", False)
-                source_cols.append(f"{entity} ({'auto' if auto else 'manual'})")
-            else:
-                source_cols.append("")
-
-        source_ids = s.source_supplier_ids or []
-        writer.writerow(
-            [
-                s.id,
-                s.name,
-                s.source_code or "",
-                s.short_name or "",
-                s.currency or "",
-                s.payment_terms or "",
-                s.contact_name or "",
-                s.supplier_type or "",
-                len(source_ids),
-                "Yes" if s.match_candidate_id is None else "No",
-                s.created_by,
-                s.created_at.isoformat() if s.created_at else "",
-                *source_cols,
-            ]
-        )
+            writer.writerow(
+                [
+                    r.id,
+                    r.type,
+                    r.name,
+                    _json.dumps(r.fields or {}, ensure_ascii=False),
+                    len(r.source_record_ids or []),
+                    r.created_by or "",
+                    r.created_at.isoformat() if r.created_at else "",
+                ]
+            )
 
     output.seek(0)
-
-    log_action(
-        db,
-        user_id=None,
-        action="unified_exported",
-        entity_type="unified_supplier",
-        entity_id=None,
-        details={
-            "count": len(suppliers),
-            "format": "csv",
-            "exported_by": current_user.username,
-            "filters": {
-                "search": search,
-                "source_type": source_type,
-                "from_date": from_date.isoformat() if from_date else None,
-                "to_date": to_date.isoformat() if to_date else None,
-            },
-        },
-    )
-    db.commit()
-
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    suffix = f"_{type}" if type else ""
+    filename = f"unified_records{suffix}_{timestamp}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={
-            "Content-Disposition": f"attachment; filename=unified_suppliers_"
-            f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.csv"
-        },
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
-
-# ── Dashboard ──
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard(
+    type: str | None = Query(None, description="Filter all stats by record type"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Dashboard with upload stats, match stats, review progress, and recent activity."""
-    # Upload stats
-    batch_counts = db.query(
-        func.count(ImportBatch.id).label("total"),
-        func.count(case((ImportBatch.status == BatchStatus.COMPLETED, 1))).label("completed"),
-        func.count(case((ImportBatch.status == BatchStatus.FAILED, 1))).label("failed"),
-    ).one()
-    total_staged = (
-        db.query(func.count(StagedSupplier.id)).filter(StagedSupplier.status == SupplierStatus.ACTIVE).scalar() or 0
-    )
+    """Get overall pipeline stats. Optional type filter narrows everything to one type."""
+    # Uploads (batches) — type filter requires joining DataSource
+    batches_query = db.query(ImportBatch)
+    if type is not None:
+        batches_query = batches_query.join(DataSource, ImportBatch.data_source_id == DataSource.id).filter(
+            DataSource.type == type
+        )
 
-    # Match stats
-    total_candidates = db.query(func.count(MatchCandidate.id)).scalar() or 0
-    total_groups = db.query(func.count(MatchGroup.id)).scalar() or 0
-    avg_confidence = db.query(func.avg(MatchCandidate.confidence)).scalar()
+    total_batches = batches_query.count()
+    completed_batches = batches_query.filter(ImportBatch.status == BatchStatus.COMPLETED).count()
+    failed_batches = batches_query.filter(ImportBatch.status == BatchStatus.FAILED).count()
 
-    # Review progress
-    review_counts = db.query(
-        func.count(case((MatchCandidate.status == CandidateStatus.PENDING, 1))).label("pending"),
-        func.count(case((MatchCandidate.status == CandidateStatus.CONFIRMED, 1))).label("confirmed"),
-        func.count(case((MatchCandidate.status == CandidateStatus.REJECTED, 1))).label("rejected"),
-    ).one()
+    # Total active records
+    staged_query = db.query(func.count(StagedRecord.id)).filter(StagedRecord.status == RecordStatus.ACTIVE)
+    if type is not None:
+        staged_query = staged_query.filter(StagedRecord.type == type)
+    total_staged = staged_query.scalar() or 0
 
-    # Unified stats
-    total_unified = db.query(func.count(UnifiedSupplier.id)).scalar() or 0
-    merged_count = (
-        db.query(func.count(UnifiedSupplier.id)).filter(UnifiedSupplier.match_candidate_id.isnot(None)).scalar() or 0
-    )
-    singleton_count = (
-        db.query(func.count(UnifiedSupplier.id)).filter(UnifiedSupplier.match_candidate_id.is_(None)).scalar() or 0
-    )
+    # Match candidates / groups
+    cand_query = db.query(MatchCandidate)
+    if type is not None:
+        cand_query = cand_query.filter(MatchCandidate.type == type)
+    total_candidates = cand_query.count()
+    pending = cand_query.filter(MatchCandidate.status == CandidateStatus.PENDING).count()
+    confirmed = cand_query.filter(MatchCandidate.status == CandidateStatus.CONFIRMED).count()
+    rejected = cand_query.filter(MatchCandidate.status == CandidateStatus.REJECTED).count()
 
-    # Recent activity (last 20 audit entries)
-    recent = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(20).all()
+    avg_conf = cand_query.with_entities(func.avg(MatchCandidate.confidence)).scalar()
+    total_groups = cand_query.with_entities(MatchCandidate.group_id).distinct().count()
 
-    # Resolve entity names in bulk to avoid N+1 queries
-    source_ids = {e.entity_id for e in recent if e.entity_type == "data_source" and e.entity_id}
-    batch_ids = {e.entity_id for e in recent if e.entity_type == "import_batch" and e.entity_id}
-    user_ids = {e.entity_id for e in recent if e.entity_type == "user" and e.entity_id}
+    # Unified records
+    unified_query = db.query(UnifiedRecord)
+    if type is not None:
+        unified_query = unified_query.filter(UnifiedRecord.type == type)
+    total_unified = unified_query.count()
+    merged = unified_query.filter(UnifiedRecord.match_candidate_id.isnot(None)).count()
+    singletons_count = unified_query.filter(UnifiedRecord.match_candidate_id.is_(None)).count()
 
-    source_names = (
-        {s.id: s.name for s in db.query(DataSource.id, DataSource.name).filter(DataSource.id.in_(source_ids)).all()}
-        if source_ids
-        else {}
-    )
-    batch_names = (
-        {
-            b.id: b.filename
-            for b in db.query(ImportBatch.id, ImportBatch.filename).filter(ImportBatch.id.in_(batch_ids)).all()
-        }
-        if batch_ids
-        else {}
-    )
-    user_names = (
-        {u.id: u.username for u in db.query(User.id, User.username).filter(User.id.in_(user_ids)).all()}
-        if user_ids
-        else {}
-    )
-
-    def _resolve_name(e: AuditLog) -> str | None:
-        if not e.entity_id:
-            return None
-        details_name: str | None = (e.details or {}).get("name")
-        if e.entity_type == "data_source":
-            return source_names.get(e.entity_id) or details_name
-        if e.entity_type == "import_batch":
-            return batch_names.get(e.entity_id) or details_name
-        if e.entity_type == "user":
-            return user_names.get(e.entity_id) or details_name
-        return details_name
+    # Recent activity (audit log, last 20)
+    recent_audit = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(20).all()
 
     return DashboardResponse(
         uploads=UploadStats(
-            total_batches=batch_counts.total,
-            completed=batch_counts.completed,
-            failed=batch_counts.failed,
+            total_batches=total_batches,
+            completed=completed_batches,
+            failed=failed_batches,
             total_staged=total_staged,
         ),
         matching=MatchStats(
             total_candidates=total_candidates,
             total_groups=total_groups,
-            avg_confidence=round(avg_confidence, 3) if avg_confidence else None,
+            avg_confidence=float(avg_conf) if avg_conf is not None else None,
         ),
         review=ReviewProgress(
-            pending=review_counts.pending,
-            confirmed=review_counts.confirmed,
-            rejected=review_counts.rejected,
+            pending=pending,
+            confirmed=confirmed,
+            rejected=rejected,
         ),
         unified=UnifiedStats(
             total_unified=total_unified,
-            merged=merged_count,
-            singletons=singleton_count,
+            merged=merged,
+            singletons=singletons_count,
         ),
         recent_activity=[
             RecentActivity(
-                id=e.id,
-                action=e.action,
-                entity_type=e.entity_type,
-                entity_id=e.entity_id,
-                entity_name=_resolve_name(e),
-                details=e.details,
-                created_at=e.created_at,
+                id=a.id,
+                action=a.action,
+                entity_type=a.entity_type,
+                entity_id=a.entity_id,
+                entity_name=None,
+                details=a.details,
+                created_at=a.created_at,
             )
-            for e in recent
+            for a in recent_audit
         ],
     )
