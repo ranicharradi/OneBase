@@ -56,10 +56,12 @@ def upgrade() -> None:
         sa.Column("data_source_id", sa.Integer, sa.ForeignKey("data_sources.id"), nullable=False),
         sa.Column("filename", sa.String(255), nullable=False),
         sa.Column("uploaded_by", sa.String(100), nullable=False),
-        sa.Column("uploaded_at", sa.DateTime, server_default=sa.func.now()),
-        sa.Column("status", sa.String(20), server_default="pending"),
         sa.Column("row_count", sa.Integer, nullable=True),
-        sa.Column("celery_task_id", sa.String(100), nullable=True),
+        sa.Column("status", sa.String(20), server_default="pending"),
+        sa.Column("error_message", sa.Text, nullable=True),
+        sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
+        sa.Column("task_id", sa.String(255), nullable=True),
+        sa.Column("matching_task_id", sa.String(255), nullable=True),
     )
 
     # staged_records — hybrid storage: universal name + JSONB extras
@@ -140,7 +142,7 @@ def upgrade() -> None:
         "audit_log",
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
         sa.Column("user_id", sa.Integer, sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("action", sa.String(100), nullable=False),
+        sa.Column("action", sa.String(50), nullable=False),
         sa.Column("entity_type", sa.String(50), nullable=True),
         sa.Column("entity_id", sa.Integer, nullable=True),
         sa.Column("details", postgresql.JSONB, nullable=True),
@@ -168,26 +170,42 @@ def upgrade() -> None:
         ["model_type", "record_type", "is_active"],
     )
 
-    # file_check_reports + file_check_issues
+    # file_check_reports
     op.create_table(
         "file_check_reports",
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column("import_batch_id", sa.Integer, sa.ForeignKey("import_batches.id"), nullable=False),
-        sa.Column("status", sa.String(20), nullable=False),
+        sa.Column("original_filename", sa.String(255), nullable=False),
+        sa.Column("stored_filename", sa.String(255), nullable=False),
+        sa.Column("file_size_bytes", sa.Integer, nullable=False),
+        sa.Column("delimiter", sa.String(8), nullable=False),
+        sa.Column("status", sa.String(20), nullable=False, server_default="processing"),
         sa.Column("total_rows", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("issue_count", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("rows_with_issues", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("empty_row_count", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("missing_value_count", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("corrupted_value_count", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("stored_issue_count", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("issue_cap_reached", sa.Boolean, nullable=False, server_default=sa.false()),
+        sa.Column("criteria_version", sa.String(50), nullable=False, server_default="v1"),
+        sa.Column("error_message", sa.Text, nullable=True),
+        sa.Column("checked_by", sa.String(100), nullable=False),
         sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
+        sa.Column("completed_at", sa.DateTime, nullable=True),
     )
+    # file_check_issues
     op.create_table(
         "file_check_issues",
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
         sa.Column("report_id", sa.Integer, sa.ForeignKey("file_check_reports.id"), nullable=False),
-        sa.Column("row_number", sa.Integer, nullable=True),
+        sa.Column("row_number", sa.Integer, nullable=False),
+        sa.Column("column_name", sa.String(255), nullable=True),
         sa.Column("issue_type", sa.String(50), nullable=False),
         sa.Column("severity", sa.String(20), nullable=False),
-        sa.Column("column_name", sa.String(100), nullable=True),
+        sa.Column("value_preview", sa.String(255), nullable=True),
         sa.Column("message", sa.Text, nullable=False),
+        sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
     )
+    op.create_index("ix_file_check_issues_report_id", "file_check_issues", ["report_id"])
 
 
 def downgrade() -> None:
