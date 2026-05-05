@@ -1,4 +1,4 @@
-"""Matching API router — match groups, candidates, and retraining endpoints."""
+"""Matching API router — match groups, candidates, and retraining endpoints, type-scoped."""
 
 import contextlib
 
@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_current_user, get_db, require_role
 from app.models.enums import UserRole
 from app.models.match import MatchCandidate, MatchGroup
-from app.models.staging import StagedSupplier
+from app.models.staging import StagedRecord
 from app.models.user import User
+from app.record_types import get as get_record_type
 from app.schemas.matching import (
     MatchCandidateResponse,
     MatchGroupResponse,
@@ -21,28 +22,31 @@ from app.schemas.matching import (
 from app.services.ml_training import (
     BLOCKER_FEATURE_NAMES,
     MIN_TRAINING_SAMPLES,
-    SCORER_FEATURE_NAMES,
+    extract_blocker_training_data,
     extract_training_data,
     save_model,
+    scorer_feature_names,
     train_model,
 )
 from app.services.retraining import retrain_weights
+from app.services.scoring import signal_key
 
 router = APIRouter(prefix="/api/matching", tags=["matching"])
 
 
 @router.get("/groups", response_model=list[MatchGroupResponse])
 def list_groups(
+    type: str | None = Query(None, description="Filter by record type"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """List match groups with candidate counts and average confidence."""
-    # Subquery for candidate count and avg confidence per group
-    groups = (
+    base = (
         db.query(
             MatchGroup.id,
+            MatchGroup.type,
             MatchGroup.created_at,
             func.count(MatchCandidate.id).label("candidate_count"),
             func.coalesce(func.avg(MatchCandidate.confidence), 0.0).label("avg_confidence"),
@@ -50,14 +54,16 @@ def list_groups(
         .outerjoin(MatchCandidate, MatchCandidate.group_id == MatchGroup.id)
         .group_by(MatchGroup.id)
         .order_by(MatchGroup.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
     )
+    if type is not None:
+        base = base.filter(MatchGroup.type == type)
+
+    groups = base.offset(offset).limit(limit).all()
 
     return [
         MatchGroupResponse(
             id=g.id,
+            type=g.type,
             candidate_count=g.candidate_count,
             avg_confidence=round(float(g.avg_confidence), 4),
             created_at=g.created_at,
@@ -68,6 +74,7 @@ def list_groups(
 
 @router.get("/candidates", response_model=list[MatchCandidateResponse])
 def list_candidates(
+    type: str | None = Query(None, description="Filter by record type"),
     group_id: int | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
     min_confidence: float | None = Query(None),
@@ -76,41 +83,38 @@ def list_candidates(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List match candidates with optional filters.
-
-    Joins to StagedSupplier to include supplier names.
-    """
+    """List match candidates with optional filters."""
     query = db.query(MatchCandidate)
 
+    if type is not None:
+        query = query.filter(MatchCandidate.type == type)
     if group_id is not None:
         query = query.filter(MatchCandidate.group_id == group_id)
-
     if status_filter is not None:
         query = query.filter(MatchCandidate.status == status_filter)
-
     if min_confidence is not None:
         query = query.filter(MatchCandidate.confidence >= min_confidence)
 
     candidates = query.order_by(MatchCandidate.confidence.desc()).offset(offset).limit(limit).all()
 
-    # Batch-load supplier names
-    supplier_ids = set()
+    record_ids = set()
     for c in candidates:
-        supplier_ids.add(c.supplier_a_id)
-        supplier_ids.add(c.supplier_b_id)
+        record_ids.add(c.record_a_id)
+        record_ids.add(c.record_b_id)
 
-    supplier_names: dict[int, str | None] = {}
-    if supplier_ids:
-        suppliers = db.query(StagedSupplier.id, StagedSupplier.name).filter(StagedSupplier.id.in_(supplier_ids)).all()
-        supplier_names = {s.id: s.name for s in suppliers}
+    record_names: dict[int, str | None] = {}
+    if record_ids:
+        rows = db.query(StagedRecord.id, StagedRecord.name).filter(StagedRecord.id.in_(record_ids)).all()
+        record_names = {r.id: r.name for r in rows}
 
     return [
         MatchCandidateResponse(
             id=c.id,
-            supplier_a_id=c.supplier_a_id,
-            supplier_b_id=c.supplier_b_id,
-            supplier_a_name=supplier_names.get(c.supplier_a_id),
-            supplier_b_name=supplier_names.get(c.supplier_b_id),
+            type=c.type,
+            record_a_id=c.record_a_id,
+            record_b_id=c.record_b_id,
+            record_a_name=record_names.get(c.record_a_id),
+            record_b_name=record_names.get(c.record_b_id),
             confidence=c.confidence,
             match_signals=c.match_signals,
             status=c.status,
@@ -123,39 +127,46 @@ def list_candidates(
 
 @router.get("/model-status")
 def get_model_status(
+    type: str = Query(..., description="Record type key"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get current ML model and weight retraining status."""
+    """Get current ML model and weight retraining status for a record type."""
     from app.models.ml_model import MLModelVersion
-    from app.services.scoring import _DEFAULT_WEIGHTS
 
-    # Latest scorer model
+    try:
+        rt = get_record_type(type)
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown record type: {type!r}",
+        ) from None
+
     scorer = (
         db.query(MLModelVersion)
-        .filter(MLModelVersion.model_type == "scorer")
+        .filter(
+            MLModelVersion.model_type == "scorer",
+            MLModelVersion.record_type == type,
+        )
         .order_by(MLModelVersion.created_at.desc())
         .first()
     )
 
-    # Count reviewed candidates
     review_count = (
-        db.query(func.count(MatchCandidate.id)).filter(MatchCandidate.status.in_(["confirmed", "rejected"])).scalar()
+        db.query(func.count(MatchCandidate.id))
+        .filter(
+            MatchCandidate.type == type,
+            MatchCandidate.status.in_(["confirmed", "rejected"]),
+        )
+        .scalar()
         or 0
     )
 
-    # Current weights (interim defaults from scoring module; will be
-    # driven by RecordType config once that wiring is complete — Task 12)
-    current_weights = {
-        "jaro_winkler": _DEFAULT_WEIGHTS["jaro_winkler"],
-        "token_jaccard": _DEFAULT_WEIGHTS["token_jaccard"],
-        "embedding_cosine": _DEFAULT_WEIGHTS["embedding_cosine"],
-        "short_name": _DEFAULT_WEIGHTS["short_name_match"],
-        "currency": _DEFAULT_WEIGHTS["currency_match"],
-        "contact": _DEFAULT_WEIGHTS["contact_match"],
-    }
+    # Current weights live in the type config
+    current_weights = {signal_key(s.kind, s.field): s.weight for s in rt.signals}
 
     return {
+        "type": type,
         "last_trained": scorer.created_at.isoformat() if scorer else None,
         "last_retrained": None,
         "review_count": review_count,
@@ -166,14 +177,23 @@ def get_model_status(
 
 @router.post("/retrain", response_model=RetrainResponse)
 def trigger_retrain(
+    type: str = Query(..., description="Record type key"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Trigger retraining of signal weights from reviewer decisions.
+    """Trigger retraining of signal weights from reviewer decisions, scoped to a type.
 
-    Requires at least 20 confirmed/rejected candidates.
+    Requires at least 20 confirmed/rejected candidates for the type.
     """
-    result = retrain_weights(db)
+    try:
+        get_record_type(type)
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown record type: {type!r}",
+        ) from None
+
+    result = retrain_weights(db, type)
 
     if result is None:
         raise HTTPException(
@@ -182,6 +202,7 @@ def trigger_retrain(
         )
 
     return RetrainResponse(
+        type=type,
         weights=result["weights"],
         sample_count=result["sample_count"],
     )
@@ -189,20 +210,27 @@ def trigger_retrain(
 
 @router.post("/train-model", response_model=TrainModelResponse)
 def train_ml_model(
+    type: str = Query(..., description="Record type key"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Train ML scorer and blocker models from reviewed match candidates.
+    """Train ML scorer and blocker models for a record type from reviewed candidates.
 
-    Requires at least 50 confirmed/rejected candidates with both classes present.
+    Requires at least 50 confirmed/rejected candidates of the type with both classes present.
     Acquires a PostgreSQL advisory lock to prevent concurrent training.
     """
-    # Advisory lock to prevent concurrent training (no-op on SQLite)
+    try:
+        get_record_type(type)
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown record type: {type!r}",
+        ) from None
+
     with contextlib.suppress(Exception):
         db.execute(text("SELECT pg_advisory_xact_lock(737373)"))
 
-    # Extract training data
-    X, y = extract_training_data(db)
+    X_scorer, y = extract_training_data(db, type)
 
     if len(y) < MIN_TRAINING_SAMPLES:
         raise HTTPException(
@@ -217,12 +245,13 @@ def train_ml_model(
             detail="Training data must include both confirmed and rejected candidates",
         )
 
-    # Train scorer (all 8 features)
-    scorer_result = train_model(X, y, model_type="scorer")
+    scorer_feature_list = scorer_feature_names(type)
+    scorer_result = train_model(X_scorer, y, scorer_feature_list, model_type="scorer")
     scorer_version = save_model(
         model=scorer_result["model"],
         model_type="scorer",
-        feature_names=SCORER_FEATURE_NAMES,
+        record_type_key=type,
+        feature_names=scorer_feature_list,
         metrics=scorer_result["metrics"],
         feature_importances=scorer_result["feature_importances"],
         sample_count=len(y),
@@ -230,16 +259,16 @@ def train_ml_model(
         created_by=current_user.username,
     )
 
-    # Train blocker (3 fast features: jaro_winkler, token_jaccard, name_length_ratio)
-    X_blocker = X[:, [0, 1, 6]]  # indices for jaro_winkler, token_jaccard, name_length_ratio
-    blocker_result = train_model(X_blocker, y, model_type="blocker")
+    X_blocker, y_blocker = extract_blocker_training_data(db, type)
+    blocker_result = train_model(X_blocker, y_blocker, BLOCKER_FEATURE_NAMES, model_type="blocker")
     blocker_version = save_model(
         model=blocker_result["model"],
         model_type="blocker",
+        record_type_key=type,
         feature_names=BLOCKER_FEATURE_NAMES,
         metrics=blocker_result["metrics"],
         feature_importances=blocker_result["feature_importances"],
-        sample_count=len(y),
+        sample_count=len(y_blocker),
         db=db,
         created_by=current_user.username,
     )
@@ -247,6 +276,7 @@ def train_ml_model(
     db.commit()
 
     return TrainModelResponse(
+        type=type,
         scorer=ModelTrainingResult(
             model_id=scorer_version.id,
             sample_count=len(y),
@@ -256,7 +286,7 @@ def train_ml_model(
         ),
         blocker=ModelTrainingResult(
             model_id=blocker_version.id,
-            sample_count=len(y),
+            sample_count=len(y_blocker),
             metrics=blocker_result["metrics"],
             feature_importances=blocker_result["feature_importances"],
             threshold=blocker_result["metrics"]["threshold"],
