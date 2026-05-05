@@ -1,11 +1,4 @@
-"""Blocking service — candidate pair generation for matching.
-
-Two blocking strategies:
-1. Text-based: prefix (3-char) and first-token overlap on normalized_name
-2. Embedding-based: pgvector ANN cosine distance (K nearest neighbors)
-
-Both produce cross-entity pairs only (never within same data source).
-"""
+"""Blocking service — candidate pair generation for matching, scoped per type."""
 
 import logging
 import math
@@ -15,65 +8,53 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.enums import SupplierStatus
-from app.models.staging import StagedSupplier
+from app.models.enums import RecordStatus
+from app.models.staging import StagedRecord
 
 logger = logging.getLogger(__name__)
 
 
-def text_block(db: Session, source_ids: list[int], representative_ids: set[int] | None = None) -> set[tuple[int, int]]:
-    """Generate candidate pairs via normalized_name prefix and first-token overlap.
-
-    Args:
-        db: Database session.
-        source_ids: List of data source IDs to include.
-        representative_ids: Optional set of supplier IDs to restrict blocking to.
-
-    Returns:
-        Set of (min_id, max_id) supplier pairs, cross-entity only.
+def text_block(
+    db: Session,
+    type_key: str,
+    source_ids: list[int],
+    representative_ids: set[int] | None = None,
+) -> set[tuple[int, int]]:
+    """Generate candidate pairs via normalized_name prefix and first-token overlap,
+    scoped to a single record type.
     """
-    # Query all active suppliers for given sources
-    query = db.query(StagedSupplier).filter(
-        StagedSupplier.data_source_id.in_(source_ids),
-        StagedSupplier.status == SupplierStatus.ACTIVE,
+    query = db.query(StagedRecord).filter(
+        StagedRecord.type == type_key,
+        StagedRecord.data_source_id.in_(source_ids),
+        StagedRecord.status == RecordStatus.ACTIVE,
     )
     if representative_ids is not None:
-        query = query.filter(StagedSupplier.id.in_(representative_ids))
-    suppliers = query.all()
+        query = query.filter(StagedRecord.id.in_(representative_ids))
+    records = query.all()
 
-    # Build prefix dict (3-char prefix) and first-token dict
-    prefix_buckets: dict[str, list[StagedSupplier]] = defaultdict(list)
-    token_buckets: dict[str, list[StagedSupplier]] = defaultdict(list)
+    prefix_buckets: dict[str, list[StagedRecord]] = defaultdict(list)
+    token_buckets: dict[str, list[StagedRecord]] = defaultdict(list)
 
-    for s in suppliers:
-        if not s.normalized_name:
+    for r in records:
+        if not r.normalized_name:
             continue
-
-        name = s.normalized_name.strip()
+        name = r.normalized_name.strip()
         if not name:
             continue
-
-        # 3-char prefix bucket (only if name length >= 3)
         if len(name) >= 3:
-            prefix = name[:3]
-            prefix_buckets[prefix].append(s)
-
-        # First token bucket
+            prefix_buckets[name[:3]].append(r)
         first_token = name.split()[0] if name.split() else None
         if first_token:
-            token_buckets[first_token].append(s)
+            token_buckets[first_token].append(r)
 
     max_bucket_pairs = settings.matching_max_bucket_pairs
-
-    # Generate cross-entity pairs from buckets
     pairs: set[tuple[int, int]] = set()
-    rng = random.Random(42)  # noqa: S311 — deterministic subsampling, not crypto
+    rng = random.Random(42)  # noqa: S311 — deterministic subsampling
 
-    def _add_cross_pairs(bucket: list[StagedSupplier]) -> None:
-        by_source: dict[int, list[StagedSupplier]] = defaultdict(list)
-        for s in bucket:
-            by_source[s.data_source_id].append(s)
-
+    def _add_cross_pairs(bucket: list[StagedRecord]) -> None:
+        by_source: dict[int, list[StagedRecord]] = defaultdict(list)
+        for r in bucket:
+            by_source[r.data_source_id].append(r)
         source_lists = list(by_source.values())
         for i in range(len(source_lists)):
             for j in range(i + 1, len(source_lists)):
@@ -85,19 +66,18 @@ def text_block(db: Session, source_ids: list[int], representative_ids: set[int] 
                     side_b = rng.sample(side_b, min(k, len(side_b)))
                 for a in side_a:
                     for b in side_b:
-                        pair = (min(a.id, b.id), max(a.id, b.id))
-                        pairs.add(pair)
+                        pairs.add((min(a.id, b.id), max(a.id, b.id)))
 
     for bucket in prefix_buckets.values():
         _add_cross_pairs(bucket)
-
     for bucket in token_buckets.values():
         _add_cross_pairs(bucket)
 
     logger.info(
-        "text_block: %d pairs from %d suppliers across %d sources",
+        "text_block(type=%s): %d pairs from %d records across %d sources",
+        type_key,
         len(pairs),
-        len(suppliers),
+        len(records),
         len(source_ids),
     )
     return pairs
@@ -105,110 +85,74 @@ def text_block(db: Session, source_ids: list[int], representative_ids: set[int] 
 
 def _get_embedding_neighbors(
     db: Session,
-    supplier: StagedSupplier,
+    record: StagedRecord,
+    type_key: str,
     source_ids: list[int],
     k: int,
     representative_ids: set[int] | None = None,
 ) -> list[int]:
-    """Query pgvector for K nearest neighbors from different sources.
-
-    This is separated so it can be mocked in SQLite tests.
-
-    Args:
-        db: Database session.
-        supplier: The supplier to find neighbors for.
-        source_ids: List of data source IDs to include.
-        k: Number of nearest neighbors.
-        representative_ids: Optional set of supplier IDs to restrict query to.
-
-    Returns:
-        List of neighbor supplier IDs.
-    """
-    # pgvector cosine distance query
-    query = db.query(StagedSupplier.id).filter(
-        StagedSupplier.data_source_id != supplier.data_source_id,
-        StagedSupplier.data_source_id.in_(source_ids),
-        StagedSupplier.status == SupplierStatus.ACTIVE,
-        StagedSupplier.name_embedding.isnot(None),
+    """Query pgvector for K nearest neighbors from different sources within the same type."""
+    query = db.query(StagedRecord.id).filter(
+        StagedRecord.type == type_key,
+        StagedRecord.data_source_id != record.data_source_id,
+        StagedRecord.data_source_id.in_(source_ids),
+        StagedRecord.status == RecordStatus.ACTIVE,
+        StagedRecord.name_embedding.isnot(None),
     )
     if representative_ids is not None:
-        query = query.filter(StagedSupplier.id.in_(representative_ids))
-    neighbors = query.order_by(StagedSupplier.name_embedding.cosine_distance(supplier.name_embedding)).limit(k).all()
+        query = query.filter(StagedRecord.id.in_(representative_ids))
+    neighbors = query.order_by(StagedRecord.name_embedding.cosine_distance(record.name_embedding)).limit(k).all()
     return [n.id for n in neighbors]
 
 
-def _get_suppliers_with_embeddings(
-    db: Session, source_ids: list[int], representative_ids: set[int] | None = None
-) -> list[StagedSupplier]:
-    """Query active suppliers that have embeddings.
-
-    Separated so it can be mocked in SQLite tests (pgvector not available).
-
-    Args:
-        db: Database session.
-        source_ids: List of data source IDs to include.
-        representative_ids: Optional set of supplier IDs to restrict query to.
-
-    Returns:
-        List of StagedSupplier with non-null embeddings.
-    """
-    query = db.query(StagedSupplier).filter(
-        StagedSupplier.data_source_id.in_(source_ids),
-        StagedSupplier.status == SupplierStatus.ACTIVE,
-        StagedSupplier.name_embedding.isnot(None),
+def _get_records_with_embeddings(
+    db: Session,
+    type_key: str,
+    source_ids: list[int],
+    representative_ids: set[int] | None = None,
+) -> list[StagedRecord]:
+    """Query active records of a given type that have embeddings."""
+    query = db.query(StagedRecord).filter(
+        StagedRecord.type == type_key,
+        StagedRecord.data_source_id.in_(source_ids),
+        StagedRecord.status == RecordStatus.ACTIVE,
+        StagedRecord.name_embedding.isnot(None),
     )
     if representative_ids is not None:
-        query = query.filter(StagedSupplier.id.in_(representative_ids))
+        query = query.filter(StagedRecord.id.in_(representative_ids))
     return query.all()
 
 
 def embedding_block(
     db: Session,
+    type_key: str,
     source_ids: list[int],
     k: int | None = None,
     representative_ids: set[int] | None = None,
 ) -> set[tuple[int, int]]:
-    """Generate candidate pairs via pgvector ANN cosine distance search.
-
-    Args:
-        db: Database session.
-        source_ids: List of data source IDs to include.
-        k: Number of nearest neighbors (defaults to settings.matching_blocking_k).
-        representative_ids: Optional set of supplier IDs to restrict blocking to.
-
-    Returns:
-        Set of (min_id, max_id) supplier pairs, cross-entity only.
-    """
+    """Generate candidate pairs via pgvector ANN cosine search, scoped to a type."""
     if k is None:
         k = settings.matching_blocking_k
 
-    suppliers = _get_suppliers_with_embeddings(db, source_ids, representative_ids)
-
+    records = _get_records_with_embeddings(db, type_key, source_ids, representative_ids)
     pairs: set[tuple[int, int]] = set()
 
-    for supplier in suppliers:
-        neighbor_ids = _get_embedding_neighbors(db, supplier, source_ids, k, representative_ids)
+    for record in records:
+        neighbor_ids = _get_embedding_neighbors(db, record, type_key, source_ids, k, representative_ids)
         for nid in neighbor_ids:
-            pair = (min(supplier.id, nid), max(supplier.id, nid))
-            pairs.add(pair)
+            pairs.add((min(record.id, nid), max(record.id, nid)))
 
     logger.info(
-        "embedding_block: %d pairs from %d suppliers with embeddings",
+        "embedding_block(type=%s): %d pairs from %d records with embeddings",
+        type_key,
         len(pairs),
-        len(suppliers),
+        len(records),
     )
     return pairs
 
 
 def combine_blocks(*block_results: set[tuple[int, int]]) -> set[tuple[int, int]]:
-    """Union of all blocking results.
-
-    Args:
-        *block_results: Variable number of pair sets from different blocking strategies.
-
-    Returns:
-        Deduplicated union of all pairs.
-    """
+    """Union of all blocking results."""
     result: set[tuple[int, int]] = set()
     for block in block_results:
         result |= block
