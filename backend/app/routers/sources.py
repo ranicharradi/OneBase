@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
-from app.models.enums import SupplierStatus, UserRole
-from app.models.staging import StagedSupplier
+from app.models.enums import RecordStatus, UserRole
+from app.models.staging import StagedRecord
 from app.models.user import User
 from app.schemas.source import (
     DataSourceCreate,
@@ -34,7 +34,7 @@ def create_data_source(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Create a new data source with column mapping."""
+    """Create a new data source with a record type and column mapping."""
     try:
         source = create_source(db, data)
         log_action(
@@ -43,7 +43,7 @@ def create_data_source(
             action="create_source",
             entity_type="data_source",
             entity_id=source.id,
-            details={"name": source.name},
+            details={"name": source.name, "type": source.type},
         )
         db.commit()
         db.refresh(source)
@@ -57,11 +57,15 @@ def create_data_source(
 
 @router.get("", response_model=list[DataSourceResponse])
 def list_data_sources(
+    type: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List all data sources."""
-    return get_sources(db)
+    """List all data sources, optionally filtered by record type."""
+    sources = get_sources(db)
+    if type is not None:
+        sources = [s for s in sources if s.type == type]
+    return sources
 
 
 @router.get("/{source_id}", response_model=DataSourceResponse)
@@ -84,7 +88,7 @@ def update_data_source(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Update a data source."""
+    """Update a data source. The record type is locked at creation."""
     try:
         source = update_source(db, source_id, data)
     except ValueError as e:
@@ -97,7 +101,7 @@ def update_data_source(
         action="update_source",
         entity_type="data_source",
         entity_id=source.id,
-        details={"name": source.name},
+        details={"name": source.name, "type": source.type},
     )
     db.commit()
     db.refresh(source)
@@ -110,11 +114,12 @@ def delete_data_source(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Delete a data source."""
+    """Delete a data source and all related data."""
     source = get_source(db, source_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
     source_name = source.name
+    source_type = source.type
     delete_source(db, source_id)
     log_action(
         db,
@@ -122,7 +127,7 @@ def delete_data_source(
         action="delete_source",
         entity_type="data_source",
         entity_id=source_id,
-        details={"name": source_name},
+        details={"name": source_name, "type": source_type},
     )
     db.commit()
 
@@ -133,7 +138,7 @@ def get_upload_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get counts of active staged suppliers and pending match candidates for a source."""
+    """Get counts of active staged records and pending match candidates for a source."""
     from app.models.enums import CandidateStatus
     from app.models.match import MatchCandidate
 
@@ -142,20 +147,20 @@ def get_upload_stats(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
 
     staged_count = (
-        db.query(func.count(StagedSupplier.id))
+        db.query(func.count(StagedRecord.id))
         .filter(
-            StagedSupplier.data_source_id == source_id,
-            StagedSupplier.status == SupplierStatus.ACTIVE,
+            StagedRecord.data_source_id == source_id,
+            StagedRecord.status == RecordStatus.ACTIVE,
         )
         .scalar()
         or 0
     )
 
-    source_supplier_ids = (
-        db.query(StagedSupplier.id)
+    source_record_ids = (
+        db.query(StagedRecord.id)
         .filter(
-            StagedSupplier.data_source_id == source_id,
-            StagedSupplier.status == SupplierStatus.ACTIVE,
+            StagedRecord.data_source_id == source_id,
+            StagedRecord.status == RecordStatus.ACTIVE,
         )
         .subquery()
     )
@@ -163,8 +168,7 @@ def get_upload_stats(
         db.query(func.count(MatchCandidate.id))
         .filter(
             MatchCandidate.status == CandidateStatus.PENDING,
-            (MatchCandidate.supplier_a_id.in_(source_supplier_ids))
-            | (MatchCandidate.supplier_b_id.in_(source_supplier_ids)),
+            (MatchCandidate.record_a_id.in_(source_record_ids)) | (MatchCandidate.record_b_id.in_(source_record_ids)),
         )
         .scalar()
         or 0
