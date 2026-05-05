@@ -151,12 +151,21 @@ def upgrade() -> None:
     op.create_table(
         "ml_model_versions",
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column("kind", sa.String(50), nullable=False),  # "scorer" | "blocker"
-        sa.Column("version", sa.String(50), nullable=False),
-        sa.Column("artifact_path", sa.String(500), nullable=False),
-        sa.Column("metadata", postgresql.JSONB, nullable=True),
+        sa.Column("model_type", sa.String(50), nullable=False),  # "scorer" | "blocker"
+        sa.Column("record_type", sa.String(50), nullable=False),  # RecordType.key the model was trained for
+        sa.Column("filename", sa.String(255), nullable=False),
+        sa.Column("feature_names", postgresql.JSONB, nullable=False),
+        sa.Column("metrics", postgresql.JSONB, nullable=False),
+        sa.Column("feature_importances", postgresql.JSONB, nullable=True),
+        sa.Column("sample_count", sa.Integer, nullable=False),
+        sa.Column("is_active", sa.Boolean, server_default=sa.false(), nullable=False),
+        sa.Column("created_by", sa.String(100), nullable=True),
         sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
-        sa.UniqueConstraint("kind", "version", name="uq_ml_model_kind_version"),
+    )
+    op.create_index(
+        "ix_ml_model_active",
+        "ml_model_versions",
+        ["model_type", "record_type", "is_active"],
     )
 
     # file_check_reports + file_check_issues
