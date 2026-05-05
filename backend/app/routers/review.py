@@ -11,18 +11,18 @@ from app.dependencies import get_current_user, get_db, require_role
 from app.models.enums import CandidateStatus, UserRole
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
-from app.models.staging import StagedSupplier
-from app.models.unified import UnifiedSupplier
+from app.models.staging import StagedRecord
+from app.models.unified import UnifiedRecord
 from app.models.user import User
 from app.schemas.review import (
     FieldComparison,
     MatchDetailResponse,
     MergeRequest,
+    RecordDetail,
     ReviewActionResponse,
     ReviewQueueItem,
     ReviewQueueResponse,
     ReviewStatsResponse,
-    SupplierDetail,
 )
 from app.services.merge import (
     compare_fields,
@@ -33,16 +33,16 @@ from app.services.merge import (
 router = APIRouter(prefix="/api/review", tags=["review"])
 
 
-def _load_supplier_detail(db: Session, supplier_id: int) -> tuple[StagedSupplier, DataSource]:
-    """Load a staged supplier and its data source."""
-    supplier = db.get(StagedSupplier, supplier_id)
-    if not supplier:
+def _load_record_detail(db: Session, record_id: int) -> tuple[StagedRecord, DataSource]:
+    """Load a staged record and its data source."""
+    record = db.get(StagedRecord, record_id)
+    if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Staged supplier {supplier_id} not found",
+            detail=f"Staged record {record_id} not found",
         )
-    source = db.get(DataSource, supplier.data_source_id)
-    return supplier, source
+    source = db.get(DataSource, record.data_source_id)
+    return record, source
 
 
 # ── Review queue ──
@@ -51,8 +51,9 @@ def _load_supplier_detail(db: Session, supplier_id: int) -> tuple[StagedSupplier
 @router.get("/queue", response_model=ReviewQueueResponse)
 def get_review_queue(
     status_filter: str = Query("pending", alias="status"),
-    source_a_id: int | None = Query(None, description="Filter by supplier A source"),
-    source_b_id: int | None = Query(None, description="Filter by supplier B source"),
+    type: str | None = Query(None, description="Filter by record type"),
+    source_a_id: int | None = Query(None, description="Filter by record A source"),
+    source_b_id: int | None = Query(None, description="Filter by record B source"),
     min_confidence: float | None = Query(None, ge=0.0, le=1.0),
     max_confidence: float | None = Query(None, ge=0.0, le=1.0),
     limit: int = Query(50, ge=1, le=200),
@@ -64,90 +65,86 @@ def get_review_queue(
     current_user: User = Depends(get_current_user),
 ):
     """Get paginated review queue with filtering."""
-    # Base query
     query = db.query(MatchCandidate)
 
+    if type is not None:
+        query = query.filter(MatchCandidate.type == type)
     if status_filter:
         query = query.filter(MatchCandidate.status == status_filter)
-
     if min_confidence is not None:
         query = query.filter(MatchCandidate.confidence >= min_confidence)
-
     if max_confidence is not None:
         query = query.filter(MatchCandidate.confidence <= max_confidence)
 
-    # Source pair filtering — requires joins to staged suppliers
     if source_a_id is not None or source_b_id is not None:
-        SupA = db.query(StagedSupplier.id, StagedSupplier.data_source_id).subquery("sup_a")
-        SupB = db.query(StagedSupplier.id, StagedSupplier.data_source_id).subquery("sup_b")
-        query = query.join(SupA, MatchCandidate.supplier_a_id == SupA.c.id)
-        query = query.join(SupB, MatchCandidate.supplier_b_id == SupB.c.id)
-
+        RecA = db.query(StagedRecord.id, StagedRecord.data_source_id).subquery("rec_a")
+        RecB = db.query(StagedRecord.id, StagedRecord.data_source_id).subquery("rec_b")
+        query = query.join(RecA, MatchCandidate.record_a_id == RecA.c.id)
+        query = query.join(RecB, MatchCandidate.record_b_id == RecB.c.id)
         if source_a_id is not None and source_b_id is not None:
-            # Either direction: (A in source_a, B in source_b) OR (A in source_b, B in source_a)
             query = query.filter(
-                ((SupA.c.data_source_id == source_a_id) & (SupB.c.data_source_id == source_b_id))
-                | ((SupA.c.data_source_id == source_b_id) & (SupB.c.data_source_id == source_a_id))
+                ((RecA.c.data_source_id == source_a_id) & (RecB.c.data_source_id == source_b_id))
+                | ((RecA.c.data_source_id == source_b_id) & (RecB.c.data_source_id == source_a_id))
             )
         elif source_a_id is not None:
-            query = query.filter((SupA.c.data_source_id == source_a_id) | (SupB.c.data_source_id == source_a_id))
+            query = query.filter((RecA.c.data_source_id == source_a_id) | (RecB.c.data_source_id == source_a_id))
         elif source_b_id is not None:
-            query = query.filter((SupA.c.data_source_id == source_b_id) | (SupB.c.data_source_id == source_b_id))
+            query = query.filter((RecA.c.data_source_id == source_b_id) | (RecB.c.data_source_id == source_b_id))
 
     total = query.count()
 
-    # Apply sort order
     if sort == "confidence_asc":
         query = query.order_by(MatchCandidate.confidence.asc())
     elif sort == "active_learning":
         query = query.order_by(func.abs(MatchCandidate.confidence - 0.5).asc())
-    else:  # confidence_desc (default)
+    else:
         query = query.order_by(MatchCandidate.confidence.desc())
 
     candidates = query.offset(offset).limit(limit).all()
 
-    # Batch-load supplier info
-    supplier_ids = set()
+    record_ids = set()
     for c in candidates:
-        supplier_ids.add(c.supplier_a_id)
-        supplier_ids.add(c.supplier_b_id)
+        record_ids.add(c.record_a_id)
+        record_ids.add(c.record_b_id)
 
-    supplier_info: dict[int, tuple] = {}
-    if supplier_ids:
+    record_info: dict[int, dict] = {}
+    if record_ids:
         rows = (
             db.query(
-                StagedSupplier.id,
-                StagedSupplier.name,
-                StagedSupplier.source_code,
-                StagedSupplier.currency,
-                StagedSupplier.contact_name,
+                StagedRecord.id,
+                StagedRecord.name,
+                StagedRecord.fields,
                 DataSource.name.label("source_name"),
             )
-            .join(DataSource, StagedSupplier.data_source_id == DataSource.id)
-            .filter(StagedSupplier.id.in_(supplier_ids))
+            .join(DataSource, StagedRecord.data_source_id == DataSource.id)
+            .filter(StagedRecord.id.in_(record_ids))
             .all()
         )
-        supplier_info = {r.id: (r.name, r.source_name, r.source_code, r.currency, r.contact_name) for r in rows}
+        record_info = {
+            r.id: {
+                "name": r.name,
+                "source_name": r.source_name,
+                "fields": r.fields or {},
+            }
+            for r in rows
+        }
 
     items = []
     for c in candidates:
-        a = supplier_info.get(c.supplier_a_id, (None, None, None, None, None))
-        b = supplier_info.get(c.supplier_b_id, (None, None, None, None, None))
+        a = record_info.get(c.record_a_id, {"name": None, "source_name": None, "fields": {}})
+        b = record_info.get(c.record_b_id, {"name": None, "source_name": None, "fields": {}})
         items.append(
             ReviewQueueItem(
                 id=c.id,
-                supplier_a_id=c.supplier_a_id,
-                supplier_b_id=c.supplier_b_id,
-                supplier_a_name=a[0],
-                supplier_b_name=b[0],
-                supplier_a_source=a[1],
-                supplier_b_source=b[1],
-                supplier_a_source_code=a[2],
-                supplier_b_source_code=b[2],
-                supplier_a_currency=a[3],
-                supplier_b_currency=b[3],
-                supplier_a_contact=a[4],
-                supplier_b_contact=b[4],
+                type=c.type,
+                record_a_id=c.record_a_id,
+                record_b_id=c.record_b_id,
+                record_a_name=a["name"],
+                record_b_name=b["name"],
+                record_a_source=a["source_name"],
+                record_b_source=b["source_name"],
+                record_a_fields=a["fields"],
+                record_b_fields=b["fields"],
                 confidence=c.confidence,
                 match_signals=c.match_signals or {},
                 status=c.status,
@@ -182,48 +179,40 @@ def get_match_detail(
             detail=f"Match candidate {candidate_id} not found",
         )
 
-    supplier_a, source_a = _load_supplier_detail(db, candidate.supplier_a_id)
-    supplier_b, source_b = _load_supplier_detail(db, candidate.supplier_b_id)
+    record_a, source_a = _load_record_detail(db, candidate.record_a_id)
+    record_b, source_b = _load_record_detail(db, candidate.record_b_id)
 
     source_a_name = source_a.name if source_a else "Unknown"
     source_b_name = source_b.name if source_b else "Unknown"
 
-    # Build field comparisons
-    comparisons = compare_fields(supplier_a, supplier_b, source_a_name, source_b_name)
+    comparisons = compare_fields(record_a, record_b, source_a_name, source_b_name)
 
     return MatchDetailResponse(
         id=candidate.id,
+        type=candidate.type,
         confidence=candidate.confidence,
         match_signals=candidate.match_signals,
         status=candidate.status,
         group_id=candidate.group_id,
-        supplier_a=SupplierDetail(
-            id=supplier_a.id,
-            source_code=supplier_a.source_code,
-            name=supplier_a.name,
-            short_name=supplier_a.short_name,
-            currency=supplier_a.currency,
-            payment_terms=supplier_a.payment_terms,
-            contact_name=supplier_a.contact_name,
-            supplier_type=supplier_a.supplier_type,
-            normalized_name=supplier_a.normalized_name,
-            data_source_id=supplier_a.data_source_id,
+        record_a=RecordDetail(
+            id=record_a.id,
+            type=record_a.type,
+            name=record_a.name,
+            normalized_name=record_a.normalized_name,
+            fields=record_a.fields or {},
+            data_source_id=record_a.data_source_id,
             data_source_name=source_a_name,
-            raw_data=supplier_a.raw_data,
+            raw_data=record_a.raw_data,
         ),
-        supplier_b=SupplierDetail(
-            id=supplier_b.id,
-            source_code=supplier_b.source_code,
-            name=supplier_b.name,
-            short_name=supplier_b.short_name,
-            currency=supplier_b.currency,
-            payment_terms=supplier_b.payment_terms,
-            contact_name=supplier_b.contact_name,
-            supplier_type=supplier_b.supplier_type,
-            normalized_name=supplier_b.normalized_name,
-            data_source_id=supplier_b.data_source_id,
+        record_b=RecordDetail(
+            id=record_b.id,
+            type=record_b.type,
+            name=record_b.name,
+            normalized_name=record_b.normalized_name,
+            fields=record_b.fields or {},
+            data_source_id=record_b.data_source_id,
             data_source_name=source_b_name,
-            raw_data=supplier_b.raw_data,
+            raw_data=record_b.raw_data,
         ),
         field_comparisons=[FieldComparison(**c) for c in comparisons],
         reviewed_by=candidate.reviewed_by,
@@ -267,7 +256,7 @@ def confirm_candidate(
     return ReviewActionResponse(
         candidate_id=candidate.id,
         action="confirmed",
-        unified_supplier_id=None,
+        unified_record_id=None,
     )
 
 
@@ -278,10 +267,9 @@ def merge_candidate(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
-    """Confirm a match and create a unified (golden) supplier record.
+    """Confirm a match and create a unified (golden) record.
 
     Requires field selections for all conflicting fields.
-    Identical and source-only fields are auto-included.
     """
     candidate = db.get(MatchCandidate, candidate_id)
     if not candidate:
@@ -296,8 +284,8 @@ def merge_candidate(
             detail=f"Candidate must be confirmed before merging (current status: {candidate.status})",
         )
 
-    supplier_a, source_a = _load_supplier_detail(db, candidate.supplier_a_id)
-    supplier_b, source_b = _load_supplier_detail(db, candidate.supplier_b_id)
+    record_a, source_a = _load_record_detail(db, candidate.record_a_id)
+    record_b, source_b = _load_record_detail(db, candidate.record_b_id)
 
     source_a_name = source_a.name if source_a else "Unknown"
     source_b_name = source_b.name if source_b else "Unknown"
@@ -306,8 +294,8 @@ def merge_candidate(
         unified = execute_merge(
             db=db,
             candidate=candidate,
-            supplier_a=supplier_a,
-            supplier_b=supplier_b,
+            record_a=record_a,
+            record_b=record_b,
             source_a_name=source_a_name,
             source_b_name=source_b_name,
             field_selections=[fs.model_dump() for fs in body.field_selections],
@@ -324,7 +312,7 @@ def merge_candidate(
     return ReviewActionResponse(
         candidate_id=candidate.id,
         action="merged",
-        unified_supplier_id=unified.id,
+        unified_record_id=unified.id,
     )
 
 
@@ -334,7 +322,7 @@ def reject_match(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
-    """Reject a match candidate — suppliers are not duplicates."""
+    """Reject a match candidate — records are not duplicates."""
     candidate = db.get(MatchCandidate, candidate_id)
     if not candidate:
         raise HTTPException(
@@ -362,18 +350,26 @@ def reject_match(
 
 @router.get("/stats", response_model=ReviewStatsResponse)
 def get_review_stats(
+    type: str | None = Query(None, description="Optional filter by record type"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get summary stats for the review queue."""
-    counts = db.query(
+    """Get summary stats for the review queue, optionally type-scoped."""
+    cand_query = db.query(MatchCandidate)
+    if type is not None:
+        cand_query = cand_query.filter(MatchCandidate.type == type)
+
+    counts = cand_query.with_entities(
         func.count(case((MatchCandidate.status == CandidateStatus.PENDING, 1))).label("pending"),
         func.count(case((MatchCandidate.status == CandidateStatus.CONFIRMED, 1))).label("confirmed"),
         func.count(case((MatchCandidate.status == CandidateStatus.MERGED, 1))).label("merged"),
         func.count(case((MatchCandidate.status == CandidateStatus.REJECTED, 1))).label("rejected"),
     ).one()
 
-    unified_count = db.query(func.count(UnifiedSupplier.id)).scalar() or 0
+    unified_query = db.query(func.count(UnifiedRecord.id))
+    if type is not None:
+        unified_query = unified_query.filter(UnifiedRecord.type == type)
+    unified_count = unified_query.scalar() or 0
 
     return ReviewStatsResponse(
         total_pending=counts.pending,
