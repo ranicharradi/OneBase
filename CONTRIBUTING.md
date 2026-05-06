@@ -56,6 +56,10 @@ cd backend && source .venv/bin/activate
 python3 -m pytest                    # all tests
 python3 -m pytest tests/test_auth.py # single file
 
+# Optional parallel execution with pytest-xdist
+pip install pytest-xdist
+python3 -m pytest -n auto
+
 # Frontend
 cd frontend
 npm run test          # all tests (single run)

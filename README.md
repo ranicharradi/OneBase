@@ -185,6 +185,10 @@ python3 -m pytest -m "not slow"                  # skip ML/embedding tests (fast
 python3 -m pytest tests/test_auth.py -v          # single file
 python3 -m pytest tests/test_auth.py::test_login_success -v  # single test
 
+# Optional parallel runs with pytest-xdist
+pip install pytest-xdist
+python3 -m pytest -n auto -m "not slow"
+
 # Integration test against PostgreSQL
 TEST_DATABASE_URL=postgresql://user:pass@localhost/testdb python3 -m pytest
 
