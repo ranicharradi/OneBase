@@ -158,7 +158,6 @@ export default function MergeQueue() {
         </div>
         {recordTypes?.types && <TypeFilter types={recordTypes.types} value={selectedType} onChange={setSelectedType} />}
 
-
         {/* ── Bucket tabs ── */}
         <div className="fade" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
           {BUCKETS.map(b => {

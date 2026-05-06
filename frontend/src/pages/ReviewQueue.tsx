@@ -216,7 +216,6 @@ export default function ReviewQueue() {
         </div>
         {recordTypes?.types && <TypeFilter types={recordTypes.types} value={selectedType} onChange={setSelectedType} />}
 
-
         {/* ── Bucket tabs ── */}
         <div className="fade" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
           {BUCKETS.map(b => {
@@ -283,8 +282,8 @@ export default function ReviewQueue() {
               >
                 <option value="">All sources</option>
                 {(sources?.filter(s => s.type === selectedType) ?? []).map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
               </select>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

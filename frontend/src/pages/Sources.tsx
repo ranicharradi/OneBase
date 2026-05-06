@@ -7,6 +7,7 @@ import type {
   BatchResponse,
   ColumnMapping,
   DataSource,
+  DataSourceUpdate,
   FieldDef,
   RecordTypeListResponse,
 } from '../api/types';
@@ -169,13 +170,14 @@ function SourceModal({
   const mutation = useMutation({
     mutationFn: async () => {
       if (isEditing) {
-        return api.put<DataSource>(`/api/sources/${source.id}`, {
+        const update: DataSourceUpdate = {
           name,
           description: description.trim() || null,
           delimiter,
           column_mapping: effectiveMapping,
           filename_pattern: filenamePattern.trim() || null,
-        });
+        };
+        return api.put<DataSource>(`/api/sources/${source.id}`, update);
       }
 
       return api.post<DataSource>('/api/sources', {

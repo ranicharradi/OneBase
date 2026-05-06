@@ -41,7 +41,6 @@ export interface RecordTypeListResponse {
 }
 
 export type ColumnMapping = Record<string, string>;
-export type ColumnMappingResponse = Record<string, unknown>;
 
 export interface DataSource {
   id: number;
@@ -50,7 +49,7 @@ export interface DataSource {
   description: string | null;
   file_format: string;
   delimiter: string;
-  column_mapping: ColumnMappingResponse;
+  column_mapping: Record<string, unknown>;
   filename_pattern: string | null;
   created_at: string | null;
   updated_at: string | null;

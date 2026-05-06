@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 import { useRecordType, useRecordTypes } from '../useRecordTypes'
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -26,18 +26,12 @@ beforeEach(() => {
   }))
 })
 
-describe('useRecordTypes', () => {
-  it('fetches the record type list', async () => {
-    const { result } = renderHook(() => useRecordTypes(), { wrapper })
-
-    await waitFor(() => expect(result.current.data?.types[0].key).toBe('supplier'))
-  })
+it('fetches the record type list', async () => {
+  const { result } = renderHook(() => useRecordTypes(), { wrapper })
+  await waitFor(() => expect(result.current.data?.types[0].key).toBe('supplier'))
 })
 
-describe('useRecordType', () => {
-  it('fetches one record type by key', async () => {
-    const { result } = renderHook(() => useRecordType('supplier'), { wrapper })
-
-    await waitFor(() => expect(result.current.data?.fields[0].key).toBe('supplier_name'))
-  })
+it('fetches one record type by key', async () => {
+  const { result } = renderHook(() => useRecordType('supplier'), { wrapper })
+  await waitFor(() => expect(result.current.data?.fields[0].key).toBe('supplier_name'))
 })
