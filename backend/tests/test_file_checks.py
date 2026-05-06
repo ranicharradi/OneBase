@@ -40,7 +40,7 @@ def test_file_check_migration_does_not_create_branch_head():
     alembic_config = Config(str(backend_dir / "alembic.ini"))
     script = ScriptDirectory.from_config(alembic_config)
 
-    assert script.get_heads() == ["008"]
+    assert script.get_heads() == ["001_records_schema"]
 
 
 def test_file_check_report_issue_relationship(test_db):

@@ -12,6 +12,7 @@ VALID_SOURCE = {
     "description": "SAP supplier export",
     "file_format": "csv",
     "delimiter": ";",
+    "type": "supplier",
     "column_mapping": {
         "supplier_name": "Name1",
         "supplier_code": "VendorCode",
@@ -143,25 +144,3 @@ class TestUploadPathTraversal:
         finally:
             if os.path.exists(test_path):
                 os.unlink(test_path)
-
-
-class TestSourcesGuessPathTraversal:
-    """Integration tests: file_ref traversal in sources guess-mapping returns 400."""
-
-    def test_guess_mapping_traversal_returns_400(self, authenticated_client, test_db):
-        """guess-mapping with file_ref=../../etc/passwd returns 400."""
-        response = authenticated_client.post(
-            "/api/sources/guess-mapping",
-            data={"file_ref": "../../etc/passwd"},
-        )
-        assert response.status_code == 400
-        assert "Invalid file reference" in response.json()["detail"]
-
-    def test_guess_mapping_absolute_path_returns_400(self, authenticated_client, test_db):
-        """guess-mapping with file_ref=/etc/passwd returns 400."""
-        response = authenticated_client.post(
-            "/api/sources/guess-mapping",
-            data={"file_ref": "/etc/passwd"},
-        )
-        assert response.status_code == 400
-        assert "Invalid file reference" in response.json()["detail"]

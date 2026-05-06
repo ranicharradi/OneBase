@@ -84,7 +84,7 @@ class TestEndpointRoleGating:
         _create_user_with_role(test_db, "viewer1", "viewer")
         resp = test_client.post(
             "/api/sources",
-            json={"name": "Test", "column_mapping": {"supplier_name": "Name"}},
+            json={"name": "Test", "type": "supplier", "column_mapping": {"supplier_name": "Name"}},
             headers=_auth_header("viewer1"),
         )
         assert resp.status_code == 403
@@ -95,6 +95,7 @@ class TestEndpointRoleGating:
             "/api/sources",
             json={
                 "name": "Test",
+                "type": "supplier",
                 "column_mapping": {"supplier_name": "Name", "supplier_code": "Code"},
             },
             headers=_auth_header("admin1"),
@@ -103,7 +104,7 @@ class TestEndpointRoleGating:
 
     def test_viewer_cannot_trigger_retrain(self, test_client, test_db):
         _create_user_with_role(test_db, "viewer2", "viewer")
-        resp = test_client.post("/api/matching/retrain", headers=_auth_header("viewer2"))
+        resp = test_client.post("/api/matching/retrain", params={"type": "supplier"}, headers=_auth_header("viewer2"))
         assert resp.status_code == 403
 
     def test_viewer_cannot_reject_candidate(self, test_client, test_db):
