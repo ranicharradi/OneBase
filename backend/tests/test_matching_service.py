@@ -5,16 +5,17 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
+from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.source import DataSource
-from app.models.staging import StagedSupplier
+from app.models.staging import StagedRecord
 
 
 def _make_source(db: Session, name: str) -> DataSource:
     """Helper to create a DataSource."""
     src = DataSource(
         name=name,
+        type="supplier",
         file_format="csv",
         column_mapping={"name": "Supplier Name"},
     )
@@ -36,21 +37,23 @@ def _make_batch(db: Session, source: DataSource) -> ImportBatch:
     return batch
 
 
-def _make_supplier(
+def _make_record(
     db: Session,
     batch: ImportBatch,
     source: DataSource,
     name: str,
     normalized_name: str | None = None,
-) -> StagedSupplier:
-    """Helper to create a StagedSupplier."""
-    s = StagedSupplier(
+) -> StagedRecord:
+    """Helper to create a StagedRecord."""
+    s = StagedRecord(
+        type="supplier",
         import_batch_id=batch.id,
         data_source_id=source.id,
         name=name,
         normalized_name=normalized_name or name.upper(),
         raw_data={"name": name},
-        status=SupplierStatus.ACTIVE,
+        status=RecordStatus.ACTIVE,
+        fields={"supplier_name": name},
     )
     db.add(s)
     db.flush()
@@ -68,9 +71,9 @@ def test_pipeline_creates_candidates(mock_score_pair, mock_text_block, mock_embe
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
-    s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
+    s1 = _make_record(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
-    s2 = _make_supplier(test_db, batch2, src2, "Acme Corporation")
+    s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
     test_db.flush()
 
     mock_text_block.return_value = {(s1.id, s2.id)}
@@ -78,12 +81,12 @@ def test_pipeline_creates_candidates(mock_score_pair, mock_text_block, mock_embe
     mock_score_pair.return_value = {
         "confidence": 0.85,
         "signals": {
-            "jaro_winkler": 0.9,
-            "token_jaccard": 0.8,
-            "embedding_cosine": 0.7,
-            "short_name_match": 0.5,
-            "currency_match": 0.5,
-            "contact_match": 0.5,
+            "jaro_winkler:supplier_name": 0.9,
+            "token_jaccard:supplier_name": 0.8,
+            "embedding_cosine:supplier_name": 0.7,
+            "jaro_winkler:short_name": 0.5,
+            "exact_ci:currency": 0.5,
+            "jaro_winkler:contact_name": 0.5,
         },
     }
 
@@ -107,9 +110,9 @@ def test_pipeline_filters_below_threshold(mock_score_pair, mock_text_block, mock
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
-    s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
+    s1 = _make_record(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
-    s2 = _make_supplier(test_db, batch2, src2, "Zephyr Holdings")
+    s2 = _make_record(test_db, batch2, src2, "Zephyr Holdings")
     test_db.flush()
 
     mock_text_block.return_value = {(s1.id, s2.id)}
@@ -117,12 +120,9 @@ def test_pipeline_filters_below_threshold(mock_score_pair, mock_text_block, mock
     mock_score_pair.return_value = {
         "confidence": 0.20,
         "signals": {
-            "jaro_winkler": 0.2,
-            "token_jaccard": 0.1,
-            "embedding_cosine": 0.3,
-            "short_name_match": 0.0,
-            "currency_match": 0.0,
-            "contact_match": 0.0,
+            "jaro_winkler:supplier_name": 0.2,
+            "token_jaccard:supplier_name": 0.1,
+            "embedding_cosine:supplier_name": 0.3,
         },
     }
 
@@ -140,22 +140,22 @@ def test_pipeline_filters_below_threshold(mock_score_pair, mock_text_block, mock
 @patch("app.services.matching.text_block")
 @patch("app.services.matching.score_pair")
 def test_pipeline_candidate_has_all_signals(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
-    """Each MatchCandidate has match_signals dict with all 6 signal keys."""
+    """Each MatchCandidate has match_signals dict with all signal keys."""
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
-    s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
+    s1 = _make_record(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
-    s2 = _make_supplier(test_db, batch2, src2, "Acme Corporation")
+    s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
     test_db.flush()
 
     signals = {
-        "jaro_winkler": 0.9,
-        "token_jaccard": 0.8,
-        "embedding_cosine": 0.7,
-        "short_name_match": 0.5,
-        "currency_match": 0.5,
-        "contact_match": 0.5,
+        "jaro_winkler:supplier_name": 0.9,
+        "token_jaccard:supplier_name": 0.8,
+        "embedding_cosine:supplier_name": 0.7,
+        "jaro_winkler:short_name": 0.5,
+        "exact_ci:currency": 0.5,
+        "jaro_winkler:contact_name": 0.5,
     }
     mock_text_block.return_value = {(s1.id, s2.id)}
     mock_embedding_block.return_value = set()
@@ -169,12 +169,12 @@ def test_pipeline_candidate_has_all_signals(mock_score_pair, mock_text_block, mo
     candidate = test_db.query(MatchCandidate).first()
     assert candidate is not None
     for key in [
-        "jaro_winkler",
-        "token_jaccard",
-        "embedding_cosine",
-        "short_name_match",
-        "currency_match",
-        "contact_match",
+        "jaro_winkler:supplier_name",
+        "token_jaccard:supplier_name",
+        "embedding_cosine:supplier_name",
+        "jaro_winkler:short_name",
+        "exact_ci:currency",
+        "jaro_winkler:contact_name",
     ]:
         assert key in candidate.match_signals
 
@@ -187,9 +187,9 @@ def test_pipeline_assigns_groups(mock_score_pair, mock_text_block, mock_embeddin
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
-    s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
+    s1 = _make_record(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
-    s2 = _make_supplier(test_db, batch2, src2, "Acme Corporation")
+    s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
     test_db.flush()
 
     mock_text_block.return_value = {(s1.id, s2.id)}
@@ -197,12 +197,9 @@ def test_pipeline_assigns_groups(mock_score_pair, mock_text_block, mock_embeddin
     mock_score_pair.return_value = {
         "confidence": 0.85,
         "signals": {
-            "jaro_winkler": 0.9,
-            "token_jaccard": 0.8,
-            "embedding_cosine": 0.7,
-            "short_name_match": 0.5,
-            "currency_match": 0.5,
-            "contact_match": 0.5,
+            "jaro_winkler:supplier_name": 0.9,
+            "token_jaccard:supplier_name": 0.8,
+            "embedding_cosine:supplier_name": 0.7,
         },
     }
 
@@ -227,23 +224,21 @@ def test_pipeline_invalidates_on_reupload(mock_score_pair, mock_text_block, mock
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
-    s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
+    s1 = _make_record(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
-    s2 = _make_supplier(test_db, batch2, src2, "Acme Corporation")
+    s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
     test_db.flush()
 
     # Create an existing candidate
     old_candidate = MatchCandidate(
-        supplier_a_id=s1.id,
-        supplier_b_id=s2.id,
+        type="supplier",
+        record_a_id=s1.id,
+        record_b_id=s2.id,
         confidence=0.80,
         match_signals={
-            "jaro_winkler": 0.9,
-            "token_jaccard": 0.8,
-            "embedding_cosine": 0.7,
-            "short_name_match": 0.5,
-            "currency_match": 0.5,
-            "contact_match": 0.5,
+            "jaro_winkler:supplier_name": 0.9,
+            "token_jaccard:supplier_name": 0.8,
+            "embedding_cosine:supplier_name": 0.7,
         },
         status=CandidateStatus.PENDING,
     )
@@ -271,9 +266,9 @@ def test_pipeline_returns_stats(mock_score_pair, mock_text_block, mock_embedding
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
-    s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
+    s1 = _make_record(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
-    s2 = _make_supplier(test_db, batch2, src2, "Acme Corporation")
+    s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
     test_db.flush()
 
     mock_text_block.return_value = {(s1.id, s2.id)}
@@ -281,12 +276,9 @@ def test_pipeline_returns_stats(mock_score_pair, mock_text_block, mock_embedding
     mock_score_pair.return_value = {
         "confidence": 0.85,
         "signals": {
-            "jaro_winkler": 0.9,
-            "token_jaccard": 0.8,
-            "embedding_cosine": 0.7,
-            "short_name_match": 0.5,
-            "currency_match": 0.5,
-            "contact_match": 0.5,
+            "jaro_winkler:supplier_name": 0.9,
+            "token_jaccard:supplier_name": 0.8,
+            "embedding_cosine:supplier_name": 0.7,
         },
     }
 
@@ -306,7 +298,7 @@ def test_pipeline_zero_candidates(mock_text_block, mock_embedding_block, test_db
     """With zero candidates above threshold, returns zeros and creates no records."""
     src1 = _make_source(test_db, "Entity A")
     batch = _make_batch(test_db, src1)
-    _make_supplier(test_db, batch, src1, "Acme Corp")
+    _make_record(test_db, batch, src1, "Acme Corp")
     test_db.flush()
 
     # Only 1 source — blocking returns nothing
@@ -330,9 +322,9 @@ def test_pipeline_progress_callback(mock_score_pair, mock_text_block, mock_embed
     src1 = _make_source(test_db, "Entity A")
     src2 = _make_source(test_db, "Entity B")
     batch = _make_batch(test_db, src1)
-    s1 = _make_supplier(test_db, batch, src1, "Acme Corp")
+    s1 = _make_record(test_db, batch, src1, "Acme Corp")
     batch2 = _make_batch(test_db, src2)
-    s2 = _make_supplier(test_db, batch2, src2, "Acme Corporation")
+    s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
     test_db.flush()
 
     mock_text_block.return_value = {(s1.id, s2.id)}
@@ -340,12 +332,9 @@ def test_pipeline_progress_callback(mock_score_pair, mock_text_block, mock_embed
     mock_score_pair.return_value = {
         "confidence": 0.85,
         "signals": {
-            "jaro_winkler": 0.9,
-            "token_jaccard": 0.8,
-            "embedding_cosine": 0.7,
-            "short_name_match": 0.5,
-            "currency_match": 0.5,
-            "contact_match": 0.5,
+            "jaro_winkler:supplier_name": 0.9,
+            "token_jaccard:supplier_name": 0.8,
+            "embedding_cosine:supplier_name": 0.7,
         },
     }
 
@@ -364,7 +353,7 @@ def test_pipeline_progress_callback(mock_score_pair, mock_text_block, mock_embed
 
 
 def test_text_block_filters_to_representatives(test_db):
-    """text_block only considers suppliers in representative_ids when provided."""
+    """text_block only considers records in representative_ids when provided."""
     from app.services.blocking import text_block
 
     src1 = _make_source(test_db, "TTEI")
@@ -373,20 +362,20 @@ def test_text_block_filters_to_representatives(test_db):
     batch2 = _make_batch(test_db, src2)
 
     # src1: two rows with same normalized name — only one is representative
-    s1_rep = _make_supplier(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
-    _s1_dup = _make_supplier(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
+    s1_rep = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
+    _s1_dup = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
     # src2: one row
-    s2 = _make_supplier(test_db, batch2, src2, "Acme Corporation", normalized_name="ACME CORPORATION")
+    s2 = _make_record(test_db, batch2, src2, "Acme Corporation", normalized_name="ACME CORPORATION")
     test_db.flush()
 
     # Without filter: both src1 rows pair with src2
     # (they share prefix "ACM" and first token "ACME" with s2)
-    pairs_all = text_block(test_db, [src1.id, src2.id])
+    pairs_all = text_block(test_db, "supplier", [src1.id, src2.id])
     assert len(pairs_all) == 2  # s1_rep-s2 and s1_dup-s2
 
     # With filter: only representative pairs with src2
     rep_ids = {s1_rep.id, s2.id}
-    pairs_filtered = text_block(test_db, [src1.id, src2.id], representative_ids=rep_ids)
+    pairs_filtered = text_block(test_db, "supplier", [src1.id, src2.id], representative_ids=rep_ids)
     assert len(pairs_filtered) == 1
     pair = pairs_filtered.pop()
     assert min(s1_rep.id, s2.id) == pair[0]
@@ -404,16 +393,16 @@ def test_pipeline_groups_duplicates_reduces_candidates(mock_score_pair, mock_tex
     batch2 = _make_batch(test_db, src2)
 
     # src1: 3 duplicates with same normalized name
-    s1a = _make_supplier(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
-    s1b = _make_supplier(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
-    s1c = _make_supplier(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
+    s1a = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
+    s1b = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
+    s1c = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
     # src2: 1 row
-    s2 = _make_supplier(test_db, batch2, src2, "Acme Corporation", normalized_name="ACME CORPORATION")
+    s2 = _make_record(test_db, batch2, src2, "Acme Corporation", normalized_name="ACME CORPORATION")
     test_db.flush()
 
     # Blocking should be called with representative_ids.
-    # After grouping, only 1 representative from src1 + s2 = 2 suppliers for blocking.
-    def fake_text_block(db, source_ids, representative_ids=None):
+    # After grouping, only 1 representative from src1 + s2 = 2 records for blocking.
+    def fake_text_block(db, type_key, source_ids, representative_ids=None):
         # Verify representative_ids was passed and contains only reps
         assert representative_ids is not None
         # Should have s2 + one rep from src1 (not all 3)
@@ -427,12 +416,9 @@ def test_pipeline_groups_duplicates_reduces_candidates(mock_score_pair, mock_tex
     mock_score_pair.return_value = {
         "confidence": 0.85,
         "signals": {
-            "jaro_winkler": 0.9,
-            "token_jaccard": 0.8,
-            "embedding_cosine": 0.7,
-            "short_name_match": 0.5,
-            "currency_match": 0.5,
-            "contact_match": 0.5,
+            "jaro_winkler:supplier_name": 0.9,
+            "token_jaccard:supplier_name": 0.8,
+            "embedding_cosine:supplier_name": 0.7,
         },
     }
 
@@ -453,8 +439,8 @@ def test_pipeline_grouping_progress_callback(mock_text_block, mock_embedding_blo
     src2 = _make_source(test_db, "EOT")
     batch1 = _make_batch(test_db, src1)
     batch2 = _make_batch(test_db, src2)
-    _make_supplier(test_db, batch1, src1, "Acme Corp")
-    _make_supplier(test_db, batch2, src2, "Zephyr")
+    _make_record(test_db, batch1, src1, "Acme Corp")
+    _make_record(test_db, batch2, src2, "Zephyr")
     test_db.flush()
 
     mock_text_block.return_value = set()
@@ -480,8 +466,8 @@ class TestMLPipelineIntegration:
         src2 = _make_source(db, "ML Entity B")
         batch1 = _make_batch(db, src1)
         batch2 = _make_batch(db, src2)
-        s1 = _make_supplier(db, batch1, src1, "Acme Corp")
-        s2 = _make_supplier(db, batch2, src2, "Acme Corporation")
+        s1 = _make_record(db, batch1, src1, "Acme Corp")
+        s2 = _make_record(db, batch2, src2, "Acme Corporation")
         db.flush()
         return batch1.id, s1, s2
 
@@ -506,29 +492,27 @@ class TestMLPipelineIntegration:
             model=mock_model,
             threshold=0.5,
             feature_names=[
-                "jaro_winkler",
-                "token_jaccard",
-                "embedding_cosine",
-                "short_name_match",
-                "currency_match",
-                "contact_match",
+                "jaro_winkler:supplier_name",
+                "token_jaccard:supplier_name",
+                "embedding_cosine:supplier_name",
+                "jaro_winkler:short_name",
+                "exact_ci:currency",
+                "jaro_winkler:contact_name",
                 "name_length_ratio",
                 "token_count_diff",
             ],
+            record_type="supplier",
         )
 
         with patch("app.services.matching.load_active_model") as mock_load:
-            mock_load.side_effect = lambda db, t, **kw: scorer_bundle if t == "scorer" else None
+            mock_load.side_effect = lambda db, t, rtype, **kw: scorer_bundle if t == "scorer" else None
             with patch("app.services.matching.ml_score_pair") as mock_ml_score:
                 mock_ml_score.return_value = {
                     "confidence": 0.9,
                     "signals": {
-                        "jaro_winkler": 0.9,
-                        "token_jaccard": 0.8,
-                        "embedding_cosine": 0.85,
-                        "short_name_match": 1.0,
-                        "currency_match": 1.0,
-                        "contact_match": 0.7,
+                        "jaro_winkler:supplier_name": 0.9,
+                        "token_jaccard:supplier_name": 0.8,
+                        "embedding_cosine:supplier_name": 0.85,
                     },
                 }
 
@@ -550,12 +534,9 @@ class TestMLPipelineIntegration:
         mock_score_pair.return_value = {
             "confidence": 0.85,
             "signals": {
-                "jaro_winkler": 0.9,
-                "token_jaccard": 0.8,
-                "embedding_cosine": 0.7,
-                "short_name_match": 0.5,
-                "currency_match": 0.5,
-                "contact_match": 0.5,
+                "jaro_winkler:supplier_name": 0.9,
+                "token_jaccard:supplier_name": 0.8,
+                "embedding_cosine:supplier_name": 0.7,
             },
         }
 
