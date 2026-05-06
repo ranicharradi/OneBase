@@ -8,47 +8,70 @@ export interface User {
   created_at: string;
 }
 
-export interface ColumnMapping {
-  supplier_name: string;
-  supplier_code: string;
-  short_name?: string;
-  currency?: string;
-  payment_terms?: string;
-  contact_name?: string;
-  supplier_type?: string;
-}
+export type RecordTypeRole = 'name' | 'code' | 'email' | 'phone' | 'enum' | 'extra';
 
-export interface CanonicalField {
+export interface FieldDef {
   key: string;
   label: string;
+  role: RecordTypeRole;
   required: boolean;
-  dtype: string;
-  max_length: number;
 }
 
-export interface CanonicalFieldsResponse {
-  fields: CanonicalField[];
+export interface Signal {
+  kind: string;
+  field: string;
+  weight: number;
 }
+
+export interface RecordType {
+  key: string;
+  label: string;
+  fields: FieldDef[];
+  signals: Signal[];
+}
+
+export interface RecordTypeSummary {
+  key: string;
+  label: string;
+  field_count: number;
+}
+
+export interface RecordTypeListResponse {
+  types: RecordTypeSummary[];
+}
+
+export type ColumnMapping = Record<string, string>;
+export type ColumnMappingResponse = Record<string, unknown>;
 
 export interface DataSource {
   id: number;
   name: string;
+  type: string;
   description: string | null;
   file_format: string;
   delimiter: string;
-  column_mapping: ColumnMapping;
+  column_mapping: ColumnMappingResponse;
   filename_pattern: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface DataSourceCreate {
   name: string;
-  description?: string;
+  type: string;
+  description?: string | null;
   file_format?: string;
   delimiter?: string;
   column_mapping: ColumnMapping;
-  filename_pattern?: string;
+  filename_pattern?: string | null;
+}
+
+export interface DataSourceUpdate {
+  name?: string;
+  description?: string | null;
+  delimiter?: string | null;
+  column_mapping?: ColumnMapping;
+  filename_pattern?: string | null;
 }
 
 export interface UserCreate {
@@ -86,40 +109,6 @@ export interface TaskStatus {
   row_count: number | null;
 }
 
-// ── Source matching types (upload-first flow) ──
-
-export interface SourceMatch {
-  source_id: number;
-  source_name: string;
-  column_match: boolean;
-  filename_match: boolean;
-  data_overlap_pct: number;
-  sample_size: number;
-  confidence: 'high' | 'medium' | 'low';
-}
-
-export interface SourceMatchResponse {
-  filename: string;
-  file_ref: string;
-  detected_columns: string[];
-  detected_delimiter: string;
-  matches: SourceMatch[];
-  suggested_source_id: number | null;
-  suggested_name: string;
-}
-
-// ── Column guess types (auto-mapping) ──
-
-export interface FieldGuess {
-  column: string | null;
-  confidence: number;
-}
-
-export interface GuessMappingResponse {
-  // Keyed by canonical field key (see GET /api/canonical-fields).
-  guesses: Record<string, FieldGuess>;
-}
-
 // ── Matching notification types (WebSocket) ──
 
 export interface MatchingNotification {
@@ -137,16 +126,12 @@ export interface MatchingNotification {
 
 // ── Review & Merge types ──
 
-export interface SupplierDetail {
+export interface RecordDetail {
   id: number;
-  source_code: string | null;
+  type: string;
   name: string | null;
-  short_name: string | null;
-  currency: string | null;
-  payment_terms: string | null;
-  contact_name: string | null;
-  supplier_type: string | null;
   normalized_name: string | null;
+  fields: Record<string, unknown>;
   data_source_id: number;
   data_source_name: string | null;
   raw_data: Record<string, unknown> | null;
@@ -167,12 +152,13 @@ export interface FieldComparison {
 
 export interface MatchDetailResponse {
   id: number;
+  type: string;
   confidence: number;
   match_signals: Record<string, number>;
   status: string;
   group_id: number | null;
-  supplier_a: SupplierDetail;
-  supplier_b: SupplierDetail;
+  record_a: RecordDetail;
+  record_b: RecordDetail;
   field_comparisons: FieldComparison[];
   reviewed_by: string | null;
   reviewed_at: string | null;
@@ -181,18 +167,15 @@ export interface MatchDetailResponse {
 
 export interface ReviewQueueItem {
   id: number;
-  supplier_a_id: number;
-  supplier_b_id: number;
-  supplier_a_name: string | null;
-  supplier_b_name: string | null;
-  supplier_a_source: string | null;
-  supplier_b_source: string | null;
-  supplier_a_source_code: string | null;
-  supplier_b_source_code: string | null;
-  supplier_a_currency: string | null;
-  supplier_b_currency: string | null;
-  supplier_a_contact: string | null;
-  supplier_b_contact: string | null;
+  type: string;
+  record_a_id: number;
+  record_b_id: number;
+  record_a_name: string | null;
+  record_b_name: string | null;
+  record_a_source: string | null;
+  record_b_source: string | null;
+  record_a_fields: Record<string, unknown>;
+  record_b_fields: Record<string, unknown>;
   confidence: number;
   match_signals: Record<string, number>;
   status: string;
@@ -210,13 +193,13 @@ export interface ReviewQueueResponse {
 
 export interface FieldSelection {
   field: string;
-  chosen_supplier_id: number;
+  chosen_record_id: number;
 }
 
 export interface ReviewActionResponse {
   candidate_id: number;
   action: string;
-  unified_supplier_id: number | null;
+  unified_record_id: number | null;
 }
 
 export interface ReviewStats {
@@ -238,29 +221,28 @@ export interface FieldProvenance {
 
 // ── Unified Browse types ──
 
-export interface UnifiedSupplierListItem {
+export interface UnifiedRecordListItem {
   id: number;
+  type: string;
   name: string;
-  source_code: string | null;
-  short_name: string | null;
-  currency: string | null;
-  supplier_type: string | null;
+  fields: Record<string, unknown>;
   source_count: number;
   is_singleton: boolean;
   created_by: string;
   created_at: string | null;
 }
 
-export interface UnifiedSupplierListResponse {
-  items: UnifiedSupplierListItem[];
+export interface UnifiedRecordListResponse {
+  items: UnifiedRecordListItem[];
   total: number;
   has_more: boolean;
 }
 
 export interface SourceRecord {
   id: number;
+  type: string;
   name: string | null;
-  source_code: string | null;
+  fields: Record<string, unknown>;
   data_source_name: string | null;
   data_source_id: number;
 }
@@ -272,17 +254,13 @@ export interface MergeHistoryEntry {
   created_at: string | null;
 }
 
-export interface UnifiedSupplierDetail {
+export interface UnifiedRecordDetail {
   id: number;
+  type: string;
   name: string;
-  source_code: string | null;
-  short_name: string | null;
-  currency: string | null;
-  payment_terms: string | null;
-  contact_name: string | null;
-  supplier_type: string | null;
+  fields: Record<string, unknown>;
   provenance: Record<string, FieldProvenance>;
-  source_supplier_ids: number[];
+  source_record_ids: number[];
   source_records: SourceRecord[];
   match_candidate_id: number | null;
   merge_history: MergeHistoryEntry[];
@@ -294,13 +272,9 @@ export interface UnifiedSupplierDetail {
 
 export interface SingletonCandidate {
   id: number;
+  type: string;
   name: string | null;
-  source_code: string | null;
-  short_name: string | null;
-  currency: string | null;
-  payment_terms: string | null;
-  contact_name: string | null;
-  supplier_type: string | null;
+  fields: Record<string, unknown>;
   data_source_id: number;
   data_source_name: string | null;
 }
@@ -309,6 +283,21 @@ export interface SingletonListResponse {
   items: SingletonCandidate[];
   total: number;
   has_more: boolean;
+}
+
+export interface PromoteResponse {
+  unified_record_id: number;
+  record_name: string;
+  message: string;
+}
+
+export interface BulkPromoteRequest {
+  record_ids: number[];
+}
+
+export interface BulkPromoteResponse {
+  promoted_count: number;
+  unified_record_ids: number[];
 }
 
 // ── Dashboard types ──
