@@ -1,6 +1,6 @@
 // ── Review Queue — terminal aesthetic, card-first ──
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { api } from '../api/client';
@@ -102,10 +102,10 @@ export default function ReviewQueue() {
   const [page, setPage] = useState(0);
   const tableRef = useRef<HTMLDivElement>(null);
 
-  const handlePageChange = useCallback((p: number) => {
+  const handlePageChange = (p: number) => {
     setPage(p);
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+  };
 
   const params = useMemo(() => {
     const p = new URLSearchParams();
