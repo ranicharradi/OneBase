@@ -48,9 +48,18 @@ function setupAuthAs(role: 'admin' | 'viewer') {
   })
 }
 
+const mockRecordTypes = { types: [{ key: 'supplier', label: 'Supplier', field_count: 7 }] }
+
 function setupFetchBoth() {
   vi.spyOn(global, 'fetch').mockImplementation((url) => {
-    if (String(url).includes('/api/unified/dashboard')) {
+    const urlStr = String(url)
+    if (urlStr.includes('/api/record-types/') || urlStr.match(/\/api\/record-types\/[^?]+/)) {
+      return Promise.resolve(new Response('Not found', { status: 404 }))
+    }
+    if (urlStr.includes('/api/record-types')) {
+      return Promise.resolve(new Response(JSON.stringify(mockRecordTypes), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    }
+    if (urlStr.includes('/api/unified/dashboard')) {
       return Promise.resolve(
         new Response(JSON.stringify(mockDashboard), {
           status: 200,
@@ -58,7 +67,7 @@ function setupFetchBoth() {
         }),
       )
     }
-    if (String(url).includes('/api/matching/model-status')) {
+    if (urlStr.includes('/api/matching/model-status')) {
       return Promise.resolve(
         new Response(JSON.stringify(mockModelStatus), {
           status: 200,
@@ -71,8 +80,15 @@ function setupFetchBoth() {
 }
 
 function setupFetchDashboardOnly() {
-  vi.spyOn(global, 'fetch').mockImplementation((url) => {
-    if (String(url).includes('/api/unified/dashboard')) {
+  return vi.spyOn(global, 'fetch').mockImplementation((url) => {
+    const urlStr = String(url)
+    if (urlStr.includes('/api/record-types/') || urlStr.match(/\/api\/record-types\/[^?]+/)) {
+      return Promise.resolve(new Response('Not found', { status: 404 }))
+    }
+    if (urlStr.includes('/api/record-types')) {
+      return Promise.resolve(new Response(JSON.stringify(mockRecordTypes), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    }
+    if (urlStr.includes('/api/unified/dashboard')) {
       return Promise.resolve(
         new Response(JSON.stringify(mockDashboard), {
           status: 200,
@@ -167,5 +183,18 @@ describe('Dashboard page', () => {
 
     await screen.findByRole('heading', { name: /overview/i })
     expect(screen.queryByText('ML & matching')).not.toBeInTheDocument()
+  })
+
+  it('sends type param to dashboard endpoint', async () => {
+    setupAuthAs('viewer')
+    const fetchSpy = setupFetchDashboardOnly()
+    render(<Dashboard />)
+
+    await screen.findByRole('heading', { name: /overview/i })
+
+    const dashboardCall = (fetchSpy as unknown as ReturnType<typeof vi.spyOn>).mock?.calls?.find(
+      ([url]: [unknown]) => String(url).includes('/api/unified/dashboard'),
+    )
+    expect(String(dashboardCall?.[0])).toContain('type=supplier')
   })
 })

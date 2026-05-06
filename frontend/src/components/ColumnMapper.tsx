@@ -1,13 +1,12 @@
-// ── ColumnMapper — terminal aesthetic, canonical-field-driven ──
+// ── ColumnMapper — terminal aesthetic, record-type-driven ──
 
 import { useState } from 'react';
 import type {
-  CanonicalField,
   ColumnMapping,
   DataSourceCreate,
-  GuessMappingResponse,
+  FieldDef,
 } from '../api/types';
-import { useCanonicalFields } from '../hooks/useCanonicalFields';
+import { useRecordType } from '../hooks/useRecordTypes';
 import Panel, { PanelHead } from './ui/Panel';
 import Hbar from './ui/Hbar';
 import Pill from './ui/Pill';
@@ -15,10 +14,10 @@ import Spinner from './ui/Spinner';
 
 interface ColumnMapperProps {
   columns: string[];
+  type: string;
   onSubmit: (sourceData: DataSourceCreate) => void;
   isSubmitting?: boolean;
   initialSourceName?: string;
-  guessedMapping?: GuessMappingResponse;
   detectedDelimiter?: string;
 }
 
@@ -29,26 +28,20 @@ function previewFor(col: string): string {
 
 export default function ColumnMapper({
   columns,
+  type,
   onSubmit,
   isSubmitting = false,
   initialSourceName,
-  guessedMapping,
   detectedDelimiter,
 }: ColumnMapperProps) {
-  const { data: registry, isLoading: registryLoading, error: registryError } = useCanonicalFields();
-  const canonicalFields: CanonicalField[] = registry?.fields ?? [];
+  const { data: recordType, isLoading, error } = useRecordType(type);
+  const fields: FieldDef[] = recordType?.fields ?? [];
 
   const [sourceName, setSourceName] = useState(initialSourceName ?? '');
   const [description, setDescription] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const initialMapping: Record<string, string> = {};
-  if (guessedMapping) {
-    for (const [field, guess] of Object.entries(guessedMapping.guesses)) {
-      if (guess?.column) initialMapping[field] = guess.column;
-    }
-  }
-  const [mapping, setMapping] = useState<Record<string, string>>(initialMapping);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
 
   const updateMapping = (field: string, csvColumn: string) => {
     setMapping(prev => {
@@ -69,7 +62,7 @@ export default function ColumnMapper({
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!sourceName.trim()) newErrors.sourceName = 'Source name is required';
-    for (const f of canonicalFields) {
+    for (const f of fields) {
       if (f.required && !mapping[f.key]) {
         newErrors[f.key] = `${f.label} mapping is required`;
       }
@@ -83,19 +76,20 @@ export default function ColumnMapper({
     if (!validate()) return;
 
     const columnMapping: Partial<Record<string, string>> = {};
-    for (const f of canonicalFields) {
+    for (const f of fields) {
       if (mapping[f.key]) columnMapping[f.key] = mapping[f.key];
     }
 
     onSubmit({
       name: sourceName.trim(),
+      type,
       description: description.trim() || undefined,
       delimiter: detectedDelimiter || ',',
       column_mapping: columnMapping as unknown as ColumnMapping,
     });
   };
 
-  if (registryLoading) {
+  if (isLoading) {
     return (
       <Panel>
         <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
@@ -104,13 +98,13 @@ export default function ColumnMapper({
       </Panel>
     );
   }
-  if (registryError || !registry) {
+  if (error || !recordType) {
     return (
       <Panel>
         <div style={{ padding: 28, textAlign: 'center' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--danger)' }}>error</span>
           <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}>
-            Failed to load canonical fields. Refresh and try again.
+            Failed to load record type fields. Refresh and try again.
           </div>
         </div>
       </Panel>
@@ -119,16 +113,13 @@ export default function ColumnMapper({
 
   const usedColumns = new Set(Object.values(mapping));
   const mappedCount = Object.keys(mapping).length;
-  const totalFields = canonicalFields.length;
-  const requiredMapped = canonicalFields.filter(f => f.required && mapping[f.key]).length;
-  const requiredTotal = canonicalFields.filter(f => f.required).length;
-  const autoMapped = canonicalFields.filter(f => {
-    const g = guessedMapping?.guesses[f.key];
-    return g?.column && g.confidence > 0.4 && mapping[f.key] === g.column;
-  }).length;
+  const totalFields = fields.length;
+  const requiredMapped = fields.filter(f => f.required && mapping[f.key]).length;
+  const requiredTotal = fields.filter(f => f.required).length;
 
   const step1Done = sourceName.trim().length > 0;
   const step2Done = step1Done && requiredMapped === requiredTotal;
+  const progress = totalFields > 0 ? (mappedCount / totalFields) * 100 : 0;
 
   return (
     <form onSubmit={handleSubmit}>
@@ -257,11 +248,6 @@ export default function ColumnMapper({
         <PanelHead>
           <span className="panel-title">Column mapping</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {autoMapped > 0 && (
-              <Pill tone="accent" icon="auto_awesome">
-                {autoMapped}/{totalFields} auto-mapped
-              </Pill>
-            )}
             <Pill tone={requiredMapped === requiredTotal ? 'ok' : 'warn'}>
               {requiredMapped}/{requiredTotal} required
             </Pill>
@@ -272,19 +258,16 @@ export default function ColumnMapper({
           <thead>
             <tr>
               <th style={{ width: 36 }} />
-              <th style={{ width: 220 }}>Canonical field</th>
-              <th style={{ width: 60 }}>Type</th>
+              <th style={{ width: 220 }}>Record field</th>
+              <th style={{ width: 80 }}>Role</th>
               <th>Source column</th>
-              <th style={{ width: 140 }} className="num">Confidence</th>
+              <th style={{ width: 100 }} className="num">Status</th>
             </tr>
           </thead>
           <tbody>
-            {canonicalFields.map(field => {
+            {fields.map(field => {
               const value = mapping[field.key] ?? '';
-              const guess = guessedMapping?.guesses[field.key];
-              const conf = guess?.confidence ?? 0;
               const isMapped = !!value;
-              const tone = conf >= 0.9 ? 'ok' : conf >= 0.75 ? 'warn' : conf > 0 ? 'danger' : null;
               return (
                 <tr key={field.key} style={{ cursor: 'default' }}>
                   <td>
@@ -311,7 +294,7 @@ export default function ColumnMapper({
                   </td>
                   <td>
                     <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
-                      str
+                      {field.role}
                     </span>
                   </td>
                   <td>
@@ -346,17 +329,7 @@ export default function ColumnMapper({
                     )}
                   </td>
                   <td className="num">
-                    {tone && conf > 0 ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                        <Hbar value={conf * 100} tone={tone} width={70} height={4} />
-                        <span
-                          className="mono tnum"
-                          style={{ width: 32, color: `var(--${tone})`, fontWeight: 600 }}
-                        >
-                          {conf.toFixed(2)}
-                        </span>
-                      </span>
-                    ) : isMapped ? (
+                    {isMapped ? (
                       <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>manual</span>
                     ) : (
                       <span className="mono" style={{ fontSize: 10, color: 'var(--fg-3)' }}>—</span>
@@ -382,7 +355,7 @@ export default function ColumnMapper({
             {mappedCount}/{totalFields}
           </span>
           <Hbar
-            value={(mappedCount / totalFields) * 100}
+            value={progress}
             tone={mappedCount === totalFields ? 'ok' : 'accent'}
             style={{ flex: 1, height: 4 }}
           />

@@ -5,13 +5,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type {
   BatchResponse,
-  CanonicalField,
   ColumnMapping,
   DataSource,
-  DataSourceCreate,
+  DataSourceUpdate,
+  FieldDef,
+  RecordTypeListResponse,
 } from '../api/types';
 import { ToastContainer, type ToastData } from '../components/Toast';
-import { useCanonicalFields } from '../hooks/useCanonicalFields';
+import { useRecordType, useRecordTypes } from '../hooks/useRecordTypes';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
 import Seg from '../components/ui/Seg';
@@ -53,21 +54,28 @@ function shortFor(name: string): string {
   return word.slice(0, 3).toUpperCase();
 }
 
-function emptyMapping(): ColumnMapping {
-  return { supplier_name: '', supplier_code: '' };
+function emptyMapping(fields: FieldDef[]): ColumnMapping {
+  return Object.fromEntries(fields.filter(field => field.required).map(field => [field.key, '']));
+}
+
+function toColumnMapping(mapping: DataSource['column_mapping'] | ColumnMapping | null | undefined): ColumnMapping {
+  return Object.fromEntries(
+    Object.entries(mapping ?? {})
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  );
 }
 
 function ColumnMappingEditor({
   value,
   onChange,
-  canonicalFields,
+  fields,
 }: {
   value: ColumnMapping;
   onChange: (mapping: ColumnMapping) => void;
-  canonicalFields: CanonicalField[];
+  fields: FieldDef[];
 }) {
-  const requiredFields = canonicalFields.filter(f => f.required);
-  const optionalFields = canonicalFields.filter(f => !f.required);
+  const requiredFields = fields.filter(f => f.required);
+  const optionalFields = fields.filter(f => !f.required);
   const requiredKeys = new Set(requiredFields.map(f => f.key));
 
   const updateField = (field: keyof ColumnMapping, csvCol: string) => {
@@ -78,7 +86,7 @@ function ColumnMappingEditor({
     onChange(next as unknown as ColumnMapping);
   };
 
-  const renderField = (f: CanonicalField, isRequired: boolean) => (
+  const renderField = (f: FieldDef, isRequired: boolean) => (
     <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
       <label style={{ width: 150, fontSize: 12, color: 'var(--fg-1)', display: 'flex', alignItems: 'center', gap: 6 }}>
         {f.label}
@@ -131,34 +139,55 @@ function SourceModal({
   source,
   onClose,
   onSaved,
-  canonicalFields,
+  recordTypes,
 }: {
   source?: DataSource;
   onClose: () => void;
   onSaved: (msg: string) => void;
-  canonicalFields: CanonicalField[];
+  recordTypes: RecordTypeListResponse;
 }) {
   const queryClient = useQueryClient();
   const isEditing = !!source;
 
   const [name, setName] = useState(source?.name ?? '');
+  const [type, setType] = useState(source?.type ?? (recordTypes.types[0]?.key || ''));
   const [description, setDescription] = useState(source?.description ?? '');
   const [delimiter, setDelimiter] = useState(source?.delimiter ?? ';');
   const [filenamePattern, setFilenamePattern] = useState(source?.filename_pattern ?? '');
-  const [mapping, setMapping] = useState<ColumnMapping>(source?.column_mapping ?? emptyMapping());
+
+  const { data: recordType, isLoading: fieldsLoading, error: fieldsError } = useRecordType(type);
+  const fields = useMemo(() => recordType?.fields ?? [], [recordType]);
+
+  const [mapping, setMapping] = useState<ColumnMapping>(() => {
+    return source ? toColumnMapping(source.column_mapping) : {};
+  });
+  const effectiveMapping = useMemo(
+    () => (isEditing ? mapping : { ...emptyMapping(fields), ...mapping }),
+    [fields, isEditing, mapping],
+  );
   const [formError, setFormError] = useState('');
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const body: DataSourceCreate = {
+      if (isEditing) {
+        const update: DataSourceUpdate = {
+          name,
+          description: description.trim() || null,
+          delimiter,
+          column_mapping: effectiveMapping,
+          filename_pattern: filenamePattern.trim() || null,
+        };
+        return api.put<DataSource>(`/api/sources/${source.id}`, update);
+      }
+
+      return api.post<DataSource>('/api/sources', {
         name,
-        description: description || undefined,
+        type,
+        description: description.trim() || undefined,
         delimiter,
-        column_mapping: mapping,
-        filename_pattern: filenamePattern || undefined,
-      };
-      if (isEditing) return api.put<DataSource>(`/api/sources/${source.id}`, body);
-      return api.post<DataSource>('/api/sources', body);
+        column_mapping: effectiveMapping,
+        filename_pattern: filenamePattern.trim() || undefined,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sources'] });
@@ -176,9 +205,21 @@ function SourceModal({
       setFormError('Source name is required');
       return;
     }
-    const missingRequired = canonicalFields
+    if (!type) {
+      setFormError('Source type is required');
+      return;
+    }
+    if (fieldsLoading) {
+      setFormError('Field definitions are still loading');
+      return;
+    }
+    if (fieldsError) {
+      setFormError('Field definitions could not be loaded');
+      return;
+    }
+    const missingRequired = fields
       .filter(f => f.required)
-      .find(f => !(mapping as unknown as Record<string, string | undefined>)[f.key]);
+      .find(f => !(effectiveMapping as unknown as Record<string, string | undefined>)[f.key]);
     if (missingRequired) {
       setFormError(`${missingRequired.label} column mapping is required`);
       return;
@@ -238,6 +279,29 @@ function SourceModal({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label className="label">
+              Type <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            {!isEditing ? (
+              <select
+                className="input"
+                value={type}
+                onChange={(e) => {
+                  setType(e.target.value);
+                  setMapping({});
+                }}
+                required
+              >
+                {recordTypes.types.map(rt => (
+                  <option key={rt.key} value={rt.key}>{rt.label}</option>
+                ))}
+              </select>
+            ) : (
+              <input className="input" value={source.type} disabled />
+            )}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label className="label">Description</label>
             <textarea
               value={description}
@@ -273,7 +337,18 @@ function SourceModal({
             </div>
           </div>
 
-          <ColumnMappingEditor value={mapping} onChange={setMapping} canonicalFields={canonicalFields} />
+          {fieldsLoading ? (
+            <div style={{ padding: 12, fontSize: 12, color: 'var(--fg-2)' }}>
+              Loading field definitions…
+            </div>
+          ) : fieldsError ? (
+            <div className="pill danger" style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
+              Field definitions could not be loaded.
+            </div>
+          ) : (
+            <ColumnMappingEditor value={effectiveMapping} onChange={setMapping} fields={fields} />
+          )}
         </div>
 
         <div
@@ -366,6 +441,86 @@ function DeleteConfirm({
 
 type StatusFilter = 'all' | 'healthy' | 'stale';
 
+function SourceRow({
+  src,
+  stats,
+  fieldCount,
+  onEdit,
+  onDelete,
+}: {
+  src: DataSource;
+  stats: SourceStats;
+  fieldCount: number;
+  onEdit: (source: DataSource) => void;
+  onDelete: (source: DataSource) => void;
+}) {
+  const { data: recordType } = useRecordType(src.type);
+  const mapping = toColumnMapping(src.column_mapping);
+  const mappedCount = Object.values(mapping).filter(Boolean).length;
+  const fields = recordType?.fields ?? [];
+  const totalFields = fields.length || fieldCount;
+  const requiredFields = fields.filter(field => field.required);
+  const allRequiredMapped = fields.length > 0
+    ? requiredFields.every(field => Boolean(mapping[field.key]))
+    : fieldCount === 0;
+
+  return (
+    <tr>
+      <td><SourcePill short={shortFor(src.name)} title={src.name} /></td>
+      <td>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontWeight: 500 }}>{src.name}</div>
+          <Pill tone="neutral">{src.type}</Pill>
+        </div>
+        {src.description && (
+          <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 2 }}>{src.description}</div>
+        )}
+      </td>
+      <td className="num mono">
+        {stats.rows > 0 ? stats.rows.toLocaleString() : <span style={{ color: 'var(--fg-3)' }}>—</span>}
+      </td>
+      <td className="num mono" style={{ color: allRequiredMapped ? 'var(--fg-0)' : 'var(--warn)' }}>
+        {totalFields > 0 ? `${mappedCount} / ${totalFields}` : `${mappedCount}`}
+      </td>
+      <td className="num mono">
+        {stats.batches > 0 ? stats.batches : <span style={{ color: 'var(--fg-3)' }}>—</span>}
+      </td>
+      <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+        {relativeTime(stats.lastSync)}
+      </td>
+      <td>
+        {stats.status === 'healthy' ? (
+          <Pill tone="ok" dot>healthy</Pill>
+        ) : stats.status === 'stale' ? (
+          <Pill tone="warn" dot>stale</Pill>
+        ) : (
+          <Pill tone="neutral" dot>new</Pill>
+        )}
+      </td>
+      <td>
+        <div className="row-actions" style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+          <button
+            onClick={() => onEdit(src)}
+            className="btn btn-ghost btn-sm"
+            style={{ padding: 4 }}
+            aria-label={`Edit ${src.name}`}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>edit</span>
+          </button>
+          <button
+            onClick={() => onDelete(src)}
+            className="btn btn-ghost btn-sm"
+            style={{ padding: 4, color: 'var(--danger)' }}
+            aria-label={`Delete ${src.name}`}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>delete</span>
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export default function Sources() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
@@ -380,7 +535,8 @@ export default function Sources() {
     queryFn: () => api.get<DataSource[]>('/api/sources'),
   });
 
-  const { data: registry, error: registryError } = useCanonicalFields();
+  const { data: recordTypes, error: recordTypesError } = useRecordTypes();
+  const canCreateSource = Boolean(recordTypes?.types.length);
 
   // All batches at once — small payload, used to derive per-source rows / batch count / last-sync
   const { data: batches } = useQuery({
@@ -411,10 +567,8 @@ export default function Sources() {
     return map;
   }, [batches]);
 
-  const requiredFieldCount = useMemo(
-    () => (registry?.fields ?? []).filter(f => f.required).length,
-    [registry],
-  );
+  // We need to look up fields per source type dynamically below
+  // so we won't calculate a single requiredFieldCount here.
 
   // Counts for the seg tabs
   const tabCounts = useMemo(() => {
@@ -492,7 +646,7 @@ export default function Sources() {
             </button>
             <button
               onClick={() => setShowCreate(true)}
-              disabled={!registry}
+              disabled={!canCreateSource}
               className="btn btn-sm btn-primary"
             >
               <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
@@ -501,7 +655,7 @@ export default function Sources() {
           </div>
         </div>
 
-        {registryError && (
+        {recordTypesError && (
           <div
             className="pill danger"
             style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start', marginBottom: 12 }}
@@ -564,7 +718,7 @@ export default function Sources() {
               </div>
               <button
                 onClick={() => setShowCreate(true)}
-                disabled={!registry}
+                disabled={!canCreateSource}
                 className="btn btn-sm btn-accent"
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
@@ -596,63 +750,16 @@ export default function Sources() {
               <tbody>
                 {filteredSources.map(src => {
                   const stats = statsBySource.get(src.id) ?? { rows: 0, batches: 0, lastSync: null, status: 'new' as const };
-                  const mappedCount = Object.values(src.column_mapping).filter(Boolean).length;
-                  const totalCanonical = registry?.fields.length ?? 0;
-                  const reqMapped = (registry?.fields ?? []).filter(
-                    f => f.required && (src.column_mapping as unknown as Record<string, string | undefined>)[f.key],
-                  ).length;
-                  const allRequiredMapped = reqMapped === requiredFieldCount;
+                  const typeSummary = recordTypes?.types.find(rt => rt.key === src.type);
                   return (
-                    <tr key={src.id}>
-                      <td><SourcePill short={shortFor(src.name)} title={src.name} /></td>
-                      <td>
-                        <div style={{ fontWeight: 500 }}>{src.name}</div>
-                        {src.description && (
-                          <div style={{ fontSize: 11, color: 'var(--fg-2)' }}>{src.description}</div>
-                        )}
-                      </td>
-                      <td className="num mono">
-                        {stats.rows > 0 ? stats.rows.toLocaleString() : <span style={{ color: 'var(--fg-3)' }}>—</span>}
-                      </td>
-                      <td className="num mono" style={{ color: allRequiredMapped ? 'var(--fg-0)' : 'var(--warn)' }}>
-                        {totalCanonical > 0 ? `${mappedCount} / ${totalCanonical}` : `${mappedCount}`}
-                      </td>
-                      <td className="num mono">
-                        {stats.batches > 0 ? stats.batches : <span style={{ color: 'var(--fg-3)' }}>—</span>}
-                      </td>
-                      <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-                        {relativeTime(stats.lastSync)}
-                      </td>
-                      <td>
-                        {stats.status === 'healthy' ? (
-                          <Pill tone="ok" dot>healthy</Pill>
-                        ) : stats.status === 'stale' ? (
-                          <Pill tone="warn" dot>stale</Pill>
-                        ) : (
-                          <Pill tone="neutral" dot>new</Pill>
-                        )}
-                      </td>
-                      <td>
-                        <div className="row-actions" style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                          <button
-                            onClick={() => setEditSource(src)}
-                            className="btn btn-ghost btn-sm"
-                            style={{ padding: 4 }}
-                            aria-label={`Edit ${src.name}`}
-                          >
-                            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>edit</span>
-                          </button>
-                          <button
-                            onClick={() => setDeleteSource(src)}
-                            className="btn btn-ghost btn-sm"
-                            style={{ padding: 4, color: 'var(--danger)' }}
-                            aria-label={`Delete ${src.name}`}
-                          >
-                            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>delete</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <SourceRow
+                      key={src.id}
+                      src={src}
+                      stats={stats}
+                      fieldCount={typeSummary?.field_count ?? 0}
+                      onEdit={setEditSource}
+                      onDelete={setDeleteSource}
+                    />
                   );
                 })}
               </tbody>
@@ -661,17 +768,17 @@ export default function Sources() {
         </Panel>
       </div>
 
-      {showCreate && registry && (
+      {showCreate && recordTypes && (
         <SourceModal
-          canonicalFields={registry.fields}
+          recordTypes={recordTypes}
           onClose={() => setShowCreate(false)}
           onSaved={(msg) => showToast(msg)}
         />
       )}
-      {editSource && registry && (
+      {editSource && recordTypes && (
         <SourceModal
           source={editSource}
-          canonicalFields={registry.fields}
+          recordTypes={recordTypes}
           onClose={() => setEditSource(null)}
           onSaved={(msg) => showToast(msg)}
         />

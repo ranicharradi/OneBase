@@ -4,6 +4,10 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
+import { useSearchParams } from 'react-router';
+import TypeFilter from '../components/TypeFilter';
+import { useRecordTypes } from '../hooks/useRecordTypes';
+import { defaultType } from '../utils/recordDisplay';
 import type { ReviewQueueItem, ReviewQueueResponse, ReviewStats } from '../api/types';
 import { useSearch } from '../contexts/SearchContext';
 import Panel, { PanelHead } from '../components/ui/Panel';
@@ -47,6 +51,14 @@ function confidenceTone(conf: number): 'ok' | 'warn' | 'danger' {
 export default function MergeQueue() {
   const navigate = useNavigate();
   const { query: searchQuery } = useSearch();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { data: recordTypes } = useRecordTypes();
+  const selectedType = searchParams.get('type') ?? defaultType(recordTypes?.types);
+  const setSelectedType = (type: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('type', type);
+    setSearchParams(next);
+  };
 
   const [bucket, setBucket] = useState<BucketFilter>('confirmed');
   const [page, setPage] = useState(0);
@@ -62,18 +74,19 @@ export default function MergeQueue() {
     p.set('status', bucket);
     p.set('sort', 'confidence_desc');
     p.set('limit', String(PAGE_SIZE));
+    p.set('type', selectedType);
     p.set('offset', String(page * PAGE_SIZE));
     return p;
-  }, [bucket, page]);
+  }, [bucket, page, selectedType]);
 
   const { data: queue, isLoading } = useQuery({
-    queryKey: ['merge-queue', bucket, page],
+    queryKey: ['merge-queue', bucket, page, selectedType],
     queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
   });
 
   const { data: stats } = useQuery({
-    queryKey: ['review-stats'],
-    queryFn: () => api.get<ReviewStats>('/api/review/stats'),
+    queryKey: ['review-stats', selectedType],
+    queryFn: () => api.get<ReviewStats>(`/api/review/stats?type=${selectedType}`),
   });
 
   const bucketCounts: Record<BucketFilter, number> = {
@@ -87,10 +100,10 @@ export default function MergeQueue() {
     if (!searchQuery) return queue.items;
     const q = searchQuery.toLowerCase();
     return queue.items.filter(item =>
-      item.supplier_a_name?.toLowerCase().includes(q) ||
-      item.supplier_b_name?.toLowerCase().includes(q) ||
-      item.supplier_a_source?.toLowerCase().includes(q) ||
-      item.supplier_b_source?.toLowerCase().includes(q),
+      item.record_a_name?.toLowerCase().includes(q) ||
+      item.record_b_name?.toLowerCase().includes(q) ||
+      item.record_a_source?.toLowerCase().includes(q) ||
+      item.record_b_source?.toLowerCase().includes(q),
     );
   }, [queue, searchQuery]);
 
@@ -143,6 +156,7 @@ export default function MergeQueue() {
           <span className="pill accent" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 2 · MERGE</span>
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Merge queue</h1>
         </div>
+        {recordTypes?.types && <TypeFilter types={recordTypes.types} value={selectedType} onChange={setSelectedType} />}
 
         {/* ── Bucket tabs ── */}
         <div className="fade" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
@@ -242,25 +256,19 @@ export default function MergeQueue() {
                       </td>
                       <td>
                         <div style={{ fontWeight: 500, fontSize: 13 }}>
-                          {item.supplier_a_name || `#${item.supplier_a_id}`}{' '}
+                          {item.record_a_name || `#${item.record_a_id}`}{' '}
                           <span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>↔</span>{' '}
-                          {item.supplier_b_name || `#${item.supplier_b_id}`}
+                          {item.record_b_name || `#${item.record_b_id}`}
                         </div>
                         <div style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--fg-2)', marginTop: 2 }}>
-                          {item.supplier_a_source && (
+                          {item.record_a_source && (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <SourcePill short={item.supplier_a_source} />
-                              {item.supplier_a_source_code && (
-                                <span className="mono">{item.supplier_a_source_code}</span>
-                              )}
+                              <SourcePill short={item.record_a_source} />
                             </span>
                           )}
-                          {item.supplier_b_source && (
+                          {item.record_b_source && (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <SourcePill short={item.supplier_b_source} />
-                              {item.supplier_b_source_code && (
-                                <span className="mono">{item.supplier_b_source_code}</span>
-                              )}
+                              <SourcePill short={item.record_b_source} />
                             </span>
                           )}
                         </div>

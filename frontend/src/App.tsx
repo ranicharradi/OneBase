@@ -17,8 +17,8 @@ import MergeQueue from './pages/MergeQueue';
 import MergeDetail from './pages/MergeDetail';
 import Dashboard from './pages/Dashboard';
 import FileChecker from './pages/FileChecker';
-import UnifiedSuppliers from './pages/UnifiedSuppliers';
-import UnifiedSupplierDetail from './pages/UnifiedSupplierDetail';
+import UnifiedRecords from './pages/UnifiedRecords';
+import UnifiedRecordDetail from './pages/UnifiedRecordDetail';
 import { ApiError } from './api/client';
 
 const queryClient = new QueryClient({
@@ -53,8 +53,8 @@ export default function App() {
             >
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
-              <Route path="unified" element={<UnifiedSuppliers />} />
-              <Route path="unified/:id" element={<UnifiedSupplierDetail />} />
+              <Route path="unified" element={<UnifiedRecords />} />
+              <Route path="unified/:id" element={<UnifiedRecordDetail />} />
               <Route path="review" element={<ReviewQueue />} />
               <Route path="review/:id" element={<ReviewDetail />} />
               <Route path="merge" element={<MergeQueue />} />

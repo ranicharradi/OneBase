@@ -1,11 +1,14 @@
-// ── Unified Suppliers — terminal aesthetic, browse unified records ──
+// ── Unified Records — terminal aesthetic, browse unified records ──
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
+import { useRecordType, useRecordTypes } from '../hooks/useRecordTypes';
+import { defaultType, fieldValue } from '../utils/recordDisplay';
+import TypeFilter from '../components/TypeFilter';
 import { api } from '../api/client';
 import { useSearch } from '../contexts/SearchContext';
-import type { DataSource, SingletonListResponse, UnifiedSupplierListResponse } from '../api/types';
+import type { DataSource, SingletonListResponse, UnifiedRecordListResponse } from '../api/types';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Seg from '../components/ui/Seg';
 import IdChip from '../components/ui/IdChip';
@@ -17,10 +20,20 @@ type Tab = 'unified' | 'singletons';
 
 const PAGE_SIZE = 50;
 
-export default function UnifiedSuppliers() {
+export default function UnifiedRecords() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { query: searchQuery } = useSearch();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { data: recordTypes } = useRecordTypes();
+  const selectedType = searchParams.get('type') ?? defaultType(recordTypes?.types);
+  const setSelectedType = (type: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('type', type);
+    setSearchParams(next);
+  };
+  const { data: recordType } = useRecordType(selectedType);
+  const displayFields = (recordType?.fields ?? []).filter(field => field.role !== 'name').slice(0, 3);
 
   const [tab, setTab] = useState<Tab>('unified');
   const [search, setSearch] = useState('');
@@ -47,8 +60,8 @@ export default function UnifiedSuppliers() {
     singletonsTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
-  const { data: unifiedData, isLoading: unifiedLoading } = useQuery<UnifiedSupplierListResponse>({
-    queryKey: ['unified-suppliers', search, sourceType, fromDate, toDate, unifiedPage],
+  const { data: unifiedData, isLoading: unifiedLoading } = useQuery<UnifiedRecordListResponse>({
+    queryKey: ['unified-records', search, sourceType, fromDate, toDate, unifiedPage, selectedType],
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
@@ -57,19 +70,21 @@ export default function UnifiedSuppliers() {
       if (toDate) params.set('to_date', toDate);
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', String(unifiedPage * PAGE_SIZE));
-      return api.get(`/api/unified/suppliers?${params}`);
+      params.set('type', selectedType);
+      return api.get(`/api/unified/records?${params}`);
     },
     placeholderData: keepPreviousData,
   });
 
   const { data: singletonData, isLoading: singletonsLoading } = useQuery<SingletonListResponse>({
-    queryKey: ['singletons', singletonSearch, singletonSourceId, singletonsPage],
+    queryKey: ['singletons', singletonSearch, singletonSourceId, singletonsPage, selectedType],
     queryFn: () => {
       const params = new URLSearchParams();
       if (singletonSearch) params.set('search', singletonSearch);
       if (singletonSourceId) params.set('source_id', singletonSourceId);
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', String(singletonsPage * PAGE_SIZE));
+      params.set('type', selectedType);
       return api.get(`/api/unified/singletons?${params}`);
     },
     placeholderData: keepPreviousData,
@@ -82,21 +97,21 @@ export default function UnifiedSuppliers() {
 
   const promoteMutation = useMutation({
     mutationFn: (id: number) =>
-      api.post<{ unified_supplier_id: number }>(`/api/unified/singletons/${id}/promote`),
+      api.post<{ unified_record_id: number }>(`/api/unified/singletons/${id}/promote`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['singletons'] });
-      queryClient.invalidateQueries({ queryKey: ['unified-suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['unified-records'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 
   const bulkPromoteMutation = useMutation({
     mutationFn: (ids: number[]) =>
-      api.post<{ promoted_count: number }>('/api/unified/singletons/bulk-promote', { supplier_ids: ids }),
+      api.post<{ promoted_count: number }>('/api/unified/singletons/bulk-promote', { record_ids: ids }),
     onSuccess: () => {
       setSelectedSingletons(new Set());
       queryClient.invalidateQueries({ queryKey: ['singletons'] });
-      queryClient.invalidateQueries({ queryKey: ['unified-suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['unified-records'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
@@ -110,6 +125,7 @@ export default function UnifiedSuppliers() {
       if (sourceType) params.set('source_type', sourceType);
       if (fromDate) params.set('from_date', fromDate);
       if (toDate) params.set('to_date', toDate);
+      params.set('type', selectedType);
       const qs = params.toString();
       const response = await fetch(`/api/unified/export${qs ? `?${qs}` : ''}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('onebase_token')}` },
@@ -119,7 +135,7 @@ export default function UnifiedSuppliers() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `unified_suppliers_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `unified_records_${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -154,7 +170,7 @@ export default function UnifiedSuppliers() {
     const q = searchQuery.toLowerCase();
     return unifiedData.items.filter(s =>
       s.name?.toLowerCase().includes(q) ||
-      s.source_code?.toLowerCase().includes(q),
+      Object.values(s.fields || {}).some(v => String(v).toLowerCase().includes(q)),
     );
   }, [unifiedData, searchQuery]);
 
@@ -164,7 +180,7 @@ export default function UnifiedSuppliers() {
     const q = searchQuery.toLowerCase();
     return singletonData.items.filter(s =>
       s.name?.toLowerCase().includes(q) ||
-      s.source_code?.toLowerCase().includes(q),
+      Object.values(s.fields || {}).some(v => String(v).toLowerCase().includes(q)),
     );
   }, [singletonData, searchQuery]);
 
@@ -182,6 +198,7 @@ export default function UnifiedSuppliers() {
               {unifiedTotal.toLocaleString()} unified · {singletonTotal.toLocaleString()} singletons awaiting promotion
             </div>
           </div>
+          {recordTypes?.types && <TypeFilter types={recordTypes.types} value={selectedType} onChange={setSelectedType} />}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input
               type="date"
@@ -259,7 +276,7 @@ export default function UnifiedSuppliers() {
                   style={{ height: 24, fontSize: 11, padding: '0 8px' }}
                 >
                   <option value="">All sources</option>
-                  {sources?.map(s => (
+                  {(sources?.filter(s => s.type === selectedType) ?? []).map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
@@ -320,9 +337,7 @@ export default function UnifiedSuppliers() {
                     <tr>
                       <th style={{ width: 80 }}>ID</th>
                       <th>Name</th>
-                      <th>Code</th>
-                      <th>Type</th>
-                      <th style={{ width: 60 }}>Ccy</th>
+                      {displayFields.map(f => <th key={f.key}>{f.label}</th>)}
                       <th className="num" style={{ width: 80 }}>Sources</th>
                       <th>Origin</th>
                       <th>Created</th>
@@ -340,18 +355,11 @@ export default function UnifiedSuppliers() {
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontWeight: 500 }}>{s.name || '—'}</span>
-                            {s.short_name && (
-                              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
-                                ({s.short_name})
-                              </span>
-                            )}
                           </div>
                         </td>
-                        <td className="mono" style={{ fontSize: 11, color: 'var(--fg-1)' }}>
-                          {s.source_code || '—'}
-                        </td>
-                        <td>{s.supplier_type || <span style={{ color: 'var(--fg-3)' }}>—</span>}</td>
-                        <td className="mono">{s.currency || <span style={{ color: 'var(--fg-3)' }}>—</span>}</td>
+                        {displayFields.map(field => (
+                          <td key={field.key}>{fieldValue(s.fields as Record<string, unknown>, field.key) ?? <span style={{ color: 'var(--fg-3)' }}>-</span>}</td>
+                        ))}
                         <td className="num mono">{s.source_count}</td>
                         <td>
                           {s.is_singleton ? (
@@ -440,9 +448,8 @@ export default function UnifiedSuppliers() {
                       </th>
                       <th style={{ width: 80 }}>ID</th>
                       <th>Name</th>
-                      <th>Code</th>
+                      {displayFields.map(f => <th key={f.key}>{f.label}</th>)}
                       <th style={{ width: 100 }}>Source</th>
-                      <th style={{ width: 60 }}>Ccy</th>
                       <th style={{ width: 110 }} />
                     </tr>
                   </thead>
@@ -461,20 +468,14 @@ export default function UnifiedSuppliers() {
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontWeight: 500 }}>{s.name || '—'}</span>
-                            {s.short_name && (
-                              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
-                                ({s.short_name})
-                              </span>
-                            )}
                           </div>
                         </td>
-                        <td className="mono" style={{ fontSize: 11, color: 'var(--fg-1)' }}>
-                          {s.source_code || '—'}
-                        </td>
+                        {displayFields.map(field => (
+                          <td key={field.key}>{fieldValue(s.fields as Record<string, unknown>, field.key) ?? <span style={{ color: 'var(--fg-3)' }}>-</span>}</td>
+                        ))}
                         <td>
                           {s.data_source_name ? <SourcePill short={s.data_source_name} /> : <span style={{ color: 'var(--fg-3)' }}>—</span>}
                         </td>
-                        <td className="mono">{s.currency || <span style={{ color: 'var(--fg-3)' }}>—</span>}</td>
                         <td>
                           <button
                             onClick={() => promoteMutation.mutate(s.id)}
