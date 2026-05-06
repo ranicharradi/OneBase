@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { DataSource } from '../../api/types'
 import { render } from '../../test/test-utils'
 import Sources from '../Sources'
 
@@ -14,7 +15,7 @@ const recordType = {
   signals: [],
 }
 
-const source = {
+const source: DataSource = {
   id: 1,
   name: 'SAP Vendors',
   type: 'supplier',
@@ -29,9 +30,13 @@ const source = {
 
 describe('Sources page record types', () => {
   let requests: Array<{ url: string; method: string; body?: unknown }>
+  let mockTypes: Array<{ key: string; label: string; field_count: number }>
+  let mockSources: DataSource[]
 
   beforeEach(() => {
     requests = []
+    mockTypes = [{ key: 'supplier', label: 'Supplier', field_count: 2 }]
+    mockSources = [source]
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       const method = init?.method ?? 'GET'
@@ -42,7 +47,7 @@ describe('Sources page record types', () => {
       })
 
       if (url.endsWith('/api/sources') && method === 'GET') {
-        return new Response(JSON.stringify([source]), { headers: { 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify(mockSources), { headers: { 'Content-Type': 'application/json' } })
       }
       if (url.endsWith('/api/sources') && method === 'POST') {
         return new Response(JSON.stringify({ ...source, ...(requests.at(-1)?.body as object), id: 2 }), {
@@ -55,7 +60,7 @@ describe('Sources page record types', () => {
         })
       }
       if (url.endsWith('/api/record-types')) {
-        return new Response(JSON.stringify({ types: [{ key: 'supplier', label: 'Supplier', field_count: 2 }] }), {
+        return new Response(JSON.stringify({ types: mockTypes }), {
           headers: { 'Content-Type': 'application/json' },
         })
       }
@@ -118,6 +123,55 @@ describe('Sources page record types', () => {
       const put = requests.find(req => req.url.endsWith('/api/sources/1') && req.method === 'PUT')
       expect(put?.body).toMatchObject({ name: 'SAP Supplier Export' })
       expect(put?.body).not.toHaveProperty('type')
+    })
+  })
+
+  it('sends null values when clearing editable optional fields', async () => {
+    mockSources = [{
+      ...source,
+      description: 'ERP export',
+      filename_pattern: '^sap',
+    }]
+    const user = userEvent.setup()
+    render(<Sources />)
+
+    await screen.findByText('SAP Vendors')
+    await user.click(screen.getByRole('button', { name: /edit sap vendors/i }))
+    await user.clear(screen.getByPlaceholderText(/optional description/i))
+    await user.clear(screen.getByPlaceholderText(/regex/i))
+    await user.click(screen.getByRole('button', { name: /update source/i }))
+
+    await waitFor(() => {
+      const put = requests.find(req => req.url.endsWith('/api/sources/1') && req.method === 'PUT')
+      expect(put?.body).toMatchObject({
+        description: null,
+        filename_pattern: null,
+      })
+    })
+  })
+
+  it('disables source creation when no record types are available', async () => {
+    mockTypes = []
+
+    render(<Sources />)
+
+    await screen.findByText('SAP Vendors')
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /new source/i })).toBeDisabled()
+    })
+  })
+
+  it('marks mapped counts as incomplete when required fields are missing', async () => {
+    mockSources = [{
+      ...source,
+      column_mapping: { tax_id: 'Tax Number' },
+    }]
+
+    render(<Sources />)
+
+    const mappedCell = await screen.findByText('1 / 2')
+    await waitFor(() => {
+      expect(mappedCell).toHaveStyle({ color: 'var(--warn)' })
     })
   })
 })

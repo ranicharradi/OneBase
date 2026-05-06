@@ -7,9 +7,7 @@ import type {
   BatchResponse,
   DataSource,
   DataSourceCreate,
-  GuessMappingResponse,
-  SourceMatch,
-  SourceMatchResponse,
+  RecordTypeSummary,
   UploadResponse,
   UploadStatsResponse,
 } from '../api/types';
@@ -21,13 +19,32 @@ import BatchHistory from '../components/BatchHistory';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
 import Spinner from '../components/ui/Spinner';
+import { useRecordTypes } from '../hooks/useRecordTypes';
+
+interface SourceMatch {
+  source_id: number;
+  source_name: string;
+  confidence: 'high' | 'medium' | 'low';
+  column_match: boolean;
+  filename_match: boolean;
+  data_overlap_pct: number;
+}
+
+interface SourceMatchResponse {
+  file_ref: string;
+  detected_columns: string[];
+  detected_delimiter?: string;
+  suggested_name: string;
+  suggested_source_id: number | null;
+  matches: SourceMatch[];
+}
 
 type UploadState =
   | { step: 'DROP_FILE' }
   | { step: 'DETECTING'; file: File }
   | { step: 'MATCHED'; file: File; fileRef: string; match: SourceMatch; allMatches: SourceMatch[] }
   | { step: 'PICK_SOURCE'; file: File; fileRef: string; matches: SourceMatch[]; columns: string[]; detectedDelimiter?: string }
-  | { step: 'MAP_COLUMNS'; file: File; fileRef: string; columns: string[]; suggestedName: string; guessedMapping?: GuessMappingResponse; detectedDelimiter?: string }
+  | { step: 'MAP_COLUMNS'; file: File; fileRef: string; columns: string[]; suggestedName: string; type: string; detectedDelimiter?: string }
   | { step: 'PROCESSING'; taskId: string };
 
 const STEPS: Array<{ key: UploadState['step'] | 'STEPPER_STAGE'; label: string }> = [
@@ -96,6 +113,10 @@ function ConfidenceTag({ confidence }: { confidence: SourceMatch['confidence'] }
   return <Pill tone="neutral">low</Pill>;
 }
 
+function defaultRecordType(types: RecordTypeSummary[] | undefined): string {
+  return types?.[0]?.key ?? '';
+}
+
 export default function Upload() {
   const queryClient = useQueryClient();
   const [uploadState, setUploadState] = useState<UploadState>({ step: 'DROP_FILE' });
@@ -109,6 +130,8 @@ export default function Upload() {
     queryKey: ['sources'],
     queryFn: () => api.get<DataSource[]>('/api/sources'),
   });
+
+  const { data: recordTypes } = useRecordTypes();
 
   const matchSourceMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -164,13 +187,11 @@ export default function Upload() {
       if (result.matches.length === 0) {
         const allSources = sources ?? [];
         if (allSources.length === 0) {
-          let guessedMapping: GuessMappingResponse | undefined;
-          try {
-            const guessFd = new FormData();
-            guessFd.append('file_ref', result.file_ref);
-            guessedMapping = await api.upload<GuessMappingResponse>('/api/sources/guess-mapping', guessFd);
-          } catch {
-            // non-critical
+          const type = defaultRecordType(recordTypes?.types);
+          if (!type) {
+            setError('No record types are available for source creation');
+            setUploadState({ step: 'DROP_FILE' });
+            return;
           }
           setUploadState({
             step: 'MAP_COLUMNS',
@@ -178,7 +199,7 @@ export default function Upload() {
             fileRef: result.file_ref,
             columns: result.detected_columns,
             suggestedName: result.suggested_name,
-            guessedMapping,
+            type,
             detectedDelimiter: result.detected_delimiter,
           });
           return;
@@ -211,7 +232,7 @@ export default function Upload() {
       setError(err instanceof Error ? err.message : 'Failed to analyze file');
       setUploadState({ step: 'DROP_FILE' });
     }
-  }, [matchSourceMutation, sources]);
+  }, [matchSourceMutation, recordTypes, sources]);
 
   const handleConfirmSource = useCallback(async (sourceId: number, fileRef: string) => {
     try {
@@ -441,13 +462,10 @@ export default function Upload() {
                   .replace(/\b\w/g, c => c.toUpperCase());
 
                 const goToMapColumns = async (cols: string[]) => {
-                  let guessedMapping: GuessMappingResponse | undefined;
-                  try {
-                    const guessFd = new FormData();
-                    guessFd.append('file_ref', state.fileRef);
-                    guessedMapping = await api.upload<GuessMappingResponse>('/api/sources/guess-mapping', guessFd);
-                  } catch {
-                    // non-critical
+                  const type = defaultRecordType(recordTypes?.types);
+                  if (!type) {
+                    setError('No record types are available for source creation');
+                    return;
                   }
                   setUploadState({
                     step: 'MAP_COLUMNS',
@@ -455,7 +473,7 @@ export default function Upload() {
                     fileRef: state.fileRef,
                     columns: cols,
                     suggestedName,
-                    guessedMapping,
+                    type,
                     detectedDelimiter: state.detectedDelimiter,
                   });
                 };
@@ -502,12 +520,34 @@ export default function Upload() {
         {/* MAP_COLUMNS */}
         {uploadState.step === 'MAP_COLUMNS' && (
           <div className="fade">
+            {recordTypes && recordTypes.types.length > 0 && (
+              <Panel className="fade" style={{ marginBottom: 12 }}>
+                <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label className="label">
+                    Type <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <select
+                    className="input"
+                    value={uploadState.type}
+                    onChange={(event) => setUploadState({
+                      ...uploadState,
+                      type: event.target.value,
+                    })}
+                    required
+                  >
+                    {recordTypes.types.map(rt => (
+                      <option key={rt.key} value={rt.key}>{rt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </Panel>
+            )}
             <ColumnMapper
               columns={uploadState.columns}
+              type={uploadState.type}
               onSubmit={handleColumnMapSubmit}
               isSubmitting={createSourceMutation.isPending || uploadWithFileMutation.isPending}
               initialSourceName={uploadState.suggestedName}
-              guessedMapping={uploadState.guessedMapping}
               detectedDelimiter={uploadState.detectedDelimiter}
             />
             <div style={{ marginTop: 12, textAlign: 'center' }}>

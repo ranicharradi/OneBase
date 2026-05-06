@@ -173,20 +173,20 @@ function SourceModal({
       if (isEditing) {
         return api.put<DataSource>(`/api/sources/${source.id}`, {
           name,
-          description: description || undefined,
+          description: description.trim() || null,
           delimiter,
           column_mapping: mapping,
-          filename_pattern: filenamePattern || undefined,
+          filename_pattern: filenamePattern.trim() || null,
         });
       }
 
       return api.post<DataSource>('/api/sources', {
         name,
         type,
-        description: description || undefined,
+        description: description.trim() || undefined,
         delimiter,
         column_mapping: mapping,
-        filename_pattern: filenamePattern || undefined,
+        filename_pattern: filenamePattern.trim() || undefined,
       });
     },
     onSuccess: () => {
@@ -203,6 +203,10 @@ function SourceModal({
     setFormError('');
     if (!name.trim()) {
       setFormError('Source name is required');
+      return;
+    }
+    if (!type) {
+      setFormError('Source type is required');
       return;
     }
     if (fieldsLoading) {
@@ -429,6 +433,86 @@ function DeleteConfirm({
 
 type StatusFilter = 'all' | 'healthy' | 'stale';
 
+function SourceRow({
+  src,
+  stats,
+  fieldCount,
+  onEdit,
+  onDelete,
+}: {
+  src: DataSource;
+  stats: SourceStats;
+  fieldCount: number;
+  onEdit: (source: DataSource) => void;
+  onDelete: (source: DataSource) => void;
+}) {
+  const { data: recordType } = useRecordType(src.type);
+  const mapping = toColumnMapping(src.column_mapping);
+  const mappedCount = Object.values(mapping).filter(Boolean).length;
+  const fields = recordType?.fields ?? [];
+  const totalFields = fields.length || fieldCount;
+  const requiredFields = fields.filter(field => field.required);
+  const allRequiredMapped = fields.length > 0
+    ? requiredFields.every(field => Boolean(mapping[field.key]))
+    : fieldCount === 0;
+
+  return (
+    <tr>
+      <td><SourcePill short={shortFor(src.name)} title={src.name} /></td>
+      <td>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontWeight: 500 }}>{src.name}</div>
+          <Pill tone="neutral">{src.type}</Pill>
+        </div>
+        {src.description && (
+          <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 2 }}>{src.description}</div>
+        )}
+      </td>
+      <td className="num mono">
+        {stats.rows > 0 ? stats.rows.toLocaleString() : <span style={{ color: 'var(--fg-3)' }}>—</span>}
+      </td>
+      <td className="num mono" style={{ color: allRequiredMapped ? 'var(--fg-0)' : 'var(--warn)' }}>
+        {totalFields > 0 ? `${mappedCount} / ${totalFields}` : `${mappedCount}`}
+      </td>
+      <td className="num mono">
+        {stats.batches > 0 ? stats.batches : <span style={{ color: 'var(--fg-3)' }}>—</span>}
+      </td>
+      <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+        {relativeTime(stats.lastSync)}
+      </td>
+      <td>
+        {stats.status === 'healthy' ? (
+          <Pill tone="ok" dot>healthy</Pill>
+        ) : stats.status === 'stale' ? (
+          <Pill tone="warn" dot>stale</Pill>
+        ) : (
+          <Pill tone="neutral" dot>new</Pill>
+        )}
+      </td>
+      <td>
+        <div className="row-actions" style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+          <button
+            onClick={() => onEdit(src)}
+            className="btn btn-ghost btn-sm"
+            style={{ padding: 4 }}
+            aria-label={`Edit ${src.name}`}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>edit</span>
+          </button>
+          <button
+            onClick={() => onDelete(src)}
+            className="btn btn-ghost btn-sm"
+            style={{ padding: 4, color: 'var(--danger)' }}
+            aria-label={`Delete ${src.name}`}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>delete</span>
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export default function Sources() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
@@ -444,6 +528,7 @@ export default function Sources() {
   });
 
   const { data: recordTypes, error: recordTypesError } = useRecordTypes();
+  const canCreateSource = Boolean(recordTypes?.types.length);
 
   // All batches at once — small payload, used to derive per-source rows / batch count / last-sync
   const { data: batches } = useQuery({
@@ -553,7 +638,7 @@ export default function Sources() {
             </button>
             <button
               onClick={() => setShowCreate(true)}
-              disabled={!recordTypes}
+              disabled={!canCreateSource}
               className="btn btn-sm btn-primary"
             >
               <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
@@ -625,7 +710,7 @@ export default function Sources() {
               </div>
               <button
                 onClick={() => setShowCreate(true)}
-                disabled={!recordTypes}
+                disabled={!canCreateSource}
                 className="btn btn-sm btn-accent"
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
@@ -657,64 +742,16 @@ export default function Sources() {
               <tbody>
                 {filteredSources.map(src => {
                   const stats = statsBySource.get(src.id) ?? { rows: 0, batches: 0, lastSync: null, status: 'new' as const };
-                  const mappedCount = Object.values(src.column_mapping).filter(Boolean).length;
                   const typeSummary = recordTypes?.types.find(rt => rt.key === src.type);
-                  const totalFields = typeSummary?.field_count ?? 0;
-                  const allRequiredMapped = totalFields === 0 || mappedCount > 0;
                   return (
-                    <tr key={src.id}>
-                      <td><SourcePill short={shortFor(src.name)} title={src.name} /></td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ fontWeight: 500 }}>{src.name}</div>
-                          <Pill tone="neutral">{src.type}</Pill>
-                        </div>
-                        {src.description && (
-                          <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 2 }}>{src.description}</div>
-                        )}
-                      </td>
-                      <td className="num mono">
-                        {stats.rows > 0 ? stats.rows.toLocaleString() : <span style={{ color: 'var(--fg-3)' }}>—</span>}
-                      </td>
-                      <td className="num mono" style={{ color: allRequiredMapped ? 'var(--fg-0)' : 'var(--warn)' }}>
-                        {totalFields > 0 ? `${mappedCount} / ${totalFields}` : `${mappedCount}`}
-                      </td>
-                      <td className="num mono">
-                        {stats.batches > 0 ? stats.batches : <span style={{ color: 'var(--fg-3)' }}>—</span>}
-                      </td>
-                      <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-                        {relativeTime(stats.lastSync)}
-                      </td>
-                      <td>
-                        {stats.status === 'healthy' ? (
-                          <Pill tone="ok" dot>healthy</Pill>
-                        ) : stats.status === 'stale' ? (
-                          <Pill tone="warn" dot>stale</Pill>
-                        ) : (
-                          <Pill tone="neutral" dot>new</Pill>
-                        )}
-                      </td>
-                      <td>
-                        <div className="row-actions" style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                          <button
-                            onClick={() => setEditSource(src)}
-                            className="btn btn-ghost btn-sm"
-                            style={{ padding: 4 }}
-                            aria-label={`Edit ${src.name}`}
-                          >
-                            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>edit</span>
-                          </button>
-                          <button
-                            onClick={() => setDeleteSource(src)}
-                            className="btn btn-ghost btn-sm"
-                            style={{ padding: 4, color: 'var(--danger)' }}
-                            aria-label={`Delete ${src.name}`}
-                          >
-                            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>delete</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <SourceRow
+                      key={src.id}
+                      src={src}
+                      stats={stats}
+                      fieldCount={typeSummary?.field_count ?? 0}
+                      onEdit={setEditSource}
+                      onDelete={setDeleteSource}
+                    />
                   );
                 })}
               </tbody>
