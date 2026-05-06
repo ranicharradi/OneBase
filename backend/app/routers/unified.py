@@ -296,8 +296,12 @@ def list_singletons(
 def _build_singleton_unified(record: StagedRecord, source_name: str | None, username: str) -> UnifiedRecord:
     """Construct a UnifiedRecord from a single StagedRecord (no merge — direct promotion)."""
     rt = get_record_type(record.type)
-    now = datetime.now(tz=None).isoformat()
+    now = datetime.now(UTC).isoformat()
     fields_payload: dict[str, Any] = dict(record.fields or {})
+    name = fields_payload.get(rt.name_field.key) or record.name
+    if not name:
+        raise ValueError(f"Singleton record must have a '{rt.name_field.key}' value")
+
     provenance: dict[str, Any] = {}
     for fdef in rt.fields:
         val = fields_payload.get(fdef.key)
@@ -309,7 +313,6 @@ def _build_singleton_unified(record: StagedRecord, source_name: str | None, user
             "chosen_by": username,
             "chosen_at": now,
         }
-    name = fields_payload.get(rt.name_field.key) or record.name or ""
     return UnifiedRecord(
         type=record.type,
         name=name,
@@ -365,7 +368,10 @@ def promote_singleton(
     source = db.get(DataSource, record.data_source_id)
     source_name = source.name if source else None
 
-    unified = _build_singleton_unified(record, source_name, current_user.username)
+    try:
+        unified = _build_singleton_unified(record, source_name, current_user.username)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     db.add(unified)
     db.flush()
 
@@ -414,7 +420,10 @@ def bulk_promote_singletons(
 
         source = db.get(DataSource, record.data_source_id)
         source_name = source.name if source else None
-        unified = _build_singleton_unified(record, source_name, current_user.username)
+        try:
+            unified = _build_singleton_unified(record, source_name, current_user.username)
+        except ValueError:
+            continue
         db.add(unified)
         db.flush()
         promoted_ids.append(unified.id)
@@ -547,7 +556,10 @@ def get_dashboard(
     singletons_count = unified_query.filter(UnifiedRecord.match_candidate_id.is_(None)).count()
 
     # Recent activity (audit log, last 20)
-    recent_audit = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(20).all()
+    recent_audit_query = db.query(AuditLog)
+    if type is not None:
+        recent_audit_query = recent_audit_query.filter(AuditLog.details["type"].as_string() == type)
+    recent_audit = recent_audit_query.order_by(AuditLog.created_at.desc()).limit(20).all()
 
     return DashboardResponse(
         uploads=UploadStats(

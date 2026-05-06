@@ -1,5 +1,6 @@
 """Tests for unified records — browse, detail, singleton promotion, export, dashboard."""
 
+from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
@@ -240,6 +241,26 @@ class TestSingletonPromotion:
         assert unified.match_candidate_id is None  # singleton
         assert "supplier_name" in unified.provenance
 
+    def test_promote_singleton_rejects_missing_name(self, authenticated_client, test_db):
+        s1, _ = _seed_sources(test_db)
+        b1 = _seed_batch(test_db, s1)
+        record = StagedRecord(
+            type="supplier",
+            import_batch_id=b1.id,
+            data_source_id=s1.id,
+            name=None,
+            normalized_name="",
+            raw_data={"BPSNAM": ""},
+            status=RecordStatus.ACTIVE,
+            fields={"supplier_code": "NO-NAME"},
+        )
+        test_db.add(record)
+        test_db.commit()
+
+        resp = authenticated_client.post(f"/api/unified/singletons/{record.id}/promote")
+        assert resp.status_code == 400
+        assert "supplier_name" in resp.json()["detail"]
+
     def test_promote_already_unified(self, authenticated_client, test_db):
         s1, _ = _seed_sources(test_db)
         b1 = _seed_batch(test_db, s1)
@@ -347,3 +368,17 @@ class TestDashboard:
         assert data["review"]["pending"] == 1
         assert data["unified"]["total_unified"] == 1
         assert data["unified"]["merged"] == 1
+
+    def test_dashboard_type_filter_scopes_recent_activity(self, authenticated_client, test_db):
+        test_db.add_all(
+            [
+                AuditLog(action="supplier_action", entity_type="data_source", details={"type": "supplier"}),
+                AuditLog(action="material_action", entity_type="data_source", details={"type": "material"}),
+            ]
+        )
+        test_db.commit()
+
+        resp = authenticated_client.get("/api/unified/dashboard?type=supplier")
+        assert resp.status_code == 200
+        actions = [item["action"] for item in resp.json()["recent_activity"]]
+        assert actions == ["supplier_action"]

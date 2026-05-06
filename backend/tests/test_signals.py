@@ -23,7 +23,9 @@ def _rec(**kwargs):
 
 @pytest.fixture(autouse=True)
 def _isolate_signal_registry():
-    from app.services.signals.registry import _testing_clear_registry
+    from app.services.signals.registry import _KINDS, _testing_clear_registry
+
+    snapshot = dict(_KINDS)
 
     _testing_clear_registry()
     # Re-register built-ins by re-importing the module (importlib.reload)
@@ -34,6 +36,7 @@ def _isolate_signal_registry():
     importlib.reload(builtins)
     yield
     _testing_clear_registry()
+    _KINDS.update(snapshot)
 
 
 def test_jaro_winkler_kind_returns_one_for_identical_strings():
@@ -108,6 +111,16 @@ def test_embedding_cosine_returns_one_for_identical_embeddings():
     vec = np.array([1.0, 0.0, 0.0], dtype=np.float32)
     a = _rec(supplier_name="anything", name_embedding=vec)
     b = _rec(supplier_name="something", name_embedding=vec)
+    score = compute_signal("embedding_cosine", a, b, field="supplier_name")
+    assert score == pytest.approx(1.0)
+
+
+def test_embedding_cosine_does_not_require_name_field_value():
+    import numpy as np
+
+    vec = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    a = _rec(name_embedding=vec)
+    b = _rec(name_embedding=vec)
     score = compute_signal("embedding_cosine", a, b, field="supplier_name")
     assert score == pytest.approx(1.0)
 
