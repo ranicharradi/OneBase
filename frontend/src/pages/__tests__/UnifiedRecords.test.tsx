@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../test/test-utils'
-import UnifiedSuppliers from '../UnifiedSuppliers'
+import UnifiedRecords from '../UnifiedRecords'
 import { useAuth } from '../../hooks/useAuth'
 import type { Mock } from 'vitest'
 
@@ -27,8 +27,18 @@ function mockAuthUser() {
 }
 
 const emptyList = { items: [], total: 0, has_more: false }
+const mockRecordTypes = { types: [{ key: 'supplier', label: 'Supplier', field_count: 2 }] }
+const mockSupplierType = {
+  key: 'supplier',
+  label: 'Supplier',
+  fields: [
+    { key: 'supplier_name', label: 'Supplier Name', role: 'name', required: true },
+    { key: 'currency', label: 'Currency', role: 'enum', required: false },
+  ],
+  signals: [],
+}
 
-describe('UnifiedSuppliers export', () => {
+describe('UnifiedRecords export', () => {
   beforeEach(() => {
     mockAuthUser()
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test')
@@ -46,6 +56,22 @@ describe('UnifiedSuppliers export', () => {
 
     vi.spyOn(global, 'fetch').mockImplementation((input) => {
       const url = String(input)
+      if (url.includes('/api/record-types/supplier')) {
+        return Promise.resolve(
+          new Response(JSON.stringify(mockSupplierType), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }
+      if (url.includes('/api/record-types')) {
+        return Promise.resolve(
+          new Response(JSON.stringify(mockRecordTypes), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }
       if (url.includes('/api/unified/export')) {
         capturedUrl = url
         return Promise.resolve(
@@ -63,7 +89,7 @@ describe('UnifiedSuppliers export', () => {
       )
     })
 
-    render(<UnifiedSuppliers />)
+    render(<UnifiedRecords />)
 
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /export/i })).toBeInTheDocument(),

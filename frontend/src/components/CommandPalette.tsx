@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { UnifiedSupplierListResponse } from '../api/types';
+import type { UnifiedRecordListResponse } from '../api/types';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -36,11 +36,11 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   // Debounced supplier search — only fires when palette is open and query has 2+ chars
   const trimmed = query.trim();
   const supplierEnabled = open && trimmed.length >= 2;
-  const { data: supplierResults } = useQuery<UnifiedSupplierListResponse>({
-    queryKey: ['command-palette-suppliers', trimmed],
+  const { data: supplierResults } = useQuery<UnifiedRecordListResponse>({
+    queryKey: ['command-palette-records', trimmed],
     queryFn: () => {
       const params = new URLSearchParams({ search: trimmed, limit: '8' });
-      return api.get(`/api/unified/suppliers?${params}`);
+      return api.get(`/api/unified/records?${params}`);
     },
     enabled: supplierEnabled,
     staleTime: 30_000,
@@ -63,7 +63,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     const supplierItems: PaletteItem[] = (supplierResults?.items ?? []).map(s => ({
       section: 'Records' as const,
       label: s.name || `Record #${s.id}`,
-      hint: s.source_code ?? undefined,
+      hint: `${s.type} · ${s.source_count} source${s.source_count === 1 ? '' : 's'}`,
       icon: 'verified',
       onSelect: () => navigate(`/unified/${s.id}`),
     }));
