@@ -244,35 +244,31 @@ export default function Upload() {
         {uploadState.step === 'PICK_SOURCE' && (
           <div className="fade" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Panel>
-              <PanelHead title="Upload to existing source" />
+              <PanelHead
+                title="Create new source from this file"
+                actions={
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-0)', border: '1px solid var(--border-0)', borderRadius: 4, padding: '3px 7px' }}>
+                    <span style={{ fontSize: 10, color: 'var(--fg-2)', whiteSpace: 'nowrap' }}>or existing:</span>
+                    <select
+                      className="input"
+                      style={{ fontSize: 10, padding: '1px 4px', height: 'auto', background: 'transparent', border: 'none', color: 'var(--accent)', minWidth: 90, cursor: 'pointer' }}
+                      value=""
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        if (val) setUploadState({ step: 'DROP_FILE', sourceId: val });
+                      }}
+                    >
+                      <option value="">select…</option>
+                      {sources?.map(source => (
+                        <option key={source.id} value={source.id}>
+                          {source.name} ({source.type})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                }
+              />
               <div style={{ padding: 14 }}>
-                <label className="label" style={{ marginBottom: 6, display: 'block' }}>
-                  Source <span style={{ color: 'var(--danger)' }}>*</span>
-                </label>
-                <select
-                  className="input"
-                  value=""
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    if (val) setUploadState({ step: 'DROP_FILE', sourceId: val });
-                  }}
-                >
-                  <option value="">Select a source…</option>
-                  {sources?.map(source => (
-                    <option key={source.id} value={source.id}>
-                      {source.name} ({source.type})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </Panel>
-
-            <Panel>
-              <PanelHead title="Create new source from this file" />
-              <div style={{ padding: 14 }}>
-                <div style={{ fontSize: 12, color: 'var(--fg-2)', marginBottom: 10 }}>
-                  Drop a CSV to define a new data source and upload it in one step.
-                </div>
                 <DropZone onFileSelected={handleCreateFromFile} />
               </div>
             </Panel>
