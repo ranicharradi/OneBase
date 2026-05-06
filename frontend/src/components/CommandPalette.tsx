@@ -33,16 +33,16 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     }
   }, [open]);
 
-  // Debounced supplier search — only fires when palette is open and query has 2+ chars
+  // Record search — only fires when palette is open and query has 2+ chars
   const trimmed = query.trim();
-  const supplierEnabled = open && trimmed.length >= 2;
-  const { data: supplierResults } = useQuery<UnifiedRecordListResponse>({
+  const recordEnabled = open && trimmed.length >= 2;
+  const { data: recordResults } = useQuery<UnifiedRecordListResponse>({
     queryKey: ['command-palette-records', trimmed],
     queryFn: () => {
       const params = new URLSearchParams({ search: trimmed, limit: '8' });
       return api.get(`/api/unified/records?${params}`);
     },
-    enabled: supplierEnabled,
+    enabled: recordEnabled,
     staleTime: 30_000,
   });
 
@@ -60,7 +60,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       { section: 'Actions', label: 'Browse unified records', icon: 'arrow_forward', onSelect: () => navigate('/unified') },
     ];
 
-    const supplierItems: PaletteItem[] = (supplierResults?.items ?? []).map(s => ({
+    const recordItems: PaletteItem[] = (recordResults?.items ?? []).map(s => ({
       section: 'Records' as const,
       label: s.name || `Record #${s.id}`,
       hint: `${s.type} · ${s.source_count} source${s.source_count === 1 ? '' : 's'}`,
@@ -72,8 +72,8 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     const filtered = lower
       ? navItems.filter(i => i.label.toLowerCase().includes(lower))
       : navItems;
-    return [...filtered, ...supplierItems];
-  }, [navigate, supplierResults, trimmed]);
+    return [...filtered, ...recordItems];
+  }, [navigate, recordResults, trimmed]);
 
   // Reset selection when items change
   useEffect(() => { setActiveIdx(0); }, [items.length]);
