@@ -1,4 +1,4 @@
-// ── Upload — terminal aesthetic, multi-step file ingestion ──
+// ── Upload — multi-step file ingestion with explicit source selection ──
 
 import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,7 +7,6 @@ import type {
   BatchResponse,
   DataSource,
   DataSourceCreate,
-  RecordTypeSummary,
   UploadResponse,
   UploadStatsResponse,
 } from '../api/types';
@@ -17,53 +16,31 @@ import ColumnMapper from '../components/ColumnMapper';
 import ReUploadDialog from '../components/ReUploadDialog';
 import BatchHistory from '../components/BatchHistory';
 import Panel, { PanelHead } from '../components/ui/Panel';
-import Pill from '../components/ui/Pill';
 import Spinner from '../components/ui/Spinner';
 import { useRecordTypes } from '../hooks/useRecordTypes';
-
-interface SourceMatch {
-  source_id: number;
-  source_name: string;
-  confidence: 'high' | 'medium' | 'low';
-  column_match: boolean;
-  filename_match: boolean;
-  data_overlap_pct: number;
-}
-
-interface SourceMatchResponse {
-  file_ref: string;
-  detected_columns: string[];
-  detected_delimiter?: string;
-  suggested_name: string;
-  suggested_source_id: number | null;
-  matches: SourceMatch[];
-}
+import { parseCsvHeaders } from '../utils/csvHeaders';
+import { defaultType } from '../utils/recordDisplay';
 
 type UploadState =
-  | { step: 'DROP_FILE' }
-  | { step: 'DETECTING'; file: File }
-  | { step: 'MATCHED'; file: File; fileRef: string; match: SourceMatch; allMatches: SourceMatch[] }
-  | { step: 'PICK_SOURCE'; file: File; fileRef: string; matches: SourceMatch[]; columns: string[]; detectedDelimiter?: string }
-  | { step: 'MAP_COLUMNS'; file: File; fileRef: string; columns: string[]; suggestedName: string; type: string; detectedDelimiter?: string }
+  | { step: 'PICK_SOURCE' }
+  | { step: 'DROP_FILE'; sourceId: number }
+  | { step: 'DETECTING'; sourceId: number; file: File }
+  | { step: 'MAP_COLUMNS'; file: File; columns: string[]; suggestedName: string; detectedDelimiter: string; type: string }
   | { step: 'PROCESSING'; taskId: string };
 
-const STEPS: Array<{ key: UploadState['step'] | 'STEPPER_STAGE'; label: string }> = [
-  { key: 'STEPPER_STAGE', label: 'Drop file' },
-  { key: 'STEPPER_STAGE', label: 'Match source' },
-  { key: 'STEPPER_STAGE', label: 'Confirm' },
-  { key: 'STEPPER_STAGE', label: 'Ingest' },
+const STEPS = [
+  { label: 'Select source' },
+  { label: 'Upload file' },
+  { label: 'Ingest' },
 ];
 
 function stepIndex(state: UploadState): number {
   switch (state.step) {
-    case 'DROP_FILE': return 0;
-    case 'DETECTING': return 0;
-    case 'PICK_SOURCE':
-    case 'MATCHED':
-    case 'MAP_COLUMNS':
-      return 1;
-    case 'PROCESSING':
-      return 3;
+    case 'PICK_SOURCE': return 0;
+    case 'DROP_FILE': return 1;
+    case 'DETECTING': return 1;
+    case 'MAP_COLUMNS': return 1;
+    case 'PROCESSING': return 2;
   }
 }
 
@@ -107,22 +84,12 @@ function Stepper({ state }: { state: UploadState }) {
   );
 }
 
-function ConfidenceTag({ confidence }: { confidence: SourceMatch['confidence'] }) {
-  if (confidence === 'high') return <Pill tone="ok">high</Pill>;
-  if (confidence === 'medium') return <Pill tone="warn">medium</Pill>;
-  return <Pill tone="neutral">low</Pill>;
-}
-
-function defaultRecordType(types: RecordTypeSummary[] | undefined): string {
-  return types?.[0]?.key ?? '';
-}
-
 export default function Upload() {
   const queryClient = useQueryClient();
-  const [uploadState, setUploadState] = useState<UploadState>({ step: 'DROP_FILE' });
+  const [uploadState, setUploadState] = useState<UploadState>({ step: 'PICK_SOURCE' });
   const [showReUpload, setShowReUpload] = useState(false);
   const [pendingSourceId, setPendingSourceId] = useState<number | null>(null);
-  const [pendingFileRef, setPendingFileRef] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [reUploadStats, setReUploadStats] = useState<UploadStatsResponse>({ staged_count: 0, pending_match_count: 0 });
   const [error, setError] = useState<string | null>(null);
 
@@ -133,34 +100,10 @@ export default function Upload() {
 
   const { data: recordTypes } = useRecordTypes();
 
-  const matchSourceMutation = useMutation({
-    mutationFn: async (file: File) => {
+  const uploadWithFileMutation = useMutation({
+    mutationFn: async ({ file, dataSourceId }: { file: File; dataSourceId: number }) => {
       const formData = new FormData();
       formData.append('file', file);
-      return api.upload<SourceMatchResponse>('/api/sources/match-source', formData);
-    },
-  });
-
-  const uploadMutation = useMutation({
-    mutationFn: async ({ fileRef, dataSourceId }: { fileRef: string; dataSourceId: number }) => {
-      const formData = new FormData();
-      formData.append('file_ref', fileRef);
-      formData.append('data_source_id', String(dataSourceId));
-      return api.upload<UploadResponse>('/api/import/upload', formData);
-    },
-    onSuccess: (data) => {
-      setUploadState({ step: 'PROCESSING', taskId: data.task_id });
-      setError(null);
-      queryClient.invalidateQueries({ queryKey: ['batches'] });
-    },
-    onError: (err: Error) => setError(err.message),
-  });
-
-  const uploadWithFileMutation = useMutation({
-    mutationFn: async ({ file, fileRef, dataSourceId }: { file: File; fileRef?: string; dataSourceId: number }) => {
-      const formData = new FormData();
-      if (fileRef) formData.append('file_ref', fileRef);
-      else formData.append('file', file);
       formData.append('data_source_id', String(dataSourceId));
       return api.upload<UploadResponse>('/api/import/upload', formData);
     },
@@ -177,64 +120,7 @@ export default function Upload() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sources'] }),
   });
 
-  const handleFileSelected = useCallback(async (file: File) => {
-    if (matchSourceMutation.isPending) return;
-    setError(null);
-    setUploadState({ step: 'DETECTING', file });
-
-    try {
-      const result = await matchSourceMutation.mutateAsync(file);
-      if (result.matches.length === 0) {
-        const allSources = sources ?? [];
-        if (allSources.length === 0) {
-          const type = defaultRecordType(recordTypes?.types);
-          if (!type) {
-            setError('No record types are available for source creation');
-            setUploadState({ step: 'DROP_FILE' });
-            return;
-          }
-          setUploadState({
-            step: 'MAP_COLUMNS',
-            file,
-            fileRef: result.file_ref,
-            columns: result.detected_columns,
-            suggestedName: result.suggested_name,
-            type,
-            detectedDelimiter: result.detected_delimiter,
-          });
-          return;
-        }
-        setUploadState({
-          step: 'PICK_SOURCE',
-          file,
-          fileRef: result.file_ref,
-          matches: result.matches,
-          columns: result.detected_columns,
-          detectedDelimiter: result.detected_delimiter,
-        });
-        return;
-      }
-
-      if (result.suggested_source_id) {
-        const topMatch = result.matches.find(m => m.source_id === result.suggested_source_id)!;
-        setUploadState({ step: 'MATCHED', file, fileRef: result.file_ref, match: topMatch, allMatches: result.matches });
-      } else {
-        setUploadState({
-          step: 'PICK_SOURCE',
-          file,
-          fileRef: result.file_ref,
-          matches: result.matches,
-          columns: result.detected_columns,
-          detectedDelimiter: result.detected_delimiter,
-        });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to analyze file');
-      setUploadState({ step: 'DROP_FILE' });
-    }
-  }, [matchSourceMutation, recordTypes, sources]);
-
-  const handleConfirmSource = useCallback(async (sourceId: number, fileRef: string) => {
+  const checkAndUpload = useCallback(async (sourceId: number, file: File) => {
     try {
       const batches = await api.get<BatchResponse[]>(`/api/import/batches?data_source_id=${sourceId}`);
       if (batches && batches.length > 0) {
@@ -245,27 +131,61 @@ export default function Upload() {
           setReUploadStats({ staged_count: 0, pending_match_count: 0 });
         }
         setPendingSourceId(sourceId);
-        setPendingFileRef(fileRef);
+        setPendingFile(file);
         setShowReUpload(true);
         return;
       }
     } catch {
-      // proceed
+      // proceed with upload if check fails
     }
-    uploadMutation.mutate({ fileRef, dataSourceId: sourceId });
-  }, [uploadMutation]);
+    uploadWithFileMutation.mutate({ file, dataSourceId: sourceId });
+  }, [uploadWithFileMutation]);
+
+  const handleFileDropped = useCallback(async (sourceId: number, file: File) => {
+    setError(null);
+    setUploadState({ step: 'DETECTING', sourceId, file });
+    await checkAndUpload(sourceId, file);
+  }, [checkAndUpload]);
+
+  const handleCreateFromFile = useCallback(async (file: File) => {
+    setError(null);
+    const type = defaultType(recordTypes?.types);
+    if (!type) {
+      setError('No record types are available for source creation');
+      return;
+    }
+    try {
+      const parsed = await parseCsvHeaders(file);
+      const suggestedName = file.name
+        .replace(/\.[^.]+$/, '')
+        .replace(/[_-]/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+      setUploadState({
+        step: 'MAP_COLUMNS',
+        file,
+        columns: parsed.columns,
+        suggestedName,
+        detectedDelimiter: parsed.delimiter,
+        type,
+      });
+    } catch {
+      setError('Failed to read CSV headers');
+    }
+  }, [recordTypes]);
 
   const handleReUploadConfirm = () => {
     setShowReUpload(false);
-    if (pendingSourceId && pendingFileRef) {
-      uploadMutation.mutate({ fileRef: pendingFileRef, dataSourceId: pendingSourceId });
+    if (pendingSourceId && pendingFile) {
+      uploadWithFileMutation.mutate({ file: pendingFile, dataSourceId: pendingSourceId });
     }
   };
 
   const handleReUploadCancel = () => {
     setShowReUpload(false);
+    const sid = pendingSourceId;
     setPendingSourceId(null);
-    setPendingFileRef(null);
+    setPendingFile(null);
+    setUploadState(sid ? { step: 'DROP_FILE', sourceId: sid } : { step: 'PICK_SOURCE' });
   };
 
   const handleColumnMapSubmit = async (sourceData: DataSourceCreate) => {
@@ -273,20 +193,16 @@ export default function Upload() {
     setError(null);
     try {
       const newSource = await createSourceMutation.mutateAsync(sourceData);
-      uploadWithFileMutation.mutate({
-        file: uploadState.file,
-        fileRef: uploadState.fileRef,
-        dataSourceId: newSource.id,
-      });
+      uploadWithFileMutation.mutate({ file: uploadState.file, dataSourceId: newSource.id });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create source');
     }
   };
 
   const handleReset = () => {
-    setUploadState({ step: 'DROP_FILE' });
+    setUploadState({ step: 'PICK_SOURCE' });
     setPendingSourceId(null);
-    setPendingFileRef(null);
+    setPendingFile(null);
     setError(null);
   };
 
@@ -294,7 +210,7 @@ export default function Upload() {
     ? sources?.find(s => s.id === pendingSourceId)?.name ?? 'Source'
     : 'Source';
 
-  const isUploading = uploadMutation.isPending || uploadWithFileMutation.isPending;
+  const isUploading = uploadWithFileMutation.isPending;
 
   return (
     <div className="scroll" style={{ height: '100%' }}>
@@ -302,7 +218,7 @@ export default function Upload() {
         <div className="fade" style={{ marginBottom: 14 }}>
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>New batch</h1>
           <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>
-            Upload a CSV/TSV. We auto-detect the source, normalize fields, embed, and block for matching.
+            Select a source, upload a CSV/TSV, and we'll normalize, embed, and block for matching.
           </div>
         </div>
 
@@ -318,11 +234,66 @@ export default function Upload() {
           </div>
         )}
 
+        {/* PICK_SOURCE */}
+        {uploadState.step === 'PICK_SOURCE' && (
+          <div className="fade" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Panel>
+              <PanelHead title="Upload to existing source" />
+              <div style={{ padding: 14 }}>
+                <label className="label" style={{ marginBottom: 6, display: 'block' }}>
+                  Source <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
+                <select
+                  className="input"
+                  value=""
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (val) setUploadState({ step: 'DROP_FILE', sourceId: val });
+                  }}
+                >
+                  <option value="">Select a source…</option>
+                  {sources?.map(source => (
+                    <option key={source.id} value={source.id}>
+                      {source.name} ({source.type})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </Panel>
+
+            <Panel>
+              <PanelHead title="Create new source from this file" />
+              <div style={{ padding: 14 }}>
+                <div style={{ fontSize: 12, color: 'var(--fg-2)', marginBottom: 10 }}>
+                  Drop a CSV to define a new data source and upload it in one step.
+                </div>
+                <DropZone onFileSelected={handleCreateFromFile} />
+              </div>
+            </Panel>
+          </div>
+        )}
+
         {/* DROP_FILE */}
         {uploadState.step === 'DROP_FILE' && (
-          <div className="fade">
-            <DropZone onFileSelected={handleFileSelected} disabled={matchSourceMutation.isPending} />
-          </div>
+          <Panel className="fade">
+            <PanelHead>
+              <span className="panel-title">
+                Upload to{' '}
+                <span style={{ color: 'var(--accent)' }}>
+                  {sources?.find(s => s.id === uploadState.sourceId)?.name ?? `Source #${uploadState.sourceId}`}
+                </span>
+              </span>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setUploadState({ step: 'PICK_SOURCE' })}
+              >
+                Change source
+              </button>
+            </PanelHead>
+            <div style={{ padding: 14 }}>
+              <DropZone onFileSelected={(file) => handleFileDropped(uploadState.sourceId, file)} disabled={isUploading} />
+            </div>
+          </Panel>
         )}
 
         {/* DETECTING */}
@@ -330,189 +301,10 @@ export default function Upload() {
           <Panel className="fade">
             <div style={{ padding: 36, textAlign: 'center' }}>
               <Spinner size={20} />
-              <div style={{ marginTop: 10, fontSize: 13, fontWeight: 500 }}>Analyzing file…</div>
+              <div style={{ marginTop: 10, fontSize: 13, fontWeight: 500 }}>Checking upload history…</div>
               <div className="mono" style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
                 {uploadState.file.name}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 6 }}>
-                Detecting columns and matching against known sources
-              </div>
-            </div>
-          </Panel>
-        )}
-
-        {/* MATCHED */}
-        {uploadState.step === 'MATCHED' && (
-          <Panel className="fade">
-            <PanelHead>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="panel-title">Source detected</span>
-                <Pill tone="ok" dot>match</Pill>
-              </div>
-              <span className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-                {uploadState.file.name}
-              </span>
-            </PanelHead>
-            <div style={{ padding: 16 }}>
-              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-                This looks like <span style={{ color: 'var(--accent)' }}>{uploadState.match.source_name}</span>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                {uploadState.match.column_match && (
-                  <Pill tone="ok" icon="check">column match</Pill>
-                )}
-                {uploadState.match.filename_match && (
-                  <Pill tone="ok" icon="check">filename match</Pill>
-                )}
-                {uploadState.match.data_overlap_pct > 0 && (
-                  <Pill tone="accent">
-                    {Math.round(uploadState.match.data_overlap_pct * 100)}% data overlap
-                  </Pill>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => handleConfirmSource(uploadState.match.source_id, uploadState.fileRef)}
-                  disabled={isUploading}
-                  className="btn btn-accent"
-                >
-                  {isUploading ? <Spinner size={10} color="#fff" /> : <span className="material-symbols-outlined" style={{ fontSize: 12 }}>check</span>}
-                  Confirm & upload
-                </button>
-                <button
-                  onClick={() => setUploadState({
-                    step: 'PICK_SOURCE',
-                    file: uploadState.file,
-                    fileRef: uploadState.fileRef,
-                    matches: uploadState.allMatches,
-                    columns: [],
-                  })}
-                  className="btn"
-                >
-                  Choose different source
-                </button>
-                <span style={{ flex: 1 }} />
-                <button onClick={handleReset} className="btn btn-ghost btn-sm">
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </Panel>
-        )}
-
-        {/* PICK_SOURCE */}
-        {uploadState.step === 'PICK_SOURCE' && (
-          <Panel className="fade">
-            <PanelHead title="Select a data source" />
-            {uploadState.matches.length === 0 ? (
-              <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
-                No compatible sources found. Create a new one below.
-              </div>
-            ) : (
-              uploadState.matches.map(match => (
-                <button
-                  key={match.source_id}
-                  onClick={() => handleConfirmSource(match.source_id, uploadState.fileRef)}
-                  disabled={isUploading}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    border: 'none',
-                    borderBottom: '1px solid var(--border-0)',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    color: 'var(--fg-0)',
-                    textAlign: 'left',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-2)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <ConfidenceTag confidence={match.confidence} />
-                  <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{match.source_name}</span>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {match.column_match && (
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--ok)' }}>columns</span>
-                    )}
-                    {match.filename_match && (
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--ok)' }}>filename</span>
-                    )}
-                    {match.data_overlap_pct > 0 && (
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--accent)' }}>
-                        {Math.round(match.data_overlap_pct * 100)}% overlap
-                      </span>
-                    )}
-                  </div>
-                  <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--fg-3)' }}>
-                    arrow_forward
-                  </span>
-                </button>
-              ))
-            )}
-
-            <button
-              onClick={() => {
-                const state = uploadState as Extract<UploadState, { step: 'PICK_SOURCE' }>;
-                const suggestedName = state.file.name
-                  .replace(/\.csv$/i, '')
-                  .replace(/[_-]/g, ' ')
-                  .replace(/\b\w/g, c => c.toUpperCase());
-
-                const goToMapColumns = async (cols: string[]) => {
-                  const type = defaultRecordType(recordTypes?.types);
-                  if (!type) {
-                    setError('No record types are available for source creation');
-                    return;
-                  }
-                  setUploadState({
-                    step: 'MAP_COLUMNS',
-                    file: state.file,
-                    fileRef: state.fileRef,
-                    columns: cols,
-                    suggestedName,
-                    type,
-                    detectedDelimiter: state.detectedDelimiter,
-                  });
-                };
-
-                if (state.columns.length > 0) {
-                  goToMapColumns(state.columns);
-                } else {
-                  const fd = new FormData();
-                  fd.append('file', state.file);
-                  api
-                    .upload<{ columns: string[] }>('/api/sources/detect-columns', fd)
-                    .then(result => goToMapColumns(result.columns))
-                    .catch(() => setError('Failed to detect columns'));
-                }
-              }}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                border: 'none',
-                borderTop: '1px solid var(--border-0)',
-                background: 'var(--accent-soft)',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                color: 'var(--accent)',
-                textAlign: 'left',
-                fontWeight: 500,
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span>
-              Create new source from this file
-            </button>
-
-            <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border-0)', textAlign: 'center' }}>
-              <button onClick={handleReset} className="btn btn-ghost btn-sm">
-                Upload a different file
-              </button>
             </div>
           </Panel>
         )}
@@ -521,7 +313,7 @@ export default function Upload() {
         {uploadState.step === 'MAP_COLUMNS' && (
           <div className="fade">
             {recordTypes && recordTypes.types.length > 0 && (
-              <Panel className="fade" style={{ marginBottom: 12 }}>
+              <Panel style={{ marginBottom: 12 }}>
                 <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <label className="label">
                     Type <span style={{ color: 'var(--danger)' }}>*</span>
@@ -575,7 +367,7 @@ export default function Upload() {
         )}
 
         {/* Recent batches — shown when idle */}
-        {(uploadState.step === 'DROP_FILE' || uploadState.step === 'PROCESSING') && (
+        {(uploadState.step === 'PICK_SOURCE' || uploadState.step === 'PROCESSING') && (
           <div className="fade" style={{ marginTop: 14 }}>
             <BatchHistory />
           </div>
