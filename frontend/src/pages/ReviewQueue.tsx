@@ -4,6 +4,10 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { api } from '../api/client';
+import { useSearchParams } from 'react-router';
+import TypeFilter from '../components/TypeFilter';
+import { useRecordTypes, useRecordType } from '../hooks/useRecordTypes';
+import { defaultType, fieldSummary } from '../utils/recordDisplay';
 import { useSearch } from '../contexts/SearchContext';
 import type { ReviewQueueResponse, ReviewActionResponse, ReviewStats, DataSource } from '../api/types';
 import Panel, { PanelHead } from '../components/ui/Panel';
@@ -79,6 +83,16 @@ export default function ReviewQueue() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { query: searchQuery } = useSearch();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { data: recordTypes } = useRecordTypes();
+  const selectedType = searchParams.get('type') ?? defaultType(recordTypes?.types);
+  const setSelectedType = (type: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('type', type);
+    setSearchParams(next);
+  };
+  const { data: recordType } = useRecordType(selectedType);
+  const summaryFieldKeys = recordType?.fields.filter(field => field.role !== 'name').map(field => field.key) ?? [];
 
   const [bucket, setBucket] = useState<BucketFilter>('pending');
   const [minConfidence, setMinConfidence] = useState(0);
@@ -97,19 +111,20 @@ export default function ReviewQueue() {
     if (minConfidence > 0) p.set('min_confidence', (minConfidence / 100).toFixed(2));
     if (sourceFilter) p.set('source_a_id', sourceFilter);
     p.set('limit', String(PAGE_SIZE));
+    p.set('type', selectedType);
     p.set('offset', String(page * PAGE_SIZE));
     return p;
-  }, [bucket, minConfidence, sourceFilter, page]);
+  }, [bucket, minConfidence, sourceFilter, page, selectedType]);
 
   const { data: queue, isLoading } = useQuery({
-    queryKey: ['review-queue', bucket, minConfidence, sourceFilter, page],
+    queryKey: ['review-queue', bucket, minConfidence, sourceFilter, page, selectedType],
     queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
     placeholderData: keepPreviousData,
   });
 
   const { data: stats } = useQuery({
-    queryKey: ['review-stats'],
-    queryFn: () => api.get<ReviewStats>('/api/review/stats'),
+    queryKey: ['review-stats', selectedType],
+    queryFn: () => api.get<ReviewStats>(`/api/review/stats?type=${selectedType}`),
   });
 
   const { data: sources } = useQuery({
@@ -122,7 +137,7 @@ export default function ReviewQueue() {
       api.post<ReviewActionResponse>(`/api/review/candidates/${id}/reject`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['review-queue'] });
-      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['review-stats', selectedType] });
     },
   });
 
@@ -137,10 +152,10 @@ export default function ReviewQueue() {
     if (!searchQuery) return queue.items;
     const q = searchQuery.toLowerCase();
     return queue.items.filter(item =>
-      item.supplier_a_name?.toLowerCase().includes(q) ||
-      item.supplier_b_name?.toLowerCase().includes(q) ||
-      item.supplier_a_source?.toLowerCase().includes(q) ||
-      item.supplier_b_source?.toLowerCase().includes(q),
+      item.record_a_name?.toLowerCase().includes(q) ||
+      item.record_b_name?.toLowerCase().includes(q) ||
+      item.record_a_source?.toLowerCase().includes(q) ||
+      item.record_b_source?.toLowerCase().includes(q),
     );
   }, [queue, searchQuery]);
 
@@ -197,6 +212,8 @@ export default function ReviewQueue() {
           <span className="pill warn" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 1 · REVIEW</span>
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Review queue</h1>
         </div>
+        {recordTypes?.types && <TypeFilter types={recordTypes.types} value={selectedType} onChange={setSelectedType} />}
+
 
         {/* ── Bucket tabs ── */}
         <div className="fade" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
@@ -263,9 +280,9 @@ export default function ReviewQueue() {
                 style={{ height: 24, fontSize: 11, padding: '0 8px', maxWidth: 200 }}
               >
                 <option value="">All sources</option>
-                {sources?.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
+                {(sources?.filter(s => s.type === selectedType) ?? []).map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
               </select>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -303,6 +320,8 @@ export default function ReviewQueue() {
             ) : filteredItems.map((item, i) => {
               const isPending = item.status === 'pending';
               const statusTone = item.status === 'confirmed' ? 'ok' : item.status === 'rejected' ? 'danger' : null;
+              const recordASummary = fieldSummary(item.record_a_fields as Record<string, unknown>, summaryFieldKeys);
+              const recordBSummary = fieldSummary(item.record_b_fields as Record<string, unknown>, summaryFieldKeys);
 
               return (
                 <div
@@ -333,19 +352,14 @@ export default function ReviewQueue() {
                     {/* ── Record A ── */}
                     <div style={{ padding: '14px 16px', borderRight: '1px solid var(--border-0)', borderLeft: '3px solid var(--accent-border)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
-                        <RecordPill short={item.supplier_a_source ?? '?'} tone="a" />
-                        {item.supplier_a_source_code && (
-                          <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
-                            {item.supplier_a_source_code}
-                          </span>
-                        )}
+                        <RecordPill short={item.record_a_source ?? '?'} tone="a" />
                       </div>
                       <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--fg-0)', lineHeight: 1.3 }}>
-                        {item.supplier_a_name || '—'}
+                        {item.record_a_name || '—'}
                       </div>
-                      {(item.supplier_a_currency || item.supplier_a_contact) && (
+                      {recordASummary && (
                         <div className="mono" style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 5 }}>
-                          {[item.supplier_a_currency, item.supplier_a_contact].filter(Boolean).join(' · ')}
+                          {recordASummary}
                         </div>
                       )}
                     </div>
@@ -366,19 +380,14 @@ export default function ReviewQueue() {
                     {/* ── Record B ── */}
                     <div style={{ padding: '14px 16px', borderRight: '1px solid var(--border-0)', borderLeft: '3px solid var(--info-border)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
-                        <RecordPill short={item.supplier_b_source ?? '?'} tone="b" />
-                        {item.supplier_b_source_code && (
-                          <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
-                            {item.supplier_b_source_code}
-                          </span>
-                        )}
+                        <RecordPill short={item.record_b_source ?? '?'} tone="b" />
                       </div>
                       <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--fg-0)', lineHeight: 1.3 }}>
-                        {item.supplier_b_name || '—'}
+                        {item.record_b_name || '—'}
                       </div>
-                      {(item.supplier_b_currency || item.supplier_b_contact) && (
+                      {recordBSummary && (
                         <div className="mono" style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 5 }}>
-                          {[item.supplier_b_currency, item.supplier_b_contact].filter(Boolean).join(' · ')}
+                          {recordBSummary}
                         </div>
                       )}
                     </div>

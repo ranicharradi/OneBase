@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { render } from '../../test/test-utils'
 import ReviewQueue from '../ReviewQueue'
 import { useSearch } from '../../contexts/SearchContext'
+import type { ReviewQueueResponse } from '../../api/types'
 
 const mockNavigate = vi.fn()
 vi.mock('react-router', async () => {
@@ -12,35 +13,45 @@ vi.mock('react-router', async () => {
   return { ...actual, useNavigate: () => mockNavigate }
 })
 
-const mockQueue = {
+const mockQueue: ReviewQueueResponse = {
   items: [
     {
       id: 1,
-      supplier_a_id: 10,
-      supplier_b_id: 20,
-      supplier_a_name: 'Acme Corp',
-      supplier_b_name: 'ACME Corporation',
-      supplier_a_source: 'SAP',
-      supplier_b_source: 'Oracle',
+      type: 'supplier',
+      record_a_id: 10,
+      record_b_id: 20,
+      record_a_name: 'Acme Corp',
+      record_b_name: 'ACME Corporation',
+      record_a_source: 'SAP',
+      record_b_source: 'Oracle',
+      record_a_fields: { currency: 'USD', contact_name: 'Alice' },
+      record_b_fields: { currency: 'USD', contact_name: 'Alicia' },
       confidence: 0.92,
       match_signals: { jaro_winkler: 0.95 },
       status: 'pending',
       group_id: 1,
       created_at: '2026-03-28T10:00:00Z',
+      reviewed_by: null,
+      reviewed_at: null,
     },
     {
       id: 2,
-      supplier_a_id: 30,
-      supplier_b_id: 40,
-      supplier_a_name: 'Beta Inc',
-      supplier_b_name: 'Beta Industries',
-      supplier_a_source: 'SAP',
-      supplier_b_source: 'Oracle',
+      type: 'supplier',
+      record_a_id: 30,
+      record_b_id: 40,
+      record_a_name: 'Beta Inc',
+      record_b_name: 'Beta Industries',
+      record_a_source: 'SAP',
+      record_b_source: 'Oracle',
+      record_a_fields: { currency: 'EUR', contact_name: 'Bob' },
+      record_b_fields: { currency: 'EUR', contact_name: 'Robert' },
       confidence: 0.75,
       match_signals: {},
       status: 'confirmed',
       group_id: 2,
       created_at: '2026-03-28T11:00:00Z',
+      reviewed_by: 'reviewer@example.com',
+      reviewed_at: '2026-03-28T11:30:00Z',
     },
   ],
   total: 2,
@@ -55,14 +66,67 @@ const mockStats = {
 }
 
 const mockSources = [
-  { id: 1, name: 'SAP', description: '', column_mapping: {}, created_at: '', updated_at: '' },
-  { id: 2, name: 'Oracle', description: '', column_mapping: {}, created_at: '', updated_at: '' },
+  {
+    id: 1,
+    name: 'SAP',
+    type: 'supplier',
+    description: '',
+    file_format: 'csv',
+    delimiter: ',',
+    column_mapping: {},
+    filename_pattern: null,
+    created_at: '',
+    updated_at: '',
+  },
+  {
+    id: 2,
+    name: 'Oracle',
+    type: 'supplier',
+    description: '',
+    file_format: 'csv',
+    delimiter: ',',
+    column_mapping: {},
+    filename_pattern: null,
+    created_at: '',
+    updated_at: '',
+  },
 ]
+
+const mockRecordTypes = {
+  types: [{ key: 'supplier', label: 'Supplier', field_count: 3 }],
+}
+
+const mockSupplierType = {
+  key: 'supplier',
+  label: 'Supplier',
+  fields: [
+    { key: 'supplier_name', label: 'Supplier Name', role: 'name', required: true },
+    { key: 'currency', label: 'Currency', role: 'enum', required: false },
+    { key: 'contact_name', label: 'Contact', role: 'extra', required: false },
+  ],
+  signals: [],
+}
 
 function setupFetch(queueOverride?: Partial<typeof mockQueue>) {
   const queue = { ...mockQueue, ...queueOverride }
   vi.spyOn(global, 'fetch').mockImplementation((url) => {
     const urlStr = String(url)
+    if (urlStr.includes('/api/record-types/supplier')) {
+      return Promise.resolve(
+        new Response(JSON.stringify(mockSupplierType), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    }
+    if (urlStr.includes('/api/record-types')) {
+      return Promise.resolve(
+        new Response(JSON.stringify(mockRecordTypes), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    }
     if (urlStr.includes('/api/review/queue')) {
       return Promise.resolve(
         new Response(JSON.stringify(queue), {
@@ -130,17 +194,22 @@ describe('ReviewQueue page', () => {
   it('renders confidence values with correct tone colors', async () => {
     const lowConfItem = {
       id: 3,
-      supplier_a_id: 50,
-      supplier_b_id: 60,
-      supplier_a_name: 'Gamma Ltd',
-      supplier_b_name: 'Gamma LLC',
-      supplier_a_source: 'SAP',
-      supplier_b_source: 'Oracle',
+      type: 'supplier',
+      record_a_id: 50,
+      record_b_id: 60,
+      record_a_name: 'Gamma Ltd',
+      record_b_name: 'Gamma LLC',
+      record_a_source: 'SAP',
+      record_b_source: 'Oracle',
+      record_a_fields: { currency: 'GBP', contact_name: 'Gina' },
+      record_b_fields: { currency: 'GBP', contact_name: 'Georgina' },
       confidence: 0.40,
       match_signals: {},
       status: 'pending',
       group_id: 3,
       created_at: '2026-03-28T12:00:00Z',
+      reviewed_by: null,
+      reviewed_at: null,
     }
     setupFetch({ items: [...mockQueue.items, lowConfItem], total: 3 })
     render(<ReviewQueue />)
