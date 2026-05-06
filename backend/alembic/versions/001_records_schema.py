@@ -28,9 +28,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
         sa.Column("username", sa.String(100), unique=True, nullable=False),
         sa.Column("password_hash", sa.String(255), nullable=False),
-        sa.Column("role", sa.String(20), nullable=False, server_default="reviewer"),
+        sa.Column("is_active", sa.Boolean, server_default=sa.true(), nullable=False),
+        sa.Column("role", sa.String(20), nullable=False, server_default="viewer"),
         sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
 
     # data_sources — gains `type` (record-type key)
