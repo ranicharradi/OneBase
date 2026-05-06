@@ -8,9 +8,11 @@ import type {
   FieldComparison,
   MatchDetailResponse,
   ReviewActionResponse,
-  SupplierDetail,
+  RecordDetail,
 } from '../api/types';
 import { SIGNAL_CONFIG } from '../utils/signals';
+import { useRecordType } from '../hooks/useRecordTypes';
+import { fieldValue } from '../utils/recordDisplay';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
 import IdChip from '../components/ui/IdChip';
@@ -49,6 +51,8 @@ export default function ReviewDetail() {
     queryFn: () => api.get<MatchDetailResponse>(`/api/review/candidates/${id}`),
     enabled: !!id,
   });
+
+  const { data: recordType } = useRecordType(detail?.type);
 
   const isPending = detail?.status === 'pending';
 
@@ -125,7 +129,7 @@ export default function ReviewDetail() {
     );
   }
 
-  const { supplier_a, supplier_b, field_comparisons, match_signals } = detail;
+  const { record_a, record_b, field_comparisons, match_signals } = detail;
   const tone = confidenceTone(detail.confidence);
   const conflictCount = field_comparisons.filter(f => f.is_conflict).length;
 
@@ -142,9 +146,9 @@ export default function ReviewDetail() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <IdChip style={{ fontSize: 13, padding: '3px 8px' }}>#{detail.id}</IdChip>
             <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, minWidth: 0 }}>
-              {supplier_a.name || `Record #${supplier_a.id}`}{' '}
+              {record_a.name || `Record #${record_a.id}`}{' '}
               <span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>↔</span>{' '}
-              {supplier_b.name || `Record #${supplier_b.id}`}
+              {record_b.name || `Record #${record_b.id}`}
             </h1>
             <Pill tone={tone} dot>
               {detail.confidence.toFixed(3)} confidence
@@ -164,16 +168,16 @@ export default function ReviewDetail() {
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8, fontSize: 11, color: 'var(--fg-2)' }}>
-            {supplier_a.data_source_name && (
+            {record_a.data_source_name && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <SourcePill short={supplier_a.data_source_name} />
-                <span className="mono">{supplier_a.source_code || `#${supplier_a.id}`}</span>
+                <SourcePill short={record_a.data_source_name} />
+                <span className="mono">{recordType?.fields.find(f => f.role === 'code') ? fieldValue(record_a.fields, recordType.fields.find(f => f.role === 'code')!.key) : `#${record_a.id}`}</span>
               </span>
             )}
-            {supplier_b.data_source_name && (
+            {record_b.data_source_name && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <SourcePill short={supplier_b.data_source_name} />
-                <span className="mono">{supplier_b.source_code || `#${supplier_b.id}`}</span>
+                <SourcePill short={record_b.data_source_name} />
+                <span className="mono">{recordType?.fields.find(f => f.role === 'code') ? fieldValue(record_b.fields, recordType.fields.find(f => f.role === 'code')!.key) : `#${record_b.id}`}</span>
               </span>
             )}
           </div>
@@ -240,13 +244,13 @@ export default function ReviewDetail() {
           </PanelHead>
 
           {layout === 'sideBySide' && (
-            <SideBySideLayout comparisons={field_comparisons} supplierA={supplier_a} supplierB={supplier_b} />
+            <SideBySideLayout comparisons={field_comparisons} recordA={record_a} recordB={record_b} />
           )}
           {layout === 'stacked' && (
-            <StackedLayout comparisons={field_comparisons} supplierA={supplier_a} supplierB={supplier_b} />
+            <StackedLayout comparisons={field_comparisons} recordA={record_a} recordB={record_b} />
           )}
           {layout === 'diff' && (
-            <DiffLayout comparisons={field_comparisons} supplierA={supplier_a} supplierB={supplier_b} />
+            <DiffLayout comparisons={field_comparisons} recordA={record_a} recordB={record_b} />
           )}
         </Panel>
 
@@ -332,8 +336,8 @@ export default function ReviewDetail() {
 
 interface LayoutProps {
   comparisons: FieldComparison[];
-  supplierA: SupplierDetail;
-  supplierB: SupplierDetail;
+  recordA: RecordDetail;
+  recordB: RecordDetail;
 }
 
 function StatusPill({ comp }: { comp: FieldComparison }) {
@@ -343,7 +347,7 @@ function StatusPill({ comp }: { comp: FieldComparison }) {
   return null;
 }
 
-function SideBySideLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
+function SideBySideLayout({ comparisons, recordA, recordB }: LayoutProps) {
   return (
     <table className="table">
       <thead>
@@ -351,15 +355,15 @@ function SideBySideLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
           <th style={{ width: 180 }}>Field</th>
           <th style={{ borderLeft: '2px solid var(--accent-border)', color: 'var(--accent)' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {supplierA.data_source_name && <SourcePill short={supplierA.data_source_name} />}
-              {supplierA.name || `#${supplierA.id}`}
+              {recordA.data_source_name && <SourcePill short={recordA.data_source_name} />}
+              {recordA.name || `#${recordA.id}`}
             </span>
           </th>
           <th style={{ width: 40 }} />
           <th style={{ borderLeft: '2px solid var(--info-border)', color: 'var(--info)' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {supplierB.data_source_name && <SourcePill short={supplierB.data_source_name} />}
-              {supplierB.name || `#${supplierB.id}`}
+              {recordB.data_source_name && <SourcePill short={recordB.data_source_name} />}
+              {recordB.name || `#${recordB.id}`}
             </span>
           </th>
           <th style={{ width: 90 }}>Status</th>
@@ -399,7 +403,7 @@ function SideBySideLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
   );
 }
 
-function StackedLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
+function StackedLayout({ comparisons, recordA, recordB }: LayoutProps) {
   return (
     <div style={{ padding: 12 }}>
       {comparisons.map(f => (
@@ -412,7 +416,7 @@ function StackedLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
             <StatusPill comp={f} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {([['a', supplierA, f.value_a] as const, ['b', supplierB, f.value_b] as const]).map(([key, sup, val]) => (
+            {([['a', recordA, f.value_a] as const, ['b', recordB, f.value_b] as const]).map(([key, sup, val]) => (
               <div key={key} style={{
                 padding: '8px 10px',
                 border: `1px solid ${key === 'a' ? 'var(--accent-border)' : 'var(--info-border)'}`,
@@ -434,7 +438,7 @@ function StackedLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
   );
 }
 
-function DiffLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
+function DiffLayout({ comparisons, recordA, recordB }: LayoutProps) {
   return (
     <div>
       {comparisons.map((f, i) => (
@@ -454,7 +458,7 @@ function DiffLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
               display: 'flex', alignItems: 'center', gap: 8,
             }}>
               <span className="mono" style={{ width: 20, color: 'var(--danger)', fontWeight: 600 }}>{f.is_conflict ? '−' : ' '}</span>
-              {supplierA.data_source_name && <SourcePill short={supplierA.data_source_name} />}
+              {recordA.data_source_name && <SourcePill short={recordA.data_source_name} />}
               <span style={{ color: 'var(--fg-0)' }}>{f.value_a || '∅'}</span>
             </div>
             <div style={{
@@ -464,7 +468,7 @@ function DiffLayout({ comparisons, supplierA, supplierB }: LayoutProps) {
               display: 'flex', alignItems: 'center', gap: 8,
             }}>
               <span className="mono" style={{ width: 20, color: 'var(--ok)', fontWeight: 600 }}>{f.is_conflict ? '+' : ' '}</span>
-              {supplierB.data_source_name && <SourcePill short={supplierB.data_source_name} />}
+              {recordB.data_source_name && <SourcePill short={recordB.data_source_name} />}
               <span style={{ color: 'var(--fg-0)' }}>{f.value_b || '∅'}</span>
             </div>
           </div>

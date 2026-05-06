@@ -8,9 +8,11 @@ import type {
   FieldComparison,
   MatchDetailResponse,
   ReviewActionResponse,
-  SupplierDetail,
+  RecordDetail,
 } from '../api/types';
 import { SIGNAL_CONFIG } from '../utils/signals';
+import { useRecordType } from '../hooks/useRecordTypes';
+import { fieldValue } from '../utils/recordDisplay';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
 import IdChip from '../components/ui/IdChip';
@@ -51,6 +53,8 @@ export default function MergeDetail() {
     enabled: !!id,
   });
 
+  const { data: recordType } = useRecordType(detail?.type);
+
   const isConfirmed = detail?.status === 'confirmed';
 
   const invalidate = () => {
@@ -62,14 +66,14 @@ export default function MergeDetail() {
   };
 
   const mergeMutation = useMutation({
-    mutationFn: (fieldSelections: { field: string; chosen_supplier_id: number }[]) =>
+    mutationFn: (fieldSelections: { field: string; chosen_record_id: number }[]) =>
       api.post<ReviewActionResponse>(`/api/review/candidates/${id}/merge`, {
         field_selections: fieldSelections,
       }),
     onSuccess: (result) => {
       invalidate();
-      if (result.unified_supplier_id) {
-        navigate(`/unified/${result.unified_supplier_id}`);
+      if (result.unified_record_id) {
+        navigate(`/unified/${result.unified_record_id}`);
       } else {
         navigate('/merge');
       }
@@ -88,9 +92,9 @@ export default function MergeDetail() {
 
   const handleMerge = () => {
     if (!detail) return;
-    const fieldSelections = Object.entries(selections).map(([field, chosen_supplier_id]) => ({
+    const fieldSelections = Object.entries(selections).map(([field, chosen_record_id]) => ({
       field,
-      chosen_supplier_id,
+      chosen_record_id,
     }));
     setActionInFlight('merge');
     mergeMutation.mutate(fieldSelections);
@@ -145,7 +149,7 @@ export default function MergeDetail() {
     );
   }
 
-  const { supplier_a, supplier_b, field_comparisons, match_signals } = detail;
+  const { record_a, record_b, field_comparisons, match_signals } = detail;
   const tone = confidenceTone(detail.confidence);
   const conflicts = field_comparisons.filter(f => f.is_conflict);
   const resolvedCount = conflicts.filter(f => selections[f.field] !== undefined).length;
@@ -165,9 +169,9 @@ export default function MergeDetail() {
             <span className="pill accent" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 2 · MERGE</span>
             <IdChip style={{ fontSize: 13, padding: '3px 8px' }}>#{detail.id}</IdChip>
             <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, minWidth: 0 }}>
-              {supplier_a.name || `Record #${supplier_a.id}`}{' '}
+              {record_a.name || `Record #${record_a.id}`}{' '}
               <span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>↔</span>{' '}
-              {supplier_b.name || `Record #${supplier_b.id}`}
+              {record_b.name || `Record #${record_b.id}`}
             </h1>
             <Pill tone={tone} dot>
               {detail.confidence.toFixed(3)} confidence
@@ -196,16 +200,16 @@ export default function MergeDetail() {
             </div>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 6, fontSize: 11, color: 'var(--fg-2)' }}>
-            {supplier_a.data_source_name && (
+            {record_a.data_source_name && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <SourcePill short={supplier_a.data_source_name} />
-                <span className="mono">{supplier_a.source_code || `#${supplier_a.id}`}</span>
+                <SourcePill short={record_a.data_source_name} />
+                <span className="mono">{recordType?.fields.find(f => f.role === 'code') ? fieldValue(record_a.fields, recordType.fields.find(f => f.role === 'code')!.key) : `#${record_a.id}`}</span>
               </span>
             )}
-            {supplier_b.data_source_name && (
+            {record_b.data_source_name && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <SourcePill short={supplier_b.data_source_name} />
-                <span className="mono">{supplier_b.source_code || `#${supplier_b.id}`}</span>
+                <SourcePill short={record_b.data_source_name} />
+                <span className="mono">{recordType?.fields.find(f => f.role === 'code') ? fieldValue(record_b.fields, recordType.fields.find(f => f.role === 'code')!.key) : `#${record_b.id}`}</span>
               </span>
             )}
           </div>
@@ -278,8 +282,8 @@ export default function MergeDetail() {
           {layout === 'sideBySide' && (
             <SideBySideLayout
               comparisons={field_comparisons}
-              supplierA={supplier_a}
-              supplierB={supplier_b}
+              recordA={record_a}
+              recordB={record_b}
               selections={selections}
               onSelect={isConfirmed ? (field, id) => setSelections(s => ({ ...s, [field]: id })) : undefined}
             />
@@ -287,8 +291,8 @@ export default function MergeDetail() {
           {layout === 'stacked' && (
             <StackedLayout
               comparisons={field_comparisons}
-              supplierA={supplier_a}
-              supplierB={supplier_b}
+              recordA={record_a}
+              recordB={record_b}
               selections={selections}
               onSelect={isConfirmed ? (field, id) => setSelections(s => ({ ...s, [field]: id })) : undefined}
             />
@@ -296,8 +300,8 @@ export default function MergeDetail() {
           {layout === 'diff' && (
             <DiffLayout
               comparisons={field_comparisons}
-              supplierA={supplier_a}
-              supplierB={supplier_b}
+              recordA={record_a}
+              recordB={record_b}
               selections={selections}
               onSelect={isConfirmed ? (field, id) => setSelections(s => ({ ...s, [field]: id })) : undefined}
             />
@@ -395,10 +399,10 @@ export default function MergeDetail() {
 
 interface LayoutProps {
   comparisons: FieldComparison[];
-  supplierA: SupplierDetail;
-  supplierB: SupplierDetail;
+  recordA: RecordDetail;
+  recordB: RecordDetail;
   selections: Record<string, number>;
-  onSelect?: (field: string, supplierId: number) => void;
+  onSelect?: (field: string, recordId: number) => void;
 }
 
 function StatusPill({ comp }: { comp: FieldComparison }) {
@@ -433,7 +437,7 @@ function ChoiceBtn({
   );
 }
 
-function SideBySideLayout({ comparisons, supplierA, supplierB, selections, onSelect }: LayoutProps) {
+function SideBySideLayout({ comparisons, recordA, recordB, selections, onSelect }: LayoutProps) {
   return (
     <table className="table">
       <thead>
@@ -441,15 +445,15 @@ function SideBySideLayout({ comparisons, supplierA, supplierB, selections, onSel
           <th style={{ width: 180 }}>Field</th>
           <th style={{ borderLeft: '2px solid var(--accent-border)', color: 'var(--accent)' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {supplierA.data_source_name && <SourcePill short={supplierA.data_source_name} />}
-              {supplierA.name || `#${supplierA.id}`}
+              {recordA.data_source_name && <SourcePill short={recordA.data_source_name} />}
+              {recordA.name || `#${recordA.id}`}
             </span>
           </th>
           <th style={{ width: 40 }} />
           <th style={{ borderLeft: '2px solid var(--info-border)', color: 'var(--info)' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {supplierB.data_source_name && <SourcePill short={supplierB.data_source_name} />}
-              {supplierB.name || `#${supplierB.id}`}
+              {recordB.data_source_name && <SourcePill short={recordB.data_source_name} />}
+              {recordB.name || `#${recordB.id}`}
             </span>
           </th>
           <th style={{ width: 90 }}>Status</th>
@@ -471,9 +475,9 @@ function SideBySideLayout({ comparisons, supplierA, supplierB, selections, onSel
                   </span>
                   {f.is_conflict && onSelect && (
                     <ChoiceBtn
-                      chosen={selections[f.field] === supplierA.id}
+                      chosen={selections[f.field] === recordA.id}
                       active={isSelected}
-                      onClick={() => onSelect(f.field, supplierA.id)}
+                      onClick={() => onSelect(f.field, recordA.id)}
                     >
                       Use A
                     </ChoiceBtn>
@@ -493,9 +497,9 @@ function SideBySideLayout({ comparisons, supplierA, supplierB, selections, onSel
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {f.is_conflict && onSelect && (
                     <ChoiceBtn
-                      chosen={selections[f.field] === supplierB.id}
+                      chosen={selections[f.field] === recordB.id}
                       active={isSelected}
-                      onClick={() => onSelect(f.field, supplierB.id)}
+                      onClick={() => onSelect(f.field, recordB.id)}
                     >
                       Use B
                     </ChoiceBtn>
@@ -514,7 +518,7 @@ function SideBySideLayout({ comparisons, supplierA, supplierB, selections, onSel
   );
 }
 
-function StackedLayout({ comparisons, supplierA, supplierB, selections, onSelect }: LayoutProps) {
+function StackedLayout({ comparisons, recordA, recordB, selections, onSelect }: LayoutProps) {
   return (
     <div style={{ padding: 12 }}>
       {comparisons.map(f => {
@@ -529,7 +533,7 @@ function StackedLayout({ comparisons, supplierA, supplierB, selections, onSelect
               <StatusPill comp={f} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {([['a', supplierA, f.value_a] as const, ['b', supplierB, f.value_b] as const]).map(([key, sup, val]) => {
+              {([['a', recordA, f.value_a] as const, ['b', recordB, f.value_b] as const]).map(([key, sup, val]) => {
                 const chosen = f.is_conflict && selections[f.field] === sup.id;
                 return (
                   <div
@@ -570,7 +574,7 @@ function StackedLayout({ comparisons, supplierA, supplierB, selections, onSelect
   );
 }
 
-function DiffLayout({ comparisons, supplierA, supplierB, selections, onSelect }: LayoutProps) {
+function DiffLayout({ comparisons, recordA, recordB, selections, onSelect }: LayoutProps) {
   return (
     <div>
       {comparisons.map((f, i) => {
@@ -585,8 +589,8 @@ function DiffLayout({ comparisons, supplierA, supplierB, selections, onSelect }:
               <StatusPill comp={f} />
             </div>
             <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, background: 'var(--bg-0)', border: '1px solid var(--border-0)', borderRadius: 4, overflow: 'hidden' }}>
-              {([['a', supplierA, f.value_a, f.is_conflict ? '−' : ' ', f.is_conflict ? 'var(--danger)' : 'var(--border-0)', f.is_conflict ? 'var(--danger-soft)' : 'transparent'] as const,
-                 ['b', supplierB, f.value_b, f.is_conflict ? '+' : ' ', f.is_conflict ? 'var(--ok)' : 'var(--border-0)', f.is_conflict ? 'var(--ok-soft)' : 'transparent'] as const]).map(([key, sup, val, symbol, borderColor, bg]) => {
+              {([['a', recordA, f.value_a, f.is_conflict ? '−' : ' ', f.is_conflict ? 'var(--danger)' : 'var(--border-0)', f.is_conflict ? 'var(--danger-soft)' : 'transparent'] as const,
+                 ['b', recordB, f.value_b, f.is_conflict ? '+' : ' ', f.is_conflict ? 'var(--ok)' : 'var(--border-0)', f.is_conflict ? 'var(--ok-soft)' : 'transparent'] as const]).map(([key, sup, val, symbol, borderColor, bg]) => {
                 const chosen = f.is_conflict && selections[f.field] === sup.id;
                 return (
                   <div
