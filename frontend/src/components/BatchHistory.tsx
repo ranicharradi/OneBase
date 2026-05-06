@@ -9,6 +9,7 @@ import type { PillTone } from './ui/Pill';
 
 interface BatchHistoryProps {
   dataSourceId?: number;
+  type?: string;
 }
 
 const STATUS_TONES: Record<string, PillTone> = {
@@ -38,17 +39,18 @@ function formatDate(dateStr: string): string {
   });
 }
 
-export default function BatchHistory({ dataSourceId }: BatchHistoryProps) {
+export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) {
   const queryClient = useQueryClient();
 
   const { data: batches, isLoading, error } = useQuery({
-    queryKey: ['batches', dataSourceId ?? 'all'],
-    queryFn: () =>
-      api.get<BatchResponse[]>(
-        dataSourceId
-          ? `/api/import/batches?data_source_id=${dataSourceId}`
-          : '/api/import/batches',
-      ),
+    queryKey: ['batches', dataSourceId ?? 'all', type],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (dataSourceId) params.set('data_source_id', String(dataSourceId));
+      else if (type) params.set('type', type);
+      const qs = params.toString();
+      return api.get<BatchResponse[]>(qs ? `/api/import/batches?${qs}` : '/api/import/batches');
+    },
   });
 
   const deleteMutation = useMutation({
