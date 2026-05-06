@@ -9,7 +9,7 @@ import pytest
 from app.models.batch import ImportBatch
 from app.models.enums import BatchStatus
 from app.models.source import DataSource
-from app.models.staging import StagedSupplier
+from app.models.staging import StagedRecord
 
 
 def _mock_task_session(db):
@@ -37,6 +37,7 @@ class TestRunIngestion:
         """Helper: create a data source and import batch."""
         source = DataSource(
             name="Test Source",
+            type="supplier",
             file_format="csv",
             delimiter=";",
             column_mapping={
@@ -61,7 +62,7 @@ class TestRunIngestion:
 
     @patch("app.services.ingestion.compute_embeddings")
     def test_creates_staged_suppliers_with_raw_data(self, mock_embed, test_db):
-        """Ingestion creates StagedSupplier records with raw_data JSONB."""
+        """Ingestion creates StagedRecord records with raw_data JSONB."""
         mock_embed.return_value = np.zeros((3, 384), dtype=np.float32)
 
         source, batch = self._create_source_and_batch(test_db)
@@ -72,14 +73,14 @@ class TestRunIngestion:
 
         assert row_count == 3
 
-        suppliers = test_db.query(StagedSupplier).filter(StagedSupplier.import_batch_id == batch.id).all()
-        assert len(suppliers) == 3
+        records = test_db.query(StagedRecord).filter(StagedRecord.import_batch_id == batch.id).all()
+        assert len(records) == 3
 
-        # Check first supplier
-        s1 = next(s for s in suppliers if s.source_code == "V001")
+        # Check first record — supplier fields now in JSONB
+        s1 = next(s for s in records if s.fields.get("supplier_code") == "V001")
         assert s1.name == "Acme Corp SARL"
-        assert s1.short_name == "ACME"
-        assert s1.currency == "EUR"
+        assert s1.fields.get("short_name") == "ACME"
+        assert s1.fields.get("currency") == "EUR"
         assert s1.raw_data is not None
         assert "VendorCode" in s1.raw_data
 
@@ -94,9 +95,9 @@ class TestRunIngestion:
 
         run_ingestion(test_db, batch.id, SAMPLE_CSV)
 
-        suppliers = test_db.query(StagedSupplier).filter(StagedSupplier.import_batch_id == batch.id).all()
+        records = test_db.query(StagedRecord).filter(StagedRecord.import_batch_id == batch.id).all()
 
-        s1 = next(s for s in suppliers if s.source_code == "V001")
+        s1 = next(s for s in records if s.fields.get("supplier_code") == "V001")
         # "Acme Corp SARL" -> normalized: "ACME" (CORP and SARL removed)
         assert s1.normalized_name is not None
         assert s1.normalized_name == "ACME"
@@ -176,6 +177,7 @@ class TestProcessUploadIdempotency:
         """Helper: create a data source and import batch with a given status."""
         source = DataSource(
             name="Test Source",
+            type="supplier",
             file_format="csv",
             delimiter=";",
             column_mapping={
@@ -281,6 +283,7 @@ class TestFileCleanupOnFailure:
 
         source = DataSource(
             name="Test Source",
+            type="supplier",
             file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
@@ -322,6 +325,7 @@ class TestFileCleanupOnFailure:
 
         source = DataSource(
             name="Test Source",
+            type="supplier",
             file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},

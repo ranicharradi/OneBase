@@ -7,6 +7,7 @@ VALID_SOURCE = {
     "description": "SAP supplier export",
     "file_format": "csv",
     "delimiter": ";",
+    "type": "supplier",
     "column_mapping": {
         "supplier_name": "Name1",
         "supplier_code": "VendorCode",
@@ -163,6 +164,7 @@ class TestDeleteBatchEndpoint:
 
         source = DataSource(
             name="Test Source",
+            type="supplier",
             file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1"},
@@ -197,6 +199,7 @@ class TestDeleteBatchEndpoint:
 
         source = DataSource(
             name="Test Source",
+            type="supplier",
             file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1"},
@@ -230,6 +233,7 @@ class TestReuploadGuard:
             name="Test Source",
             file_format="csv",
             delimiter=";",
+            type="supplier",
             column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
         )
         test_db.add(source)
@@ -268,6 +272,7 @@ class TestReuploadGuard:
             name="Test Source",
             file_format="csv",
             delimiter=";",
+            type="supplier",
             column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
         )
         test_db.add(source)
@@ -305,6 +310,7 @@ class TestReuploadGuard:
             name="Test Source",
             file_format="csv",
             delimiter=";",
+            type="supplier",
             column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
         )
         test_db.add(source)
