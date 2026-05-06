@@ -168,18 +168,25 @@ export default function ReviewDetail() {
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8, fontSize: 11, color: 'var(--fg-2)' }}>
-            {record_a.data_source_name && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <SourcePill short={record_a.data_source_name} />
-                <span className="mono">{recordType?.fields.find(f => f.role === 'code') ? fieldValue(record_a.fields, recordType.fields.find(f => f.role === 'code')!.key) : `#${record_a.id}`}</span>
-              </span>
-            )}
-            {record_b.data_source_name && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <SourcePill short={record_b.data_source_name} />
-                <span className="mono">{recordType?.fields.find(f => f.role === 'code') ? fieldValue(record_b.fields, recordType.fields.find(f => f.role === 'code')!.key) : `#${record_b.id}`}</span>
-              </span>
-            )}
+            {(() => {
+              const codeField = recordType?.fields.find(f => f.role === 'code');
+              return (
+                <>
+                  {record_a.data_source_name && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <SourcePill short={record_a.data_source_name} />
+                      <span className="mono">{codeField ? fieldValue(record_a.fields, codeField.key) : `#${record_a.id}`}</span>
+                    </span>
+                  )}
+                  {record_b.data_source_name && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <SourcePill short={record_b.data_source_name} />
+                      <span className="mono">{codeField ? fieldValue(record_b.fields, codeField.key) : `#${record_b.id}`}</span>
+                    </span>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
 

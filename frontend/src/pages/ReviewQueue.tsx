@@ -90,6 +90,8 @@ export default function ReviewQueue() {
     const next = new URLSearchParams(searchParams);
     next.set('type', type);
     setSearchParams(next);
+    setSourceFilter('');
+    setPage(0);
   };
   const { data: recordType } = useRecordType(selectedType);
   const summaryFieldKeys = recordType?.fields.filter(field => field.role !== 'name').map(field => field.key) ?? [];

@@ -1,4 +1,4 @@
-// ── Unified Supplier Detail — terminal aesthetic ──
+// ── Unified Record Detail — terminal aesthetic ──
 
 import { useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';

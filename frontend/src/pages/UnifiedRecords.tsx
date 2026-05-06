@@ -1,4 +1,4 @@
-// ── Unified Suppliers — terminal aesthetic, browse unified records ──
+// ── Unified Records — terminal aesthetic, browse unified records ──
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';

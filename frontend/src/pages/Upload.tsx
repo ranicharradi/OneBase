@@ -132,19 +132,25 @@ export default function Upload() {
         }
         setPendingSourceId(sourceId);
         setPendingFile(file);
+        setUploadState({ step: 'DROP_FILE', sourceId });
         setShowReUpload(true);
         return;
       }
     } catch {
       // proceed with upload if check fails
     }
-    uploadWithFileMutation.mutate({ file, dataSourceId: sourceId });
+    await uploadWithFileMutation.mutateAsync({ file, dataSourceId: sourceId });
   }, [uploadWithFileMutation]);
 
   const handleFileDropped = useCallback(async (sourceId: number, file: File) => {
     setError(null);
     setUploadState({ step: 'DETECTING', sourceId, file });
-    await checkAndUpload(sourceId, file);
+    try {
+      await checkAndUpload(sourceId, file);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+      setUploadState({ step: 'DROP_FILE', sourceId });
+    }
   }, [checkAndUpload]);
 
   const handleCreateFromFile = useCallback(async (file: File) => {
