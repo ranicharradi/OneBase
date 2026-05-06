@@ -7,14 +7,15 @@ class TestMLModelVersion:
     def test_create_model_version(self, test_db):
         mv = MLModelVersion(
             model_type="scorer",
+            record_type="supplier",
             filename="ml_models/scorer_20260326.lgbm",
             feature_names=[
-                "jaro_winkler",
-                "token_jaccard",
-                "embedding_cosine",
-                "short_name_match",
-                "currency_match",
-                "contact_match",
+                "jaro_winkler:supplier_name",
+                "token_jaccard:supplier_name",
+                "embedding_cosine:supplier_name",
+                "jaro_winkler:short_name",
+                "exact_ci:currency",
+                "jaro_winkler:contact_name",
                 "name_length_ratio",
                 "token_count_diff",
             ],
@@ -28,14 +29,16 @@ class TestMLModelVersion:
 
         assert mv.id is not None
         assert mv.model_type == "scorer"
+        assert mv.record_type == "supplier"
         assert mv.is_active is True
-        assert mv.feature_names[0] == "jaro_winkler"
+        assert mv.feature_names[0] == "jaro_winkler:supplier_name"
         assert mv.metrics["f1"] == 0.90
         assert mv.created_at is not None
 
     def test_active_flag_default_false(self, test_db):
         mv = MLModelVersion(
             model_type="blocker",
+            record_type="supplier",
             filename="ml_models/blocker_20260326.lgbm",
             feature_names=["jaro_winkler", "token_jaccard", "name_length_ratio"],
             metrics={"recall": 0.98, "threshold": 0.12},
@@ -49,16 +52,18 @@ class TestMLModelVersion:
     def test_query_active_model(self, test_db):
         old = MLModelVersion(
             model_type="scorer",
+            record_type="supplier",
             filename="ml_models/scorer_old.lgbm",
-            feature_names=["jaro_winkler"],
+            feature_names=["jaro_winkler:supplier_name"],
             metrics={"f1": 0.80},
             sample_count=100,
             is_active=False,
         )
         new = MLModelVersion(
             model_type="scorer",
+            record_type="supplier",
             filename="ml_models/scorer_new.lgbm",
-            feature_names=["jaro_winkler"],
+            feature_names=["jaro_winkler:supplier_name"],
             metrics={"f1": 0.90},
             sample_count=200,
             is_active=True,
@@ -68,7 +73,11 @@ class TestMLModelVersion:
 
         active = (
             test_db.query(MLModelVersion)
-            .filter(MLModelVersion.model_type == "scorer", MLModelVersion.is_active == True)  # noqa: E712
+            .filter(
+                MLModelVersion.model_type == "scorer",
+                MLModelVersion.record_type == "supplier",
+                MLModelVersion.is_active == True,  # noqa: E712
+            )
             .first()
         )
         assert active is not None
