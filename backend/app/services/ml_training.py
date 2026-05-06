@@ -85,6 +85,11 @@ def scorer_feature_names(record_type_key: str) -> list[str]:
     return signal_features + ENGINEERED_FEATURE_NAMES
 
 
+def _safe_lgbm_feature_names(feature_names: list[str]) -> list[str]:
+    """Sanitize feature names for LightGBM; colons and other special JSON chars are not allowed."""
+    return [name.replace(":", "__") for name in feature_names]
+
+
 def _build_scorer_row(
     record_a: StagedRecord,
     record_b: StagedRecord,
@@ -199,8 +204,10 @@ def train_model(
     """Train a LightGBM binary classifier."""
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
 
-    train_data = lgb.Dataset(X_train, label=y_train, feature_name=feature_names)
-    valid_data = lgb.Dataset(X_test, label=y_test, feature_name=feature_names, reference=train_data)
+    # LightGBM rejects special JSON characters (e.g. colons) in feature names
+    safe_names = _safe_lgbm_feature_names(feature_names)
+    train_data = lgb.Dataset(X_train, label=y_train, feature_name=safe_names)
+    valid_data = lgb.Dataset(X_test, label=y_test, feature_name=safe_names, reference=train_data)
 
     model = lgb.train(
         {k: v for k, v in LGB_PARAMS.items() if k != "n_estimators"},

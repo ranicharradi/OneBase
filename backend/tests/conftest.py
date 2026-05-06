@@ -12,6 +12,8 @@ from app.main import app
 from app.models.user import User
 
 settings.jwt_secret = "test-jwt-secret-with-at-least-32-bytes"
+settings.admin_username = None
+settings.admin_password = None
 
 # Use SQLite in-memory for fast, isolated unit tests.
 # StaticPool reuses a single connection so CREATE/DROP TABLE are immediately

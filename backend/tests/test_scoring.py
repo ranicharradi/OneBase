@@ -19,7 +19,7 @@ def _make_record_obj(**kwargs):
     """Create a record-like object for scoring tests (no DB needed).
 
     Uses SimpleNamespace to avoid SQLAlchemy instrumentation issues.
-    Fields that were typed columns on the old StagedSupplier are now in `fields` JSONB.
+    Fields that were typed columns on the old staging model are now in `fields` JSONB.
     """
     defaults = {
         "id": 1,

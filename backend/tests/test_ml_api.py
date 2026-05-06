@@ -6,18 +6,18 @@ from unittest.mock import patch
 import pytest
 
 from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
+from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
-from app.models.staging import StagedSupplier
+from app.models.staging import StagedRecord
 
 pytestmark = pytest.mark.slow
 
 
 def _seed_reviewed(db, count=60, confirm_ratio=0.5):
     """Seed reviewed candidates for training."""
-    s1 = DataSource(name="S1", file_format="csv", column_mapping={"supplier_name": "n"})
-    s2 = DataSource(name="S2", file_format="csv", column_mapping={"supplier_name": "n"})
+    s1 = DataSource(name="S1", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
+    s2 = DataSource(name="S2", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
     db.add_all([s1, s2])
     db.flush()
     b1 = ImportBatch(
@@ -35,39 +35,42 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
         name_b = f"CORPORATION {i}" if i < num_confirmed else f"BETA {i}"
         status = CandidateStatus.CONFIRMED if i < num_confirmed else CandidateStatus.REJECTED
 
-        sa = StagedSupplier(
+        sa = StagedRecord(
+            type="supplier",
             import_batch_id=b1.id,
             data_source_id=s1.id,
             name=name_a,
             normalized_name=name_a.lower(),
-            source_code=f"A{i}",
             raw_data={},
-            status=SupplierStatus.ACTIVE,
+            status=RecordStatus.ACTIVE,
+            fields={"supplier_name": name_a, "supplier_code": f"A{i}"},
         )
-        sb = StagedSupplier(
+        sb = StagedRecord(
+            type="supplier",
             import_batch_id=b2.id,
             data_source_id=s2.id,
             name=name_b,
             normalized_name=name_b.lower(),
-            source_code=f"B{i}",
             raw_data={},
-            status=SupplierStatus.ACTIVE,
+            status=RecordStatus.ACTIVE,
+            fields={"supplier_name": name_b, "supplier_code": f"B{i}"},
         )
         db.add_all([sa, sb])
         db.flush()
 
         signals = {
-            "jaro_winkler": 0.8 if status == "confirmed" else 0.3,
-            "token_jaccard": 0.7 if status == "confirmed" else 0.2,
-            "embedding_cosine": 0.85 if status == "confirmed" else 0.4,
-            "short_name_match": 1.0 if status == "confirmed" else 0.0,
-            "currency_match": 1.0 if status == "confirmed" else 0.5,
-            "contact_match": 0.6 if status == "confirmed" else 0.2,
+            "jaro_winkler:supplier_name": 0.8 if status == CandidateStatus.CONFIRMED else 0.3,
+            "token_jaccard:supplier_name": 0.7 if status == CandidateStatus.CONFIRMED else 0.2,
+            "embedding_cosine:supplier_name": 0.85 if status == CandidateStatus.CONFIRMED else 0.4,
+            "jaro_winkler:short_name": 1.0 if status == CandidateStatus.CONFIRMED else 0.0,
+            "exact_ci:currency": 1.0 if status == CandidateStatus.CONFIRMED else 0.5,
+            "jaro_winkler:contact_name": 0.6 if status == CandidateStatus.CONFIRMED else 0.2,
         }
         mc = MatchCandidate(
-            supplier_a_id=sa.id,
-            supplier_b_id=sb.id,
-            confidence=0.7 if status == "confirmed" else 0.3,
+            type="supplier",
+            record_a_id=sa.id,
+            record_b_id=sb.id,
+            confidence=0.7 if status == CandidateStatus.CONFIRMED else 0.3,
             match_signals=signals,
             status=status,
             reviewed_by="reviewer",
@@ -82,7 +85,7 @@ class TestTrainModelEndpoint:
         test_db.commit()
 
         with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml_training.MODEL_DIR", tmpdir):
-            resp = authenticated_client.post("/api/matching/train-model")
+            resp = authenticated_client.post("/api/matching/train-model", params={"type": "supplier"})
 
         assert resp.status_code == 200
         data = resp.json()
@@ -105,7 +108,7 @@ class TestTrainModelEndpoint:
         _seed_reviewed(test_db, count=20, confirm_ratio=0.5)
         test_db.commit()
 
-        resp = authenticated_client.post("/api/matching/train-model")
+        resp = authenticated_client.post("/api/matching/train-model", params={"type": "supplier"})
         assert resp.status_code == 400
         assert "50" in resp.json()["detail"]
 
@@ -114,19 +117,19 @@ class TestTrainModelEndpoint:
         _seed_reviewed(test_db, count=60, confirm_ratio=1.0)  # all confirmed
         test_db.commit()
 
-        resp = authenticated_client.post("/api/matching/train-model")
+        resp = authenticated_client.post("/api/matching/train-model", params={"type": "supplier"})
         assert resp.status_code == 400
         assert "both" in resp.json()["detail"].lower()
 
     def test_train_requires_auth(self, test_client):
-        resp = test_client.post("/api/matching/train-model")
+        resp = test_client.post("/api/matching/train-model", params={"type": "supplier"})
         assert resp.status_code == 401
 
 
 class TestActiveLearningSort:
     def _seed_queue(self, db):
-        s1 = DataSource(name="Q1", file_format="csv", column_mapping={"supplier_name": "n"})
-        s2 = DataSource(name="Q2", file_format="csv", column_mapping={"supplier_name": "n"})
+        s1 = DataSource(name="Q1", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
+        s2 = DataSource(name="Q2", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
         db.add_all([s1, s2])
         db.flush()
         b1 = ImportBatch(data_source_id=s1.id, filename="a.csv", uploaded_by="u", status="completed", row_count=3)
@@ -136,37 +139,40 @@ class TestActiveLearningSort:
 
         pairs = []
         for i, conf in enumerate([0.9, 0.5, 0.3]):
-            sa = StagedSupplier(
+            sa = StagedRecord(
+                type="supplier",
                 import_batch_id=b1.id,
                 data_source_id=s1.id,
                 name=f"SUP A{i}",
                 normalized_name=f"sup a{i}",
-                source_code=f"QA{i}",
                 raw_data={},
                 status="active",
+                fields={"supplier_name": f"SUP A{i}", "supplier_code": f"QA{i}"},
             )
-            sb = StagedSupplier(
+            sb = StagedRecord(
+                type="supplier",
                 import_batch_id=b2.id,
                 data_source_id=s2.id,
                 name=f"SUP B{i}",
                 normalized_name=f"sup b{i}",
-                source_code=f"QB{i}",
                 raw_data={},
                 status="active",
+                fields={"supplier_name": f"SUP B{i}", "supplier_code": f"QB{i}"},
             )
             db.add_all([sa, sb])
             db.flush()
             mc = MatchCandidate(
-                supplier_a_id=sa.id,
-                supplier_b_id=sb.id,
+                type="supplier",
+                record_a_id=sa.id,
+                record_b_id=sb.id,
                 confidence=conf,
                 match_signals={
-                    "jaro_winkler": conf,
-                    "token_jaccard": conf,
-                    "embedding_cosine": conf,
-                    "short_name_match": 0,
-                    "currency_match": 0,
-                    "contact_match": 0,
+                    "jaro_winkler:supplier_name": conf,
+                    "token_jaccard:supplier_name": conf,
+                    "embedding_cosine:supplier_name": conf,
+                    "jaro_winkler:short_name": 0,
+                    "exact_ci:currency": 0,
+                    "jaro_winkler:contact_name": 0,
                 },
                 status="pending",
             )
