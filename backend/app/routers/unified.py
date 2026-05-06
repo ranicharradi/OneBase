@@ -2,7 +2,7 @@
 
 import csv
 import io
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -492,7 +492,7 @@ def export_unified_csv(
             )
 
     output.seek(0)
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     suffix = f"_{type}" if type else ""
     filename = f"unified_records{suffix}_{timestamp}.csv"
     return StreamingResponse(
