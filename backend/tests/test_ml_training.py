@@ -7,19 +7,22 @@ import numpy as np
 import pytest
 
 from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
+from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
 from app.models.ml_model import MLModelVersion
 from app.models.source import DataSource
-from app.models.staging import StagedSupplier
+from app.models.staging import StagedRecord
+from app.services.ml_training import scorer_feature_names
 
 pytestmark = pytest.mark.slow
+
+SUPPLIER_FEATURE_NAMES = scorer_feature_names("supplier")
 
 
 def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
     """Create reviewed match candidates with realistic signals."""
-    s1 = DataSource(name="SRC1", file_format="csv", column_mapping={"supplier_name": "name"})
-    s2 = DataSource(name="SRC2", file_format="csv", column_mapping={"supplier_name": "name"})
+    s1 = DataSource(name="SRC1", type="supplier", file_format="csv", column_mapping={"supplier_name": "name"})
+    s2 = DataSource(name="SRC2", type="supplier", file_format="csv", column_mapping={"supplier_name": "name"})
     db.add_all([s1, s2])
     db.flush()
 
@@ -40,62 +43,71 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
             name_a = f"ACME CORP {i}"
             name_b = f"ACME CORPORATION {i}"
             signals = {
-                "jaro_winkler": 0.85 + np.random.uniform(-0.1, 0.1),
-                "token_jaccard": 0.80 + np.random.uniform(-0.1, 0.1),
-                "embedding_cosine": 0.90 + np.random.uniform(-0.05, 0.05),
-                "short_name_match": 1.0,
-                "currency_match": 1.0,
-                "contact_match": 0.7 + np.random.uniform(-0.1, 0.1),
+                "jaro_winkler:supplier_name": 0.85 + np.random.uniform(-0.1, 0.1),
+                "token_jaccard:supplier_name": 0.80 + np.random.uniform(-0.1, 0.1),
+                "embedding_cosine:supplier_name": 0.90 + np.random.uniform(-0.05, 0.05),
+                "jaro_winkler:short_name": 1.0,
+                "exact_ci:currency": 1.0,
+                "jaro_winkler:contact_name": 0.7 + np.random.uniform(-0.1, 0.1),
             }
             status = CandidateStatus.CONFIRMED
         else:
             name_a = f"ALPHA INC {i}"
             name_b = f"BETA LLC {i}"
             signals = {
-                "jaro_winkler": 0.40 + np.random.uniform(-0.1, 0.1),
-                "token_jaccard": 0.30 + np.random.uniform(-0.1, 0.1),
-                "embedding_cosine": 0.50 + np.random.uniform(-0.1, 0.1),
-                "short_name_match": 0.0,
-                "currency_match": 0.5,
-                "contact_match": 0.3 + np.random.uniform(-0.1, 0.1),
+                "jaro_winkler:supplier_name": 0.40 + np.random.uniform(-0.1, 0.1),
+                "token_jaccard:supplier_name": 0.30 + np.random.uniform(-0.1, 0.1),
+                "embedding_cosine:supplier_name": 0.50 + np.random.uniform(-0.1, 0.1),
+                "jaro_winkler:short_name": 0.0,
+                "exact_ci:currency": 0.5,
+                "jaro_winkler:contact_name": 0.3 + np.random.uniform(-0.1, 0.1),
             }
             status = CandidateStatus.REJECTED
 
-        sup_a = StagedSupplier(
+        rec_a = StagedRecord(
+            type="supplier",
             import_batch_id=b1.id,
             data_source_id=s1.id,
             name=name_a,
             normalized_name=name_a.lower(),
-            source_code=f"A{i:03d}",
-            short_name="TST",
-            currency="EUR",
             raw_data={"name": name_a},
-            status=SupplierStatus.ACTIVE,
+            status=RecordStatus.ACTIVE,
+            fields={
+                "supplier_name": name_a,
+                "supplier_code": f"A{i:03d}",
+                "short_name": "TST",
+                "currency": "EUR",
+            },
         )
-        sup_b = StagedSupplier(
+        rec_b = StagedRecord(
+            type="supplier",
             import_batch_id=b2.id,
             data_source_id=s2.id,
             name=name_b,
             normalized_name=name_b.lower(),
-            source_code=f"B{i:03d}",
-            short_name="TST",
-            currency="EUR",
             raw_data={"name": name_b},
-            status=SupplierStatus.ACTIVE,
+            status=RecordStatus.ACTIVE,
+            fields={
+                "supplier_name": name_b,
+                "supplier_code": f"B{i:03d}",
+                "short_name": "TST",
+                "currency": "EUR",
+            },
         )
-        db.add_all([sup_a, sup_b])
+        db.add_all([rec_a, rec_b])
         db.flush()
 
         mc = MatchCandidate(
-            supplier_a_id=sup_a.id,
-            supplier_b_id=sup_b.id,
+            type="supplier",
+            record_a_id=rec_a.id,
+            record_b_id=rec_b.id,
             confidence=sum(signals.values()) / 6,
             match_signals=signals,
             status=status,
             reviewed_by="reviewer",
         )
         db.add(mc)
-        results.append((mc, sup_a, sup_b))
+        results.append((mc, rec_a, rec_b))
 
     db.flush()
     return results
@@ -108,7 +120,7 @@ class TestExtractTrainingData:
         _seed_reviewed_candidates(test_db, count=60, confirm_ratio=0.5)
         test_db.flush()
 
-        X, y = extract_training_data(test_db)
+        X, y = extract_training_data(test_db, "supplier")
 
         assert X.shape[0] == 60
         assert X.shape[1] == 8  # 6 base + 2 engineered
@@ -120,50 +132,53 @@ class TestExtractTrainingData:
         from app.services.ml_training import extract_training_data
 
         _seed_reviewed_candidates(test_db, count=60)
-        s = DataSource(name="X", file_format="csv", column_mapping={"supplier_name": "n"})
+        s = DataSource(name="X", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
         test_db.add(s)
         test_db.flush()
         b = ImportBatch(data_source_id=s.id, filename="x.csv", uploaded_by="u", status="completed", row_count=1)
         test_db.add(b)
         test_db.flush()
-        sa_ = StagedSupplier(
+        sa_ = StagedRecord(
+            type="supplier",
             import_batch_id=b.id,
             data_source_id=s.id,
             name="PENDING",
             normalized_name="pending",
-            source_code="P001",
             raw_data={},
             status="active",
+            fields={"supplier_name": "PENDING", "supplier_code": "P001"},
         )
-        sb_ = StagedSupplier(
+        sb_ = StagedRecord(
+            type="supplier",
             import_batch_id=b.id,
             data_source_id=s.id,
             name="PENDING B",
             normalized_name="pending b",
-            source_code="P002",
             raw_data={},
             status="active",
+            fields={"supplier_name": "PENDING B", "supplier_code": "P002"},
         )
         test_db.add_all([sa_, sb_])
         test_db.flush()
         mc = MatchCandidate(
-            supplier_a_id=sa_.id,
-            supplier_b_id=sb_.id,
+            type="supplier",
+            record_a_id=sa_.id,
+            record_b_id=sb_.id,
             confidence=0.5,
             match_signals={
-                "jaro_winkler": 0.5,
-                "token_jaccard": 0.5,
-                "embedding_cosine": 0.5,
-                "short_name_match": 0.5,
-                "currency_match": 0.5,
-                "contact_match": 0.5,
+                "jaro_winkler:supplier_name": 0.5,
+                "token_jaccard:supplier_name": 0.5,
+                "embedding_cosine:supplier_name": 0.5,
+                "jaro_winkler:short_name": 0.5,
+                "exact_ci:currency": 0.5,
+                "jaro_winkler:contact_name": 0.5,
             },
             status="pending",
         )
         test_db.add(mc)
         test_db.flush()
 
-        X, y = extract_training_data(test_db)
+        X, y = extract_training_data(test_db, "supplier")
         assert X.shape[0] == 60  # pending excluded
 
     def test_engineered_features_correct(self, test_db):
@@ -172,7 +187,7 @@ class TestExtractTrainingData:
         _seed_reviewed_candidates(test_db, count=60)
         test_db.flush()
 
-        X, y = extract_training_data(test_db)
+        X, y = extract_training_data(test_db, "supplier")
 
         name_length_ratios = X[:, 6]
         assert all(0 < r <= 1.0 for r in name_length_ratios)
@@ -186,7 +201,7 @@ class TestExtractTrainingData:
         _seed_reviewed_candidates(test_db, count=10)
         test_db.flush()
 
-        X, y = extract_training_data(test_db)
+        X, y = extract_training_data(test_db, "supplier")
         assert X.shape[0] == 10
 
 
@@ -197,8 +212,8 @@ class TestTrainModel:
         _seed_reviewed_candidates(test_db, count=80, confirm_ratio=0.5)
         test_db.flush()
 
-        X, y = extract_training_data(test_db)
-        result = train_model(X, y, model_type="scorer")
+        X, y = extract_training_data(test_db, "supplier")
+        result = train_model(X, y, SUPPLIER_FEATURE_NAMES, model_type="scorer")
 
         assert result["model"] is not None
         assert 0 <= result["metrics"]["precision"] <= 1
@@ -209,15 +224,15 @@ class TestTrainModel:
         assert result["feature_importances"] is not None
 
     def test_train_blocker_targets_high_recall(self, test_db):
-        from app.services.ml_training import extract_training_data, train_model
+        from app.services.ml_training import BLOCKER_FEATURE_NAMES, extract_training_data, train_model
 
         _seed_reviewed_candidates(test_db, count=100, confirm_ratio=0.5)
         test_db.flush()
 
-        X, y = extract_training_data(test_db)
+        X, y = extract_training_data(test_db, "supplier")
         # Blocker uses jaro_winkler (0), token_jaccard (1), name_length_ratio (6)
         X_blocker = X[:, [0, 1, 6]]
-        result = train_model(X_blocker, y, model_type="blocker")
+        result = train_model(X_blocker, y, BLOCKER_FEATURE_NAMES, model_type="blocker")
 
         assert result["model"] is not None
         assert result["metrics"]["threshold"] < 0.5
@@ -235,23 +250,15 @@ class TestSaveLoadModel:
         _seed_reviewed_candidates(test_db, count=80, confirm_ratio=0.5)
         test_db.flush()
 
-        X, y = extract_training_data(test_db)
-        result = train_model(X, y, model_type="scorer")
+        X, y = extract_training_data(test_db, "supplier")
+        result = train_model(X, y, SUPPLIER_FEATURE_NAMES, model_type="scorer")
 
         with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml_training.MODEL_DIR", tmpdir):
             save_model(
                 model=result["model"],
                 model_type="scorer",
-                feature_names=[
-                    "jaro_winkler",
-                    "token_jaccard",
-                    "embedding_cosine",
-                    "short_name_match",
-                    "currency_match",
-                    "contact_match",
-                    "name_length_ratio",
-                    "token_count_diff",
-                ],
+                record_type_key="supplier",
+                feature_names=SUPPLIER_FEATURE_NAMES,
                 metrics=result["metrics"],
                 feature_importances=result["feature_importances"],
                 sample_count=80,
@@ -260,7 +267,7 @@ class TestSaveLoadModel:
             )
             test_db.flush()
 
-            bundle = load_active_model(test_db, "scorer", model_dir=tmpdir)
+            bundle = load_active_model(test_db, "scorer", "supplier", model_dir=tmpdir)
 
         assert bundle is not None
         assert bundle.threshold == result["metrics"]["threshold"]
@@ -269,7 +276,7 @@ class TestSaveLoadModel:
     def test_load_returns_none_when_no_model(self, test_db):
         from app.services.ml_training import load_active_model
 
-        bundle = load_active_model(test_db, "scorer")
+        bundle = load_active_model(test_db, "scorer", "supplier")
         assert bundle is None
 
     def test_new_model_deactivates_old(self, test_db):
@@ -282,23 +289,19 @@ class TestSaveLoadModel:
         _seed_reviewed_candidates(test_db, count=80, confirm_ratio=0.5)
         test_db.flush()
 
-        X, y = extract_training_data(test_db)
-        result = train_model(X, y, model_type="scorer")
-
-        feature_names = [
-            "jaro_winkler",
-            "token_jaccard",
-            "embedding_cosine",
-            "short_name_match",
-            "currency_match",
-            "contact_match",
-            "name_length_ratio",
-            "token_count_diff",
-        ]
+        X, y = extract_training_data(test_db, "supplier")
+        result = train_model(X, y, SUPPLIER_FEATURE_NAMES, model_type="scorer")
 
         with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml_training.MODEL_DIR", tmpdir):
             save_model(
-                result["model"], "scorer", feature_names, result["metrics"], result["feature_importances"], 80, test_db
+                result["model"],
+                "scorer",
+                "supplier",
+                SUPPLIER_FEATURE_NAMES,
+                result["metrics"],
+                result["feature_importances"],
+                80,
+                test_db,
             )
             test_db.flush()
 
@@ -307,7 +310,14 @@ class TestSaveLoadModel:
             time.sleep(1)
 
             save_model(
-                result["model"], "scorer", feature_names, result["metrics"], result["feature_importances"], 80, test_db
+                result["model"],
+                "scorer",
+                "supplier",
+                SUPPLIER_FEATURE_NAMES,
+                result["metrics"],
+                result["feature_importances"],
+                80,
+                test_db,
             )
             test_db.flush()
 

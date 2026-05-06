@@ -32,7 +32,7 @@ def compute_embeddings(names: list[str], batch_size: int = 64, timeout_seconds: 
     """Compute 384-dim embeddings for a list of names.
 
     Args:
-        names: List of normalized supplier names.
+        names: List of normalized record names.
         batch_size: Batch size for encoding (default 64).
         timeout_seconds: Max seconds before raising EmbeddingTimeoutError (default 300).
 

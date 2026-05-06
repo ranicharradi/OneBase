@@ -6,38 +6,33 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class ColumnMapping(BaseModel):
-    """Mapping from canonical field names to CSV column headers."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    supplier_name: str
-    supplier_code: str
-    short_name: str | None = None
-    currency: str | None = None
-    payment_terms: str | None = None
-    contact_name: str | None = None
-    supplier_type: str | None = None
-
-
 class DataSourceCreate(BaseModel):
-    """Request schema for creating a data source."""
+    """Request schema for creating a data source.
+
+    `type` is the RecordType key (e.g. "supplier"); the source is locked to it.
+    `column_mapping` keys are the type's FieldDef.keys; values are the CSV column
+    headers. Validation against the registered type is done in the router/service.
+    """
 
     name: str = Field(min_length=1, max_length=100)
+    type: str = Field(min_length=1, max_length=50)
     description: str | None = None
     file_format: str = "csv"
     delimiter: str = ";"
-    column_mapping: ColumnMapping
+    column_mapping: dict[str, str]
     filename_pattern: str | None = None
 
 
 class DataSourceUpdate(BaseModel):
-    """Request schema for updating a data source."""
+    """Request schema for updating a data source.
+
+    `type` is intentionally absent: it is locked at creation per spec.
+    """
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     description: str | None = None
     delimiter: str | None = None
-    column_mapping: ColumnMapping | None = None
+    column_mapping: dict[str, str] | None = None
     filename_pattern: str | None = None
 
 
@@ -48,6 +43,7 @@ class DataSourceResponse(BaseModel):
 
     id: int
     name: str
+    type: str
     description: str | None
     file_format: str
     delimiter: str
@@ -55,49 +51,3 @@ class DataSourceResponse(BaseModel):
     filename_pattern: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
-
-
-class ColumnDetectResponse(BaseModel):
-    """Response schema for column detection."""
-
-    columns: list[str]
-
-
-class SourceMatchResult(BaseModel):
-    """A single source match result from auto-detection."""
-
-    source_id: int
-    source_name: str
-    column_match: bool
-    filename_match: bool
-    data_overlap_pct: float
-    sample_size: int
-    confidence: str  # "high", "medium", "low"
-
-
-class SourceMatchResponse(BaseModel):
-    """Response from the match-source endpoint."""
-
-    filename: str
-    file_ref: str
-    detected_columns: list[str]
-    detected_delimiter: str = ","
-    matches: list[SourceMatchResult]
-    suggested_source_id: int | None = None
-    suggested_name: str
-
-
-class FieldGuess(BaseModel):
-    """A single field guess from the column guesser."""
-
-    column: str | None = None
-    confidence: float = 0.0
-
-
-class GuessMappingResponse(BaseModel):
-    """Response from the guess-mapping endpoint.
-
-    `guesses` is keyed by canonical field key (see `app.canonical.CANONICAL_FIELDS`).
-    """
-
-    guesses: dict[str, FieldGuess]

@@ -36,7 +36,7 @@ class FileCheckSeverity(StrEnum):
     ERROR = "error"
 
 
-class SupplierStatus(StrEnum):
+class RecordStatus(StrEnum):
     ACTIVE = "active"
     SUPERSEDED = "superseded"
 
@@ -44,7 +44,7 @@ class SupplierStatus(StrEnum):
 class CandidateStatus(StrEnum):
     PENDING = "pending"
     CONFIRMED = "confirmed"  # confirmed as dupe, awaiting field reconciliation
-    MERGED = "merged"  # reconciled and merged into a UnifiedSupplier
+    MERGED = "merged"  # reconciled and merged into a UnifiedRecord
     REJECTED = "rejected"
     INVALIDATED = "invalidated"
 

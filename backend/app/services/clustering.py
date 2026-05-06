@@ -2,6 +2,8 @@
 
 Uses Union-Find (disjoint set) with path compression and union by rank
 to efficiently find connected components from candidate pairs.
+
+Type-agnostic: operates purely on integer record IDs returned by the blocking step.
 """
 
 import logging
@@ -49,12 +51,12 @@ def find_groups(
     Uses Union-Find with path compression and union by rank.
 
     Args:
-        pairs: List of (supplier_a_id, supplier_b_id) tuples.
+        pairs: List of (record_a_id, record_b_id) tuples.
         max_cluster_size: Maximum allowed cluster size before warning
             (defaults to settings.matching_max_cluster_size).
 
     Returns:
-        List of sets, each containing supplier IDs in a connected component.
+        List of sets, each containing record IDs in a connected component.
         Groups exceeding max_cluster_size are kept but logged as warnings.
     """
     if max_cluster_size is None:

@@ -1,17 +1,28 @@
-"""Tests for unified suppliers — browse, detail, singleton promotion, export, dashboard."""
+"""Tests for unified records — browse, detail, singleton promotion, export, dashboard."""
 
+from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
+from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
-from app.models.staging import StagedSupplier
-from app.models.unified import UnifiedSupplier
+from app.models.staging import StagedRecord
+from app.models.unified import UnifiedRecord
 
 
 def _seed_sources(db):
     """Create two data sources."""
-    s1 = DataSource(name="EOT", description="EOT entity", column_mapping={"supplier_name": "BPSNAM"})
-    s2 = DataSource(name="TTEI", description="TTEI entity", column_mapping={"supplier_name": "BPSNAM"})
+    s1 = DataSource(
+        name="EOT",
+        type="supplier",
+        description="EOT entity",
+        column_mapping={"supplier_name": "BPSNAM"},
+    )
+    s2 = DataSource(
+        name="TTEI",
+        type="supplier",
+        description="TTEI entity",
+        column_mapping={"supplier_name": "BPSNAM"},
+    )
     db.add_all([s1, s2])
     db.flush()
     return s1, s2
@@ -32,16 +43,21 @@ def _seed_batch(db, source):
 
 
 def _seed_staged(db, source, batch, name, source_code="FE001"):
-    """Create a staged supplier."""
-    s = StagedSupplier(
+    """Create a staged record."""
+    s = StagedRecord(
+        type="supplier",
         import_batch_id=batch.id,
         data_source_id=source.id,
         name=name,
-        source_code=source_code,
-        short_name="TST",
-        currency="EUR",
+        normalized_name=name.upper(),
         raw_data={"BPSNAM": name},
-        status=SupplierStatus.ACTIVE,
+        status=RecordStatus.ACTIVE,
+        fields={
+            "supplier_name": name,
+            "supplier_code": source_code,
+            "short_name": "TST",
+            "currency": "EUR",
+        },
     )
     db.add(s)
     db.flush()
@@ -49,12 +65,13 @@ def _seed_staged(db, source, batch, name, source_code="FE001"):
 
 
 def _seed_unified(db, name, source_ids, match_candidate_id=None, created_by="testuser"):
-    """Create a unified supplier."""
-    u = UnifiedSupplier(
+    """Create a unified record."""
+    u = UnifiedRecord(
+        type="supplier",
         name=name,
-        source_code="U001",
+        fields={"supplier_name": name, "supplier_code": "U001"},
         provenance={
-            "name": {
+            "supplier_name": {
                 "value": name,
                 "source_entity": "EOT",
                 "source_record_id": source_ids[0],
@@ -63,7 +80,7 @@ def _seed_unified(db, name, source_ids, match_candidate_id=None, created_by="tes
                 "chosen_at": "2026-03-15T08:00:00",
             }
         },
-        source_supplier_ids=source_ids,
+        source_record_ids=source_ids,
         match_candidate_id=match_candidate_id,
         created_by=created_by,
     )
@@ -77,7 +94,7 @@ def _seed_unified(db, name, source_ids, match_candidate_id=None, created_by="tes
 
 class TestUnifiedBrowse:
     def test_list_empty(self, authenticated_client):
-        resp = authenticated_client.get("/api/unified/suppliers")
+        resp = authenticated_client.get("/api/unified/records")
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] == 0
@@ -88,7 +105,7 @@ class TestUnifiedBrowse:
         _seed_unified(test_db, "GLOBEX INC", [3])
         test_db.commit()
 
-        resp = authenticated_client.get("/api/unified/suppliers")
+        resp = authenticated_client.get("/api/unified/records")
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] == 2
@@ -98,7 +115,7 @@ class TestUnifiedBrowse:
         _seed_unified(test_db, "GLOBEX INC", [3])
         test_db.commit()
 
-        resp = authenticated_client.get("/api/unified/suppliers?search=ACME")
+        resp = authenticated_client.get("/api/unified/records?search=ACME")
         data = resp.json()
         assert data["total"] == 1
         assert data["items"][0]["name"] == "ACME CORP"
@@ -108,7 +125,7 @@ class TestUnifiedBrowse:
         _seed_unified(test_db, "SINGLETON CO", [3])
         test_db.commit()
 
-        resp = authenticated_client.get("/api/unified/suppliers?source_type=singleton")
+        resp = authenticated_client.get("/api/unified/records?is_singleton=true")
         data = resp.json()
         assert data["total"] == 1
         assert data["items"][0]["is_singleton"] is True
@@ -118,7 +135,7 @@ class TestUnifiedBrowse:
         _seed_unified(test_db, "SINGLETON CO", [3])
         test_db.commit()
 
-        resp = authenticated_client.get("/api/unified/suppliers?source_type=merged")
+        resp = authenticated_client.get("/api/unified/records?is_singleton=false")
         data = resp.json()
         assert data["total"] == 1
         assert data["items"][0]["is_singleton"] is False
@@ -129,7 +146,7 @@ class TestUnifiedBrowse:
 
 class TestUnifiedDetail:
     def test_detail_not_found(self, authenticated_client):
-        resp = authenticated_client.get("/api/unified/suppliers/999")
+        resp = authenticated_client.get("/api/unified/records/999")
         assert resp.status_code == 404
 
     def test_detail_with_provenance(self, authenticated_client, test_db):
@@ -139,12 +156,12 @@ class TestUnifiedDetail:
         u = _seed_unified(test_db, "DETAIL CORP", [sup.id])
         test_db.commit()
 
-        resp = authenticated_client.get(f"/api/unified/suppliers/{u.id}")
+        resp = authenticated_client.get(f"/api/unified/records/{u.id}")
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "DETAIL CORP"
-        assert "name" in data["provenance"]
-        assert data["provenance"]["name"]["source_entity"] == "EOT"
+        assert "supplier_name" in data["provenance"]
+        assert data["provenance"]["supplier_name"]["source_entity"] == "EOT"
         assert len(data["source_records"]) == 1
         assert data["source_records"][0]["name"] == "DETAIL CORP"
 
@@ -191,10 +208,11 @@ class TestSingletonPromotion:
 
         # Create a match candidate for A and B
         mc = MatchCandidate(
-            supplier_a_id=sup_a.id,
-            supplier_b_id=sup_b.id,
+            type="supplier",
+            record_a_id=sup_a.id,
+            record_b_id=sup_b.id,
             confidence=0.85,
-            match_signals={"jw": 0.9},
+            match_signals={"jaro_winkler:supplier_name": 0.9},
             status=CandidateStatus.PENDING,
         )
         test_db.add(mc)
@@ -214,14 +232,34 @@ class TestSingletonPromotion:
         resp = authenticated_client.post(f"/api/unified/singletons/{sup.id}/promote")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["supplier_name"] == "PROMOTE ME"
-        assert data["unified_supplier_id"] > 0
+        assert data["record_name"] == "PROMOTE ME"
+        assert data["unified_record_id"] > 0
 
         # Verify in DB
-        unified = test_db.query(UnifiedSupplier).filter(UnifiedSupplier.id == data["unified_supplier_id"]).one()
+        unified = test_db.query(UnifiedRecord).filter(UnifiedRecord.id == data["unified_record_id"]).one()
         assert unified.name == "PROMOTE ME"
         assert unified.match_candidate_id is None  # singleton
-        assert "name" in unified.provenance
+        assert "supplier_name" in unified.provenance
+
+    def test_promote_singleton_rejects_missing_name(self, authenticated_client, test_db):
+        s1, _ = _seed_sources(test_db)
+        b1 = _seed_batch(test_db, s1)
+        record = StagedRecord(
+            type="supplier",
+            import_batch_id=b1.id,
+            data_source_id=s1.id,
+            name=None,
+            normalized_name="",
+            raw_data={"BPSNAM": ""},
+            status=RecordStatus.ACTIVE,
+            fields={"supplier_code": "NO-NAME"},
+        )
+        test_db.add(record)
+        test_db.commit()
+
+        resp = authenticated_client.post(f"/api/unified/singletons/{record.id}/promote")
+        assert resp.status_code == 400
+        assert "supplier_name" in resp.json()["detail"]
 
     def test_promote_already_unified(self, authenticated_client, test_db):
         s1, _ = _seed_sources(test_db)
@@ -231,8 +269,8 @@ class TestSingletonPromotion:
         test_db.commit()
 
         resp = authenticated_client.post(f"/api/unified/singletons/{sup.id}/promote")
-        assert resp.status_code == 400
-        assert "already exists" in resp.json()["detail"]
+        assert resp.status_code == 409
+        assert "already" in resp.json()["detail"].lower()
 
     def test_bulk_promote(self, authenticated_client, test_db):
         s1, _ = _seed_sources(test_db)
@@ -243,12 +281,12 @@ class TestSingletonPromotion:
 
         resp = authenticated_client.post(
             "/api/unified/singletons/bulk-promote",
-            json={"supplier_ids": [sup1.id, sup2.id]},
+            json={"record_ids": [sup1.id, sup2.id]},
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["promoted_count"] == 2
-        assert len(data["unified_supplier_ids"]) == 2
+        assert len(data["unified_record_ids"]) == 2
 
 
 # ── Export tests ──
@@ -273,52 +311,18 @@ class TestExport:
         assert len(lines) == 3  # header + 2 rows
         assert "EXPORT" in lines[1]
 
-    def test_export_filter_source_type(self, authenticated_client, test_db):
+    def test_export_filter_by_type(self, authenticated_client, test_db):
+        """Export with type=supplier returns only supplier records."""
         _seed_unified(test_db, "MERGED CO", [1, 2], match_candidate_id=1)
         _seed_unified(test_db, "SINGLE CO", [3])
         test_db.commit()
 
-        resp = authenticated_client.get("/api/unified/export?source_type=merged")
+        resp = authenticated_client.get("/api/unified/export?type=supplier")
         assert resp.status_code == 200
         lines = resp.text.strip().split("\n")
-        assert len(lines) == 2  # header + 1 merged row
+        assert len(lines) == 3  # header + 2 supplier rows
         assert "MERGED CO" in resp.text
-        assert "SINGLE CO" not in resp.text
-
-    def test_export_filter_date_range(self, authenticated_client, test_db):
-        from datetime import datetime
-
-        u_old = _seed_unified(test_db, "OLD CO", [1])
-        u_old.created_at = datetime(2025, 6, 1, 12, 0, 0)
-        u_new = _seed_unified(test_db, "NEW CO", [2])
-        u_new.created_at = datetime(2026, 3, 15, 12, 0, 0)
-        test_db.commit()
-
-        resp = authenticated_client.get("/api/unified/export?from_date=2026-01-01&to_date=2026-12-31")
-        assert resp.status_code == 200
-        lines = resp.text.strip().split("\n")
-        assert len(lines) == 2  # header + 1 in-range row
-        assert "NEW CO" in resp.text
-        assert "OLD CO" not in resp.text
-
-    def test_export_filter_combined(self, authenticated_client, test_db):
-        from datetime import datetime
-
-        u1 = _seed_unified(test_db, "RECENT MERGED", [1, 2], match_candidate_id=1)
-        u1.created_at = datetime(2026, 3, 15, 12, 0, 0)
-        u2 = _seed_unified(test_db, "OLD MERGED", [3, 4], match_candidate_id=2)
-        u2.created_at = datetime(2025, 6, 1, 12, 0, 0)
-        u3 = _seed_unified(test_db, "RECENT SINGLETON", [5])
-        u3.created_at = datetime(2026, 3, 15, 12, 0, 0)
-        test_db.commit()
-
-        resp = authenticated_client.get("/api/unified/export?source_type=merged&from_date=2026-01-01")
-        assert resp.status_code == 200
-        lines = resp.text.strip().split("\n")
-        assert len(lines) == 2  # header + 1 row
-        assert "RECENT MERGED" in resp.text
-        assert "OLD MERGED" not in resp.text
-        assert "RECENT SINGLETON" not in resp.text
+        assert "SINGLE CO" in resp.text
 
 
 # ── Dashboard tests ──
@@ -342,10 +346,11 @@ class TestDashboard:
         sup_b = _seed_staged(test_db, s2, _seed_batch(test_db, s2), "DASH B")
 
         mc = MatchCandidate(
-            supplier_a_id=sup_a.id,
-            supplier_b_id=sup_b.id,
+            type="supplier",
+            record_a_id=sup_a.id,
+            record_b_id=sup_b.id,
             confidence=0.80,
-            match_signals={"jw": 0.8},
+            match_signals={"jaro_winkler:supplier_name": 0.8},
             status=CandidateStatus.PENDING,
         )
         test_db.add(mc)
@@ -363,3 +368,17 @@ class TestDashboard:
         assert data["review"]["pending"] == 1
         assert data["unified"]["total_unified"] == 1
         assert data["unified"]["merged"] == 1
+
+    def test_dashboard_type_filter_scopes_recent_activity(self, authenticated_client, test_db):
+        test_db.add_all(
+            [
+                AuditLog(action="supplier_action", entity_type="data_source", details={"type": "supplier"}),
+                AuditLog(action="material_action", entity_type="data_source", details={"type": "material"}),
+            ]
+        )
+        test_db.commit()
+
+        resp = authenticated_client.get("/api/unified/dashboard?type=supplier")
+        assert resp.status_code == 200
+        actions = [item["action"] for item in resp.json()["recent_activity"]]
+        assert actions == ["supplier_action"]

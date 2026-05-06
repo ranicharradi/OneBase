@@ -1,36 +1,20 @@
 """Data source CRUD endpoints."""
 
-import csv
-import io
-import os
-import re
-import uuid
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FuturesTimeoutError
-from pathlib import Path
-
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.canonical import CANONICAL_FIELDS
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
-from app.models.enums import SupplierStatus, UserRole
-from app.models.staging import StagedSupplier
+from app.models.enums import RecordStatus, UserRole
+from app.models.staging import StagedRecord
 from app.models.user import User
 from app.schemas.source import (
-    ColumnDetectResponse,
     DataSourceCreate,
     DataSourceResponse,
     DataSourceUpdate,
-    FieldGuess,
-    GuessMappingResponse,
-    SourceMatchResponse,
-    SourceMatchResult,
 )
 from app.services.audit import log_action
-from app.services.column_guesser import guess_column_mapping
 from app.services.source import (
     create_source,
     delete_source,
@@ -38,13 +22,8 @@ from app.services.source import (
     get_sources,
     update_source,
 )
-from app.utils.csv_parser import detect_columns
-from app.utils.paths import safe_upload_path
 
 UPLOAD_DIR = settings.upload_dir
-MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
-SAMPLE_ROWS = 20
-FILENAME_PATTERN_TIMEOUT = 0.1  # 100ms
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
 
@@ -55,7 +34,7 @@ def create_data_source(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Create a new data source with column mapping."""
+    """Create a new data source with a record type and column mapping."""
     try:
         source = create_source(db, data)
         log_action(
@@ -64,7 +43,7 @@ def create_data_source(
             action="create_source",
             entity_type="data_source",
             entity_id=source.id,
-            details={"name": source.name},
+            details={"name": source.name, "type": source.type},
         )
         db.commit()
         db.refresh(source)
@@ -78,270 +57,15 @@ def create_data_source(
 
 @router.get("", response_model=list[DataSourceResponse])
 def list_data_sources(
+    type: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List all data sources."""
-    return get_sources(db)
-
-
-@router.post("/detect-columns", response_model=ColumnDetectResponse)
-async def detect_columns_no_source(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
-):
-    """Detect column headers from a CSV file (new source flow, no source yet)."""
-    content = await file.read()
-    columns = detect_columns(content)
-    return ColumnDetectResponse(columns=columns)
-
-
-def _sniff_delimiter(text: str) -> str:
-    """Auto-detect CSV delimiter using csv.Sniffer. Falls back to ';'."""
-    try:
-        sample = text[:8192]
-        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
-        return dialect.delimiter
-    except csv.Error:
-        return ";"
-
-
-def _detect_columns_from_text(text: str, delimiter: str) -> list[str]:
-    """Extract column headers from CSV text."""
-    reader = csv.reader(io.StringIO(text), delimiter=delimiter, quotechar='"')
-    try:
-        headers = next(reader)
-        return [h.strip() for h in headers]
-    except StopIteration:
-        return []
-
-
-def _sample_rows(text: str, delimiter: str, n: int = SAMPLE_ROWS) -> list[dict[str, str]]:
-    """Read up to n data rows from CSV text."""
-    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter, quotechar='"')
-    rows: list[dict[str, str]] = []
-    for i, row in enumerate(reader):
-        if i >= n:
-            break
-        rows.append({k.strip(): (v.strip() if v else "") for k, v in row.items()})
-    return rows
-
-
-def _check_filename_pattern(pattern: str, filename: str) -> bool:
-    """Check filename against a regex pattern with a timeout to prevent ReDoS."""
-
-    def _match():
-        return bool(re.search(pattern, filename))
-
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_match)
-        try:
-            return future.result(timeout=FILENAME_PATTERN_TIMEOUT)
-        except (FuturesTimeoutError, re.error):
-            return False
-
-
-def _generate_suggested_name(filename: str) -> str:
-    """Generate a human-friendly name from a filename."""
-    name = Path(filename).stem
-    name = name.replace("_", " ").replace("-", " ")
-    return name.title()
-
-
-@router.post("/match-source", response_model=SourceMatchResponse)
-async def match_source(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Analyze a CSV file and match it against existing data sources.
-
-    Returns ranked matches with confidence levels and saves the file
-    for later use via file_ref in the upload endpoint.
-    """
-    # Validate filename
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only .csv files are accepted",
-        )
-
-    # Read and validate size
-    file_content = await file.read()
-    if len(file_content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds maximum size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
-        )
-
-    # Validate UTF-8
-    try:
-        text = file_content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        try:
-            text = file_content.decode("cp1252")
-        except UnicodeDecodeError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File is not valid UTF-8 or Windows-1252 encoded.",
-            ) from None
-
-    # Auto-detect delimiter
-    delimiter = _sniff_delimiter(text)
-
-    # Detect columns
-    detected_columns = _detect_columns_from_text(text, delimiter)
-    if not detected_columns:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Could not detect column headers. File may be empty or malformed.",
-        )
-
-    # Save file to disk
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    stored_filename = f"{uuid.uuid4()}_{file.filename}"
-    filepath = os.path.join(UPLOAD_DIR, stored_filename)
-    with open(filepath, "wb") as f:
-        f.write(file_content)
-
-    # Sample rows for data overlap detection
-    sample_rows = _sample_rows(text, delimiter)
-
-    # Query all data sources
-    all_sources = get_sources(db)
-    detected_columns_set = set(detected_columns)
-
-    matches: list[SourceMatchResult] = []
-
-    for source in all_sources:
-        col_mapping = source.column_mapping or {}
-
-        # Column gate: check that all non-null mapping values are in detected columns
-        required_csv_cols = {v for v in col_mapping.values() if v is not None}
-        column_match = required_csv_cols.issubset(detected_columns_set) if required_csv_cols else False
-
-        if not column_match:
-            continue
-
-        # Filename pattern check
-        filename_match = False
-        if source.filename_pattern and file.filename:
-            filename_match = _check_filename_pattern(source.filename_pattern, file.filename)
-
-        # Data overlap: sample supplier codes from CSV and compare with DB
-        data_overlap_pct = 0.0
-        sample_size = len(sample_rows)
-        supplier_code_col = col_mapping.get("supplier_code")
-        if supplier_code_col and sample_rows:
-            csv_codes = {row.get(supplier_code_col, "") for row in sample_rows if row.get(supplier_code_col, "")}
-            if csv_codes:
-                # Query existing source_codes for this source
-                existing_codes = {
-                    row[0]
-                    for row in db.query(StagedSupplier.source_code)
-                    .filter(
-                        StagedSupplier.data_source_id == source.id,
-                        StagedSupplier.status == SupplierStatus.ACTIVE,
-                        StagedSupplier.source_code.in_(csv_codes),
-                    )
-                    .all()
-                    if row[0]
-                }
-                data_overlap_pct = len(existing_codes) / len(csv_codes) if csv_codes else 0.0
-
-        # Determine confidence
-        if (filename_match and data_overlap_pct > 0.5) or data_overlap_pct > 0.8:
-            confidence = "high"
-        elif (data_overlap_pct >= 0.1) or filename_match:
-            confidence = "medium"
-        else:
-            confidence = "low"
-
-        matches.append(
-            SourceMatchResult(
-                source_id=source.id,
-                source_name=source.name,
-                column_match=column_match,
-                filename_match=filename_match,
-                data_overlap_pct=round(data_overlap_pct, 4),
-                sample_size=sample_size,
-                confidence=confidence,
-            )
-        )
-
-    # Sort: high > medium > low, then by data_overlap_pct desc, filename_match desc
-    confidence_order = {"high": 0, "medium": 1, "low": 2}
-    matches.sort(key=lambda m: (confidence_order[m.confidence], -m.data_overlap_pct, not m.filename_match))
-
-    # Determine suggested_source_id
-    suggested_source_id = None
-    if matches:
-        top = matches[0]
-        if top.confidence == "high" and (len(matches) == 1 or top.data_overlap_pct > 2 * matches[1].data_overlap_pct):
-            suggested_source_id = top.source_id
-
-    return SourceMatchResponse(
-        filename=file.filename or "unknown.csv",
-        file_ref=stored_filename,
-        detected_columns=detected_columns,
-        detected_delimiter=delimiter,
-        matches=matches,
-        suggested_source_id=suggested_source_id,
-        suggested_name=_generate_suggested_name(file.filename or "upload"),
-    )
-
-
-@router.post("/guess-mapping", response_model=GuessMappingResponse)
-async def guess_mapping(
-    file: UploadFile = File(None),
-    file_ref: str | None = Form(None),
-    current_user: User = Depends(get_current_user),
-):
-    """Guess column mapping by analyzing CSV data values.
-
-    Accepts either a file upload or a file_ref from a previous match-source call.
-    Samples rows and uses heuristic classifiers to guess which CSV column
-    maps to each canonical field.
-    """
-    if file_ref:
-        try:
-            filepath = safe_upload_path(UPLOAD_DIR, file_ref)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid file reference",
-            ) from None
-        if not os.path.exists(filepath):
-            raise HTTPException(status_code=404, detail="File reference not found")
-        with open(filepath, "rb") as f:
-            file_content = f.read()
-    elif file:
-        file_content = await file.read()
-    else:
-        raise HTTPException(status_code=400, detail="Either file or file_ref is required")
-
-    try:
-        text = file_content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        try:
-            text = file_content.decode("cp1252")
-        except UnicodeDecodeError:
-            raise HTTPException(status_code=400, detail="File encoding not supported") from None
-
-    delimiter = _sniff_delimiter(text)
-    columns = _detect_columns_from_text(text, delimiter)
-    if not columns:
-        raise HTTPException(status_code=400, detail="No columns detected")
-
-    sample = _sample_rows(text, delimiter, n=100)
-    if not sample:
-        raise HTTPException(status_code=400, detail="No data rows found")
-
-    guesses = guess_column_mapping(columns, sample)
-
-    return GuessMappingResponse(
-        guesses={f.key: FieldGuess(**guesses[f.key]) for f in CANONICAL_FIELDS},
-    )
+    """List all data sources, optionally filtered by record type."""
+    sources = get_sources(db)
+    if type is not None:
+        sources = [s for s in sources if s.type == type]
+    return sources
 
 
 @router.get("/{source_id}", response_model=DataSourceResponse)
@@ -364,7 +88,7 @@ def update_data_source(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Update a data source."""
+    """Update a data source. The record type is locked at creation."""
     try:
         source = update_source(db, source_id, data)
     except ValueError as e:
@@ -377,7 +101,7 @@ def update_data_source(
         action="update_source",
         entity_type="data_source",
         entity_id=source.id,
-        details={"name": source.name},
+        details={"name": source.name, "type": source.type},
     )
     db.commit()
     db.refresh(source)
@@ -390,11 +114,12 @@ def delete_data_source(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Delete a data source."""
+    """Delete a data source and all related data."""
     source = get_source(db, source_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
     source_name = source.name
+    source_type = source.type
     delete_source(db, source_id)
     log_action(
         db,
@@ -402,25 +127,9 @@ def delete_data_source(
         action="delete_source",
         entity_type="data_source",
         entity_id=source_id,
-        details={"name": source_name},
+        details={"name": source_name, "type": source_type},
     )
     db.commit()
-
-
-@router.post("/{source_id}/detect-columns", response_model=ColumnDetectResponse)
-async def detect_source_columns(
-    source_id: int,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Detect column headers from an uploaded CSV file."""
-    source = get_source(db, source_id)
-    if source is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
-    content = await file.read()
-    columns = detect_columns(content, delimiter=source.delimiter)
-    return ColumnDetectResponse(columns=columns)
 
 
 @router.get("/{source_id}/upload-stats")
@@ -429,7 +138,7 @@ def get_upload_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get counts of active staged suppliers and pending match candidates for a source."""
+    """Get counts of active staged records and pending match candidates for a source."""
     from app.models.enums import CandidateStatus
     from app.models.match import MatchCandidate
 
@@ -438,20 +147,20 @@ def get_upload_stats(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
 
     staged_count = (
-        db.query(func.count(StagedSupplier.id))
+        db.query(func.count(StagedRecord.id))
         .filter(
-            StagedSupplier.data_source_id == source_id,
-            StagedSupplier.status == SupplierStatus.ACTIVE,
+            StagedRecord.data_source_id == source_id,
+            StagedRecord.status == RecordStatus.ACTIVE,
         )
         .scalar()
         or 0
     )
 
-    source_supplier_ids = (
-        db.query(StagedSupplier.id)
+    source_record_ids = (
+        db.query(StagedRecord.id)
         .filter(
-            StagedSupplier.data_source_id == source_id,
-            StagedSupplier.status == SupplierStatus.ACTIVE,
+            StagedRecord.data_source_id == source_id,
+            StagedRecord.status == RecordStatus.ACTIVE,
         )
         .subquery()
     )
@@ -459,8 +168,7 @@ def get_upload_stats(
         db.query(func.count(MatchCandidate.id))
         .filter(
             MatchCandidate.status == CandidateStatus.PENDING,
-            (MatchCandidate.supplier_a_id.in_(source_supplier_ids))
-            | (MatchCandidate.supplier_b_id.in_(source_supplier_ids)),
+            (MatchCandidate.record_a_id.in_(source_record_ids)) | (MatchCandidate.record_b_id.in_(source_record_ids)),
         )
         .scalar()
         or 0

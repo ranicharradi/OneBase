@@ -60,21 +60,21 @@ def process_upload(self, batch_id: int):
             row_count = run_ingestion(db, batch_id, file_content, progress_callback)
             db.commit()
 
-            # Enqueue matching — detect re-upload by checking for prior active suppliers
-            # Check if there are superseded suppliers for this data source
-            # from a prior batch — indicates a re-upload scenario.
+            # Enqueue matching — detect re-upload by checking for prior active records.
+            # Check if there are superseded records for this data source from a prior
+            # batch — indicates a re-upload scenario.
             # (Ingestion already marks old records as "superseded", so checking
             # "active" would always return 0 here.)
-            from app.models.enums import SupplierStatus
-            from app.models.staging import StagedSupplier
+            from app.models.enums import RecordStatus
+            from app.models.staging import StagedRecord
             from app.tasks.matching import run_matching
 
             prior_superseded_count = (
-                db.query(StagedSupplier)
+                db.query(StagedRecord)
                 .filter(
-                    StagedSupplier.data_source_id == batch.data_source_id,
-                    StagedSupplier.import_batch_id != batch.id,
-                    StagedSupplier.status == SupplierStatus.SUPERSEDED,
+                    StagedRecord.data_source_id == batch.data_source_id,
+                    StagedRecord.import_batch_id != batch.id,
+                    StagedRecord.status == RecordStatus.SUPERSEDED,
                 )
                 .count()
             )

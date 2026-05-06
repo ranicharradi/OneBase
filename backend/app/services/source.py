@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.source import DataSource
+from app.record_types import get as get_record_type
 from app.schemas.source import DataSourceCreate, DataSourceUpdate
 
 
@@ -19,15 +20,40 @@ def _validate_filename_pattern(pattern: str | None) -> None:
         raise ValueError(f"Invalid filename pattern: {e}") from e
 
 
+def _validate_record_type(record_type_key: str) -> None:
+    """Validate the type exists in the registry."""
+    try:
+        get_record_type(record_type_key)
+    except KeyError as e:
+        raise ValueError(f"Unknown record type: {record_type_key!r}") from e
+
+
+def _validate_column_mapping(record_type_key: str, mapping: dict | None) -> None:
+    """Validate that mapping keys are all FieldDef.keys for the type.
+
+    `mapping` is {field_key -> csv_column_name}.
+    """
+    if not mapping:
+        return
+    rt = get_record_type(record_type_key)
+    valid = set(rt.field_keys)
+    bad = set(mapping.keys()) - valid
+    if bad:
+        raise ValueError(f"unknown field keys for type {record_type_key!r}: {sorted(bad)}")
+
+
 def create_source(db: Session, data: DataSourceCreate) -> DataSource:
     """Create a new data source."""
     _validate_filename_pattern(data.filename_pattern)
+    _validate_record_type(data.type)
+    _validate_column_mapping(data.type, data.column_mapping)
     source = DataSource(
         name=data.name,
+        type=data.type,
         description=data.description,
         file_format=data.file_format,
         delimiter=data.delimiter,
-        column_mapping=data.column_mapping.model_dump(),
+        column_mapping=data.column_mapping,
         filename_pattern=data.filename_pattern,
     )
     db.add(source)
@@ -50,7 +76,10 @@ def get_source(db: Session, source_id: int) -> DataSource | None:
 
 
 def update_source(db: Session, source_id: int, data: DataSourceUpdate) -> DataSource | None:
-    """Update a data source. Returns None if not found."""
+    """Update a data source. Returns None if not found.
+
+    `type` is locked at creation and cannot be changed via update.
+    """
     source = get_source(db, source_id)
     if source is None:
         return None
@@ -62,7 +91,8 @@ def update_source(db: Session, source_id: int, data: DataSourceUpdate) -> DataSo
     if data.delimiter is not None:
         source.delimiter = data.delimiter
     if data.column_mapping is not None:
-        source.column_mapping = data.column_mapping.model_dump()
+        _validate_column_mapping(source.type, data.column_mapping)
+        source.column_mapping = data.column_mapping
     if data.filename_pattern is not None:
         _validate_filename_pattern(data.filename_pattern)
         source.filename_pattern = data.filename_pattern
@@ -74,41 +104,31 @@ def update_source(db: Session, source_id: int, data: DataSourceUpdate) -> DataSo
 def delete_source(db: Session, source_id: int) -> bool:
     """Delete a data source and all related data.
 
-    Cascades through: MatchCandidates → StagedSuppliers → ImportBatches → DataSource.
+    Cascades through: MatchCandidates → StagedRecords → ImportBatches → DataSource.
     Returns True if deleted, False if not found.
     """
     from app.models.batch import ImportBatch
     from app.models.match import MatchCandidate
-    from app.models.staging import StagedSupplier
-    from app.models.unified import UnifiedSupplier
+    from app.models.staging import StagedRecord
+    from app.models.unified import UnifiedRecord
 
     source = get_source(db, source_id)
     if source is None:
         return False
 
-    # Use subqueries for bulk deletes — keeps all work in the database
-    # instead of loading thousands of IDs into Python memory.
-    staged_subq = db.query(StagedSupplier.id).filter(StagedSupplier.data_source_id == source_id)
+    staged_subq = db.query(StagedRecord.id).filter(StagedRecord.data_source_id == source_id)
     candidate_subq = db.query(MatchCandidate.id).filter(
-        (MatchCandidate.supplier_a_id.in_(staged_subq)) | (MatchCandidate.supplier_b_id.in_(staged_subq))
+        (MatchCandidate.record_a_id.in_(staged_subq)) | (MatchCandidate.record_b_id.in_(staged_subq))
     )
 
-    # Nullify unified supplier references to match candidates being deleted
-    db.query(UnifiedSupplier).filter(UnifiedSupplier.match_candidate_id.in_(candidate_subq)).update(
-        {UnifiedSupplier.match_candidate_id: None},
+    db.query(UnifiedRecord).filter(UnifiedRecord.match_candidate_id.in_(candidate_subq)).update(
+        {UnifiedRecord.match_candidate_id: None},
         synchronize_session=False,
     )
-
-    # Delete match candidates
     db.query(MatchCandidate).filter(MatchCandidate.id.in_(candidate_subq)).delete(synchronize_session=False)
-
-    # Delete staged suppliers
-    db.query(StagedSupplier).filter(StagedSupplier.data_source_id == source_id).delete(synchronize_session=False)
-
-    # Delete import batches
+    db.query(StagedRecord).filter(StagedRecord.data_source_id == source_id).delete(synchronize_session=False)
     db.query(ImportBatch).filter(ImportBatch.data_source_id == source_id).delete(synchronize_session=False)
 
-    # Delete the source itself
     db.delete(source)
     db.flush()
     return True

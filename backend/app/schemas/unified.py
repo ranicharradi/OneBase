@@ -1,11 +1,11 @@
-"""Pydantic v2 schemas for unified suppliers, dashboard, and export."""
+"""Pydantic v2 schemas for unified records, dashboard, and export."""
 
 from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-# ── Unified supplier list/detail ──
+# ── Unified record list/detail ──
 
 
 class FieldProvenance(BaseModel):
@@ -19,37 +19,36 @@ class FieldProvenance(BaseModel):
     chosen_at: str | None = None
 
 
-class UnifiedSupplierListItem(BaseModel):
-    """Compact unified supplier for list view."""
+class UnifiedRecordListItem(BaseModel):
+    """Compact unified record for list view."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    type: str
     name: str
-    source_code: str | None = None
-    short_name: str | None = None
-    currency: str | None = None
-    supplier_type: str | None = None
+    fields: dict[str, Any] = {}
     source_count: int  # number of source records merged
     is_singleton: bool  # promoted directly (no match candidate)
     created_by: str
     created_at: datetime | None = None
 
 
-class UnifiedSupplierListResponse(BaseModel):
-    """Paginated unified supplier list."""
+class UnifiedRecordListResponse(BaseModel):
+    """Paginated unified record list."""
 
-    items: list[UnifiedSupplierListItem]
+    items: list[UnifiedRecordListItem]
     total: int
     has_more: bool
 
 
 class SourceRecord(BaseModel):
-    """Source record linked to a unified supplier."""
+    """Source record linked to a unified record."""
 
     id: int
+    type: str
     name: str | None = None
-    source_code: str | None = None
+    fields: dict[str, Any] = {}
     data_source_name: str | None = None
     data_source_id: int
 
@@ -63,21 +62,17 @@ class MergeHistoryEntry(BaseModel):
     created_at: datetime | None = None
 
 
-class UnifiedSupplierDetail(BaseModel):
-    """Full unified supplier with provenance, source records, and merge history."""
+class UnifiedRecordDetail(BaseModel):
+    """Full unified record with provenance, source records, and merge history."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    type: str
     name: str
-    source_code: str | None = None
-    short_name: str | None = None
-    currency: str | None = None
-    payment_terms: str | None = None
-    contact_name: str | None = None
-    supplier_type: str | None = None
+    fields: dict[str, Any] = {}
     provenance: dict[str, FieldProvenance]
-    source_supplier_ids: list[int]
+    source_record_ids: list[int]
     source_records: list[SourceRecord]
     match_candidate_id: int | None = None
     merge_history: list[MergeHistoryEntry]
@@ -89,18 +84,14 @@ class UnifiedSupplierDetail(BaseModel):
 
 
 class SingletonCandidate(BaseModel):
-    """Staged supplier eligible for singleton promotion."""
+    """Staged record eligible for singleton promotion."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    type: str
     name: str | None = None
-    source_code: str | None = None
-    short_name: str | None = None
-    currency: str | None = None
-    payment_terms: str | None = None
-    contact_name: str | None = None
-    supplier_type: str | None = None
+    fields: dict[str, Any] = {}
     data_source_id: int
     data_source_name: str | None = None
 
@@ -116,22 +107,22 @@ class SingletonListResponse(BaseModel):
 class PromoteResponse(BaseModel):
     """Response after promoting a singleton."""
 
-    unified_supplier_id: int
-    supplier_name: str
+    unified_record_id: int
+    record_name: str
     message: str
 
 
 class BulkPromoteRequest(BaseModel):
     """Request to promote multiple singletons at once."""
 
-    supplier_ids: list[int]
+    record_ids: list[int]
 
 
 class BulkPromoteResponse(BaseModel):
     """Response after bulk promotion."""
 
     promoted_count: int
-    unified_supplier_ids: list[int]
+    unified_record_ids: list[int]
 
 
 # ── Dashboard ──

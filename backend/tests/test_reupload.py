@@ -5,10 +5,10 @@ from unittest.mock import patch
 import numpy as np
 
 from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
+from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
-from app.models.staging import StagedSupplier
+from app.models.staging import StagedRecord
 
 SAMPLE_CSV = b"\xef\xbb\xbfVendorCode;Name1\nV001;Acme Corp SARL\nV002;Beta GmbH\n"
 
@@ -22,6 +22,7 @@ class TestReuploadSupersession:
         """Helper: create a data source and import batch."""
         source = DataSource(
             name="Test Source",
+            type="supplier",
             file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
@@ -50,15 +51,15 @@ class TestReuploadSupersession:
 
         run_ingestion(test_db, batch.id, SAMPLE_CSV)
 
-        suppliers = (
-            test_db.query(StagedSupplier)
+        records = (
+            test_db.query(StagedRecord)
             .filter(
-                StagedSupplier.data_source_id == source.id,
-                StagedSupplier.status == SupplierStatus.ACTIVE,
+                StagedRecord.data_source_id == source.id,
+                StagedRecord.status == RecordStatus.ACTIVE,
             )
             .all()
         )
-        assert len(suppliers) == 2
+        assert len(records) == 2
 
     @patch("app.services.ingestion.compute_embeddings")
     def test_reupload_supersedes_old_records(self, mock_embed, test_db):
@@ -87,10 +88,10 @@ class TestReuploadSupersession:
 
         # Old records should be superseded
         superseded = (
-            test_db.query(StagedSupplier)
+            test_db.query(StagedRecord)
             .filter(
-                StagedSupplier.import_batch_id == batch1.id,
-                StagedSupplier.status == SupplierStatus.SUPERSEDED,
+                StagedRecord.import_batch_id == batch1.id,
+                StagedRecord.status == RecordStatus.SUPERSEDED,
             )
             .all()
         )
@@ -98,10 +99,10 @@ class TestReuploadSupersession:
 
         # New records should be active
         active = (
-            test_db.query(StagedSupplier)
+            test_db.query(StagedRecord)
             .filter(
-                StagedSupplier.import_batch_id == batch2.id,
-                StagedSupplier.status == SupplierStatus.ACTIVE,
+                StagedRecord.import_batch_id == batch2.id,
+                StagedRecord.status == RecordStatus.ACTIVE,
             )
             .all()
         )
@@ -119,11 +120,12 @@ class TestReuploadSupersession:
         run_ingestion(test_db, batch1.id, SAMPLE_CSV)
         test_db.commit()
 
-        # Create a pending match candidate between the two staged suppliers
-        suppliers = test_db.query(StagedSupplier).filter(StagedSupplier.import_batch_id == batch1.id).all()
+        # Create a pending match candidate between the two staged records
+        records = test_db.query(StagedRecord).filter(StagedRecord.import_batch_id == batch1.id).all()
         match = MatchCandidate(
-            supplier_a_id=suppliers[0].id,
-            supplier_b_id=suppliers[1].id,
+            type="supplier",
+            record_a_id=records[0].id,
+            record_b_id=records[1].id,
             confidence=0.85,
             match_signals={"name": 0.9},
             status=CandidateStatus.PENDING,
@@ -161,10 +163,11 @@ class TestReuploadSupersession:
         test_db.commit()
 
         # Create a confirmed match candidate
-        suppliers = test_db.query(StagedSupplier).filter(StagedSupplier.import_batch_id == batch1.id).all()
+        records = test_db.query(StagedRecord).filter(StagedRecord.import_batch_id == batch1.id).all()
         match = MatchCandidate(
-            supplier_a_id=suppliers[0].id,
-            supplier_b_id=suppliers[1].id,
+            type="supplier",
+            record_a_id=records[0].id,
+            record_b_id=records[1].id,
             confidence=0.95,
             match_signals={"name": 0.95},
             status=CandidateStatus.CONFIRMED,

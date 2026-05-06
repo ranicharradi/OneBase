@@ -5,8 +5,8 @@ from app.models.file_check import FileCheckIssue, FileCheckReport
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.ml_model import MLModelVersion
 from app.models.source import DataSource
-from app.models.staging import StagedSupplier
-from app.models.unified import UnifiedSupplier
+from app.models.staging import StagedRecord
+from app.models.unified import UnifiedRecord
 from app.models.user import User
 
 __all__ = [
@@ -17,9 +17,9 @@ __all__ = [
     "ImportBatch",
     "FileCheckReport",
     "FileCheckIssue",
-    "StagedSupplier",
+    "StagedRecord",
     "MatchCandidate",
     "MatchGroup",
-    "UnifiedSupplier",
+    "UnifiedRecord",
     "MLModelVersion",
 ]
