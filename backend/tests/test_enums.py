@@ -1,6 +1,6 @@
 """Tests for status enum definitions."""
 
-from app.models.enums import BatchStatus, CandidateStatus, SupplierStatus
+from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 
 
 class TestBatchStatus:
@@ -16,10 +16,10 @@ class TestBatchStatus:
         assert BatchStatus.PENDING != "other"
 
 
-class TestSupplierStatus:
+class TestRecordStatus:
     def test_values(self):
-        assert SupplierStatus.ACTIVE == "active"
-        assert SupplierStatus.SUPERSEDED == "superseded"
+        assert RecordStatus.ACTIVE == "active"
+        assert RecordStatus.SUPERSEDED == "superseded"
 
 
 class TestCandidateStatus:
