@@ -1,6 +1,6 @@
 // ── Sources management — terminal aesthetic, full CRUD ──
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type {
@@ -158,15 +158,13 @@ function SourceModal({
   const fields = useMemo(() => recordType?.fields ?? [], [recordType]);
 
   const [mapping, setMapping] = useState<ColumnMapping>(() => {
-    return source ? toColumnMapping(source.column_mapping) : emptyMapping(fields);
+    return source ? toColumnMapping(source.column_mapping) : {};
   });
+  const effectiveMapping = useMemo(
+    () => (isEditing ? mapping : { ...emptyMapping(fields), ...mapping }),
+    [fields, isEditing, mapping],
+  );
   const [formError, setFormError] = useState('');
-
-  useEffect(() => {
-    if (!isEditing) {
-      setMapping(emptyMapping(fields));
-    }
-  }, [fields, isEditing]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -175,7 +173,7 @@ function SourceModal({
           name,
           description: description.trim() || null,
           delimiter,
-          column_mapping: mapping,
+          column_mapping: effectiveMapping,
           filename_pattern: filenamePattern.trim() || null,
         });
       }
@@ -185,7 +183,7 @@ function SourceModal({
         type,
         description: description.trim() || undefined,
         delimiter,
-        column_mapping: mapping,
+        column_mapping: effectiveMapping,
         filename_pattern: filenamePattern.trim() || undefined,
       });
     },
@@ -219,7 +217,7 @@ function SourceModal({
     }
     const missingRequired = fields
       .filter(f => f.required)
-      .find(f => !(mapping as unknown as Record<string, string | undefined>)[f.key]);
+      .find(f => !(effectiveMapping as unknown as Record<string, string | undefined>)[f.key]);
     if (missingRequired) {
       setFormError(`${missingRequired.label} column mapping is required`);
       return;
@@ -283,7 +281,15 @@ function SourceModal({
               Type <span style={{ color: 'var(--danger)' }}>*</span>
             </label>
             {!isEditing ? (
-              <select className="input" value={type} onChange={(e) => setType(e.target.value)} required>
+              <select
+                className="input"
+                value={type}
+                onChange={(e) => {
+                  setType(e.target.value);
+                  setMapping({});
+                }}
+                required
+              >
                 {recordTypes.types.map(rt => (
                   <option key={rt.key} value={rt.key}>{rt.label}</option>
                 ))}
@@ -339,7 +345,7 @@ function SourceModal({
               Field definitions could not be loaded.
             </div>
           ) : (
-            <ColumnMappingEditor value={mapping} onChange={setMapping} fields={fields} />
+            <ColumnMappingEditor value={effectiveMapping} onChange={setMapping} fields={fields} />
           )}
         </div>
 
