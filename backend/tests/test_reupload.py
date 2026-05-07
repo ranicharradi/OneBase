@@ -25,7 +25,7 @@ class TestReuploadSupersession:
             type="supplier",
             file_format="csv",
             delimiter=";",
-            column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
+            column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
         )
         test_db.add(source)
         test_db.flush()

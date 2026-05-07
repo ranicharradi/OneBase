@@ -94,15 +94,15 @@ def test_get_kind_unknown_raises():
 
 
 def test_exact_kind_case_sensitive():
-    a = _rec(supplier_code="ACME-001")
-    b = _rec(supplier_code="ACME-001")
-    assert compute_signal("exact", a, b, field="supplier_code") == 1.0
+    a = _rec(short_name="ACME-001")
+    b = _rec(short_name="ACME-001")
+    assert compute_signal("exact", a, b, field="short_name") == 1.0
 
 
 def test_exact_kind_returns_zero_on_case_difference():
-    a = _rec(supplier_code="ACME-001")
-    b = _rec(supplier_code="acme-001")
-    assert compute_signal("exact", a, b, field="supplier_code") == 0.0
+    a = _rec(short_name="ACME-001")
+    b = _rec(short_name="acme-001")
+    assert compute_signal("exact", a, b, field="short_name") == 0.0
 
 
 def test_embedding_cosine_returns_one_for_identical_embeddings():
@@ -115,14 +115,14 @@ def test_embedding_cosine_returns_one_for_identical_embeddings():
     assert score == pytest.approx(1.0)
 
 
-def test_embedding_cosine_does_not_require_name_field_value():
+def test_embedding_cosine_drops_when_name_field_missing():
     import numpy as np
 
     vec = np.array([1.0, 0.0, 0.0], dtype=np.float32)
-    a = _rec(name_embedding=vec)
+    a = _rec(name_embedding=vec)  # no supplier_name in fields
     b = _rec(name_embedding=vec)
     score = compute_signal("embedding_cosine", a, b, field="supplier_name")
-    assert score == pytest.approx(1.0)
+    assert score is None
 
 
 def test_embedding_cosine_returns_zero_for_orthogonal_embeddings():

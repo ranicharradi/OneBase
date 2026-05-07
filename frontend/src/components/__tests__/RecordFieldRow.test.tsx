@@ -31,10 +31,10 @@ describe('RecordFieldRow', () => {
   it('renders provenance source when available', () => {
     render(
       <RecordFieldRow
-        field={{ key: 'supplier_code', label: 'Supplier Code', role: 'code', required: true }}
-        fields={{ supplier_code: 'A-100' }}
+        field={{ key: 'currency', label: 'Currency', role: 'enum', required: true }}
+        fields={{ currency: 'USD' }}
         provenance={{
-          value: 'A-100',
+          value: 'USD',
           source_entity: 'SAP',
           source_record_id: 1,
           auto: true,

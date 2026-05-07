@@ -74,8 +74,7 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
             status=RecordStatus.ACTIVE,
             fields={
                 "supplier_name": name_a,
-                "supplier_code": f"A{i:03d}",
-                "short_name": "TST",
+                "short_name": f"A{i:03d}",
                 "currency": "EUR",
             },
         )
@@ -89,8 +88,7 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
             status=RecordStatus.ACTIVE,
             fields={
                 "supplier_name": name_b,
-                "supplier_code": f"B{i:03d}",
-                "short_name": "TST",
+                "short_name": f"B{i:03d}",
                 "currency": "EUR",
             },
         )
@@ -146,7 +144,7 @@ class TestExtractTrainingData:
             normalized_name="pending",
             raw_data={},
             status="active",
-            fields={"supplier_name": "PENDING", "supplier_code": "P001"},
+            fields={"supplier_name": "PENDING", "short_name": "P001"},
         )
         sb_ = StagedRecord(
             type="supplier",
@@ -156,7 +154,7 @@ class TestExtractTrainingData:
             normalized_name="pending b",
             raw_data={},
             status="active",
-            fields={"supplier_name": "PENDING B", "supplier_code": "P002"},
+            fields={"supplier_name": "PENDING B", "short_name": "P002"},
         )
         test_db.add_all([sa_, sb_])
         test_db.flush()

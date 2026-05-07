@@ -96,7 +96,7 @@ class TestEndpointRoleGating:
             json={
                 "name": "Test",
                 "type": "supplier",
-                "column_mapping": {"supplier_name": "Name", "supplier_code": "Code"},
+                "column_mapping": {"supplier_name": "Name", "short_name": "Code"},
             },
             headers=_auth_header("admin1"),
         )

@@ -26,8 +26,7 @@ def _make_record(db, source, batch, name, **kwargs):
         status=RecordStatus.ACTIVE,
         fields={
             "supplier_name": name,
-            "supplier_code": "C001",
-            "short_name": "TST",
+            "short_name": "C001",
             "currency": "EUR",
         },
     )
@@ -53,8 +52,7 @@ def _seed_pair(db):
         "ACME CORPORATION",
         fields={
             "supplier_name": "ACME CORPORATION",
-            "supplier_code": "C002",
-            "short_name": "TST",
+            "short_name": "C002",
             "currency": "EUR",
         },
     )
@@ -128,7 +126,7 @@ class TestBlockerFilter:
             s,
             b,
             "ALPHA INC",
-            fields={"supplier_name": "ALPHA INC", "supplier_code": "A1", "short_name": "", "currency": "EUR"},
+            fields={"supplier_name": "ALPHA INC", "short_name": "A1", "currency": "EUR"},
         )
         rec2 = _make_record(
             test_db,
@@ -137,8 +135,7 @@ class TestBlockerFilter:
             "ALPHA INCORPORATED",
             fields={
                 "supplier_name": "ALPHA INCORPORATED",
-                "supplier_code": "A2",
-                "short_name": "",
+                "short_name": "A2",
                 "currency": "EUR",
             },
         )
@@ -147,14 +144,14 @@ class TestBlockerFilter:
             s,
             b,
             "BETA LLC",
-            fields={"supplier_name": "BETA LLC", "supplier_code": "B1", "short_name": "", "currency": "EUR"},
+            fields={"supplier_name": "BETA LLC", "short_name": "B1", "currency": "EUR"},
         )
         rec4 = _make_record(
             test_db,
             s,
             b,
             "GAMMA CORP",
-            fields={"supplier_name": "GAMMA CORP", "supplier_code": "G1", "short_name": "", "currency": "EUR"},
+            fields={"supplier_name": "GAMMA CORP", "short_name": "G1", "currency": "EUR"},
         )
 
         pairs = [(rec1.id, rec2.id), (rec3.id, rec4.id)]

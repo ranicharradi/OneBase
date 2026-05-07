@@ -15,7 +15,6 @@ VALID_SOURCE = {
     "type": "supplier",
     "column_mapping": {
         "supplier_name": "Name1",
-        "supplier_code": "VendorCode",
     },
 }
 

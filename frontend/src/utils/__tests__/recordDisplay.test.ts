@@ -7,7 +7,7 @@ const supplierType: RecordType = {
   label: 'Supplier',
   fields: [
     { key: 'supplier_name', label: 'Supplier Name', role: 'name', required: true },
-    { key: 'supplier_code', label: 'Supplier Code', role: 'code', required: true },
+    { key: 'short_name', label: 'Short Name', role: 'extra', required: true },
     { key: 'currency', label: 'Currency', role: 'enum', required: false },
   ],
   signals: [],
@@ -27,8 +27,8 @@ describe('recordDisplay helpers', () => {
   })
 
   it('summarizes populated fields in requested order', () => {
-    expect(fieldSummary({ supplier_code: 'A-1', currency: 'USD', status: 'active' }, [
-      'supplier_code',
+    expect(fieldSummary({ short_name: 'A-1', currency: 'USD', status: 'active' }, [
+      'short_name',
       'currency',
       'status',
     ])).toBe('A-1 · USD')

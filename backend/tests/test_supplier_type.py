@@ -12,12 +12,9 @@ def test_supplier_field_keys():
     rt = get("supplier")
     assert rt.field_keys == (
         "supplier_name",
-        "supplier_code",
         "short_name",
         "currency",
-        "payment_terms",
         "contact_name",
-        "supplier_type",
     )
 
 
@@ -31,7 +28,7 @@ def test_supplier_name_field_is_supplier_name():
 def test_supplier_required_fields():
     rt = get("supplier")
     required = {f.key for f in rt.fields if f.required}
-    assert required == {"supplier_name", "supplier_code"}
+    assert required == {"supplier_name"}
 
 
 def test_supplier_signal_weights_sum_to_one():

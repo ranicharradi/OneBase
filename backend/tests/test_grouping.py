@@ -37,8 +37,6 @@ def _make_record(
     currency: str | None = None,
     contact_name: str | None = None,
     source_code: str | None = None,
-    payment_terms: str | None = None,
-    supplier_type: str | None = None,
 ) -> StagedRecord:
     fields = {}
     if short_name is not None:
@@ -48,11 +46,11 @@ def _make_record(
     if contact_name is not None:
         fields["contact_name"] = contact_name
     if source_code is not None:
-        fields["supplier_code"] = source_code
-    if payment_terms is not None:
-        fields["payment_terms"] = payment_terms
-    if supplier_type is not None:
-        fields["supplier_type"] = supplier_type
+        fields["short_name"] = source_code
+    if currency is not None:
+        fields["currency"] = currency
+    if contact_name is not None:
+        fields["contact_name"] = contact_name
 
     s = StagedRecord(
         type="supplier",

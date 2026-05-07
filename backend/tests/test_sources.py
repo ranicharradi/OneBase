@@ -8,7 +8,6 @@ VALID_SOURCE = {
     "type": "supplier",
     "column_mapping": {
         "supplier_name": "Name1",
-        "supplier_code": "VendorCode",
         "short_name": "ShortName",
         "currency": "Currency",
     },
@@ -25,7 +24,7 @@ class TestCreateSource:
         data = response.json()
         assert data["name"] == "SAP Export"
         assert data["column_mapping"]["supplier_name"] == "Name1"
-        assert data["column_mapping"]["supplier_code"] == "VendorCode"
+        assert data["column_mapping"]["short_name"] == "ShortName"
         assert "id" in data
         assert "created_at" in data
 

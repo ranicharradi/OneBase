@@ -42,7 +42,6 @@ class TestRunIngestion:
             delimiter=";",
             column_mapping={
                 "supplier_name": "Name1",
-                "supplier_code": "VendorCode",
                 "short_name": "ShortName",
                 "currency": "Currency",
             },
@@ -77,7 +76,7 @@ class TestRunIngestion:
         assert len(records) == 3
 
         # Check first record — supplier fields now in JSONB
-        s1 = next(s for s in records if s.fields.get("supplier_code") == "V001")
+        s1 = next(s for s in records if s.fields.get("short_name") == "ACME")
         assert s1.name == "Acme Corp SARL"
         assert s1.fields.get("short_name") == "ACME"
         assert s1.fields.get("currency") == "EUR"
@@ -97,7 +96,7 @@ class TestRunIngestion:
 
         records = test_db.query(StagedRecord).filter(StagedRecord.import_batch_id == batch.id).all()
 
-        s1 = next(s for s in records if s.fields.get("supplier_code") == "V001")
+        s1 = next(s for s in records if s.fields.get("short_name") == "ACME")
         # "Acme Corp SARL" -> normalized: "ACME" (CORP and SARL removed)
         assert s1.normalized_name is not None
         assert s1.normalized_name == "ACME"
@@ -182,7 +181,6 @@ class TestProcessUploadIdempotency:
             delimiter=";",
             column_mapping={
                 "supplier_name": "Name1",
-                "supplier_code": "VendorCode",
                 "short_name": "ShortName",
                 "currency": "Currency",
             },
@@ -286,7 +284,7 @@ class TestFileCleanupOnFailure:
             type="supplier",
             file_format="csv",
             delimiter=";",
-            column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
+            column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
         )
         test_db.add(source)
         test_db.flush()
@@ -328,7 +326,7 @@ class TestFileCleanupOnFailure:
             type="supplier",
             file_format="csv",
             delimiter=";",
-            column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
+            column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
         )
         test_db.add(source)
         test_db.flush()

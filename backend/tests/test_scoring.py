@@ -37,9 +37,9 @@ def _make_record_obj(**kwargs):
         "short_name": "short_name",
         "currency": "currency",
         "contact_name": "contact_name",
-        "source_code": "supplier_code",
-        "payment_terms": "payment_terms",
-        "supplier_type": "supplier_type",
+        "source_code": "short_name",
+        "payment_terms": "currency",
+        "supplier_type": "contact_name",
     }
     fields = dict(kwargs.pop("fields", {}))
     for kwarg_key, field_key in field_map.items():
@@ -189,11 +189,22 @@ class TestScorePairSignals:
         assert abs(result["signals"][EMB_NAME]) < 0.01
 
     def test_embedding_cosine_none_neutral(self):
-        """No embeddings returns 0.5 (neutral)."""
+        """No embeddings returns 0.5 (neutral fallback in _embedding_cosine)."""
         a = _make_record_obj(id=1, normalized_name="A", name_embedding=None, fields={"supplier_name": "A"})
         b = _make_record_obj(id=2, normalized_name="B", name_embedding=None, fields={"supplier_name": "B"})
         result = score_pair(a, b)
+        # name field present on both sides → signal fires; no embedding → 0.5 neutral
         assert result["signals"][EMB_NAME] == 0.5
+
+    def test_embedding_cosine_drops_when_name_missing(self):
+        """embedding_cosine is dropped when the name field is absent, preventing empty-name false positives."""
+        import numpy as np
+
+        vec = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        a = _make_record_obj(id=1, normalized_name="", name_embedding=vec, fields={})
+        b = _make_record_obj(id=2, normalized_name="", name_embedding=vec, fields={})
+        result = score_pair(a, b)
+        assert EMB_NAME not in result["signals"]
 
 
 class TestScorePairAggregation:
@@ -275,8 +286,12 @@ class TestScorePairAggregation:
         for signal_name, value in result["signals"].items():
             assert 0.0 <= value <= 1.0, f"Signal {signal_name} out of range: {value}"
 
-    def test_confidence_is_renormalized_weighted_sum(self):
-        """confidence equals weighted sum of *active* signals divided by sum of active weights."""
+    def test_confidence_is_weighted_sum_over_total_weight(self):
+        """confidence equals weighted sum of active signals divided by *total* configured weight.
+
+        Dividing by total (not active) weight means pairs with few firing signals cannot
+        reach 1.0 on a single weak match — e.g. same currency alone yields 0.05/1.00 = 5%.
+        """
         a = _make_record_obj(
             id=1,
             normalized_name="TEST COMPANY",
@@ -304,12 +319,17 @@ class TestScorePairAggregation:
         rt = get_record_type("supplier")
         sig_map = {signal_key(s.kind, s.field): s.weight for s in rt.signals}
 
-        active_weights = sum(sig_map[k] for k in result["signals"] if k in sig_map)
-        expected = sum(v * sig_map[k] for k, v in result["signals"].items() if k in sig_map) / active_weights
+        total_weight = sum(s.weight for s in rt.signals)
+        expected = sum(v * sig_map[k] for k, v in result["signals"].items() if k in sig_map) / total_weight
         assert abs(result["confidence"] - expected) < 0.001
 
-    def test_confidence_renormalizes_when_optional_missing(self):
-        """Dropping a missing optional signal yields a higher confidence than the diluted sum."""
+    def test_confidence_not_inflated_when_optional_missing(self):
+        """Missing optional fields reduce confidence — they do NOT renormalize upward.
+
+        Dividing by total weight (not active weight) means a pair with no optional fields
+        is penalized for lacking data. Identical names with no embedding/optional fields
+        still score above 0.5 because the three name signals dominate, but never reach 1.0.
+        """
         # Identical names — core signals all max out at ~1.0; embedding is 0.5
         # (no embeddings provided). With contact_name None on one side, the
         # contact signal must be dropped from the weighted sum.
@@ -320,10 +340,9 @@ class TestScorePairAggregation:
         # contact signal must not appear in the active set
         assert JW_CONTACT not in result["signals"]
 
-        # Confidence is the renormalized sum of active signals (jw, tj, emb).
-        # The two name signals are ~1.0; embedding fallback is 0.5. Confidence
-        # must be strictly greater than 0.5 because high-value signals dominate.
+        # jw≈1.0×0.30 + tj≈1.0×0.20 + emb=0.5×0.25 = 0.625 / 1.00 total weight = 0.625
         assert result["confidence"] > 0.5
+        assert result["confidence"] < 1.0
 
     def test_confidence_0_to_1(self):
         """Confidence is between 0.0 and 1.0."""

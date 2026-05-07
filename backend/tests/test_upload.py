@@ -10,7 +10,6 @@ VALID_SOURCE = {
     "type": "supplier",
     "column_mapping": {
         "supplier_name": "Name1",
-        "supplier_code": "VendorCode",
     },
 }
 
@@ -234,7 +233,7 @@ class TestReuploadGuard:
             file_format="csv",
             delimiter=";",
             type="supplier",
-            column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
+            column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
         )
         test_db.add(source)
         test_db.flush()
@@ -273,7 +272,7 @@ class TestReuploadGuard:
             file_format="csv",
             delimiter=";",
             type="supplier",
-            column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
+            column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
         )
         test_db.add(source)
         test_db.flush()
@@ -311,7 +310,7 @@ class TestReuploadGuard:
             file_format="csv",
             delimiter=";",
             type="supplier",
-            column_mapping={"supplier_name": "Name1", "supplier_code": "VendorCode"},
+            column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
         )
         test_db.add(source)
         test_db.flush()

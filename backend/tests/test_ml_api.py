@@ -43,7 +43,7 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
             normalized_name=name_a.lower(),
             raw_data={},
             status=RecordStatus.ACTIVE,
-            fields={"supplier_name": name_a, "supplier_code": f"A{i}"},
+            fields={"supplier_name": name_a, "short_name": f"A{i}"},
         )
         sb = StagedRecord(
             type="supplier",
@@ -53,7 +53,7 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
             normalized_name=name_b.lower(),
             raw_data={},
             status=RecordStatus.ACTIVE,
-            fields={"supplier_name": name_b, "supplier_code": f"B{i}"},
+            fields={"supplier_name": name_b, "short_name": f"B{i}"},
         )
         db.add_all([sa, sb])
         db.flush()
@@ -147,7 +147,7 @@ class TestActiveLearningSort:
                 normalized_name=f"sup a{i}",
                 raw_data={},
                 status="active",
-                fields={"supplier_name": f"SUP A{i}", "supplier_code": f"QA{i}"},
+                fields={"supplier_name": f"SUP A{i}", "short_name": f"QA{i}"},
             )
             sb = StagedRecord(
                 type="supplier",
@@ -157,7 +157,7 @@ class TestActiveLearningSort:
                 normalized_name=f"sup b{i}",
                 raw_data={},
                 status="active",
-                fields={"supplier_name": f"SUP B{i}", "supplier_code": f"QB{i}"},
+                fields={"supplier_name": f"SUP B{i}", "short_name": f"QB{i}"},
             )
             db.add_all([sa, sb])
             db.flush()

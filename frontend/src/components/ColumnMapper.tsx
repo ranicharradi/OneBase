@@ -21,11 +21,6 @@ interface ColumnMapperProps {
   detectedDelimiter?: string;
 }
 
-function previewFor(col: string): string {
-  // Simple heuristic preview — empty by default
-  return col || '—';
-}
-
 export default function ColumnMapper({
   columns,
   type,
@@ -41,9 +36,35 @@ export default function ColumnMapper({
   const [description, setDescription] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const autoMap = (cols: string[], fieldList: FieldDef[]): Record<string, string> => {
+    const result: Record<string, string> = {};
+    const used = new Set<string>();
+    for (const field of fieldList) {
+      for (const syn of field.synonyms ?? []) {
+        const match = cols.find(c => c.trim().toLowerCase() === syn.toLowerCase());
+        if (match && !used.has(match)) {
+          result[field.key] = match;
+          used.add(match);
+          break;
+        }
+      }
+    }
+    return result;
+  };
+
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [autoMapped, setAutoMapped] = useState<Set<string>>(new Set());
+  const [prevLengths, setPrevLengths] = useState({ fields: 0, columns: 0 });
+
+  if (fields.length !== prevLengths.fields || columns.length !== prevLengths.columns) {
+    const auto = autoMap(columns, fields);
+    setMapping(auto);
+    setAutoMapped(new Set(Object.keys(auto)));
+    setPrevLengths({ fields: fields.length, columns: columns.length });
+  }
 
   const updateMapping = (field: string, csvColumn: string) => {
+    setAutoMapped(prev => { const s = new Set(prev); s.delete(field); return s; });
     setMapping(prev => {
       const next = { ...prev };
       if (csvColumn) next[field] = csvColumn;
@@ -322,15 +343,14 @@ export default function ColumnMapper({
                         </option>
                       ))}
                     </select>
-                    {value && (
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginTop: 2 }}>
-                        preview: {previewFor(value)}
-                      </div>
-                    )}
                   </td>
                   <td className="num">
                     {isMapped ? (
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>manual</span>
+                      autoMapped.has(field.key) ? (
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--accent)' }}>auto</span>
+                      ) : (
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>manual</span>
+                      )
                     ) : (
                       <span className="mono" style={{ fontSize: 10, color: 'var(--fg-3)' }}>—</span>
                     )}

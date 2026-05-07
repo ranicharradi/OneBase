@@ -41,7 +41,6 @@ def _make_record(
     short_name: str | None = None,
     currency: str | None = None,
     contact_name: str | None = None,
-    source_code: str | None = None,
 ) -> StagedRecord:
     fields: dict = {"supplier_name": name}
     if short_name is not None:
@@ -50,8 +49,6 @@ def _make_record(
         fields["currency"] = currency
     if contact_name is not None:
         fields["contact_name"] = contact_name
-    if source_code is not None:
-        fields["supplier_code"] = source_code
 
     s = StagedRecord(
         type="supplier",
@@ -104,7 +101,6 @@ def _setup_pair(db: Session):
         short_name="ACME",
         currency="EUR",
         contact_name="John Doe",
-        source_code="FE001",
     )
     rec_b = _make_record(
         db,
@@ -113,7 +109,6 @@ def _setup_pair(db: Session):
         name="ACME CORPORATION",
         short_name="ACME",
         currency="USD",
-        source_code="FL001",
     )
 
     candidate = _make_candidate(db, rec_a, rec_b)
@@ -183,7 +178,6 @@ class TestExecuteMerge:
         selections = [
             {"field": "supplier_name", "chosen_record_id": rec_a.id},
             {"field": "currency", "chosen_record_id": rec_b.id},
-            {"field": "supplier_code", "chosen_record_id": rec_a.id},
         ]
 
         unified = execute_merge(
@@ -202,7 +196,6 @@ class TestExecuteMerge:
         assert unified.fields.get("currency") == "USD"  # chosen from B
         assert unified.fields.get("short_name") == "ACME"  # identical — auto
         assert unified.fields.get("contact_name") == "John Doe"  # A-only — auto
-        assert unified.fields.get("supplier_code") == "FE001"  # chosen from A
 
         # Provenance
         assert unified.provenance["supplier_name"]["auto"] is False
@@ -226,7 +219,7 @@ class TestExecuteMerge:
                 record_b=rec_b,
                 source_a_name="EOT",
                 source_b_name="TTEI",
-                field_selections=[],  # Missing selections for supplier_name, currency, supplier_code
+                field_selections=[],  # Missing selections for supplier_name, currency
                 username="testuser",
             )
 
@@ -237,7 +230,6 @@ class TestExecuteMerge:
         selections = [
             {"field": "supplier_name", "chosen_record_id": rec_a.id},
             {"field": "currency", "chosen_record_id": rec_a.id},
-            {"field": "supplier_code", "chosen_record_id": rec_a.id},
         ]
 
         unified = execute_merge(
@@ -287,7 +279,6 @@ class TestReviewAPI:
             "ACME CORP",
             short_name="ACME",
             currency="EUR",
-            source_code="FE001",
         )
         rec_b = _make_record(
             db,
@@ -296,7 +287,6 @@ class TestReviewAPI:
             "ACME CORPORATION",
             short_name="ACME",
             currency="USD",
-            source_code="FL001",
         )
         candidate = _make_candidate(db, rec_a, rec_b)
         db.commit()
@@ -320,7 +310,7 @@ class TestReviewAPI:
         data = resp.json()
         assert data["record_a"]["name"] == "ACME CORP"
         assert data["record_b"]["name"] == "ACME CORPORATION"
-        assert len(data["field_comparisons"]) == 7  # all canonical fields
+        assert len(data["field_comparisons"]) == 4  # all canonical fields
 
         # Check conflict detection
         name_comp = next(c for c in data["field_comparisons"] if c["field"] == "supplier_name")
@@ -339,7 +329,6 @@ class TestReviewAPI:
                 "field_selections": [
                     {"field": "supplier_name", "chosen_record_id": rec_a.id},
                     {"field": "currency", "chosen_record_id": rec_a.id},
-                    {"field": "supplier_code", "chosen_record_id": rec_a.id},
                 ]
             },
         )

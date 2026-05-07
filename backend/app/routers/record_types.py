@@ -22,7 +22,10 @@ def _to_schema(rt) -> RecordTypeSchema:
     return RecordTypeSchema(
         key=rt.key,
         label=rt.label,
-        fields=[FieldDefSchema(key=f.key, label=f.label, role=f.role.value, required=f.required) for f in rt.fields],
+        fields=[
+            FieldDefSchema(key=f.key, label=f.label, role=f.role.value, required=f.required, synonyms=list(f.synonyms))
+            for f in rt.fields
+        ],
         signals=[SignalSchema(kind=s.kind, field=s.field, weight=s.weight) for s in rt.signals],
     )
 

@@ -54,8 +54,7 @@ def _seed_staged(db, source, batch, name, source_code="FE001"):
         status=RecordStatus.ACTIVE,
         fields={
             "supplier_name": name,
-            "supplier_code": source_code,
-            "short_name": "TST",
+            "short_name": source_code,
             "currency": "EUR",
         },
     )
@@ -69,7 +68,7 @@ def _seed_unified(db, name, source_ids, match_candidate_id=None, created_by="tes
     u = UnifiedRecord(
         type="supplier",
         name=name,
-        fields={"supplier_name": name, "supplier_code": "U001"},
+        fields={"supplier_name": name, "short_name": "U001"},
         provenance={
             "supplier_name": {
                 "value": name,
@@ -252,7 +251,7 @@ class TestSingletonPromotion:
             normalized_name="",
             raw_data={"BPSNAM": ""},
             status=RecordStatus.ACTIVE,
-            fields={"supplier_code": "NO-NAME"},
+            fields={"short_name": "NO-NAME"},
         )
         test_db.add(record)
         test_db.commit()

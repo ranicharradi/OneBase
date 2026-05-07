@@ -18,6 +18,8 @@ def test_get_record_type_returns_full_config(authenticated_client):
     assert "supplier_name" in field_keys
     assert any(f["key"] == "supplier_name" and f["role"] == "name" for f in body["fields"])
     assert len(body["signals"]) == 6
+    name_field = next(f for f in body["fields"] if f["key"] == "supplier_name")
+    assert "BPSNAM_0" in name_field["synonyms"]
 
 
 def test_get_unknown_record_type_returns_404(authenticated_client):
