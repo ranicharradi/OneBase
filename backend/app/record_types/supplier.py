@@ -12,13 +12,31 @@ SUPPLIER = RecordType(
     key="supplier",
     label="Supplier",
     fields=(
-        FieldDef("supplier_name", label="Supplier Name", role=Role.NAME, required=True),
-        FieldDef("supplier_code", label="Supplier Code", role=Role.CODE, required=True),
-        FieldDef("short_name", label="Short Name", role=Role.EXTRA),
-        FieldDef("currency", label="Currency", role=Role.ENUM),
-        FieldDef("payment_terms", label="Payment Terms", role=Role.ENUM),
-        FieldDef("contact_name", label="Contact Name", role=Role.EXTRA),
-        FieldDef("supplier_type", label="Supplier Type", role=Role.ENUM),
+        FieldDef(
+            "supplier_name",
+            label="Supplier Name",
+            role=Role.NAME,
+            required=True,
+            synonyms=("BPSNAM_0", "supplier_name", "name", "vendor_name", "nom_fournisseur", "raison_sociale"),
+        ),
+        FieldDef(
+            "short_name",
+            label="Short Name",
+            role=Role.EXTRA,
+            synonyms=("BPSSHO_0", "short_name", "short", "alias"),
+        ),
+        FieldDef(
+            "currency",
+            label="Currency",
+            role=Role.ENUM,
+            synonyms=("CUR_0", "currency", "cur", "devise"),
+        ),
+        FieldDef(
+            "contact_name",
+            label="Contact Name",
+            role=Role.EXTRA,
+            synonyms=("CNTNAM_0", "contact_name", "contact", "contact_person"),
+        ),
     ),
     # Signal weights match the legacy MATCHING_WEIGHT_* defaults in app/config.py.
     # Each signal's `field` is a real FieldDef key — `embedding_cosine` happens to

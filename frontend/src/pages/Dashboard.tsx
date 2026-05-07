@@ -219,8 +219,8 @@ export default function Dashboard() {
   });
 
   const { data: modelStatus } = useQuery<ModelStatusResponse>({
-    queryKey: ['model-status'],
-    queryFn: () => api.get('/api/matching/model-status'),
+    queryKey: ['model-status', selectedType],
+    queryFn: () => api.get(`/api/matching/model-status?type=${selectedType}`),
     enabled: isAdmin,
   });
 
@@ -232,6 +232,7 @@ export default function Dashboard() {
     onSuccess: () => {
       setConfirmAction(null);
       queryClient.invalidateQueries({ queryKey: ['model-status'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
     onError: () => setConfirmAction(null),
   });
@@ -241,6 +242,7 @@ export default function Dashboard() {
     onSuccess: () => {
       setConfirmAction(null);
       queryClient.invalidateQueries({ queryKey: ['model-status'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
     onError: () => setConfirmAction(null),
   });
@@ -250,8 +252,9 @@ export default function Dashboard() {
       setMatchProgress({ stage: n.data.stage ?? 'Processing', progress: n.data.progress ?? 0 });
     } else if (n.type === 'matching_complete' || n.type === 'matching_failed') {
       setMatchProgress(null);
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     }
-  }, []));
+  }, [queryClient]));
 
   if (isLoading) return <Skeleton />;
 

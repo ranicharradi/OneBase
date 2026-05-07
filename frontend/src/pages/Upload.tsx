@@ -357,7 +357,10 @@ export default function Upload() {
           <div className="fade">
             <ProgressTracker
               taskId={uploadState.taskId}
-              onComplete={() => queryClient.invalidateQueries({ queryKey: ['batches'] })}
+              onComplete={() => {
+                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+              }}
             />
             <div style={{ marginTop: 12, textAlign: 'center' }}>
               <button onClick={handleReset} className="btn btn-sm">

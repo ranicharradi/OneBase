@@ -74,6 +74,7 @@ export default function UnifiedRecords() {
       return api.get(`/api/unified/records?${params}`);
     },
     placeholderData: keepPreviousData,
+    refetchInterval: 30_000,
   });
 
   const { data: singletonData, isLoading: singletonsLoading } = useQuery<SingletonListResponse>({

@@ -9,6 +9,7 @@ class FieldDefSchema(BaseModel):
     label: str
     role: str
     required: bool
+    synonyms: list[str] = []
 
 
 class SignalSchema(BaseModel):

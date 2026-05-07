@@ -35,6 +35,7 @@ class FieldDef:
     label: str
     role: Role
     required: bool = False
+    synonyms: tuple[str, ...] = ()  # known source column names for auto-mapping
 
 
 @dataclass(frozen=True)

@@ -60,6 +60,7 @@ export default function ReviewDetail() {
     queryClient.invalidateQueries({ queryKey: ['review-queue'] });
     queryClient.invalidateQueries({ queryKey: ['review-stats'] });
     queryClient.invalidateQueries({ queryKey: ['review-detail', id] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     setActionInFlight(null);
   };
 

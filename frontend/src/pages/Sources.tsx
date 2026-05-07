@@ -385,6 +385,8 @@ function DeleteConfirm({
     mutationFn: () => api.delete(`/api/sources/${source.id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sources'] });
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
       onDeleted('Source deleted');
       onClose();
     },

@@ -82,11 +82,13 @@ export default function MergeQueue() {
   const { data: queue, isLoading } = useQuery({
     queryKey: ['merge-queue', bucket, page, selectedType],
     queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
+    refetchInterval: 30_000,
   });
 
   const { data: stats } = useQuery({
     queryKey: ['review-stats', selectedType],
     queryFn: () => api.get<ReviewStats>(`/api/review/stats?type=${selectedType}`),
+    refetchInterval: 30_000,
   });
 
   const bucketCounts: Record<BucketFilter, number> = {

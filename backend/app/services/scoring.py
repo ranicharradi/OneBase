@@ -3,7 +3,9 @@
 The matcher reads each type's `signals` list and dispatches each Signal.kind
 to a function in app.services.signals (the signal-kind registry). Signals that
 return None (one or both sides missing the field) are dropped from the weighted
-sum and the remaining weights are renormalized.
+sum. Confidence is divided by the *total* configured weight (not just the active
+subset) so that pairs with few firing signals cannot reach 1.0 on a single weak
+signal match (e.g. same currency alone would renormalize to 1.0 otherwise).
 """
 
 from app.models.staging import StagedRecord
@@ -42,15 +44,14 @@ def score_pair(
 
     signals: dict[str, float] = {}
     weighted_score = 0.0
-    active_weight_sum = 0.0
+    total_weight = sum(sig.weight for sig in rt.signals)
 
     for sig in rt.signals:
         value = compute_signal(sig.kind, record_a, record_b, sig.field)
         if value is None:
-            continue  # missing — drop, renormalize against active total
+            continue  # missing field — signal dropped, weight still counts against total
         signals[signal_key(sig.kind, sig.field)] = value
         weighted_score += value * sig.weight
-        active_weight_sum += sig.weight
 
-    confidence = weighted_score / active_weight_sum if active_weight_sum > 0 else 0.0
+    confidence = weighted_score / total_weight if total_weight > 0 else 0.0
     return {"confidence": confidence, "signals": signals}

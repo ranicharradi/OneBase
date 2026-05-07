@@ -15,6 +15,7 @@ export interface FieldDef {
   label: string;
   role: RecordTypeRole;
   required: boolean;
+  synonyms?: string[];
 }
 
 export interface Signal {
