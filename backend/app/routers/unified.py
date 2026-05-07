@@ -589,7 +589,9 @@ def get_dashboard(
                 action=a.action,
                 entity_type=a.entity_type,
                 entity_id=a.entity_id,
-                entity_name=None,
+                entity_name=(a.details.get("name") or a.details.get("filename") or a.details.get("username"))
+                if a.details
+                else None,
                 details=a.details,
                 created_at=a.created_at,
             )
