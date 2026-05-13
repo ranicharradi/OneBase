@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     # Upload directory
     upload_dir: str = "data/uploads"
 
+    # LLM (Google Gemini via google-genai)
+    llm_enabled: bool = False
+    llm_api_key: str | None = None
+    llm_model: str = "gemini-3-flash-preview"
+    llm_request_timeout_s: int = 15
+
     model_config = {"env_file": _env_files(), "extra": "ignore"}
 
 
