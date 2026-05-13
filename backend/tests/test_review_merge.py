@@ -449,3 +449,35 @@ def test_merge_ungrouped_backward_compat(test_db):
     test_db.flush()
 
     assert set(unified.source_record_ids) == {s1.id, s2.id}
+
+
+def test_execute_merge_sets_dq_score(test_db):
+    """After execute_merge runs, the returned UnifiedRecord has dq_* fields populated."""
+    src_a = _make_source(test_db, "A")
+    src_b = _make_source(test_db, "B")
+    batch_a = _make_batch(test_db, src_a)
+    batch_b = _make_batch(test_db, src_b)
+
+    rec_a = _make_record(test_db, batch_a, src_a, name="Acme Corp", currency="USD")
+    rec_b = _make_record(test_db, batch_b, src_b, name="Acme Corp", currency="USD")
+    test_db.flush()
+
+    candidate = _make_candidate(test_db, rec_a, rec_b)
+    test_db.flush()
+
+    unified = execute_merge(
+        db=test_db,
+        candidate=candidate,
+        record_a=rec_a,
+        record_b=rec_b,
+        source_a_name="A",
+        source_b_name="B",
+        field_selections=[],
+        username="tester",
+    )
+    test_db.commit()
+
+    assert unified.dq_score is not None
+    assert 0.0 <= unified.dq_score <= 1.0
+    assert unified.dq_completeness is not None
+    assert unified.dq_validity is not None

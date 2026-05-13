@@ -220,6 +220,13 @@ def execute_merge(
         },
     )
 
+    from app.services.dq import compute_dq
+
+    completeness, validity, score = compute_dq(unified, rt.fields)
+    unified.dq_completeness = completeness
+    unified.dq_validity = validity
+    unified.dq_score = score
+
     db.flush()
     return unified
 
