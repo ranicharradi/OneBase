@@ -413,3 +413,14 @@ export interface FileCheckReportListResponse {
   items: FileCheckReport[];
   total: number;
 }
+
+export interface SuggestMappingRequest {
+  headers: string[];
+  sample_rows: Record<string, unknown>[];
+}
+
+export interface SuggestMappingResponse {
+  suggestions: Record<string, string | null>;
+  model: string;
+  latency_ms: number;
+}

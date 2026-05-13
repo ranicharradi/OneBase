@@ -1,11 +1,15 @@
 // ── ColumnMapper — terminal aesthetic, record-type-driven ──
 
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import type {
   ColumnMapping,
   DataSourceCreate,
   FieldDef,
+  SuggestMappingRequest,
+  SuggestMappingResponse,
 } from '../api/types';
+import { api, ApiError } from '../api/client';
 import { useRecordType } from '../hooks/useRecordTypes';
 import Panel, { PanelHead } from './ui/Panel';
 import Hbar from './ui/Hbar';
@@ -19,6 +23,8 @@ interface ColumnMapperProps {
   isSubmitting?: boolean;
   initialSourceName?: string;
   detectedDelimiter?: string;
+  sourceId?: number;
+  sampleRows?: Record<string, unknown>[];
 }
 
 export default function ColumnMapper({
@@ -28,6 +34,8 @@ export default function ColumnMapper({
   isSubmitting = false,
   initialSourceName,
   detectedDelimiter,
+  sourceId,
+  sampleRows,
 }: ColumnMapperProps) {
   const { data: recordType, isLoading, error } = useRecordType(type);
   const fields: FieldDef[] = recordType?.fields ?? [];
@@ -78,6 +86,21 @@ export default function ColumnMapper({
         return next;
       });
     }
+  };
+
+  const suggestMutation = useMutation({
+    mutationFn: (req: SuggestMappingRequest) =>
+      api.post<SuggestMappingResponse>(`/api/sources/${sourceId}/suggest-mapping`, req),
+    onSuccess: (data) => {
+      const nonNull = Object.fromEntries(
+        Object.entries(data.suggestions).filter((entry): entry is [string, string] => entry[1] !== null),
+      );
+      setMapping((prev) => ({ ...prev, ...nonNull }));
+    },
+  });
+
+  const onSuggestClick = () => {
+    suggestMutation.mutate({ headers: columns, sample_rows: sampleRows ?? [] });
   };
 
   const validate = (): boolean => {
@@ -272,6 +295,26 @@ export default function ColumnMapper({
             <Pill tone={requiredMapped === requiredTotal ? 'ok' : 'warn'}>
               {requiredMapped}/{requiredTotal} required
             </Pill>
+            {sourceId !== undefined && (
+              <>
+                <button
+                  type="button"
+                  onClick={onSuggestClick}
+                  disabled={suggestMutation.isPending}
+                  className="btn btn-sm btn-ghost"
+                >
+                  {suggestMutation.isPending
+                    ? <><Spinner size={10} />&nbsp;Suggesting…</>
+                    : <><span className="material-symbols-outlined" style={{ fontSize: 12 }}>auto_awesome</span>&nbsp;Suggest with AI</>
+                  }
+                </button>
+                {suggestMutation.isError && (
+                  <span style={{ fontSize: 11, color: 'var(--err, var(--danger))' }}>
+                    {(suggestMutation.error as ApiError | Error).message}
+                  </span>
+                )}
+              </>
+            )}
           </div>
         </PanelHead>
 
