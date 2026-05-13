@@ -157,3 +157,82 @@ def test_suggest_mapping_happy_path(authenticated_client, test_db, monkeypatch):
     assert body["suggestions"]["Nom"] == "name"
     assert body["suggestions"]["Email"] == "email"
     assert body["model"]
+
+
+class TestDetectHeaders:
+    """Tests for POST /api/sources/detect-headers."""
+
+    def test_detect_headers_csv_semicolon(self, authenticated_client, test_db):
+        content = b"code;name;city\n001;Acme;Paris\n"
+        response = authenticated_client.post(
+            "/api/sources/detect-headers",
+            files={"file": ("vendors.csv", content, "text/csv")},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["columns"] == ["code", "name", "city"]
+        assert body["delimiter"] == ";"
+        assert body["format"] == "csv"
+
+    def test_detect_headers_csv_comma(self, authenticated_client, test_db):
+        content = b"code,name,city\n001,Acme,Paris\n"
+        response = authenticated_client.post(
+            "/api/sources/detect-headers",
+            files={"file": ("vendors.csv", content, "text/csv")},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["columns"] == ["code", "name", "city"]
+        assert body["delimiter"] == ","
+
+    def test_detect_headers_xlsx(self, authenticated_client, test_db):
+        from io import BytesIO
+
+        import openpyxl
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["code", "name", "city"])
+        ws.append(["001", "Acme", "Paris"])
+        buf = BytesIO()
+        wb.save(buf)
+
+        response = authenticated_client.post(
+            "/api/sources/detect-headers",
+            files={
+                "file": (
+                    "vendors.xlsx",
+                    buf.getvalue(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["columns"] == ["code", "name", "city"]
+        assert body["delimiter"] is None
+        assert body["format"] == "xlsx"
+
+    def test_detect_headers_unsupported_extension(self, authenticated_client, test_db):
+        response = authenticated_client.post(
+            "/api/sources/detect-headers",
+            files={"file": ("vendors.pdf", b"%PDF-1.4 fake", "application/pdf")},
+        )
+        assert response.status_code == 400
+        detail = response.json()["detail"].lower()
+        assert "csv" in detail and "xlsx" in detail
+
+    def test_detect_headers_corrupted_xlsx(self, authenticated_client, test_db):
+        response = authenticated_client.post(
+            "/api/sources/detect-headers",
+            files={"file": ("vendors.xlsx", b"not a real workbook", "application/octet-stream")},
+        )
+        assert response.status_code == 400
+        assert "excel" in response.json()["detail"].lower()
+
+    def test_detect_headers_requires_auth(self, test_client, test_db):
+        response = test_client.post(
+            "/api/sources/detect-headers",
+            files={"file": ("vendors.csv", b"code;name\n001;Acme\n", "text/csv")},
+        )
+        assert response.status_code == 401

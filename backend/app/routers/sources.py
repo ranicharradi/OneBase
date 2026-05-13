@@ -1,6 +1,6 @@
 """Data source CRUD endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from app.schemas.source import (
     DataSourceCreate,
     DataSourceResponse,
     DataSourceUpdate,
+    DetectHeadersResponse,
     SuggestMappingRequest,
     SuggestMappingResponse,
 )
@@ -25,10 +26,13 @@ from app.services.source import (
     get_sources,
     update_source,
 )
+from app.utils.tabular_parser import detect_headers
 
 UPLOAD_DIR = settings.upload_dir
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
+
+MAX_DETECT_SIZE = 50 * 1024 * 1024  # 50 MB — match upload route
 
 
 @router.post("", response_model=DataSourceResponse, status_code=status.HTTP_201_CREATED)
@@ -178,6 +182,41 @@ def get_upload_stats(
     )
 
     return {"staged_count": staged_count, "pending_match_count": pending_match_count}
+
+
+@router.post("/detect-headers", response_model=DetectHeadersResponse)
+async def detect_source_headers(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Return column headers + detected delimiter + format for a CSV or XLSX file."""
+    filename = file.filename or ""
+    filename_lower = filename.lower()
+    if not (filename_lower.endswith(".csv") or filename_lower.endswith(".xlsx")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only .csv and .xlsx files are accepted",
+        )
+
+    file_content = await file.read()
+    if len(file_content) > MAX_DETECT_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds maximum size of {MAX_DETECT_SIZE // (1024 * 1024)} MB",
+        )
+
+    try:
+        columns, delimiter = detect_headers(file_content, filename)
+    except ValueError as exc:
+        message = str(exc)
+        if "Could not read Excel" in message:
+            detail = "Could not read Excel file (corrupted or wrong format)"
+        else:
+            detail = "Only .csv and .xlsx files are accepted"
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from exc
+
+    file_format = "xlsx" if filename_lower.endswith(".xlsx") else "csv"
+    return DetectHeadersResponse(columns=columns, delimiter=delimiter, format=file_format)
 
 
 @router.post("/suggest-mapping", response_model=SuggestMappingResponse)
