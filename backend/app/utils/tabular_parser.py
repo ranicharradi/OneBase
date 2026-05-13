@@ -7,8 +7,13 @@ CSV path keeps the existing semantics:
 """
 
 import csv
+import datetime as _dt
 import io
 from typing import Any
+from zipfile import BadZipFile
+
+import openpyxl
+from openpyxl.utils.exceptions import InvalidFileException
 
 
 def parse_csv(file_content: bytes, delimiter: str = ";") -> list[dict[str, Any]]:
@@ -53,3 +58,98 @@ def detect_columns_csv(file_content: bytes, delimiter: str = ";") -> list[str]:
         return [h.strip() for h in headers]
     except StopIteration:
         return []
+
+
+def _format_cell(value: Any) -> Any:
+    """Normalize an openpyxl cell value for the ingestion pipeline.
+
+    - datetime with zero time → ISO date string (YYYY-MM-DD)
+    - datetime with non-zero time → ISO datetime string (YYYY-MM-DDTHH:MM:SS)
+    - str → stripped (empty string becomes None)
+    - everything else (int, float, bool, None) → unchanged
+    """
+    if isinstance(value, _dt.datetime):
+        if value.hour == 0 and value.minute == 0 and value.second == 0 and value.microsecond == 0:
+            return value.date().isoformat()
+        return value.replace(microsecond=0).isoformat()
+    if isinstance(value, _dt.date):
+        return value.isoformat()
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped if stripped else None
+    return value
+
+
+def _load_xlsx(file_content: bytes):
+    """Open an xlsx workbook from bytes in read-only mode, raising ValueError on bad input.
+
+    openpyxl can raise InvalidFileException (non-OOXML data),
+    BadZipFile (truncated/garbage/empty bytes), or KeyError (missing xl/workbook.xml).
+    """
+    try:
+        return openpyxl.load_workbook(
+            filename=io.BytesIO(file_content),
+            read_only=True,
+            data_only=True,
+        )
+    except (InvalidFileException, BadZipFile, KeyError, OSError) as exc:
+        raise ValueError(f"Could not read Excel file: {exc}") from exc
+
+
+def parse_xlsx(file_content: bytes) -> list[dict[str, Any]]:
+    """Parse the first sheet of an xlsx workbook into a list of dicts.
+
+    Types are preserved (int, float, bool); datetimes become ISO strings;
+    strings are trimmed; empty/whitespace strings become None. Trailing
+    all-None rows are dropped.
+    """
+    wb = _load_xlsx(file_content)
+    try:
+        ws = wb.active
+        if ws is None:
+            return []
+
+        rows_iter = ws.iter_rows(values_only=True)
+        try:
+            header_row = next(rows_iter)
+        except StopIteration:
+            return []
+
+        headers: list[str | None] = [
+            (h.strip() if isinstance(h, str) else None) if h is not None else None for h in header_row
+        ]
+        kept_idx = [i for i, h in enumerate(headers) if isinstance(h, str) and h]
+        if not kept_idx:
+            return []
+
+        kept_headers = [headers[i] for i in kept_idx]
+
+        out: list[dict[str, Any]] = []
+        for raw_row in rows_iter:
+            if all(cell is None for cell in raw_row):
+                continue
+            row_dict: dict[str, Any] = {}
+            for col_idx, header in zip(kept_idx, kept_headers, strict=False):
+                cell = raw_row[col_idx] if col_idx < len(raw_row) else None
+                row_dict[header] = _format_cell(cell)
+            if any(v is not None for v in row_dict.values()):
+                out.append(row_dict)
+        return out
+    finally:
+        wb.close()
+
+
+def detect_columns_xlsx(file_content: bytes) -> list[str]:
+    """Return the trimmed, non-empty headers from the first row of an xlsx workbook."""
+    wb = _load_xlsx(file_content)
+    try:
+        ws = wb.active
+        if ws is None:
+            return []
+        try:
+            header_row = next(ws.iter_rows(values_only=True))
+        except StopIteration:
+            return []
+        return [h.strip() for h in header_row if isinstance(h, str) and h.strip()]
+    finally:
+        wb.close()
