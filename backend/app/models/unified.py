@@ -1,6 +1,6 @@
 """Unified (golden record) model with full field-level provenance."""
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, func
 
 from app.models.base import Base
 
@@ -20,6 +20,9 @@ class UnifiedRecord(Base):
     fields = Column(JSON, nullable=False, default=dict)
     provenance = Column(JSON, nullable=False, default=dict)
     source_record_ids = Column(JSON, nullable=False, default=list)  # list[int]
+    dq_completeness = Column(Float, nullable=True)
+    dq_validity = Column(Float, nullable=True)
+    dq_score = Column(Float, nullable=True)
     match_candidate_id = Column(Integer, ForeignKey("match_candidates.id"), nullable=True)
     created_by = Column(String(100), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
