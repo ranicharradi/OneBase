@@ -22,7 +22,7 @@ from app.models.staging import StagedRecord
 from app.record_types import get as get_record_type
 from app.services.embedding import compute_embeddings
 from app.services.normalization import normalize_name
-from app.utils.tabular_parser import parse_csv
+from app.utils.tabular_parser import parse_file
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def run_ingestion(
         if progress_callback:
             progress_callback("parsing", 0)
 
-        rows = parse_csv(file_content, delimiter=source.delimiter)
+        rows = parse_file(file_content, batch.filename, delimiter=source.delimiter)
 
         if not rows:
             batch.row_count = 0
