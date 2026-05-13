@@ -3,6 +3,3 @@ pytest==9.0.2
 pytest-cov==7.1.0
 ruff==0.15.8
 pre-commit==4.5.1
-sqlglot>=25.0
-openai>=2.0
-anthropic>=0.40
