@@ -36,11 +36,12 @@ def test_file_check_models_have_expected_tables(test_db):
 
 
 def test_file_check_migration_does_not_create_branch_head():
+    """Migrations must form a single linear chain (no branches)."""
     backend_dir = Path(__file__).resolve().parents[1]
     alembic_config = Config(str(backend_dir / "alembic.ini"))
     script = ScriptDirectory.from_config(alembic_config)
 
-    assert script.get_heads() == ["001_records_schema"]
+    assert len(script.get_heads()) == 1
 
 
 def test_file_check_report_issue_relationship(test_db):
