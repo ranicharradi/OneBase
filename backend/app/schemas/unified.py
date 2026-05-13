@@ -32,6 +32,9 @@ class UnifiedRecordListItem(BaseModel):
     is_singleton: bool  # promoted directly (no match candidate)
     created_by: str
     created_at: datetime | None = None
+    dq_completeness: float | None = None
+    dq_validity: float | None = None
+    dq_score: float | None = None
 
 
 class UnifiedRecordListResponse(BaseModel):
@@ -78,6 +81,9 @@ class UnifiedRecordDetail(BaseModel):
     merge_history: list[MergeHistoryEntry]
     created_by: str
     created_at: datetime | None = None
+    dq_completeness: float | None = None
+    dq_validity: float | None = None
+    dq_score: float | None = None
 
 
 # ── Singleton promotion ──

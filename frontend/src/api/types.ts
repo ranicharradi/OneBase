@@ -230,6 +230,9 @@ export interface UnifiedRecordListItem {
   is_singleton: boolean;
   created_by: string;
   created_at: string | null;
+  dq_completeness?: number | null;
+  dq_validity?: number | null;
+  dq_score?: number | null;
 }
 
 export interface UnifiedRecordListResponse {
@@ -266,6 +269,9 @@ export interface UnifiedRecordDetail {
   merge_history: MergeHistoryEntry[];
   created_by: string;
   created_at: string | null;
+  dq_completeness?: number | null;
+  dq_validity?: number | null;
+  dq_score?: number | null;
 }
 
 // ── Singleton types ──

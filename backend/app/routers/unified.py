@@ -105,6 +105,9 @@ def list_unified_records(
                 is_singleton=r.match_candidate_id is None,
                 created_by=r.created_by,
                 created_at=r.created_at,
+                dq_completeness=r.dq_completeness,
+                dq_validity=r.dq_validity,
+                dq_score=r.dq_score,
             )
         )
 
@@ -200,6 +203,9 @@ def get_unified_record(
         merge_history=merge_history,
         created_by=unified.created_by,
         created_at=unified.created_at,
+        dq_completeness=unified.dq_completeness,
+        dq_validity=unified.dq_validity,
+        dq_score=unified.dq_score,
     )
 
 

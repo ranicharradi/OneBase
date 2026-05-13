@@ -381,3 +381,34 @@ class TestDashboard:
         assert resp.status_code == 200
         actions = [item["action"] for item in resp.json()["recent_activity"]]
         assert actions == ["supplier_action"]
+
+
+# ── DQ score exposure tests ──
+
+
+def test_unified_list_includes_dq_fields(authenticated_client, test_db):
+    from app.models.unified import UnifiedRecord
+
+    test_db.add(
+        UnifiedRecord(
+            type="supplier",
+            name="Test Co",
+            fields={"name": "Test Co"},
+            provenance={},
+            source_record_ids=[],
+            created_by="testuser",
+            dq_completeness=0.8,
+            dq_validity=1.0,
+            dq_score=0.9,
+        )
+    )
+    test_db.commit()
+
+    resp = authenticated_client.get("/api/unified/records")
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert items
+    item = items[0]
+    assert item["dq_score"] == 0.9
+    assert item["dq_completeness"] == 0.8
+    assert item["dq_validity"] == 1.0
