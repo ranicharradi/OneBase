@@ -1,4 +1,10 @@
-"""CSV parsing utility with BOM handling and encoding fallback."""
+"""Tabular file parsing utilities — dispatches CSV and XLSX inputs to the right reader.
+
+CSV path keeps the existing semantics:
+- UTF-8 with BOM (utf-8-sig) preferred, Windows-1252 fallback.
+- Default delimiter ";" (overridable per data source).
+- All values are strings, trimmed of surrounding whitespace.
+"""
 
 import csv
 import io
@@ -18,7 +24,6 @@ def parse_csv(file_content: bytes, delimiter: str = ";") -> list[dict[str, Any]]
     if not file_content:
         return []
 
-    # Try UTF-8 (with BOM stripping) first, fallback to Windows-1252
     try:
         text = file_content.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -32,11 +37,8 @@ def parse_csv(file_content: bytes, delimiter: str = ";") -> list[dict[str, Any]]
     return rows
 
 
-def detect_columns(file_content: bytes, delimiter: str = ";") -> list[str]:
-    """Extract column headers from the first row of a CSV file.
-
-    Used by the column mapper UI to show available CSV headers.
-    """
+def detect_columns_csv(file_content: bytes, delimiter: str = ";") -> list[str]:
+    """Extract column headers from the first row of a CSV file."""
     if not file_content:
         return []
 

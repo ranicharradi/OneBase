@@ -22,7 +22,7 @@ from app.models.staging import StagedRecord
 from app.record_types import get as get_record_type
 from app.services.embedding import compute_embeddings
 from app.services.normalization import normalize_name
-from app.utils.csv_parser import parse_csv
+from app.utils.tabular_parser import parse_csv
 
 logger = logging.getLogger(__name__)
 
