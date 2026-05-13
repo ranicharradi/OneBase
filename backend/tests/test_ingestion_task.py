@@ -375,3 +375,68 @@ class TestMatchingTask:
         from app.tasks.matching import run_matching
 
         assert run_matching.name == "run_matching"
+
+
+class TestRunIngestionXlsx:
+    """Integration test for xlsx ingestion through run_ingestion."""
+
+    def _create_xlsx_source_and_batch(self, test_db):
+        source = DataSource(
+            name="XL Test Source",
+            type="supplier",
+            file_format="xlsx",
+            delimiter=";",
+            column_mapping={"supplier_name": "Name"},
+        )
+        test_db.add(source)
+        test_db.flush()
+
+        batch = ImportBatch(
+            data_source_id=source.id,
+            filename="vendors.xlsx",
+            uploaded_by="testuser",
+            status=BatchStatus.PENDING,
+        )
+        test_db.add(batch)
+        test_db.flush()
+        return source, batch
+
+    @patch("app.services.ingestion.compute_embeddings")
+    def test_run_ingestion_xlsx_preserves_types_in_raw_data(self, mock_embed, test_db):
+        """run_ingestion on xlsx bytes preserves numeric/date types in raw_data."""
+        from datetime import datetime
+        from io import BytesIO
+
+        import openpyxl
+
+        from app.models.enums import RecordStatus
+        from app.services.ingestion import run_ingestion
+
+        mock_embed.return_value = np.zeros((1, 384), dtype=np.float32)
+
+        source, batch = self._create_xlsx_source_and_batch(test_db)
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Name", "Amount", "Active", "Created"])
+        ws.append(["Acme Corp", 1234.56, True, datetime(2025, 3, 1)])
+        buf = BytesIO()
+        wb.save(buf)
+        xlsx_bytes = buf.getvalue()
+
+        row_count = run_ingestion(test_db, batch.id, xlsx_bytes)
+
+        assert row_count == 1
+        record = (
+            test_db.query(StagedRecord)
+            .filter(StagedRecord.import_batch_id == batch.id)
+            .filter(StagedRecord.status == RecordStatus.ACTIVE)
+            .one()
+        )
+        assert record.name == "Acme Corp"
+        # fields are stringified for the matching pipeline
+        assert record.fields == {"supplier_name": "Acme Corp"}
+        # raw_data preserves original types
+        assert record.raw_data["Amount"] == 1234.56
+        assert record.raw_data["Active"] is True
+        assert record.raw_data["Created"] == "2025-03-01"
