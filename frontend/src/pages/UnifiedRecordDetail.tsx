@@ -7,6 +7,7 @@ import type { UnifiedRecordDetail as DetailType } from '../api/types';
 import RecordFieldRow from '../components/RecordFieldRow';
 import { useRecordType } from '../hooks/useRecordTypes';
 import Panel, { PanelHead } from '../components/ui/Panel';
+import Kpi from '../components/ui/Kpi';
 import Pill from '../components/ui/Pill';
 import IdChip from '../components/ui/IdChip';
 import SourcePill from '../components/ui/SourcePill';
@@ -123,6 +124,17 @@ export default function UnifiedRecordDetailPage() {
             </span>
           </div>
         </div>
+
+        {record.dq_score !== undefined && record.dq_score !== null && (
+          <Panel className="fade" style={{ marginBottom: 14 }}>
+            <PanelHead title="Data Quality" />
+            <div style={{ display: 'flex', gap: 12, padding: 12 }}>
+              <Kpi label="Score" value={`${Math.round((record.dq_score ?? 0) * 100)}%`} />
+              <Kpi label="Completeness" value={`${Math.round((record.dq_completeness ?? 0) * 100)}%`} />
+              <Kpi label="Validity" value={`${Math.round((record.dq_validity ?? 0) * 100)}%`} />
+            </div>
+          </Panel>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 14 }}>
           {/* Field provenance */}
