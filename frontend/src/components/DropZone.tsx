@@ -36,7 +36,13 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
   }, []);
 
   const processFile = useCallback((file: File) => {
-    if (file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv') {
+    const lower = file.name.toLowerCase();
+    const accepted =
+      lower.endsWith('.csv') ||
+      lower.endsWith('.tsv') ||
+      lower.endsWith('.xlsx') ||
+      file.type === 'text/csv';
+    if (accepted) {
       setSelectedFile(file);
       onFileSelected(file);
     }
@@ -70,7 +76,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
       onClick={handleBrowseClick}
       role="button"
       tabIndex={disabled ? -1 : 0}
-      aria-label="Drop a CSV file or click to browse"
+      aria-label="Drop a CSV or Excel file or click to browse"
       style={{
         border: `2px dashed ${isDragOver ? 'var(--accent)' : selectedFile ? 'var(--ok)' : 'var(--border-1)'}`,
         background: isDragOver
@@ -161,7 +167,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
                 transition: 'color 0.18s ease',
               }}
             >
-              {isDragOver ? 'Release to upload' : 'Drop CSV or TSV file here'}
+              {isDragOver ? 'Release to upload' : 'Drop CSV or Excel file here'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
               up to 100 MB · UTF-8 preferred
@@ -182,7 +188,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
               Browse files
             </button>
             <div className="mono" style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 12 }}>
-              .csv · .tsv · delimiters auto-detected
+              .csv · .tsv · .xlsx · delimiters auto-detected
             </div>
           </>
         )}
@@ -191,7 +197,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
       <input
         ref={fileInputRef}
         type="file"
-        accept=".csv,text/csv,.tsv"
+        accept=".csv,.tsv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         onChange={handleFileInput}
         style={{ display: 'none' }}
         disabled={disabled}
