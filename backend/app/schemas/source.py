@@ -63,3 +63,11 @@ class SuggestMappingResponse(BaseModel):
     suggestions: dict[str, str | None]
     model: str
     latency_ms: int
+
+
+class DetectHeadersResponse(BaseModel):
+    """Response for POST /api/sources/detect-headers."""
+
+    columns: list[str]
+    delimiter: str | None
+    format: str  # "csv" | "xlsx"
