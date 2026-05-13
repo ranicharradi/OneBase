@@ -58,11 +58,13 @@ async def upload_file(
         original_filename = file_ref.split("_", 1)[1] if "_" in file_ref else file_ref
     elif file is not None:
         # Validate file extension
-        if not file.filename or not file.filename.lower().endswith(".csv"):
+        filename_lower = (file.filename or "").lower()
+        if not filename_lower or not (filename_lower.endswith(".csv") or filename_lower.endswith(".xlsx")):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only .csv files are accepted",
+                detail="Only .csv and .xlsx files are accepted",
             )
+        is_xlsx = filename_lower.endswith(".xlsx")
 
         # Validate data source exists
         source = db.query(DataSource).filter(DataSource.id == data_source_id).first()
@@ -82,14 +84,15 @@ async def upload_file(
                 detail=f"File exceeds maximum size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
             )
 
-        # Validate UTF-8 encoding
-        try:
-            file_content.decode("utf-8")
-        except UnicodeDecodeError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File is not valid UTF-8. Please re-save as UTF-8 and try again.",
-            ) from None
+        # Validate UTF-8 encoding (CSV only — xlsx is a binary zip container)
+        if not is_xlsx:
+            try:
+                file_content.decode("utf-8")
+            except UnicodeDecodeError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="File is not valid UTF-8. Please re-save as UTF-8 and try again.",
+                ) from None
         stored_filename = f"{uuid.uuid4()}_{file.filename}"
         filepath = os.path.join(UPLOAD_DIR, stored_filename)
         with open(filepath, "wb") as f:

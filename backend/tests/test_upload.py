@@ -86,8 +86,46 @@ class TestUploadEndpoint:
 
         assert response.status_code == 413
 
-    def test_upload_rejects_non_csv_file(self, authenticated_client, test_db):
-        """Upload with non-.csv extension returns 400."""
+    def test_upload_accepts_xlsx_file(self, authenticated_client, test_db):
+        """Upload with .xlsx extension is accepted."""
+        from io import BytesIO
+
+        import openpyxl
+
+        source_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
+        source_id = source_resp.json()["id"]
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["VendorCode", "Name1"])
+        ws.append(["V001", "Acme Corp"])
+        buf = BytesIO()
+        wb.save(buf)
+        xlsx_bytes = buf.getvalue()
+
+        with patch("app.routers.upload.process_upload") as mock_task:
+            mock_result = MagicMock()
+            mock_result.id = "test-task-xlsx"
+            mock_task.delay.return_value = mock_result
+
+            response = authenticated_client.post(
+                "/api/import/upload",
+                data={"data_source_id": str(source_id)},
+                files={
+                    "file": (
+                        "suppliers.xlsx",
+                        xlsx_bytes,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    ),
+                },
+            )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["filename"] == "suppliers.xlsx"
+
+    def test_upload_rejects_unsupported_extension(self, authenticated_client, test_db):
+        """Upload with an unsupported extension returns 400."""
         source_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
         source_id = source_resp.json()["id"]
 
@@ -95,11 +133,26 @@ class TestUploadEndpoint:
             response = authenticated_client.post(
                 "/api/import/upload",
                 data={"data_source_id": str(source_id)},
-                files={"file": ("suppliers.xlsx", b"fake excel content", "application/vnd.ms-excel")},
+                files={"file": ("vendors.pdf", b"%PDF-1.4 fake", "application/pdf")},
             )
 
         assert response.status_code == 400
         assert "csv" in response.json()["detail"].lower()
+        assert "xlsx" in response.json()["detail"].lower()
+
+    def test_upload_rejects_legacy_xls(self, authenticated_client, test_db):
+        """Legacy .xls (binary) is not supported."""
+        source_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
+        source_id = source_resp.json()["id"]
+
+        with patch("app.routers.upload.process_upload"):
+            response = authenticated_client.post(
+                "/api/import/upload",
+                data={"data_source_id": str(source_id)},
+                files={"file": ("legacy.xls", b"fake xls", "application/vnd.ms-excel")},
+            )
+
+        assert response.status_code == 400
 
 
 class TestBatchListEndpoint:
