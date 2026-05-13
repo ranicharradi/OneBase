@@ -58,6 +58,7 @@ def get_dq_insights(
             .all()
         )
     except Exception:
+        db.rollback()
         per_source_rows = []
 
     per_source = [

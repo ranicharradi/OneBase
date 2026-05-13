@@ -58,7 +58,7 @@ def complete_structured[T: BaseModel](prompt: str, output_format: type[T]) -> T:
 
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
-        response_json_schema=output_format,
+        response_json_schema=output_format.model_json_schema(),
     )
 
     try:
