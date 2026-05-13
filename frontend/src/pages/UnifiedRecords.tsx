@@ -18,6 +18,13 @@ import Pagination from '../components/Pagination';
 
 type Tab = 'unified' | 'singletons';
 
+function dqTone(score: number | null | undefined): 'ok' | 'warn' | 'danger' | 'neutral' {
+  if (score == null) return 'neutral';
+  if (score >= 0.8) return 'ok';
+  if (score >= 0.5) return 'warn';
+  return 'danger';
+}
+
 const PAGE_SIZE = 50;
 
 export default function UnifiedRecords() {
@@ -341,6 +348,7 @@ export default function UnifiedRecords() {
                       {displayFields.map(f => <th key={f.key}>{f.label}</th>)}
                       <th className="num" style={{ width: 80 }}>Sources</th>
                       <th>Origin</th>
+                      <th style={{ width: 60 }}>DQ</th>
                       <th>Created</th>
                       <th style={{ width: 30 }} />
                     </tr>
@@ -368,6 +376,11 @@ export default function UnifiedRecords() {
                           ) : (
                             <Pill tone="ok">merged</Pill>
                           )}
+                        </td>
+                        <td>
+                          <Pill tone={dqTone(s.dq_score)}>
+                            {s.dq_score == null ? '—' : `${Math.round(s.dq_score * 100)}%`}
+                          </Pill>
                         </td>
                         <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
                           {s.created_at ? new Date(s.created_at).toLocaleDateString() : '—'}
