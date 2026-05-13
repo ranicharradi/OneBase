@@ -153,3 +153,74 @@ def detect_columns_xlsx(file_content: bytes) -> list[str]:
         return [h.strip() for h in header_row if isinstance(h, str) and h.strip()]
     finally:
         wb.close()
+
+
+_CSV_DELIMITER_CANDIDATES = (",", ";", "\t", "|")
+
+_CSV_EXTENSIONS = {".csv", ".tsv"}
+_XLSX_EXTENSIONS = {".xlsx"}
+
+
+def _extension(filename: str) -> str:
+    """Return the lower-cased file extension including the dot, or '' if none."""
+    _, _, ext = filename.rpartition(".")
+    return f".{ext.lower()}" if ext and ext != filename else ""
+
+
+def _sniff_csv_delimiter(file_content: bytes) -> str:
+    """Pick the delimiter from , ; \\t | that yields the most header tokens.
+
+    Mirrors the previous front-end heuristic in csvHeaders.ts. Defaults to ';'
+    on empty input to match the historical CSV default.
+    """
+    if not file_content:
+        return ";"
+    try:
+        text = file_content[:65536].decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = file_content[:65536].decode("cp1252", errors="replace")
+
+    first_line = next(
+        (line for line in text.splitlines() if line.strip()),
+        "",
+    )
+    if not first_line:
+        return ";"
+
+    best = _CSV_DELIMITER_CANDIDATES[0]
+    best_count = -1
+    for candidate in _CSV_DELIMITER_CANDIDATES:
+        reader = csv.reader(io.StringIO(first_line), delimiter=candidate, quotechar='"')
+        try:
+            count = len(next(reader))
+        except StopIteration:
+            count = 0
+        if count > best_count:
+            best = candidate
+            best_count = count
+    return best
+
+
+def parse_file(file_content: bytes, filename: str, delimiter: str = ";") -> list[dict[str, Any]]:
+    """Parse a tabular file by extension. delimiter is used for CSV/TSV only."""
+    ext = _extension(filename)
+    if ext in _CSV_EXTENSIONS:
+        return parse_csv(file_content, delimiter=delimiter)
+    if ext in _XLSX_EXTENSIONS:
+        return parse_xlsx(file_content)
+    raise ValueError(f"Unsupported file format: {ext or filename!r}")
+
+
+def detect_headers(file_content: bytes, filename: str) -> tuple[list[str], str | None]:
+    """Return (columns, effective_delimiter) for a tabular file.
+
+    For CSV/TSV the delimiter is sniffed from `,;\\t|` (most-tokens wins).
+    For XLSX the second value is None.
+    """
+    ext = _extension(filename)
+    if ext in _CSV_EXTENSIONS:
+        delimiter = _sniff_csv_delimiter(file_content)
+        return detect_columns_csv(file_content, delimiter=delimiter), delimiter
+    if ext in _XLSX_EXTENSIONS:
+        return detect_columns_xlsx(file_content), None
+    raise ValueError(f"Unsupported file format: {ext or filename!r}")
