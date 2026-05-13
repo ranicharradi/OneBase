@@ -1,11 +1,10 @@
 """Insights tab — aggregate read-only queries over unified records."""
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
-from app.models.source import DataSource
 from app.models.unified import UnifiedRecord
 from app.models.user import User
 from app.schemas.insights import BucketCount, InsightsDqResponse, PerSourceDq, WorstRecord
@@ -38,32 +37,7 @@ def get_dq_insights(
         )
         distribution.append(BucketCount(bucket=label, count=n))
 
-    from app.models.staging import StagedRecord
-
-    try:
-        per_source_rows = (
-            db.query(
-                DataSource.id.label("sid"),
-                DataSource.name.label("sname"),
-                func.count(UnifiedRecord.id).label("n"),
-                func.avg(UnifiedRecord.dq_score).label("a"),
-            )
-            .join(StagedRecord, StagedRecord.data_source_id == DataSource.id)
-            .join(
-                UnifiedRecord,
-                func.json_extract(func.json(UnifiedRecord.source_record_ids), "$[0]") == StagedRecord.id,
-            )
-            .group_by(DataSource.id, DataSource.name)
-            .order_by(func.avg(UnifiedRecord.dq_score).asc())
-            .all()
-        )
-    except Exception:
-        db.rollback()
-        per_source_rows = []
-
-    per_source = [
-        PerSourceDq(source_id=r.sid, source_name=r.sname, count=r.n, avg_dq=float(r.a or 0)) for r in per_source_rows
-    ]
+    per_source = _per_source_aggregate(db)
 
     worst_rows = (
         db.query(UnifiedRecord)
@@ -90,3 +64,38 @@ def get_dq_insights(
         per_source=per_source,
         worst=worst,
     )
+
+
+_PER_SOURCE_SQL = {
+    "postgresql": """
+        SELECT ds.id AS sid, ds.name AS sname,
+               COUNT(u.id) AS n, AVG(u.dq_score) AS a
+        FROM data_sources ds
+        JOIN staged_records sr ON sr.data_source_id = ds.id
+        JOIN unified_records u ON (u.source_record_ids ->> 0)::int = sr.id
+        GROUP BY ds.id, ds.name
+        ORDER BY AVG(u.dq_score) ASC
+    """,
+    "sqlite": """
+        SELECT ds.id AS sid, ds.name AS sname,
+               COUNT(u.id) AS n, AVG(u.dq_score) AS a
+        FROM data_sources ds
+        JOIN staged_records sr ON sr.data_source_id = ds.id
+        JOIN unified_records u ON CAST(json_extract(u.source_record_ids, '$[0]') AS INTEGER) = sr.id
+        GROUP BY ds.id, ds.name
+        ORDER BY AVG(u.dq_score) ASC
+    """,
+}
+
+
+def _per_source_aggregate(db: Session) -> list[PerSourceDq]:
+    dialect = db.bind.dialect.name if db.bind is not None else ""
+    sql = _PER_SOURCE_SQL.get(dialect)
+    if sql is None:
+        return []
+    try:
+        rows = db.execute(text(sql)).all()
+    except Exception:
+        db.rollback()
+        return []
+    return [PerSourceDq(source_id=r.sid, source_name=r.sname, count=r.n, avg_dq=float(r.a or 0)) for r in rows]
