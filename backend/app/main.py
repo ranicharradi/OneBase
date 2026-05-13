@@ -10,7 +10,7 @@ from app.config import settings, validate_production_secrets
 from app.database import SessionLocal
 from app.logging_config import RequestIDMiddleware, configure_logging
 from app.rate_limit import limiter
-from app.routers import auth, file_checks, matching, record_types, review, sources, unified, upload, users, ws
+from app.routers import auth, file_checks, insights, matching, record_types, review, sources, unified, upload, users, ws
 
 
 class SecurityHeadersMiddleware:
@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="OneBase",
-    description="Enterprise Supplier Data Unification Platform",
+    description="Records Unification Platform",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -98,6 +98,7 @@ app.include_router(file_checks.router)
 app.include_router(matching.router)
 app.include_router(review.router)
 app.include_router(unified.router)
+app.include_router(insights.router)
 app.include_router(ws.router)
 
 
