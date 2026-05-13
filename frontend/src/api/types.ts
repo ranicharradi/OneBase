@@ -453,3 +453,16 @@ export interface LineageEvent {
 export interface LineageResponse {
   events: LineageEvent[];
 }
+
+// ── Ask (text-to-SQL) types ──
+
+export interface AskRequest {
+  question: string;
+}
+export interface AskResponse {
+  sql: string;
+  columns: string[];
+  rows: unknown[][];
+  model: string;
+  latency_ms: number;
+}

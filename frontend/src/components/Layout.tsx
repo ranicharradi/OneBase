@@ -44,6 +44,7 @@ const NAV: NavSection[] = [
       { to: '/review', icon: 'swap_horiz', label: 'Review queue' },
       { to: '/merge', icon: 'merge', label: 'Merge queue' },
       { to: '/unified', icon: 'verified', label: 'Unified' },
+      { to: '/ask', icon: 'forum', label: 'Ask' },
     ],
   },
   {
@@ -70,6 +71,7 @@ const BREADCRUMBS: Record<string, string[]> = {
   '/review': ['Matching', 'Review queue'],
   '/merge': ['Matching', 'Merge queue'],
   '/unified': ['Matching', 'Unified'],
+  '/ask': ['Matching', 'Ask'],
   '/users': ['Admin', 'Users'],
 };
 

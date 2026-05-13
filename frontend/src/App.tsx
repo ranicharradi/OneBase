@@ -20,6 +20,7 @@ import FileChecker from './pages/FileChecker';
 import UnifiedRecords from './pages/UnifiedRecords';
 import UnifiedRecordDetail from './pages/UnifiedRecordDetail';
 import Insights from './pages/Insights';
+import Ask from './pages/Ask';
 import { ApiError } from './api/client';
 
 const queryClient = new QueryClient({
@@ -64,6 +65,7 @@ export default function App() {
               <Route path="upload" element={<Upload />} />
               <Route path="file-checker" element={<FileChecker />} />
               <Route path="sources" element={<Sources />} />
+              <Route path="ask" element={<Ask />} />
               <Route path="users" element={<Users />} />
             </Route>
           </Routes>
