@@ -412,3 +412,51 @@ def test_unified_list_includes_dq_fields(authenticated_client, test_db):
     assert item["dq_score"] == 0.9
     assert item["dq_completeness"] == 0.8
     assert item["dq_validity"] == 1.0
+
+
+def test_lineage_returns_events_for_record(authenticated_client, test_db):
+    from app.models.audit import AuditLog
+    from app.models.unified import UnifiedRecord
+
+    rec = UnifiedRecord(
+        type="supplier",
+        name="Acme",
+        fields={"name": "Acme", "email": "a@b.com"},
+        provenance={
+            "name": {
+                "value": "Acme",
+                "source_entity": "SrcA",
+                "chosen_by": "alice",
+                "chosen_at": "2026-05-10T10:00:00Z",
+                "auto": True,
+            },
+            "email": {
+                "value": "a@b.com",
+                "source_entity": "SrcB",
+                "chosen_by": "bob",
+                "chosen_at": "2026-05-11T11:00:00Z",
+                "auto": False,
+            },
+        },
+        source_record_ids=[],
+        created_by="alice",
+    )
+    test_db.add(rec)
+    test_db.commit()
+    test_db.refresh(rec)
+    test_db.add(
+        AuditLog(
+            action="merge_confirmed",
+            entity_type="unified_record",
+            entity_id=rec.id,
+            details={"name": "Acme"},
+        )
+    )
+    test_db.commit()
+
+    resp = authenticated_client.get(f"/api/unified/{rec.id}/lineage")
+    assert resp.status_code == 200
+    events = resp.json()["events"]
+    kinds = [e["kind"] for e in events]
+    assert "field_set" in kinds
+    assert "merged" in kinds

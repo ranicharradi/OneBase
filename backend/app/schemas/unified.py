@@ -175,3 +175,18 @@ class DashboardResponse(BaseModel):
     review: ReviewProgress
     unified: UnifiedStats
     recent_activity: list[RecentActivity]
+
+
+# ── Lineage ──
+
+
+class LineageEvent(BaseModel):
+    at: str
+    kind: str  # ingested | merged | field_set | reviewed | superseded
+    actor: str | None
+    summary: str
+    details: dict | None = None
+
+
+class LineageResponse(BaseModel):
+    events: list[LineageEvent]

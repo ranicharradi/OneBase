@@ -30,6 +30,8 @@ from app.schemas.unified import (
     BulkPromoteResponse,
     DashboardResponse,
     FieldProvenance,
+    LineageEvent,
+    LineageResponse,
     MatchStats,
     MergeHistoryEntry,
     PromoteResponse,
@@ -604,3 +606,62 @@ def get_dashboard(
             for a in recent_audit
         ],
     )
+
+
+@router.get("/{record_id}/lineage", response_model=LineageResponse)
+def get_lineage(
+    record_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Chronological events for a unified record (audit + provenance combined)."""
+    record = db.get(UnifiedRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Unified record not found")
+
+    events: list[LineageEvent] = []
+
+    audit_rows = (
+        db.query(AuditLog)
+        .filter(AuditLog.entity_type == "unified_record", AuditLog.entity_id == record_id)
+        .order_by(AuditLog.created_at.asc())
+        .all()
+    )
+    for a in audit_rows:
+        events.append(
+            LineageEvent(
+                at=a.created_at.isoformat() if a.created_at else "",
+                kind=_audit_action_to_kind(a.action),
+                actor=str(a.user_id) if a.user_id else None,
+                summary=a.action.replace("_", " "),
+                details=a.details,
+            )
+        )
+
+    for field_key, prov in (record.provenance or {}).items():
+        if not isinstance(prov, dict):
+            continue
+        events.append(
+            LineageEvent(
+                at=str(prov.get("chosen_at") or ""),
+                kind="field_set",
+                actor=prov.get("chosen_by"),
+                summary=f"Field '{field_key}' set from {prov.get('source_entity') or 'unknown source'}",
+                details={"field": field_key, "value": prov.get("value"), "auto": prov.get("auto")},
+            )
+        )
+
+    events.sort(key=lambda e: e.at, reverse=True)
+    return LineageResponse(events=events)
+
+
+def _audit_action_to_kind(action: str) -> str:
+    if action.startswith("merge"):
+        return "merged"
+    if action.startswith("match_rejected"):
+        return "reviewed"
+    if action == "supersede":
+        return "superseded"
+    if action == "ingest":
+        return "ingested"
+    return "reviewed"
