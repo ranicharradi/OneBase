@@ -201,7 +201,7 @@ async def detect_source_headers(
     file_content = await file.read()
     if len(file_content) > MAX_DETECT_SIZE:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"File exceeds maximum size of {MAX_DETECT_SIZE // (1024 * 1024)} MB",
         )
 
