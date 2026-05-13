@@ -1,0 +1,22 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: changeme
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  api:
+    environment:
+      POSTGRES_PASSWORD: changeme
+      JWT_SECRET: dev-secret-do-not-use-in-prod
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: changeme
+      ENVIRONMENT: development
+
+  worker:
+    environment:
+      POSTGRES_PASSWORD: changeme

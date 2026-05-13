@@ -33,8 +33,8 @@ docker-compose up -d
 ## Quick Start (Local Development)
 
 ```bash
-# 1. Start databases only
-docker-compose up -d postgres redis
+# 1. Start databases only (dev overlay exposes ports 5432 and 6379 to the host)
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
 
 # 2. Backend (from backend/)
 python3 -m venv .venv && source .venv/bin/activate
@@ -161,7 +161,8 @@ Layered `.env` files controlled by `ENV_PROFILE`:
 ```bash
 ENV_PROFILE=dev uvicorn app.main:app --reload   # .env → .env.dev (localhost)
 ENV_PROFILE=prod celery -A ...                  # .env → .env.prod (real hosts)
-docker-compose up -d                            # .env only (Docker hostnames)
+docker-compose up -d                                                     # .env only (Docker hostnames, no host ports on DBs)
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d    # dev: also exposes Postgres/Redis to host
 ```
 
 | Variable | Default | Description |
@@ -226,8 +227,8 @@ npm run test      # vitest (run once)
 | frontend | 3000 | React app via Nginx (proxies API/WS to backend) |
 | api | 8000 | FastAPI server |
 | worker | — | Celery worker for ingestion and matching |
-| postgres | 5432 | PostgreSQL with pgvector |
-| redis | 6379 | Celery broker and result backend |
+| postgres | 5432 (dev only) | PostgreSQL with pgvector |
+| redis | 6379 (dev only) | Celery broker and result backend |
 
 ## Documentation
 
