@@ -18,7 +18,7 @@ import BatchHistory from '../components/BatchHistory';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Spinner from '../components/ui/Spinner';
 import { useRecordTypes } from '../hooks/useRecordTypes';
-import { parseCsvHeaders } from '../utils/csvHeaders';
+import { parseFileHeaders } from '../utils/fileHeaders';
 import { defaultType } from '../utils/recordDisplay';
 
 type UploadState =
@@ -161,7 +161,7 @@ export default function Upload() {
       return;
     }
     try {
-      const parsed = await parseCsvHeaders(file);
+      const parsed = await parseFileHeaders(file);
       const suggestedName = file.name
         .replace(/\.[^.]+$/, '')
         .replace(/[_-]/g, ' ')
@@ -171,11 +171,11 @@ export default function Upload() {
         file,
         columns: parsed.columns,
         suggestedName,
-        detectedDelimiter: parsed.delimiter,
+        detectedDelimiter: parsed.delimiter ?? ';',
         type,
       });
-    } catch {
-      setError('Failed to read CSV headers');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to detect file headers');
     }
   }, [recordTypes]);
 
