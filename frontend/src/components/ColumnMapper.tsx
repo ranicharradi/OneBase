@@ -23,7 +23,7 @@ interface ColumnMapperProps {
   isSubmitting?: boolean;
   initialSourceName?: string;
   detectedDelimiter?: string;
-  sourceId?: number;
+  recordTypeKey?: string;
   sampleRows?: Record<string, unknown>[];
 }
 
@@ -34,7 +34,7 @@ export default function ColumnMapper({
   isSubmitting = false,
   initialSourceName,
   detectedDelimiter,
-  sourceId,
+  recordTypeKey,
   sampleRows,
 }: ColumnMapperProps) {
   const { data: recordType, isLoading, error } = useRecordType(type);
@@ -90,7 +90,7 @@ export default function ColumnMapper({
 
   const suggestMutation = useMutation({
     mutationFn: (req: SuggestMappingRequest) =>
-      api.post<SuggestMappingResponse>(`/api/sources/${sourceId}/suggest-mapping`, req),
+      api.post<SuggestMappingResponse>('/api/sources/suggest-mapping', req),
     onSuccess: (data) => {
       const nonNull = Object.fromEntries(
         Object.entries(data.suggestions).filter((entry): entry is [string, string] => entry[1] !== null),
@@ -100,7 +100,7 @@ export default function ColumnMapper({
   });
 
   const onSuggestClick = () => {
-    suggestMutation.mutate({ headers: columns, sample_rows: sampleRows ?? [] });
+    suggestMutation.mutate({ record_type: recordTypeKey ?? type, headers: columns, sample_rows: sampleRows ?? [] });
   };
 
   const validate = (): boolean => {
@@ -295,7 +295,7 @@ export default function ColumnMapper({
             <Pill tone={requiredMapped === requiredTotal ? 'ok' : 'warn'}>
               {requiredMapped}/{requiredTotal} required
             </Pill>
-            {sourceId !== undefined && (
+            {(recordTypeKey ?? type) && (
               <>
                 <button
                   type="button"

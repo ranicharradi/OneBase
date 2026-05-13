@@ -2,7 +2,7 @@
 """Core abstractions for record types.
 
 A RecordType is the engineer-declared, immutable description of a record kind
-(e.g. Supplier, Material). It owns:
+(e.g. supplier, customer, product, material). It owns:
   - the field set (FieldDef[])
   - the matching signal list (Signal[])
 The matching engine reads its config from the type at runtime; adding a new
@@ -20,7 +20,7 @@ class Role(StrEnum):
     """
 
     NAME = "name"  # primary label; gets embedded for HNSW blocking
-    CODE = "code"  # business identifier (e.g. supplier_code)
+    CODE = "code"  # business identifier (e.g. vendor_code, customer_code)
     EMAIL = "email"  # email address
     PHONE = "phone"  # phone number
     ENUM = "enum"  # bounded categorical (currency, country, payment_terms)

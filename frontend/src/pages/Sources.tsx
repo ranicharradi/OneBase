@@ -716,7 +716,7 @@ export default function Sources() {
               <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--fg-3)' }}>storage</span>
               <div style={{ fontSize: 14, fontWeight: 500, marginTop: 10 }}>No data sources yet</div>
               <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4, marginBottom: 12 }}>
-                Create your first data source to begin mapping record data for deduplication.
+                Create your first data source to begin mapping records for unification.
               </div>
               <button
                 onClick={() => setShowCreate(true)}

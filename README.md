@@ -1,6 +1,6 @@
 # OneBase
 
-> Enterprise records unification platform. Ingest CSVs from multiple sources (suppliers, customers, products, or any entity type), deduplicate via multi-signal matching (text similarity + vector embeddings + ML classification), review matches with a human-in-the-loop UI, and produce golden unified records with full field-level provenance. The current build ships with supplier-shaped fields out of the box.
+> Records unification platform. Ingest CSVs from multiple sources and record types, identify duplicate entities with multi-signal matching (text similarity + vector embeddings + ML classification), review matches with a human-in-the-loop UI, and produce golden unified records with full field-level provenance. Supplier records are the first bundled type; the same pipeline is designed for customers, products, locations, or other configured record types.
 
 ## How It Works
 
@@ -10,7 +10,7 @@ CSV Upload → Ingestion → Blocking → Scoring → Clustering → Human Revie
 ```
 
 1. **Configure a data source** with column mapping for your CSV format (or let auto-detection guess it)
-2. **Upload a CSV** — the system normalizes fields, deduplicates within-source, and generates 384-dim sentence-transformer embeddings
+2. **Upload a CSV** — the system normalizes fields, groups repeated records within the source, and generates 384-dim sentence-transformer embeddings
 3. **Automatic matching** finds duplicate candidates across sources using weighted signals:
    - Jaro-Winkler string similarity (0.30)
    - Token Jaccard overlap (0.20)
@@ -80,8 +80,8 @@ curl -X POST http://localhost:8000/api/sources \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "SAP Suppliers",
-    "description": "Monthly SAP vendor export",
+    "name": "ERP Records",
+    "description": "Monthly ERP entity export",
     "column_mapping": {
       "name": "VENDOR_NAME",
       "address": "STREET_ADDRESS",
@@ -98,7 +98,7 @@ curl -X POST http://localhost:8000/api/sources \
 ```bash
 curl -X POST http://localhost:8000/api/import/upload \
   -H "Authorization: Bearer $TOKEN" \
-  -F "file=@suppliers.csv" \
+  -F "file=@records.csv" \
   -F "source_id=1"
 # → { "task_id": "abc-123", "batch_id": 1, ... }
 

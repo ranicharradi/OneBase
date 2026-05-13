@@ -343,6 +343,7 @@ export default function Upload() {
               isSubmitting={createSourceMutation.isPending || uploadWithFileMutation.isPending}
               initialSourceName={uploadState.suggestedName}
               detectedDelimiter={uploadState.detectedDelimiter}
+              recordTypeKey={uploadState.type}
             />
             <div style={{ marginTop: 12, textAlign: 'center' }}>
               <button onClick={handleReset} className="btn btn-ghost btn-sm">

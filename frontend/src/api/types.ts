@@ -415,6 +415,7 @@ export interface FileCheckReportListResponse {
 }
 
 export interface SuggestMappingRequest {
+  record_type: string;
   headers: string[];
   sample_rows: Record<string, unknown>[];
 }

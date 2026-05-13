@@ -54,6 +54,7 @@ class DataSourceResponse(BaseModel):
 
 
 class SuggestMappingRequest(BaseModel):
+    record_type: str
     headers: list[str]
     sample_rows: list[dict] = []  # capped server-side
 

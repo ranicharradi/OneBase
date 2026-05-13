@@ -180,16 +180,15 @@ def get_upload_stats(
     return {"staged_count": staged_count, "pending_match_count": pending_match_count}
 
 
-@router.post("/{source_id}/suggest-mapping", response_model=SuggestMappingResponse)
+@router.post("/suggest-mapping", response_model=SuggestMappingResponse)
 @limiter.limit("5/minute")
 def suggest_mapping(
     request: Request,
-    source_id: int,
     payload: SuggestMappingRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Return AI-suggested header → field_key mapping for the source's record type."""
+    """Return AI-suggested header → field_key mapping for the given record type."""
     import time
 
     from pydantic import BaseModel
@@ -197,14 +196,10 @@ def suggest_mapping(
     from app.record_types import get as get_record_type
     from app.services import llm as llm_service
 
-    source = get_source(db, source_id)
-    if source is None:
-        raise HTTPException(status_code=404, detail="Data source not found")
-
     try:
-        rt = get_record_type(source.type)
+        rt = get_record_type(payload.record_type)
     except KeyError as exc:
-        raise HTTPException(status_code=400, detail=f"unknown record type {source.type!r}") from exc
+        raise HTTPException(status_code=400, detail=f"unknown record type {payload.record_type!r}") from exc
 
     # Cap inputs (cost guardrail)
     headers = payload.headers[:50]
@@ -244,9 +239,14 @@ def suggest_mapping(
         db,
         user_id=current_user.id,
         action="llm_call",
-        entity_type="data_source",
-        entity_id=source_id,
-        details={"feature": "suggest_mapping", "model": settings.llm_model, "latency_ms": latency_ms},
+        entity_type="record_type",
+        entity_id=None,
+        details={
+            "feature": "suggest_mapping",
+            "record_type": payload.record_type,
+            "model": settings.llm_model,
+            "latency_ms": latency_ms,
+        },
     )
     db.commit()
 

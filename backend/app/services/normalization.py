@@ -4,9 +4,9 @@ import re
 import unicodedata
 
 # Domain-specific stopwords — common location/region tokens that appear in many
-# supplier names but carry no discriminative value for matching.
+# organization names but carry no discriminative value for matching.
 # Compared against uppercased, accent-stripped tokens.
-# DOMAIN_STOPWORDS and LEGAL_SUFFIXES below are supplier-shaped heuristics that
+# DOMAIN_STOPWORDS and LEGAL_SUFFIXES below are organization-shaped heuristics that
 # happen to also work for many other entity types. When future RecordTypes need
 # different normalization, this module can grow per-type variants.
 DOMAIN_STOPWORDS = {

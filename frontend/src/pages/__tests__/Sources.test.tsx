@@ -86,6 +86,15 @@ describe('Sources page record types', () => {
     expect(screen.getByText('supplier')).toBeInTheDocument()
   })
 
+  it('frames empty sources as record unification setup', async () => {
+    mockSources = []
+
+    render(<Sources />)
+
+    expect(await screen.findByText('No data sources yet')).toBeInTheDocument()
+    expect(screen.getByText('Create your first data source to begin mapping records for unification.')).toBeInTheDocument()
+  })
+
   it('creates a source with the selected type and required field mapping', async () => {
     const user = userEvent.setup()
     render(<Sources />)
