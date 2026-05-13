@@ -1,6 +1,6 @@
 """Data source CRUD endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -9,10 +9,13 @@ from app.dependencies import get_current_user, get_db, require_role
 from app.models.enums import RecordStatus, UserRole
 from app.models.staging import StagedRecord
 from app.models.user import User
+from app.rate_limit import limiter
 from app.schemas.source import (
     DataSourceCreate,
     DataSourceResponse,
     DataSourceUpdate,
+    SuggestMappingRequest,
+    SuggestMappingResponse,
 )
 from app.services.audit import log_action
 from app.services.source import (
@@ -175,3 +178,76 @@ def get_upload_stats(
     )
 
     return {"staged_count": staged_count, "pending_match_count": pending_match_count}
+
+
+@router.post("/{source_id}/suggest-mapping", response_model=SuggestMappingResponse)
+@limiter.limit("5/minute")
+def suggest_mapping(
+    request: Request,
+    source_id: int,
+    payload: SuggestMappingRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return AI-suggested header → field_key mapping for the source's record type."""
+    import time
+
+    from pydantic import BaseModel
+
+    from app.record_types import get as get_record_type
+    from app.services import llm as llm_service
+
+    source = get_source(db, source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Data source not found")
+
+    try:
+        rt = get_record_type(source.type)
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=f"unknown record type {source.type!r}") from exc
+
+    # Cap inputs (cost guardrail)
+    headers = payload.headers[:50]
+    samples = payload.sample_rows[:3]
+
+    field_lines = "\n".join(
+        f"- {f.key}: {f.label} (role: {f.role.value}, synonyms: {list(f.synonyms)})" for f in rt.fields
+    )
+    prompt = (
+        "Map each source column header to one of the canonical fields below, "
+        "or null if no field fits. Return JSON with a single 'mapping' key.\n\n"
+        f"Canonical fields:\n{field_lines}\n\n"
+        f"Headers: {headers}\n"
+        f"Sample rows: {samples}\n"
+    )
+
+    class _Sug(BaseModel):
+        mapping: dict[str, str | None]
+
+    t0 = time.perf_counter()
+    try:
+        result = llm_service.complete_structured(prompt, _Sug)
+    except llm_service.LLMDisabledError as exc:
+        raise HTTPException(status_code=503, detail="LLM is disabled") from exc
+    except llm_service.LLMRefusalError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except llm_service.LLMTimeoutError as e:
+        raise HTTPException(status_code=504, detail=str(e)) from e
+    except llm_service.LLMProviderError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    latency_ms = int((time.perf_counter() - t0) * 1000)
+
+    # Pass through LLM suggestions as-is; the caller resolves synonyms to canonical keys.
+    cleaned = dict(result.mapping)
+
+    log_action(
+        db,
+        user_id=current_user.id,
+        action="llm_call",
+        entity_type="data_source",
+        entity_id=source_id,
+        details={"feature": "suggest_mapping", "model": settings.llm_model, "latency_ms": latency_ms},
+    )
+    db.commit()
+
+    return SuggestMappingResponse(suggestions=cleaned, model=settings.llm_model, latency_ms=latency_ms)

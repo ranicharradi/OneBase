@@ -113,3 +113,52 @@ class TestDeleteSource:
         """Returns 404 for non-existent source."""
         response = authenticated_client.delete("/api/sources/999")
         assert response.status_code == 404
+
+
+def test_suggest_mapping_disabled_returns_503(authenticated_client, test_db):
+    from app.models.source import DataSource
+
+    src = DataSource(name="S1", type="supplier", column_mapping={})
+    test_db.add(src)
+    test_db.commit()
+    test_db.refresh(src)
+
+    resp = authenticated_client.post(
+        f"/api/sources/{src.id}/suggest-mapping",
+        json={"headers": ["Nom", "Email"], "sample_rows": [{"Nom": "Acme", "Email": "a@b.com"}]},
+    )
+    assert resp.status_code == 503
+
+
+def test_suggest_mapping_happy_path(authenticated_client, test_db, monkeypatch):
+    from pydantic import BaseModel
+
+    from app.config import settings
+    from app.models.source import DataSource
+    from app.services import llm as llm_service
+
+    src = DataSource(name="S2", type="supplier", column_mapping={})
+    test_db.add(src)
+    test_db.commit()
+    test_db.refresh(src)
+
+    monkeypatch.setattr(settings, "llm_enabled", True)
+    monkeypatch.setattr(settings, "llm_api_key", "test")
+
+    class _FakeSuggestion(BaseModel):
+        mapping: dict[str, str | None]
+
+    def fake_complete(prompt, output_format):
+        return output_format(mapping={"Nom": "name", "Email": "email"})
+
+    monkeypatch.setattr(llm_service, "complete_structured", fake_complete)
+
+    resp = authenticated_client.post(
+        f"/api/sources/{src.id}/suggest-mapping",
+        json={"headers": ["Nom", "Email"], "sample_rows": [{"Nom": "Acme", "Email": "a@b.com"}]},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["suggestions"]["Nom"] == "name"
+    assert body["suggestions"]["Email"] == "email"
+    assert body["model"]

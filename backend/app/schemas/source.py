@@ -51,3 +51,14 @@ class DataSourceResponse(BaseModel):
     filename_pattern: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class SuggestMappingRequest(BaseModel):
+    headers: list[str]
+    sample_rows: list[dict] = []  # capped server-side
+
+
+class SuggestMappingResponse(BaseModel):
+    suggestions: dict[str, str | None]
+    model: str
+    latency_ms: int
