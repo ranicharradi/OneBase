@@ -32,6 +32,7 @@ const NAV: NavSection[] = [
     section: 'Pipeline',
     items: [
       { to: '/dashboard', icon: 'home', label: 'Overview' },
+      { to: '/insights', icon: 'insights', label: 'Insights' },
       { to: '/upload', icon: 'cloud_upload', label: 'Upload' },
       { to: '/file-checker', icon: 'rule', label: 'File checker' },
       { to: '/sources', icon: 'storage', label: 'Sources' },
@@ -62,6 +63,7 @@ function routeHasDensity(pathname: string): boolean {
 
 const BREADCRUMBS: Record<string, string[]> = {
   '/dashboard': ['Pipeline', 'Overview'],
+  '/insights': ['Pipeline', 'Insights'],
   '/upload': ['Pipeline', 'Upload'],
   '/file-checker': ['Pipeline', 'File checker'],
   '/sources': ['Pipeline', 'Sources'],

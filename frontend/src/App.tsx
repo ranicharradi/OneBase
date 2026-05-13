@@ -19,6 +19,7 @@ import Dashboard from './pages/Dashboard';
 import FileChecker from './pages/FileChecker';
 import UnifiedRecords from './pages/UnifiedRecords';
 import UnifiedRecordDetail from './pages/UnifiedRecordDetail';
+import Insights from './pages/Insights';
 import { ApiError } from './api/client';
 
 const queryClient = new QueryClient({
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="review/:id" element={<ReviewDetail />} />
               <Route path="merge" element={<MergeQueue />} />
               <Route path="merge/:id" element={<MergeDetail />} />
+              <Route path="insights" element={<Insights />} />
               <Route path="upload" element={<Upload />} />
               <Route path="file-checker" element={<FileChecker />} />
               <Route path="sources" element={<Sources />} />

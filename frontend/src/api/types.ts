@@ -425,3 +425,18 @@ export interface SuggestMappingResponse {
   model: string;
   latency_ms: number;
 }
+
+// ── Insights / DQ types ──
+
+export interface BucketCount { bucket: string; count: number; }
+export interface PerSourceDq { source_id: number; source_name: string; count: number; avg_dq: number; }
+export interface WorstRecord {
+  id: number; record_type: string; source_name: string | null;
+  dq_score: number; dq_completeness: number | null; dq_validity: number | null;
+}
+export interface InsightsDqResponse {
+  avg_dq: number;
+  distribution: BucketCount[];
+  per_source: PerSourceDq[];
+  worst: WorstRecord[];
+}
