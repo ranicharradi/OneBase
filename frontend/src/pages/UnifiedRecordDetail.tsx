@@ -1,9 +1,10 @@
 // ── Unified Record Detail — terminal aesthetic ──
 
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { UnifiedRecordDetail as DetailType } from '../api/types';
+import type { UnifiedRecordDetail as DetailType, LineageResponse } from '../api/types';
 import RecordFieldRow from '../components/RecordFieldRow';
 import { useRecordType } from '../hooks/useRecordTypes';
 import Panel, { PanelHead } from '../components/ui/Panel';
@@ -11,6 +12,7 @@ import Kpi from '../components/ui/Kpi';
 import Pill from '../components/ui/Pill';
 import IdChip from '../components/ui/IdChip';
 import SourcePill from '../components/ui/SourcePill';
+import { Spinner } from '../components/ui';
 
 
 const ACTION_TONES: Record<string, 'ok' | 'danger' | 'neutral' | 'accent' | 'warn'> = {
@@ -31,12 +33,20 @@ export default function UnifiedRecordDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
+  const [tab, setTab] = useState<'details' | 'lineage'>('details');
+
   const { data: record, isLoading, error } = useQuery<DetailType>({
     queryKey: ['unified-detail', id],
     queryFn: () => api.get(`/api/unified/records/${id}`),
     enabled: !!id,
   });
   const { data: recordType } = useRecordType(record?.type);
+
+  const lineage = useQuery<LineageResponse>({
+    queryKey: ['lineage', id],
+    queryFn: () => api.get<LineageResponse>(`/api/unified/${id}/lineage`),
+    enabled: tab === 'lineage' && !!id,
+  });
 
   if (isLoading) {
     return (
@@ -136,6 +146,24 @@ export default function UnifiedRecordDetailPage() {
           </Panel>
         )}
 
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <button
+            className={`btn btn-sm${tab === 'details' ? '' : ' btn-ghost'}`}
+            onClick={() => setTab('details')}
+            disabled={tab === 'details'}
+          >
+            Details
+          </button>
+          <button
+            className={`btn btn-sm${tab === 'lineage' ? '' : ' btn-ghost'}`}
+            onClick={() => setTab('lineage')}
+            disabled={tab === 'lineage'}
+          >
+            Lineage
+          </button>
+        </div>
+
+        {tab === 'details' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 14 }}>
           {/* Field provenance */}
           <Panel className="fade">
@@ -251,6 +279,37 @@ export default function UnifiedRecordDetailPage() {
             </Panel>
           </div>
         </div>
+        )}
+
+        {tab === 'lineage' && (
+          <Panel>
+            <PanelHead title="Lineage" />
+            {lineage.isLoading && <Spinner />}
+            {lineage.error && (
+              <div style={{ padding: 12, color: 'var(--err)' }}>
+                {(lineage.error as Error).message}
+              </div>
+            )}
+            {lineage.data && (
+              <ul style={{ listStyle: 'none', padding: 12, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {lineage.data.events.length === 0 ? (
+                  <li style={{ fontSize: 12, color: 'var(--fg-2)', textAlign: 'center', padding: 8 }}>
+                    No lineage events found
+                  </li>
+                ) : (
+                  lineage.data.events.map((e, i) => (
+                    <li key={i} style={{ borderLeft: '2px solid var(--border-0)', paddingLeft: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+                        {e.at} · <strong>{e.kind}</strong>{e.actor ? ` · ${e.actor}` : ''}
+                      </div>
+                      <div>{e.summary}</div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
+          </Panel>
+        )}
       </div>
     </div>
   );

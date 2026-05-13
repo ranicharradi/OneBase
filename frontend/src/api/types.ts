@@ -440,3 +440,16 @@ export interface InsightsDqResponse {
   per_source: PerSourceDq[];
   worst: WorstRecord[];
 }
+
+// ── Lineage types ──
+
+export interface LineageEvent {
+  at: string;
+  kind: 'ingested' | 'merged' | 'field_set' | 'reviewed' | 'superseded';
+  actor: string | null;
+  summary: string;
+  details: Record<string, unknown> | null;
+}
+export interface LineageResponse {
+  events: LineageEvent[];
+}
