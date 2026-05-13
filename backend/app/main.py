@@ -10,7 +10,20 @@ from app.config import settings, validate_production_secrets
 from app.database import SessionLocal
 from app.logging_config import RequestIDMiddleware, configure_logging
 from app.rate_limit import limiter
-from app.routers import auth, file_checks, insights, matching, record_types, review, sources, unified, upload, users, ws
+from app.routers import (
+    ask,
+    auth,
+    file_checks,
+    insights,
+    matching,
+    record_types,
+    review,
+    sources,
+    unified,
+    upload,
+    users,
+    ws,
+)
 
 
 class SecurityHeadersMiddleware:
@@ -89,6 +102,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIDMiddleware)
 
 # Include routers
+app.include_router(ask.router)
 app.include_router(auth.router)
 app.include_router(record_types.router)
 app.include_router(users.router)
