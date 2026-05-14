@@ -13,6 +13,7 @@ from app.rate_limit import limiter
 from app.routers import (
     ask,
     auth,
+    comparisons,
     file_checks,
     insights,
     matching,
@@ -113,6 +114,7 @@ app.include_router(matching.router)
 app.include_router(review.router)
 app.include_router(unified.router)
 app.include_router(insights.router)
+app.include_router(comparisons.router)
 app.include_router(ws.router)
 
 
