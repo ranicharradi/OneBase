@@ -37,7 +37,7 @@ def _field_value(record: StagedRecord, field_key: str) -> str | None:
 
 def compare_fields(
     record_a: StagedRecord,
-    record_b: StagedRecord,
+    record_b: StagedRecord | UnifiedRecord,
     source_a_name: str,
     source_b_name: str,
     record_type: RecordType | None = None,
@@ -153,8 +153,7 @@ def _update_existing_unified(
         elif comp["is_conflict"]:
             chosen_id = selection_map.get(field)
             if chosen_id is None:
-                # No explicit selection → keep the existing golden value.
-                continue
+                continue  # No selection → keep golden as authoritative default
             if chosen_id == staged.id:
                 new_fields[field] = comp["value_a"]
                 new_provenance[field] = {
