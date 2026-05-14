@@ -75,7 +75,6 @@ def run_matching_pipeline(
         emb_pairs = embedding_block(db, side_a, side_b)
     except Exception as e:
         logger.warning("embedding_block failed, text-only: %s", e)
-        db.rollback()
         emb_pairs = set()
     all_pairs = combine_blocks(text_pairs, emb_pairs)
     _report("BLOCKING", 100)
@@ -109,18 +108,22 @@ def run_matching_pipeline(
     _report("SCORING", 0)
     scored: list[tuple[RecordRef, RecordRef, float, dict]] = []
     pair_list = list(all_pairs)
+    last_pct = -1
     for idx, (ref_a, ref_b) in enumerate(pair_list):
         ra = record_lookup.get(ref_a)
         rb = record_lookup.get(ref_b)
         if ra is None or rb is None:
+            logger.info("dropping pair (%s, %s) — ref no longer resolvable", ref_a, ref_b)
             continue
         result = ml_score_pair(ra, rb, scorer_bundle) if using_ml else score_pair(ra, rb)
         conf = result["confidence"]
         signals = result["signals"]
         if conf >= settings.matching_confidence_threshold:
             scored.append((ref_a, ref_b, conf, signals))
-        if pair_list:
-            _report("SCORING", int((idx + 1) / len(pair_list) * 100))
+        new_pct = int((idx + 1) / len(pair_list) * 100)
+        if new_pct != last_pct:
+            _report("SCORING", new_pct)
+            last_pct = new_pct
     _report("SCORING", 100)
 
     if not scored:
@@ -147,6 +150,7 @@ def run_matching_pipeline(
 
     candidate_count = 0
     for ref_a, ref_b, conf, signals in scored:
+        mg = group_map.get(ref_a) or group_map.get(ref_b)
         cand = MatchCandidate(
             type=type_key,
             comparison_run_id=run.id,
@@ -157,9 +161,7 @@ def run_matching_pipeline(
             confidence=conf,
             match_signals=signals,
             status=CandidateStatus.PENDING,
-            group_id=(group_map.get(ref_a) or group_map.get(ref_b)).id
-            if (group_map.get(ref_a) or group_map.get(ref_b))
-            else None,
+            group_id=mg.id if mg else None,
         )
         db.add(cand)
         candidate_count += 1

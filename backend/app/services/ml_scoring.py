@@ -33,10 +33,8 @@ def ml_score_pair(
             f"got records of type {record_a.type!r}/{record_b.type!r}"
         )
 
-    # Score using the candidate's recorded signals (re-running scoring would be
-    # redundant — the matching pipeline has already populated MatchCandidate.signals).
-    # When called outside the pipeline we still need the signals dict; recompute
-    # via the type's score_pair to fill it in.
+    # We always need the per-signal dict, so compute it first via the weighted scorer.
+    # The LightGBM model then re-scores from the same signals; this is intentional.
     from app.services.scoring import score_pair as weighted_score_pair
 
     base_result = weighted_score_pair(record_a, record_b)
