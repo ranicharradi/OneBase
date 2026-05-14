@@ -21,6 +21,8 @@ import UnifiedRecords from './pages/UnifiedRecords';
 import UnifiedRecordDetail from './pages/UnifiedRecordDetail';
 import Insights from './pages/Insights';
 import Ask from './pages/Ask';
+import Compare from './pages/Compare';
+import Comparisons from './pages/Comparisons';
 import { ApiError } from './api/client';
 
 const queryClient = new QueryClient({
@@ -66,6 +68,8 @@ export default function App() {
               <Route path="file-checker" element={<FileChecker />} />
               <Route path="sources" element={<Sources />} />
               <Route path="ask" element={<Ask />} />
+              <Route path="compare" element={<Compare />} />
+              <Route path="runs" element={<Comparisons />} />
               <Route path="users" element={<Users />} />
             </Route>
           </Routes>

@@ -34,6 +34,7 @@ const NAV: NavSection[] = [
       { to: '/dashboard', icon: 'home', label: 'Overview' },
       { to: '/insights', icon: 'insights', label: 'Insights' },
       { to: '/upload', icon: 'cloud_upload', label: 'Upload' },
+      { to: '/compare', icon: 'compare_arrows', label: 'Compare' },
       { to: '/file-checker', icon: 'rule', label: 'File checker' },
       { to: '/sources', icon: 'storage', label: 'Sources' },
     ],
@@ -41,6 +42,7 @@ const NAV: NavSection[] = [
   {
     section: 'Matching',
     items: [
+      { to: '/runs', icon: 'history', label: 'Runs' },
       { to: '/review', icon: 'swap_horiz', label: 'Review queue' },
       { to: '/merge', icon: 'merge', label: 'Merge queue' },
       { to: '/unified', icon: 'verified', label: 'Unified' },
@@ -66,8 +68,10 @@ const BREADCRUMBS: Record<string, string[]> = {
   '/dashboard': ['Pipeline', 'Overview'],
   '/insights': ['Pipeline', 'Insights'],
   '/upload': ['Pipeline', 'Upload'],
+  '/compare': ['Pipeline', 'Compare'],
   '/file-checker': ['Pipeline', 'File checker'],
   '/sources': ['Pipeline', 'Sources'],
+  '/runs': ['Matching', 'Runs'],
   '/review': ['Matching', 'Review queue'],
   '/merge': ['Matching', 'Merge queue'],
   '/unified': ['Matching', 'Unified'],
