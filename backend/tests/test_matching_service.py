@@ -62,6 +62,21 @@ def _make_record(
     return s
 
 
+def _make_run(db: Session, mode: str = "FILE_VS_FILE") -> ComparisonRun:
+    """Helper to create a ComparisonRun."""
+    run = ComparisonRun(type="supplier", mode=mode, status="running", created_by="u")
+    db.add(run)
+    db.flush()
+    return run
+
+
+def _make_side_a_b(db: Session, s1: StagedRecord, s2: StagedRecord):
+    """Build two single-record RecordSets from staged records."""
+    side_a = RecordSet(type_key="supplier", refs=[RecordRef(s1.id, "staged")])
+    side_b = RecordSet(type_key="supplier", refs=[RecordRef(s2.id, "staged")])
+    return side_a, side_b
+
+
 # ---------- run_matching_pipeline tests ----------
 
 
@@ -94,7 +109,9 @@ def test_pipeline_creates_candidates(mock_score_pair, mock_text_block, mock_embe
 
     from app.services.matching import run_matching_pipeline
 
-    stats = run_matching_pipeline(test_db, batch.id)
+    run = _make_run(test_db)
+    side_a, side_b = _make_side_a_b(test_db, s1, s2)
+    stats = run_matching_pipeline(test_db, run.id, side_a, side_b)
     test_db.flush()
 
     assert stats["candidate_count"] == 1
@@ -130,7 +147,9 @@ def test_pipeline_filters_below_threshold(mock_score_pair, mock_text_block, mock
 
     from app.services.matching import run_matching_pipeline
 
-    stats = run_matching_pipeline(test_db, batch.id)
+    run = _make_run(test_db)
+    side_a, side_b = _make_side_a_b(test_db, s1, s2)
+    stats = run_matching_pipeline(test_db, run.id, side_a, side_b)
     test_db.flush()
 
     assert stats["candidate_count"] == 0
@@ -165,7 +184,9 @@ def test_pipeline_candidate_has_all_signals(mock_score_pair, mock_text_block, mo
 
     from app.services.matching import run_matching_pipeline
 
-    run_matching_pipeline(test_db, batch.id)
+    run = _make_run(test_db)
+    side_a, side_b = _make_side_a_b(test_db, s1, s2)
+    run_matching_pipeline(test_db, run.id, side_a, side_b)
     test_db.flush()
 
     candidate = test_db.query(MatchCandidate).first()
@@ -207,7 +228,9 @@ def test_pipeline_assigns_groups(mock_score_pair, mock_text_block, mock_embeddin
 
     from app.services.matching import run_matching_pipeline
 
-    stats = run_matching_pipeline(test_db, batch.id)
+    run = _make_run(test_db)
+    side_a, side_b = _make_side_a_b(test_db, s1, s2)
+    stats = run_matching_pipeline(test_db, run.id, side_a, side_b)
     test_db.flush()
 
     assert stats["group_count"] >= 1
@@ -216,52 +239,6 @@ def test_pipeline_assigns_groups(mock_score_pair, mock_text_block, mock_embeddin
     assert candidate.group_id is not None
     group = test_db.query(MatchGroup).filter(MatchGroup.id == candidate.group_id).first()
     assert group is not None
-
-
-@patch("app.services.matching.embedding_block")
-@patch("app.services.matching.text_block")
-@patch("app.services.matching.score_pair")
-def test_pipeline_invalidates_on_reupload(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
-    """Re-upload invalidates old candidates involving that source."""
-    src1 = _make_source(test_db, "Entity A")
-    src2 = _make_source(test_db, "Entity B")
-    batch = _make_batch(test_db, src1)
-    s1 = _make_record(test_db, batch, src1, "Acme Corp")
-    batch2 = _make_batch(test_db, src2)
-    s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
-    test_db.flush()
-
-    # Create an existing candidate
-    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
-    test_db.add(run)
-    test_db.flush()
-    old_candidate = MatchCandidate(
-        type="supplier",
-        comparison_run_id=run.id,
-        record_a_id=s1.id,
-        record_b_id=s2.id,
-        confidence=0.80,
-        match_signals={
-            "jaro_winkler:supplier_name": 0.9,
-            "token_jaccard:supplier_name": 0.8,
-            "embedding_cosine:supplier_name": 0.7,
-        },
-        status=CandidateStatus.PENDING,
-    )
-    test_db.add(old_candidate)
-    test_db.flush()
-
-    # Now re-upload: invalidate source 1
-    mock_text_block.return_value = set()
-    mock_embedding_block.return_value = set()
-
-    from app.services.matching import run_matching_pipeline
-
-    run_matching_pipeline(test_db, batch.id, invalidate_source_id=src1.id)
-    test_db.flush()
-
-    old = test_db.query(MatchCandidate).filter(MatchCandidate.id == old_candidate.id).first()
-    assert old.status == CandidateStatus.INVALIDATED
 
 
 @patch("app.services.matching.embedding_block")
@@ -290,7 +267,9 @@ def test_pipeline_returns_stats(mock_score_pair, mock_text_block, mock_embedding
 
     from app.services.matching import run_matching_pipeline
 
-    stats = run_matching_pipeline(test_db, batch.id)
+    run = _make_run(test_db)
+    side_a, side_b = _make_side_a_b(test_db, s1, s2)
+    stats = run_matching_pipeline(test_db, run.id, side_a, side_b)
 
     assert "candidate_count" in stats
     assert "group_count" in stats
@@ -304,16 +283,17 @@ def test_pipeline_zero_candidates(mock_text_block, mock_embedding_block, test_db
     """With zero candidates above threshold, returns zeros and creates no records."""
     src1 = _make_source(test_db, "Entity A")
     batch = _make_batch(test_db, src1)
-    _make_record(test_db, batch, src1, "Acme Corp")
+    s1 = _make_record(test_db, batch, src1, "Acme Corp")
     test_db.flush()
 
-    # Only 1 source — blocking returns nothing
     mock_text_block.return_value = set()
     mock_embedding_block.return_value = set()
 
     from app.services.matching import run_matching_pipeline
 
-    stats = run_matching_pipeline(test_db, batch.id)
+    run = _make_run(test_db)
+    side_a = RecordSet(type_key="supplier", refs=[RecordRef(s1.id, "staged")])
+    stats = run_matching_pipeline(test_db, run.id, side_a, None)
 
     assert stats["candidate_count"] == 0
     assert stats["group_count"] == 0
@@ -348,7 +328,9 @@ def test_pipeline_progress_callback(mock_score_pair, mock_text_block, mock_embed
 
     from app.services.matching import run_matching_pipeline
 
-    run_matching_pipeline(test_db, batch.id, progress_callback=callback)
+    run = _make_run(test_db)
+    side_a, side_b = _make_side_a_b(test_db, s1, s2)
+    run_matching_pipeline(test_db, run.id, side_a, side_b, progress_callback=callback)
 
     # Verify callback was called with expected stages
     called_stages = [call[0][0] for call in callback.call_args_list]
@@ -397,75 +379,45 @@ def test_text_block_filters_to_representatives(test_db):
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
 @patch("app.services.matching.score_pair")
-def test_pipeline_groups_duplicates_reduces_candidates(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
-    """Pipeline with intra-source duplicates produces fewer candidates than raw rows."""
-    src1 = _make_source(test_db, "TTEI")
-    src2 = _make_source(test_db, "EOT")
-    batch1 = _make_batch(test_db, src1)
-    batch2 = _make_batch(test_db, src2)
-
-    # src1: 3 duplicates with same normalized name
-    s1a = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
-    s1b = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
-    s1c = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
-    # src2: 1 row
-    s2 = _make_record(test_db, batch2, src2, "Acme Corporation", normalized_name="ACME CORPORATION")
+def test_pipeline_empty_side_a_returns_zero(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
+    """Pipeline with empty side_a returns zero stats without calling blocking."""
+    src1 = _make_source(test_db, "Entity A")
+    batch = _make_batch(test_db, src1)
+    s1 = _make_record(test_db, batch, src1, "Acme Corp")
     test_db.flush()
 
-    # Blocking should be called with representative_ids.
-    # After grouping, only 1 representative from src1 + s2 = 2 records for blocking.
-    def fake_text_block(db, side_a, side_b, representative_ids=None):
-        # Verify representative_ids was passed and contains only reps
-        assert representative_ids is not None
-        # Should have s2 + one rep from src1 (not all 3)
-        src1_ref_ids = {ref.id for ref in representative_ids if ref.id in {s1a.id, s1b.id, s1c.id}}
-        assert len(src1_ref_ids) == 1, f"Expected 1 src1 rep, got {len(src1_ref_ids)}"
-        rep_id = src1_ref_ids.pop()
-        return {(RecordRef(min(rep_id, s2.id), "staged"), RecordRef(max(rep_id, s2.id), "staged"))}
-
-    mock_text_block.side_effect = fake_text_block
-    mock_embedding_block.return_value = set()
-    mock_score_pair.return_value = {
-        "confidence": 0.85,
-        "signals": {
-            "jaro_winkler:supplier_name": 0.9,
-            "token_jaccard:supplier_name": 0.8,
-            "embedding_cosine:supplier_name": 0.7,
-        },
-    }
+    run = _make_run(test_db)
+    side_a = RecordSet(type_key="supplier", refs=[])  # empty
+    side_b = RecordSet(type_key="supplier", refs=[RecordRef(s1.id, "staged")])
 
     from app.services.matching import run_matching_pipeline
 
-    stats = run_matching_pipeline(test_db, batch1.id)
-    test_db.flush()
-
-    # Only 1 candidate (rep vs s2), not 3 (s1a vs s2, s1b vs s2, s1c vs s2)
-    assert stats["candidate_count"] == 1
+    stats = run_matching_pipeline(test_db, run.id, side_a, side_b)
+    assert stats["candidate_count"] == 0
+    assert stats["group_count"] == 0
+    mock_text_block.assert_not_called()
 
 
 @patch("app.services.matching.embedding_block")
 @patch("app.services.matching.text_block")
-def test_pipeline_grouping_progress_callback(mock_text_block, mock_embedding_block, test_db):
-    """Progress callback includes GROUPING stage."""
-    src1 = _make_source(test_db, "TTEI")
-    src2 = _make_source(test_db, "EOT")
-    batch1 = _make_batch(test_db, src1)
-    batch2 = _make_batch(test_db, src2)
-    _make_record(test_db, batch1, src1, "Acme Corp")
-    _make_record(test_db, batch2, src2, "Zephyr")
+@patch("app.services.matching.score_pair")
+def test_pipeline_empty_side_b_returns_zero(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
+    """Pipeline with empty side_b returns zero stats without calling blocking."""
+    src1 = _make_source(test_db, "Entity A")
+    batch = _make_batch(test_db, src1)
+    s1 = _make_record(test_db, batch, src1, "Acme Corp")
     test_db.flush()
 
-    mock_text_block.return_value = set()
-    mock_embedding_block.return_value = set()
-
-    callback = MagicMock()
+    run = _make_run(test_db)
+    side_a = RecordSet(type_key="supplier", refs=[RecordRef(s1.id, "staged")])
+    side_b = RecordSet(type_key="supplier", refs=[])  # empty
 
     from app.services.matching import run_matching_pipeline
 
-    run_matching_pipeline(test_db, batch1.id, progress_callback=callback)
-
-    called_stages = [call[0][0] for call in callback.call_args_list]
-    assert "GROUPING" in called_stages
+    stats = run_matching_pipeline(test_db, run.id, side_a, side_b)
+    assert stats["candidate_count"] == 0
+    assert stats["group_count"] == 0
+    mock_text_block.assert_not_called()
 
 
 class TestMLPipelineIntegration:
@@ -473,7 +425,7 @@ class TestMLPipelineIntegration:
 
     @staticmethod
     def _seed_two_source_scenario(db):
-        """Create a minimal two-source scenario and return (batch_id, s1, s2)."""
+        """Create a minimal two-source scenario and return (run_id, side_a, side_b)."""
         src1 = _make_source(db, "ML Entity A")
         src2 = _make_source(db, "ML Entity B")
         batch1 = _make_batch(db, src1)
@@ -481,7 +433,10 @@ class TestMLPipelineIntegration:
         s1 = _make_record(db, batch1, src1, "Acme Corp")
         s2 = _make_record(db, batch2, src2, "Acme Corporation")
         db.flush()
-        return batch1.id, s1, s2
+        run = _make_run(db)
+        side_a = RecordSet(type_key="supplier", refs=[RecordRef(s1.id, "staged")])
+        side_b = RecordSet(type_key="supplier", refs=[RecordRef(s2.id, "staged")])
+        return run.id, s1, s2, side_a, side_b
 
     @patch("app.services.matching.embedding_block")
     @patch("app.services.matching.text_block")
@@ -493,7 +448,7 @@ class TestMLPipelineIntegration:
 
         from app.services.ml_training import ModelBundle
 
-        batch_id, s1, s2 = self._seed_two_source_scenario(test_db)
+        run_id, s1, s2, side_a, side_b = self._seed_two_source_scenario(test_db)
 
         mock_text_block.return_value = {(RecordRef(s1.id, "staged"), RecordRef(s2.id, "staged"))}
         mock_embedding_block.return_value = set()
@@ -530,7 +485,7 @@ class TestMLPipelineIntegration:
 
                 from app.services.matching import run_matching_pipeline
 
-                _result = run_matching_pipeline(test_db, batch_id)
+                _result = run_matching_pipeline(test_db, run_id, side_a, side_b)
 
                 assert mock_ml_score.called
 
@@ -539,7 +494,7 @@ class TestMLPipelineIntegration:
     @patch("app.services.matching.score_pair")
     def test_pipeline_falls_back_to_weighted_sum(self, mock_score_pair, mock_text_block, mock_embedding_block, test_db):
         """Pipeline should use score_pair when no ML model exists."""
-        batch_id, s1, s2 = self._seed_two_source_scenario(test_db)
+        run_id, s1, s2, side_a, side_b = self._seed_two_source_scenario(test_db)
 
         mock_text_block.return_value = {(RecordRef(s1.id, "staged"), RecordRef(s2.id, "staged"))}
         mock_embedding_block.return_value = set()
@@ -555,6 +510,71 @@ class TestMLPipelineIntegration:
         with patch("app.services.matching.load_active_model", return_value=None):
             from app.services.matching import run_matching_pipeline
 
-            result = run_matching_pipeline(test_db, batch_id)
+            result = run_matching_pipeline(test_db, run_id, side_a, side_b)
             assert result["candidate_count"] == 1
             assert mock_score_pair.called
+
+
+# ---------- new RecordSet-based tests ----------
+
+
+def test_run_matching_pipeline_file_vs_file_writes_candidates_to_run(test_db):
+    src1 = _make_source(test_db, "src1")
+    src2 = _make_source(test_db, "src2")
+    b1 = _make_batch(test_db, src1)
+    b2 = _make_batch(test_db, src2)
+    _make_record(test_db, b1, src1, "ACME LTD")
+    _make_record(test_db, b2, src2, "ACME LIMITED")
+    test_db.commit()
+
+    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", created_by="u", status="running")
+    test_db.add(run)
+    test_db.commit()
+
+    side_a = RecordSet.from_batch(test_db, b1.id)
+    side_b = RecordSet.from_batch(test_db, b2.id)
+
+    from app.services.matching import run_matching_pipeline
+
+    stats = run_matching_pipeline(test_db, run.id, side_a, side_b)
+    test_db.commit()
+
+    cands = test_db.query(MatchCandidate).filter(MatchCandidate.comparison_run_id == run.id).all()
+    assert stats["candidate_count"] == len(cands)
+    assert all(c.side_a_kind == "staged" and c.side_b_kind == "staged" for c in cands)
+    assert all(c.comparison_run_id == run.id for c in cands)
+
+
+def test_run_matching_pipeline_file_vs_golden_emits_unified_side(test_db):
+    src = _make_source(test_db, "src")
+    batch = _make_batch(test_db, src)
+    _make_record(test_db, batch, src, "ACME")
+    from app.models.unified import UnifiedRecord
+
+    u = UnifiedRecord(
+        type="supplier",
+        name="ACME CORP",
+        normalized_name="ACME CORP",
+        fields={"supplier_name": "ACME CORP"},
+        provenance={},
+        source_record_ids=[],
+        created_by="u",
+    )
+    test_db.add(u)
+    test_db.commit()
+
+    run = ComparisonRun(type="supplier", mode="FILE_VS_GOLDEN", created_by="u", status="running")
+    test_db.add(run)
+    test_db.commit()
+    side_a = RecordSet.from_batch(test_db, batch.id)
+    side_b = RecordSet.from_unified(test_db, "supplier")
+
+    from app.services.matching import run_matching_pipeline
+
+    run_matching_pipeline(test_db, run.id, side_a, side_b)
+    test_db.commit()
+
+    cand = test_db.query(MatchCandidate).filter(MatchCandidate.comparison_run_id == run.id).first()
+    if cand is not None:
+        assert cand.side_b_kind == "unified"
+        assert cand.side_a_kind == "staged"

@@ -32,9 +32,11 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
     """
     with get_task_session() as db:
         try:
+            from app.models.comparison import ComparisonRun
             from app.models.match import MatchCandidate
             from app.models.staging import StagedRecord
             from app.services.matching import run_matching_pipeline
+            from app.services.record_set import RecordSet
 
             # Idempotency guard: return early if candidates already exist for this batch
             # (unless this is a re-upload where we need to invalidate and rematch)
@@ -74,12 +76,26 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
                 except Exception:  # noqa: S110
                     pass  # never block matching on notification failure
 
+            # Build a ComparisonRun scoping this pipeline execution
+            side_a = RecordSet.from_batch(db, batch_id)
+            type_key = side_a.type_key
+
+            run = ComparisonRun(
+                type=type_key,
+                mode="FILE_VS_FILE",
+                status="running",
+                created_by="system",
+            )
+            db.add(run)
+            db.flush()
+
             # Run the pipeline
             stats = run_matching_pipeline(
                 db,
-                batch_id,
+                run.id,
+                side_a,
+                None,  # single-side intra-batch: no side_b
                 progress_callback=progress_callback,
-                invalidate_source_id=invalidate_source_id,
             )
 
             db.commit()

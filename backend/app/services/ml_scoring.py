@@ -15,6 +15,7 @@ from app.services.ml_training import (
     _build_scorer_row,
     _compute_engineered_features,
 )
+from app.services.record_set import RecordRef
 
 
 def ml_score_pair(
@@ -49,10 +50,10 @@ def ml_score_pair(
 
 
 def blocker_filter(
-    pairs: list[tuple[int, int]],
-    record_lookup: dict[int, StagedRecord],
+    pairs: list[tuple[RecordRef, RecordRef]],
+    record_lookup: dict[RecordRef, object],  # StagedRecord or UnifiedRecord
     bundle: ModelBundle | None,
-) -> list[tuple[int, int]]:
+) -> list[tuple[RecordRef, RecordRef]]:
     """Filter candidate pairs using the blocker model. Pairs whose records belong to
     a different type than the blocker bundle are silently skipped (the matcher won't
     pass them in practice — defense in depth).
@@ -63,9 +64,9 @@ def blocker_filter(
     features = []
     valid_pairs = []
 
-    for a_id, b_id in pairs:
-        rec_a = record_lookup.get(a_id)
-        rec_b = record_lookup.get(b_id)
+    for ref_a, ref_b in pairs:
+        rec_a = record_lookup.get(ref_a)
+        rec_b = record_lookup.get(ref_b)
         if rec_a is None or rec_b is None:
             continue
         if rec_a.type != bundle.record_type or rec_b.type != bundle.record_type:
@@ -79,7 +80,7 @@ def blocker_filter(
         nlr, _ = _compute_engineered_features(name_a, name_b)
 
         features.append([jw, tj, nlr])
-        valid_pairs.append((a_id, b_id))
+        valid_pairs.append((ref_a, ref_b))
 
     if not features:
         return []

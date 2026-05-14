@@ -11,6 +11,7 @@ from app.models.enums import BatchStatus, RecordStatus
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.services.ml_training import ModelBundle
+from app.services.record_set import RecordRef
 
 pytestmark = pytest.mark.slow
 
@@ -154,8 +155,17 @@ class TestBlockerFilter:
             fields={"supplier_name": "GAMMA CORP", "short_name": "G1", "currency": "EUR"},
         )
 
-        pairs = [(rec1.id, rec2.id), (rec3.id, rec4.id)]
-        record_lookup = {r.id: r for r in [rec1, rec2, rec3, rec4]}
+        ref1 = RecordRef(rec1.id, "staged")
+        ref2 = RecordRef(rec2.id, "staged")
+        ref3 = RecordRef(rec3.id, "staged")
+        ref4 = RecordRef(rec4.id, "staged")
+        pairs = [(ref1, ref2), (ref3, ref4)]
+        record_lookup = {
+            ref1: rec1,
+            ref2: rec2,
+            ref3: rec3,
+            ref4: rec4,
+        }
 
         mock_model = MagicMock(spec=lgb.Booster)
         mock_model.predict.return_value = np.array([0.8, 0.1])
@@ -169,12 +179,16 @@ class TestBlockerFilter:
 
         filtered = blocker_filter(pairs, record_lookup, bundle)
         assert len(filtered) == 1
-        assert filtered[0] == (rec1.id, rec2.id)
+        assert filtered[0] == (ref1, ref2)
 
     def test_no_bundle_passes_all(self):
         from app.services.ml_scoring import blocker_filter
 
-        pairs = [(1, 2), (3, 4)]
+        ref_a = RecordRef(1, "staged")
+        ref_b = RecordRef(2, "staged")
+        ref_c = RecordRef(3, "staged")
+        ref_d = RecordRef(4, "staged")
+        pairs = [(ref_a, ref_b), (ref_c, ref_d)]
         filtered = blocker_filter(pairs, {}, None)
         assert filtered == pairs
 
