@@ -56,16 +56,34 @@ def process_upload(self, batch_id: int):
                     meta={"stage": stage, "progress": pct},
                 )
 
+            # Detect re-upload before ingestion so we can mark runs stale afterward.
+            from app.models.enums import RecordStatus
+            from app.models.staging import StagedRecord
+
+            is_reupload = (
+                db.query(StagedRecord)
+                .filter(
+                    StagedRecord.data_source_id == batch.data_source_id,
+                    StagedRecord.status == RecordStatus.ACTIVE,
+                )
+                .count()
+            ) > 0
+
             # Run ingestion pipeline
             row_count = run_ingestion(db, batch_id, file_content, progress_callback)
             db.commit()
+
+            if is_reupload:
+                from app.services.comparison import mark_stale_for_source
+
+                mark_stale_for_source(db, batch.data_source_id)
+                db.commit()
 
             logger.info(
                 "Ingestion complete for batch %d: %d rows",
                 batch_id,
                 row_count,
             )
-            db.commit()
             return {"status": "completed", "batch_id": batch_id, "row_count": row_count}
 
         except Exception as e:
