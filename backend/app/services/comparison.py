@@ -1,0 +1,105 @@
+"""Comparison run orchestration: validate, create, dispatch, stale."""
+
+from fastapi import HTTPException
+from fastapi import status as http_status
+from sqlalchemy.orm import Session
+
+from app.models.batch import ImportBatch
+from app.models.comparison import ComparisonRun
+from app.models.match import MatchCandidate
+from app.models.unified import UnifiedRecord
+from app.record_types import get as get_record_type
+
+MIN_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1, "MULTI_FILE": 2}
+MAX_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1, "MULTI_FILE": None}
+
+
+def create_run(
+    db: Session,
+    *,
+    type: str,
+    mode: str,
+    batch_ids: list[int],
+    name: str | None,
+    username: str,
+) -> ComparisonRun:
+    try:
+        get_record_type(type)
+    except KeyError:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown record type: {type!r}",
+        ) from None
+
+    if mode not in MIN_BATCHES_BY_MODE:
+        raise HTTPException(status_code=400, detail=f"Unknown mode: {mode!r}")
+
+    min_n = MIN_BATCHES_BY_MODE[mode]
+    max_n = MAX_BATCHES_BY_MODE[mode]
+    if len(batch_ids) < min_n or (max_n is not None and len(batch_ids) > max_n):
+        expected = f"{min_n}" if max_n == min_n else f"{min_n}+"
+        raise HTTPException(
+            status_code=400,
+            detail=f"Mode {mode} requires {expected} batches; received {len(batch_ids)}",
+        )
+
+    batches = db.query(ImportBatch).filter(ImportBatch.id.in_(batch_ids)).all()
+    if len(batches) != len(batch_ids):
+        raise HTTPException(status_code=400, detail="One or more batch_ids not found")
+
+    types = {b.data_source.type for b in batches}
+    if types != {type}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Batches must all be of type {type!r}; got {types!r}",
+        )
+
+    if mode == "FILE_VS_GOLDEN":
+        unified_count = db.query(UnifiedRecord).filter(UnifiedRecord.type == type).count()
+        if unified_count == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="No golden records yet — run a FILE_VS_FILE comparison first to produce them.",
+            )
+
+    conflict = (
+        db.query(ComparisonRun)
+        .filter(ComparisonRun.type == type, ComparisonRun.status.in_(["pending", "running"]))
+        .first()
+    )
+    if conflict is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A run of type {type!r} is already in progress (run #{conflict.id})",
+            headers={"X-Conflict-Run-Id": str(conflict.id)},
+        )
+
+    run = ComparisonRun(type=type, mode=mode, status="pending", name=name, created_by=username)
+    run.batches = batches
+    db.add(run)
+    db.flush()
+    return run
+
+
+def mark_stale_for_source(db: Session, data_source_id: int) -> int:
+    """Mark every non-stale run that references batches of this source as stale.
+
+    Returns number of runs marked.
+    """
+    runs = (
+        db.query(ComparisonRun)
+        .join(ComparisonRun.batches)
+        .filter(ImportBatch.data_source_id == data_source_id)
+        .filter(ComparisonRun.status.in_(["pending", "running", "completed"]))
+        .distinct()
+        .all()
+    )
+    n = 0
+    for run in runs:
+        run.status = "stale"
+        db.query(MatchCandidate).filter(
+            MatchCandidate.comparison_run_id == run.id,
+            MatchCandidate.status == "pending",
+        ).update({"status": "invalidated"}, synchronize_session=False)
+        n += 1
+    return n
