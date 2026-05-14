@@ -249,9 +249,7 @@ class TestProcessUploadIdempotency:
                 ),
             ),
             patch("app.services.ingestion.run_ingestion", side_effect=spy_ingestion),
-            patch("app.tasks.matching.run_matching.delay") as mock_delay,
         ):
-            mock_delay.return_value = MagicMock(id="fake-task-id")
             from app.tasks.ingestion import process_upload
 
             process_upload(batch.id)
@@ -365,16 +363,6 @@ class TestFileCleanupOnFailure:
         # Clean up manually
         if os.path.exists(test_filepath):
             os.unlink(test_filepath)
-
-
-class TestMatchingTask:
-    """Tests for matching task (replaced stub)."""
-
-    def test_matching_task_is_importable(self, test_db):
-        """Matching task is importable and registered with Celery."""
-        from app.tasks.matching import run_matching
-
-        assert run_matching.name == "run_matching"
 
 
 class TestRunIngestionXlsx:

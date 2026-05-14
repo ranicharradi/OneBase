@@ -201,8 +201,8 @@ class TestMatchingTaskNotifications:
 
         assert callable(publish_notification)
 
-    def test_matching_task_is_importable(self):
-        """Matching task module can be imported."""
-        from app.tasks.matching import run_matching
+    def test_comparison_task_is_importable(self):
+        """Comparison task module can be imported."""
+        from app.tasks.comparison import run_comparison
 
-        assert callable(run_matching)
+        assert callable(run_comparison)
