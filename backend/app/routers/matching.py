@@ -36,6 +36,7 @@ router = APIRouter(prefix="/api/matching", tags=["matching"])
 
 @router.get("/groups", response_model=list[MatchGroupResponse])
 def list_groups(
+    comparison_run_id: int = Query(..., description="Required: scope groups to a single run"),
     type: str | None = Query(None, description="Filter by record type"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -55,6 +56,7 @@ def list_groups(
         .group_by(MatchGroup.id)
         .order_by(MatchGroup.created_at.desc())
     )
+    base = base.filter(MatchGroup.comparison_run_id == comparison_run_id)
     if type is not None:
         base = base.filter(MatchGroup.type == type)
 
@@ -74,6 +76,7 @@ def list_groups(
 
 @router.get("/candidates", response_model=list[MatchCandidateResponse])
 def list_candidates(
+    comparison_run_id: int = Query(..., description="Required: scope candidates to a single run"),
     type: str | None = Query(None, description="Filter by record type"),
     group_id: int | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
@@ -84,7 +87,7 @@ def list_candidates(
     current_user: User = Depends(get_current_user),
 ):
     """List match candidates with optional filters."""
-    query = db.query(MatchCandidate)
+    query = db.query(MatchCandidate).filter(MatchCandidate.comparison_run_id == comparison_run_id)
 
     if type is not None:
         query = query.filter(MatchCandidate.type == type)
