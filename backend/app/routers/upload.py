@@ -4,11 +4,13 @@ import os
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
 from app.models.batch import ImportBatch
+from app.models.comparison import ComparisonRun, comparison_run_batches
 from app.models.enums import BatchStatus, UserRole
 from app.models.source import DataSource
 from app.models.user import User
@@ -172,12 +174,28 @@ def list_batches(
     current_user: User = Depends(get_current_user),
 ):
     """List import batches, optionally filtered by data source or record type."""
-    query = db.query(ImportBatch).join(DataSource, ImportBatch.data_source_id == DataSource.id)
+    # Subquery: latest finished_at among completed runs per batch
+    last_compared_subq = (
+        db.query(
+            comparison_run_batches.c.import_batch_id.label("batch_id"),
+            func.max(ComparisonRun.finished_at).label("last_compared_at"),
+        )
+        .join(ComparisonRun, ComparisonRun.id == comparison_run_batches.c.comparison_run_id)
+        .filter(ComparisonRun.status == "completed")
+        .group_by(comparison_run_batches.c.import_batch_id)
+        .subquery()
+    )
+
+    query = (
+        db.query(ImportBatch, last_compared_subq.c.last_compared_at)
+        .join(DataSource, ImportBatch.data_source_id == DataSource.id)
+        .outerjoin(last_compared_subq, ImportBatch.id == last_compared_subq.c.batch_id)
+    )
     if data_source_id is not None:
         query = query.filter(ImportBatch.data_source_id == data_source_id)
     if type is not None:
         query = query.filter(DataSource.type == type)
-    batches = query.order_by(ImportBatch.created_at.desc()).all()
+    rows = query.order_by(ImportBatch.created_at.desc()).all()
     # Materialize with type from the joined source.
     return [
         BatchResponse(
@@ -191,8 +209,10 @@ def list_batches(
             error_message=b.error_message,
             created_at=b.created_at,
             task_id=b.task_id,
+            unified=lc is not None,
+            last_compared_at=lc,
         )
-        for b in batches
+        for b, lc in rows
     ]
 
 

@@ -29,6 +29,8 @@ class BatchResponse(BaseModel):
     error_message: str | None
     created_at: datetime | None = None
     task_id: str | None
+    unified: bool = False
+    last_compared_at: datetime | None = None
 
 
 class TaskStatusResponse(BaseModel):
