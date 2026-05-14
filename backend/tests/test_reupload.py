@@ -5,6 +5,7 @@ from unittest.mock import patch
 import numpy as np
 
 from app.models.batch import ImportBatch
+from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
@@ -122,8 +123,12 @@ class TestReuploadSupersession:
 
         # Create a pending match candidate between the two staged records
         records = test_db.query(StagedRecord).filter(StagedRecord.import_batch_id == batch1.id).all()
+        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        test_db.add(run)
+        test_db.flush()
         match = MatchCandidate(
             type="supplier",
+            comparison_run_id=run.id,
             record_a_id=records[0].id,
             record_b_id=records[1].id,
             confidence=0.85,
@@ -164,8 +169,12 @@ class TestReuploadSupersession:
 
         # Create a confirmed match candidate
         records = test_db.query(StagedRecord).filter(StagedRecord.import_batch_id == batch1.id).all()
+        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        test_db.add(run)
+        test_db.flush()
         match = MatchCandidate(
             type="supplier",
+            comparison_run_id=run.id,
             record_a_id=records[0].id,
             record_b_id=records[1].id,
             confidence=0.95,

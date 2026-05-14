@@ -65,9 +65,9 @@ def _build_unified_filter(
     if search:
         query = query.filter(UnifiedRecord.name.ilike(f"%{search}%"))
     if is_singleton is True:
-        query = query.filter(UnifiedRecord.match_candidate_id.is_(None))
+        query = query.filter(func.json_array_length(UnifiedRecord.source_record_ids) <= 1)
     elif is_singleton is False:
-        query = query.filter(UnifiedRecord.match_candidate_id.isnot(None))
+        query = query.filter(func.json_array_length(UnifiedRecord.source_record_ids) > 1)
     if from_date:
         query = query.filter(UnifiedRecord.created_at >= from_date)
     if to_date:
@@ -104,7 +104,7 @@ def list_unified_records(
                 name=r.name,
                 fields=r.fields or {},
                 source_count=len(source_ids),
-                is_singleton=r.match_candidate_id is None,
+                is_singleton=len(r.source_record_ids or []) <= 1,
                 created_by=r.created_by,
                 created_at=r.created_at,
                 dq_completeness=r.dq_completeness,
@@ -162,20 +162,17 @@ def get_unified_record(
             for r in rows
         ]
 
-    # Merge history: audit log entries for the source records and the match candidate
-    history_entity_ids = list(source_ids)
-    if unified.match_candidate_id:
-        history_entity_ids.append(unified.match_candidate_id)
+    # Merge history: audit log entries for the source records and the unified record
     audit_rows = (
         db.query(AuditLog)
         .filter(
             ((AuditLog.entity_type == "staged_record") & (AuditLog.entity_id.in_(source_ids)))
-            | ((AuditLog.entity_type == "match_candidate") & (AuditLog.entity_id == unified.match_candidate_id))
+            | ((AuditLog.entity_type == "match_candidate") & (AuditLog.entity_id.in_(source_ids)))
             | ((AuditLog.entity_type == "unified_record") & (AuditLog.entity_id == unified.id))
         )
         .order_by(AuditLog.created_at.desc())
         .all()
-        if history_entity_ids
+        if source_ids or unified.id
         else []
     )
     merge_history = [
@@ -201,7 +198,6 @@ def get_unified_record(
         provenance=provenance,
         source_record_ids=source_ids,
         source_records=source_records,
-        match_candidate_id=unified.match_candidate_id,
         merge_history=merge_history,
         created_by=unified.created_by,
         created_at=unified.created_at,
@@ -327,7 +323,6 @@ def _build_singleton_unified(record: StagedRecord, source_name: str | None, user
         fields=fields_payload,
         provenance=provenance,
         source_record_ids=[record.id],
-        match_candidate_id=None,
         created_by=username,
     )
 
@@ -560,8 +555,8 @@ def get_dashboard(
     if type is not None:
         unified_query = unified_query.filter(UnifiedRecord.type == type)
     total_unified = unified_query.count()
-    merged = unified_query.filter(UnifiedRecord.match_candidate_id.isnot(None)).count()
-    singletons_count = unified_query.filter(UnifiedRecord.match_candidate_id.is_(None)).count()
+    merged = unified_query.filter(func.json_array_length(UnifiedRecord.source_record_ids) > 1).count()
+    singletons_count = unified_query.filter(func.json_array_length(UnifiedRecord.source_record_ids) <= 1).count()
 
     # Recent activity (audit log, last 20)
     recent_audit_query = db.query(AuditLog)

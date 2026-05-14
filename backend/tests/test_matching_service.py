@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
+from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.source import DataSource
@@ -230,8 +231,12 @@ def test_pipeline_invalidates_on_reupload(mock_score_pair, mock_text_block, mock
     test_db.flush()
 
     # Create an existing candidate
+    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+    test_db.add(run)
+    test_db.flush()
     old_candidate = MatchCandidate(
         type="supplier",
+        comparison_run_id=run.id,
         record_a_id=s1.id,
         record_b_id=s2.id,
         confidence=0.80,

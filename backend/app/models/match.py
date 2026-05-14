@@ -20,6 +20,7 @@ class MatchGroup(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     type = Column(String(50), nullable=False)
+    comparison_run_id = Column(Integer, ForeignKey("comparison_runs.id", ondelete="CASCADE"), nullable=False)
     status = Column(String(20), default="open")
     created_at = Column(DateTime, server_default=func.now())
 
@@ -31,8 +32,11 @@ class MatchCandidate(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     type = Column(String(50), nullable=False)
-    record_a_id = Column(Integer, ForeignKey("staged_records.id"), nullable=False)
-    record_b_id = Column(Integer, ForeignKey("staged_records.id"), nullable=False)
+    comparison_run_id = Column(Integer, ForeignKey("comparison_runs.id", ondelete="CASCADE"), nullable=False)
+    record_a_id = Column(Integer, nullable=False)
+    record_b_id = Column(Integer, nullable=False)
+    side_a_kind = Column(String(10), nullable=False, default="staged")
+    side_b_kind = Column(String(10), nullable=False, default="staged")
     confidence = Column(Float, nullable=False)
     match_signals = Column(JSON, nullable=False)
     status = Column(String(20), default=CandidateStatus.PENDING)
@@ -43,4 +47,13 @@ class MatchCandidate(Base):
 
     group = relationship("MatchGroup", back_populates="candidates")
 
-    __table_args__ = (UniqueConstraint("record_a_id", "record_b_id", name="uq_match_pair"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "comparison_run_id",
+            "record_a_id",
+            "record_b_id",
+            "side_a_kind",
+            "side_b_kind",
+            name="uq_match_pair_per_run",
+        ),
+    )

@@ -110,7 +110,6 @@ def delete_source(db: Session, source_id: int) -> bool:
     from app.models.batch import ImportBatch
     from app.models.match import MatchCandidate
     from app.models.staging import StagedRecord
-    from app.models.unified import UnifiedRecord
 
     source = get_source(db, source_id)
     if source is None:
@@ -121,10 +120,6 @@ def delete_source(db: Session, source_id: int) -> bool:
         (MatchCandidate.record_a_id.in_(staged_subq)) | (MatchCandidate.record_b_id.in_(staged_subq))
     )
 
-    db.query(UnifiedRecord).filter(UnifiedRecord.match_candidate_id.in_(candidate_subq)).update(
-        {UnifiedRecord.match_candidate_id: None},
-        synchronize_session=False,
-    )
     db.query(MatchCandidate).filter(MatchCandidate.id.in_(candidate_subq)).delete(synchronize_session=False)
     db.query(StagedRecord).filter(StagedRecord.data_source_id == source_id).delete(synchronize_session=False)
     db.query(ImportBatch).filter(ImportBatch.data_source_id == source_id).delete(synchronize_session=False)

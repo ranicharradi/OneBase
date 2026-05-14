@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
+from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
@@ -65,9 +66,18 @@ def _make_record(
     return s
 
 
+def _make_run(db: Session) -> ComparisonRun:
+    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+    db.add(run)
+    db.flush()
+    return run
+
+
 def _make_candidate(db: Session, rec_a: StagedRecord, rec_b: StagedRecord, confidence: float = 0.9) -> MatchCandidate:
+    run = _make_run(db)
     c = MatchCandidate(
         type="supplier",
+        comparison_run_id=run.id,
         record_a_id=rec_a.id,
         record_b_id=rec_b.id,
         confidence=confidence,

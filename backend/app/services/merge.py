@@ -196,7 +196,6 @@ def execute_merge(
         fields=fields_payload,
         provenance=provenance,
         source_record_ids=(_expand_group_members(db, record_a.id) + _expand_group_members(db, record_b.id)),
-        match_candidate_id=candidate.id,
         created_by=username,
     )
 

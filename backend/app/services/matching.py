@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.batch import ImportBatch
+from app.models.comparison import ComparisonRun
 from app.models.enums import CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.source import DataSource
@@ -75,6 +76,7 @@ def run_matching_pipeline(
     batch_id: int,
     progress_callback: Callable[[str, int], None] | None = None,
     invalidate_source_id: int | None = None,
+    comparison_run_id: int | None = None,
 ) -> dict:
     """Run the full matching pipeline for the type bound to the batch's data source."""
 
@@ -85,6 +87,18 @@ def run_matching_pipeline(
     batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
     source = db.query(DataSource).filter(DataSource.id == batch.data_source_id).one()
     type_key = source.type
+
+    # Ensure we have a ComparisonRun to scope match groups and candidates
+    if comparison_run_id is None:
+        run = ComparisonRun(
+            type=type_key,
+            mode="FILE_VS_FILE",
+            status="running",
+            created_by="system",
+        )
+        db.add(run)
+        db.flush()
+        comparison_run_id = run.id
 
     if invalidate_source_id is not None:
         _invalidate_old_candidates(db, invalidate_source_id)
@@ -193,7 +207,7 @@ def run_matching_pipeline(
     _report("INSERTING", 0)
     group_map: dict[int, MatchGroup] = {}
     for group_members in groups:
-        mg = MatchGroup(type=type_key)
+        mg = MatchGroup(type=type_key, comparison_run_id=comparison_run_id)
         db.add(mg)
         db.flush()
         for member_id in group_members:
@@ -216,6 +230,7 @@ def run_matching_pipeline(
         group = group_map.get(a_id) or group_map.get(b_id)
         candidate = MatchCandidate(
             type=type_key,
+            comparison_run_id=comparison_run_id,
             record_a_id=pair_key[0],
             record_b_id=pair_key[1],
             confidence=confidence,

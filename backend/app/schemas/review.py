@@ -146,7 +146,6 @@ class UnifiedRecordResponse(BaseModel):
     fields: dict[str, Any] = {}
     provenance: dict[str, FieldProvenance]
     source_record_ids: list[int]
-    match_candidate_id: int | None = None
     created_by: str
     created_at: datetime | None = None
 

@@ -240,12 +240,7 @@ def get_task_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Poll Celery task progress.
-
-    If the ingestion task is complete and the batch has a matching_task_id,
-    automatically switches to reporting matching task progress — so the
-    frontend ProgressTracker sees the full pipeline through a single task_id.
-    """
+    """Poll Celery task progress."""
     result = celery_app.AsyncResult(task_id)
     info = result.info or {}
 
@@ -262,71 +257,6 @@ def get_task_status(
         row_count = None
 
     state = result.state
-
-    # If ingestion is COMPLETE, check if there's a matching task to report on
-    if (
-        state == "SUCCESS"
-        or (state == "COMPLETE")
-        or (isinstance(info, dict) and info.get("stage") == "MATCHING_ENQUEUED")
-    ):
-        # Look up the batch by ingestion task_id to find matching_task_id
-        batch = db.query(ImportBatch).filter(ImportBatch.task_id == task_id).first()
-        if batch and batch.matching_task_id:
-            matching_result = celery_app.AsyncResult(batch.matching_task_id)
-            matching_info = matching_result.info or {}
-
-            if matching_result.state in ("PENDING", "STARTED", "RETRY"):
-                # Matching is queued / just started — keep showing the
-                # "Match Enqueued" stage so progress doesn't drop to 0%.
-                return TaskStatusResponse(
-                    task_id=task_id,
-                    state="MATCHING_ENQUEUED",
-                    stage="MATCHING_ENQUEUED",
-                    progress=None,
-                    detail="Matching pipeline starting...",
-                    row_count=row_count,
-                )
-            elif matching_result.state == "SUCCESS":
-                # Matching complete
-                m_info = matching_info if isinstance(matching_info, dict) else {}
-                candidate_count = m_info.get("candidate_count", 0)
-                group_count = m_info.get("group_count", 0)
-                return TaskStatusResponse(
-                    task_id=task_id,
-                    state="COMPLETE",
-                    stage="MATCHING",
-                    progress=100,
-                    detail=f"{candidate_count} candidate pairs in {group_count} groups",
-                    row_count=row_count,
-                )
-            elif matching_result.state == "FAILURE":
-                return TaskStatusResponse(
-                    task_id=task_id,
-                    state="FAILURE",
-                    stage="MATCHING",
-                    progress=None,
-                    detail=str(matching_info) if matching_info else "Matching failed",
-                    row_count=row_count,
-                )
-            else:
-                # Matching is in progress — report matching stage/progress
-                if isinstance(matching_info, dict):
-                    return TaskStatusResponse(
-                        task_id=task_id,
-                        state=matching_result.state,
-                        stage=matching_info.get("stage", "MATCHING"),
-                        progress=matching_info.get("progress"),
-                        detail=matching_info.get("detail"),
-                        row_count=row_count,
-                    )
-                return TaskStatusResponse(
-                    task_id=task_id,
-                    state=matching_result.state,
-                    stage="MATCHING",
-                    progress=None,
-                    detail=None,
-                    row_count=row_count,
-                )
 
     # Map Celery SUCCESS to our COMPLETE convention
     if state == "SUCCESS":

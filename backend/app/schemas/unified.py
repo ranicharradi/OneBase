@@ -77,7 +77,6 @@ class UnifiedRecordDetail(BaseModel):
     provenance: dict[str, FieldProvenance]
     source_record_ids: list[int]
     source_records: list[SourceRecord]
-    match_candidate_id: int | None = None
     merge_history: list[MergeHistoryEntry]
     created_by: str
     created_at: datetime | None = None

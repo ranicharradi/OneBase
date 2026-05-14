@@ -85,10 +85,13 @@ def process_upload(self, batch_id: int):
             else:
                 matching_task = run_matching.delay(batch_id)
 
-            batch.matching_task_id = matching_task.id
-            db.commit()  # Persist matching_task_id so status endpoint can track matching
-
-            logger.info("Ingestion complete for batch %d: %d rows", batch_id, row_count)
+            logger.info(
+                "Ingestion complete for batch %d: %d rows, matching task %s",
+                batch_id,
+                row_count,
+                matching_task.id,
+            )
+            db.commit()
             return {"status": "completed", "batch_id": batch_id, "row_count": row_count}
 
         except Exception as e:

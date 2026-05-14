@@ -3,6 +3,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
+from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, RecordStatus
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.source import DataSource
@@ -61,7 +62,11 @@ def _make_group_with_candidates(db: Session, count: int, status: str = "pending"
     batch1 = _make_batch(db, src1)
     batch2 = _make_batch(db, src2)
 
-    group = MatchGroup(type="supplier")
+    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+    db.add(run)
+    db.flush()
+
+    group = MatchGroup(type="supplier", comparison_run_id=run.id)
     db.add(group)
     db.flush()
 
@@ -71,6 +76,7 @@ def _make_group_with_candidates(db: Session, count: int, status: str = "pending"
         sb = _make_record(db, batch2, src2, f"Supplier B{i}-{status}")
         c = MatchCandidate(
             type="supplier",
+            comparison_run_id=run.id,
             record_a_id=sa.id,
             record_b_id=sb.id,
             confidence=0.80 + (i * 0.01),

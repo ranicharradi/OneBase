@@ -32,17 +32,9 @@ def run_matching(self, batch_id: int, invalidate_source_id: int | None = None):
     """
     with get_task_session() as db:
         try:
-            from app.models.batch import ImportBatch
             from app.models.match import MatchCandidate
             from app.models.staging import StagedRecord
             from app.services.matching import run_matching_pipeline
-
-            # Store matching task ID on batch — commit immediately so it
-            # survives pipeline rollback and the status endpoint can always
-            # find the matching task.
-            batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
-            batch.matching_task_id = self.request.id
-            db.commit()
 
             # Idempotency guard: return early if candidates already exist for this batch
             # (unless this is a re-upload where we need to invalidate and rematch)

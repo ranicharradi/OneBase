@@ -2,6 +2,7 @@
 
 from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
+from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
@@ -80,7 +81,6 @@ def _seed_unified(db, name, source_ids, match_candidate_id=None, created_by="tes
             }
         },
         source_record_ids=source_ids,
-        match_candidate_id=match_candidate_id,
         created_by=created_by,
     )
     db.add(u)
@@ -206,8 +206,12 @@ class TestSingletonPromotion:
         _sup_c = _seed_staged(test_db, s1, b1, "SINGLETON C", "FE003")
 
         # Create a match candidate for A and B
+        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        test_db.add(run)
+        test_db.flush()
         mc = MatchCandidate(
             type="supplier",
+            comparison_run_id=run.id,
             record_a_id=sup_a.id,
             record_b_id=sup_b.id,
             confidence=0.85,
@@ -237,7 +241,7 @@ class TestSingletonPromotion:
         # Verify in DB
         unified = test_db.query(UnifiedRecord).filter(UnifiedRecord.id == data["unified_record_id"]).one()
         assert unified.name == "PROMOTE ME"
-        assert unified.match_candidate_id is None  # singleton
+        assert len(unified.source_record_ids) == 1  # singleton
         assert "supplier_name" in unified.provenance
 
     def test_promote_singleton_rejects_missing_name(self, authenticated_client, test_db):
@@ -344,8 +348,12 @@ class TestDashboard:
         sup_a = _seed_staged(test_db, s1, b1, "DASH A")
         sup_b = _seed_staged(test_db, s2, _seed_batch(test_db, s2), "DASH B")
 
+        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        test_db.add(run)
+        test_db.flush()
         mc = MatchCandidate(
             type="supplier",
+            comparison_run_id=run.id,
             record_a_id=sup_a.id,
             record_b_id=sup_b.id,
             confidence=0.80,
@@ -354,7 +362,7 @@ class TestDashboard:
         )
         test_db.add(mc)
 
-        _seed_unified(test_db, "DASH UNIFIED", [sup_a.id, sup_b.id], match_candidate_id=1)
+        _seed_unified(test_db, "DASH UNIFIED", [sup_a.id, sup_b.id])
         test_db.commit()
 
         resp = authenticated_client.get("/api/unified/dashboard")
