@@ -85,6 +85,125 @@ def _expand_group_members(db: Session, record_id: int) -> list[int]:
     return [m.id for m in member_ids]
 
 
+def _update_existing_unified(
+    db: Session,
+    candidate: MatchCandidate,
+    staged: StagedRecord,
+    unified: UnifiedRecord,
+    staged_source_name: str,
+    field_selections: list[dict],
+    username: str,
+) -> UnifiedRecord:
+    """Update an existing UnifiedRecord when merging a staged record into a golden."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    rt = get_record_type(candidate.type)
+    now = datetime.now(UTC).isoformat()
+    selection_map = {fs["field"]: fs["chosen_record_id"] for fs in field_selections}
+
+    # Work on copies so SQLAlchemy detects the change when we reassign.
+    new_fields = dict(unified.fields or {})
+    new_provenance = dict(unified.provenance or {})
+
+    # Build a unified view of all fields: declared RecordType fields + any extra fields
+    # present in staged.fields or unified.fields not covered by the RecordType.
+    declared_keys = {fdef.key for fdef in rt.fields}
+    staged_fields = staged.fields or {}
+    unified_fields_src = unified.fields or {}
+    extra_keys = (set(staged_fields.keys()) | set(unified_fields_src.keys())) - declared_keys
+
+    # Process declared fields via compare_fields
+    comparisons = compare_fields(staged, unified, staged_source_name, "Golden", rt)
+
+    # Add extra-field comparisons manually
+    for key in extra_keys:
+        val_a = _normalize_value(staged_fields.get(key))
+        val_b = _normalize_value(unified_fields_src.get(key))
+        comp: dict[str, Any] = {
+            "field": key,
+            "value_a": val_a,
+            "value_b": val_b,
+            "is_conflict": False,
+            "is_identical": False,
+            "is_a_only": False,
+            "is_b_only": False,
+        }
+        if val_a is not None and val_b is not None:
+            comp["is_identical" if val_a == val_b else "is_conflict"] = True
+        elif val_a is not None:
+            comp["is_a_only"] = True
+        elif val_b is not None:
+            comp["is_b_only"] = True
+        comparisons.append(comp)
+
+    for comp in comparisons:
+        field = comp["field"]
+        if comp["is_b_only"]:
+            continue  # Golden already has it; keep.
+        if comp["is_a_only"]:
+            new_fields[field] = comp["value_a"]
+            new_provenance[field] = {
+                "value": comp["value_a"],
+                "source_entity": staged_source_name,
+                "source_record_id": staged.id,
+                "auto": True,
+                "chosen_by": username,
+                "chosen_at": now,
+            }
+        elif comp["is_conflict"]:
+            chosen_id = selection_map.get(field)
+            if chosen_id is None:
+                # No explicit selection → keep the existing golden value.
+                continue
+            if chosen_id == staged.id:
+                new_fields[field] = comp["value_a"]
+                new_provenance[field] = {
+                    "value": comp["value_a"],
+                    "source_entity": staged_source_name,
+                    "source_record_id": staged.id,
+                    "auto": False,
+                    "chosen_by": username,
+                    "chosen_at": now,
+                }
+            elif chosen_id == unified.id:
+                new_provenance[field] = {
+                    **new_provenance.get(field, {}),
+                    "reaffirmed_by": username,
+                    "reaffirmed_at": now,
+                }
+            else:
+                raise ValueError(f"Invalid chosen_record_id {chosen_id} for field '{field}'")
+        # is_identical → nothing to do.
+
+    # Reassign to trigger SQLAlchemy JSON change detection.
+    unified.fields = new_fields
+    unified.provenance = new_provenance
+    flag_modified(unified, "fields")
+    flag_modified(unified, "provenance")
+
+    expanded = _expand_group_members(db, staged.id)
+    unified.source_record_ids = list({*unified.source_record_ids, *expanded})
+
+    candidate.status = CandidateStatus.MERGED
+    candidate.reviewed_by = username
+    candidate.reviewed_at = datetime.now(UTC)
+
+    # Refresh name if name field changed
+    if new_fields.get(rt.name_field.key):
+        unified.name = new_fields[rt.name_field.key]
+
+    log_action(
+        db,
+        user_id=None,
+        action="merge_confirmed",
+        entity_type="match_candidate",
+        entity_id=candidate.id,
+        details={"type": candidate.type, "target": "existing_unified", "unified_id": unified.id},
+    )
+    db.flush()
+    return unified
+
+
 def execute_merge(
     db: Session,
     candidate: MatchCandidate,
@@ -101,6 +220,15 @@ def execute_merge(
         field_selections: List of {"field": str, "chosen_record_id": int}
             for conflicting fields.
     """
+    # File-vs-Golden: update the existing UnifiedRecord instead of creating a new one.
+    if getattr(candidate, "side_b_kind", None) == "unified":
+        return _update_existing_unified(db, candidate, record_a, record_b, source_a_name, field_selections, username)
+    if getattr(candidate, "side_a_kind", None) == "unified":
+        # Normalize: staged is always "a"
+        record_a, record_b = record_b, record_a
+        source_a_name, source_b_name = source_b_name, source_a_name
+        return _update_existing_unified(db, candidate, record_a, record_b, source_a_name, field_selections, username)
+
     if record_a.type != record_b.type or candidate.type != record_a.type:
         raise ValueError(
             f"Type mismatch in merge: candidate={candidate.type!r}, "

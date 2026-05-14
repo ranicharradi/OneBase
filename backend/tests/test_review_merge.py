@@ -491,3 +491,92 @@ def test_execute_merge_sets_dq_score(test_db):
     assert 0.0 <= unified.dq_score <= 1.0
     assert unified.dq_completeness is not None
     assert unified.dq_validity is not None
+
+
+def test_execute_merge_file_vs_golden_updates_existing_unified(test_db):
+    db = test_db
+    src = DataSource(name="src-x", type="supplier", column_mapping={"name": "Supplier Name"})
+    db.add(src)
+    db.flush()
+    batch = ImportBatch(data_source_id=src.id, filename="f.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
+    db.add(batch)
+    db.flush()
+
+    staged = StagedRecord(
+        type="supplier",
+        import_batch_id=batch.id,
+        data_source_id=src.id,
+        name="ACME LTD",
+        normalized_name="ACME LTD",
+        status=RecordStatus.ACTIVE,
+        fields={"supplier_name": "ACME LTD", "country": "FR"},
+    )
+    unified = UnifiedRecord(
+        type="supplier",
+        name="ACME CORP",
+        normalized_name="ACME CORP",
+        fields={"supplier_name": "ACME CORP", "country": "US"},
+        provenance={
+            "supplier_name": {
+                "value": "ACME CORP",
+                "source_entity": "old",
+                "source_record_id": 999,
+                "auto": True,
+                "chosen_by": "u",
+                "chosen_at": "2026-01-01T00:00:00Z",
+            },
+            "country": {
+                "value": "US",
+                "source_entity": "old",
+                "source_record_id": 999,
+                "auto": True,
+                "chosen_by": "u",
+                "chosen_at": "2026-01-01T00:00:00Z",
+            },
+        },
+        source_record_ids=[999],
+        created_by="u",
+    )
+    db.add_all([staged, unified])
+    db.flush()
+
+    run = ComparisonRun(type="supplier", mode="FILE_VS_GOLDEN", status="completed", created_by="u")
+    db.add(run)
+    db.flush()
+
+    cand = MatchCandidate(
+        type="supplier",
+        comparison_run_id=run.id,
+        record_a_id=staged.id,
+        record_b_id=unified.id,
+        side_a_kind="staged",
+        side_b_kind="unified",
+        confidence=0.95,
+        match_signals={},
+        status=CandidateStatus.PENDING,
+    )
+    db.add(cand)
+    db.flush()
+
+    unified_count_before = db.query(UnifiedRecord).count()
+
+    # Reviewer chose the staged value for "country".
+    result = execute_merge(
+        db,
+        candidate=cand,
+        record_a=staged,
+        record_b=unified,
+        source_a_name="src-x",
+        source_b_name="Golden",
+        field_selections=[{"field": "country", "chosen_record_id": staged.id}],
+        username="reviewer1",
+    )
+    db.flush()
+
+    assert db.query(UnifiedRecord).count() == unified_count_before  # no new golden created
+    assert result.id == unified.id
+    assert staged.id in unified.source_record_ids
+    assert unified.fields["country"] == "FR"
+    assert unified.provenance["country"]["source_record_id"] == staged.id
+    assert unified.provenance["country"]["chosen_by"] == "reviewer1"
+    assert cand.status == CandidateStatus.MERGED
