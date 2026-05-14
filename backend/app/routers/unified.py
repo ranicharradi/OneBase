@@ -565,8 +565,8 @@ def get_dashboard(
     if type is not None:
         unified_query = unified_query.filter(UnifiedRecord.type == type)
     total_unified = unified_query.count()
-    merged = unified_query.filter(func.json_array_length(UnifiedRecord.source_record_ids) > 1).count()
-    singletons_count = unified_query.filter(func.json_array_length(UnifiedRecord.source_record_ids) <= 1).count()
+    merged = unified_query.filter(func.jsonb_array_length(UnifiedRecord.source_record_ids) > 1).count()
+    singletons_count = unified_query.filter(func.jsonb_array_length(UnifiedRecord.source_record_ids) <= 1).count()
 
     # Recent activity (audit log, last 20)
     recent_audit_query = db.query(AuditLog)

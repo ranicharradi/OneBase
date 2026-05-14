@@ -1,5 +1,6 @@
 // ── App router setup ──
 
+import { lazy, Suspense, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './hooks/useAuth';
@@ -8,22 +9,23 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import Login from './pages/Login';
-import Sources from './pages/Sources';
-import Users from './pages/Users';
-import Upload from './pages/Upload';
-import ReviewQueue from './pages/ReviewQueue';
-import ReviewDetail from './pages/ReviewDetail';
-import MergeQueue from './pages/MergeQueue';
-import MergeDetail from './pages/MergeDetail';
-import Dashboard from './pages/Dashboard';
-import FileChecker from './pages/FileChecker';
-import UnifiedRecords from './pages/UnifiedRecords';
-import UnifiedRecordDetail from './pages/UnifiedRecordDetail';
-import Insights from './pages/Insights';
-import Ask from './pages/Ask';
-import Compare from './pages/Compare';
-import Comparisons from './pages/Comparisons';
 import { ApiError } from './api/client';
+
+const Ask = lazy(() => import('./pages/Ask'));
+const Compare = lazy(() => import('./pages/Compare'));
+const Comparisons = lazy(() => import('./pages/Comparisons'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const FileChecker = lazy(() => import('./pages/FileChecker'));
+const Insights = lazy(() => import('./pages/Insights'));
+const MergeDetail = lazy(() => import('./pages/MergeDetail'));
+const MergeQueue = lazy(() => import('./pages/MergeQueue'));
+const ReviewDetail = lazy(() => import('./pages/ReviewDetail'));
+const ReviewQueue = lazy(() => import('./pages/ReviewQueue'));
+const Sources = lazy(() => import('./pages/Sources'));
+const UnifiedRecordDetail = lazy(() => import('./pages/UnifiedRecordDetail'));
+const UnifiedRecords = lazy(() => import('./pages/UnifiedRecords'));
+const Upload = lazy(() => import('./pages/Upload'));
+const Users = lazy(() => import('./pages/Users'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,21 +58,21 @@ export default function App() {
               }
             >
               <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="unified" element={<UnifiedRecords />} />
-              <Route path="unified/:id" element={<UnifiedRecordDetail />} />
-              <Route path="review" element={<ReviewQueue />} />
-              <Route path="review/:id" element={<ReviewDetail />} />
-              <Route path="merge" element={<MergeQueue />} />
-              <Route path="merge/:id" element={<MergeDetail />} />
-              <Route path="insights" element={<Insights />} />
-              <Route path="upload" element={<Upload />} />
-              <Route path="file-checker" element={<FileChecker />} />
-              <Route path="sources" element={<Sources />} />
-              <Route path="ask" element={<Ask />} />
-              <Route path="compare" element={<Compare />} />
-              <Route path="runs" element={<Comparisons />} />
-              <Route path="users" element={<Users />} />
+              <Route path="dashboard" element={<PageRoute><Dashboard /></PageRoute>} />
+              <Route path="unified" element={<PageRoute><UnifiedRecords /></PageRoute>} />
+              <Route path="unified/:id" element={<PageRoute><UnifiedRecordDetail /></PageRoute>} />
+              <Route path="review" element={<PageRoute><ReviewQueue /></PageRoute>} />
+              <Route path="review/:id" element={<PageRoute><ReviewDetail /></PageRoute>} />
+              <Route path="merge" element={<PageRoute><MergeQueue /></PageRoute>} />
+              <Route path="merge/:id" element={<PageRoute><MergeDetail /></PageRoute>} />
+              <Route path="insights" element={<PageRoute><Insights /></PageRoute>} />
+              <Route path="upload" element={<PageRoute><Upload /></PageRoute>} />
+              <Route path="file-checker" element={<PageRoute><FileChecker /></PageRoute>} />
+              <Route path="sources" element={<PageRoute><Sources /></PageRoute>} />
+              <Route path="ask" element={<PageRoute><Ask /></PageRoute>} />
+              <Route path="compare" element={<PageRoute><Compare /></PageRoute>} />
+              <Route path="runs" element={<PageRoute><Comparisons /></PageRoute>} />
+              <Route path="users" element={<PageRoute><Users /></PageRoute>} />
             </Route>
           </Routes>
         </BrowserRouter>
@@ -79,4 +81,8 @@ export default function App() {
     </QueryClientProvider>
     </ThemeProvider>
   );
+}
+
+function PageRoute({ children }: { children: ReactNode }) {
+  return <Suspense fallback={null}>{children}</Suspense>;
 }

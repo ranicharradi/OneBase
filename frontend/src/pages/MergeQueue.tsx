@@ -4,10 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { useSearchParams } from 'react-router';
-import TypeFilter from '../components/TypeFilter';
-import { useRecordTypes } from '../hooks/useRecordTypes';
-import { defaultType } from '../utils/recordDisplay';
+import { useSelectedRecordType } from '../contexts/RecordTypeContext';
 import type { ReviewQueueItem, ReviewQueueResponse, ReviewStats } from '../api/types';
 import { useSearch } from '../contexts/SearchContext';
 import Panel, { PanelHead } from '../components/ui/Panel';
@@ -51,23 +48,21 @@ function confidenceTone(conf: number): 'ok' | 'warn' | 'danger' {
 export default function MergeQueue() {
   const navigate = useNavigate();
   const { query: searchQuery } = useSearch();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { data: recordTypes } = useRecordTypes();
-  const selectedType = searchParams.get('type') ?? defaultType(recordTypes?.types);
-  const setSelectedType = (type: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('type', type);
-    setSearchParams(next);
-  };
+  const { selectedType, withRecordType } = useSelectedRecordType();
 
   const [bucket, setBucket] = useState<BucketFilter>('confirmed');
-  const [page, setPage] = useState(0);
+  const [pageState, setPageState] = useState({ type: selectedType, page: 0 });
+  const page = pageState.type === selectedType ? pageState.page : 0;
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const setPage = useCallback((nextPage: number) => {
+    setPageState({ type: selectedType, page: nextPage });
+  }, [selectedType]);
 
   const handlePageChange = useCallback((p: number) => {
     setPage(p);
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+  }, [setPage]);
 
   const params = useMemo(() => {
     const p = new URLSearchParams();
@@ -118,10 +113,29 @@ export default function MergeQueue() {
           display: 'flex', alignItems: 'stretch',
           background: 'var(--bg-1)', border: '1px solid var(--border-0)', borderRadius: 6,
           overflow: 'hidden', marginBottom: 12,
-        }}>
-          {/* 01 Review — dimmed */}
-          <div style={{ padding: '10px 16px', minWidth: 180, opacity: 0.5, background: 'var(--bg-2)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden' }}>
+          }}>
+          {/* 01 Match — dimmed */}
+          <div
+            onClick={() => navigate(withRecordType('/runs'))}
+            style={{ padding: '10px 16px', minWidth: 210, opacity: 0.5, background: 'var(--bg-2)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+            title="Go to Match runs"
+          >
             <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>01</span>
+            <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Match</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Candidate pairs</div>
+            <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
+              {(stats?.total_pending ?? 0) + (stats?.total_confirmed ?? 0) + (stats?.total_rejected ?? 0)}{' '}
+              <span style={{ fontSize: 10, color: 'var(--fg-2)', fontWeight: 400 }}>matched</span>
+            </div>
+          </div>
+          <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
+          {/* 02 Review — dimmed, clickable */}
+          <div
+            onClick={() => navigate(withRecordType('/review'))}
+            style={{ padding: '10px 16px', minWidth: 210, opacity: 0.5, background: 'var(--bg-2)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+            title="Go to Review queue"
+          >
+            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>02</span>
             <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Review</div>
             <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Same record?</div>
             <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
@@ -130,9 +144,9 @@ export default function MergeQueue() {
             </div>
           </div>
           <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
-          {/* 02 Merge — active */}
-          <div style={{ padding: '10px 16px', minWidth: 180, background: 'var(--accent-soft)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden' }}>
-            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--accent)', opacity: 0.08, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>02</span>
+          {/* 03 Merge — active */}
+          <div style={{ padding: '10px 16px', minWidth: 210, background: 'var(--accent-soft)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden' }}>
+            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--accent)', opacity: 0.08, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>03</span>
             <div className="label" style={{ color: 'var(--accent)', fontWeight: 600, position: 'relative' }}>Merge</div>
             <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Reconcile fields</div>
             <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--accent)', marginTop: 4, position: 'relative' }}>
@@ -141,9 +155,13 @@ export default function MergeQueue() {
             </div>
           </div>
           <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
-          {/* 03 Unified — dimmed */}
-          <div style={{ padding: '10px 16px', flex: 1, opacity: 0.45, background: 'var(--bg-2)', position: 'relative', overflow: 'hidden' }}>
-            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>03</span>
+          {/* 04 Unified — dimmed */}
+          <div
+            onClick={() => navigate(withRecordType('/unified'))}
+            style={{ padding: '10px 16px', flex: 1, opacity: 0.45, background: 'var(--bg-2)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+            title="Go to Unified records"
+          >
+            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>04</span>
             <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Unified</div>
             <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Unified records</div>
             <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
@@ -155,11 +173,9 @@ export default function MergeQueue() {
 
         {/* ── Title row ── */}
         <div className="fade" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span className="pill accent" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 2 · MERGE</span>
+          <span className="pill accent" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 3 · MERGE</span>
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Merge queue</h1>
         </div>
-        {recordTypes?.types && <TypeFilter types={recordTypes.types} value={selectedType} onChange={setSelectedType} />}
-
         {/* ── Bucket tabs ── */}
         <div className="fade" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
           {BUCKETS.map(b => {
@@ -208,8 +224,8 @@ export default function MergeQueue() {
           <span>
             <b>Upstream:</b> these pairs were confirmed as the same record in the{' '}
             <a
-              onClick={(e) => { e.preventDefault(); navigate('/review'); }}
-              href="/review"
+              onClick={(e) => { e.preventDefault(); navigate(withRecordType('/review')); }}
+              href={withRecordType('/review')}
               style={{ color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}
             >
               Review queue
@@ -250,7 +266,7 @@ export default function MergeQueue() {
                   return (
                     <tr
                       key={item.id}
-                      onClick={() => navigate(`/merge/${item.id}`)}
+                      onClick={() => navigate(withRecordType(`/merge/${item.id}`))}
                       style={{ cursor: 'pointer', animationDelay: `${i * 30}ms` }}
                     >
                       <td>
@@ -296,7 +312,7 @@ export default function MergeQueue() {
                         <button
                           className="btn btn-sm btn-accent"
                           style={{ padding: '0 10px' }}
-                          onClick={(e) => { e.stopPropagation(); navigate(`/merge/${item.id}`); }}
+                          onClick={(e) => { e.stopPropagation(); navigate(withRecordType(`/merge/${item.id}`)); }}
                         >
                           <span className="material-symbols-outlined" style={{ fontSize: 11 }}>merge</span>
                           Reconcile

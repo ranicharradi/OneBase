@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { UnifiedRecordListResponse } from '../api/types';
+import { useSelectedRecordType } from '../contexts/RecordTypeContext';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -20,6 +21,7 @@ interface PaletteItem {
 
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate();
+  const { selectedType, withRecordType } = useSelectedRecordType();
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,9 +39,9 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const trimmed = query.trim();
   const recordEnabled = open && trimmed.length >= 2;
   const { data: recordResults } = useQuery<UnifiedRecordListResponse>({
-    queryKey: ['command-palette-records', trimmed],
+    queryKey: ['command-palette-records', trimmed, selectedType],
     queryFn: () => {
-      const params = new URLSearchParams({ search: trimmed, limit: '8' });
+      const params = new URLSearchParams({ search: trimmed, limit: '8', type: selectedType });
       return api.get(`/api/unified/records?${params}`);
     },
     enabled: recordEnabled,
@@ -51,13 +53,13 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       { section: 'Navigate', label: 'Go to Dashboard', kbd: 'G D', icon: 'home', onSelect: () => navigate('/dashboard') },
       { section: 'Navigate', label: 'Go to Upload', kbd: 'G U', icon: 'cloud_upload', onSelect: () => navigate('/upload') },
       { section: 'Navigate', label: 'Go to Sources', kbd: 'G S', icon: 'storage', onSelect: () => navigate('/sources') },
-      { section: 'Navigate', label: 'Go to Review queue', kbd: 'G R', icon: 'swap_horiz', onSelect: () => navigate('/review') },
-      { section: 'Navigate', label: 'Go to Unified records', kbd: 'G M', icon: 'verified', onSelect: () => navigate('/unified') },
+      { section: 'Navigate', label: 'Go to Review queue', kbd: 'G R', icon: 'swap_horiz', onSelect: () => navigate(withRecordType('/review')) },
+      { section: 'Navigate', label: 'Go to Unified records', kbd: 'G M', icon: 'verified', onSelect: () => navigate(withRecordType('/unified')) },
       { section: 'Navigate', label: 'Go to Users & access', kbd: 'G A', icon: 'group', onSelect: () => navigate('/users') },
       { section: 'Actions', label: 'New data source', icon: 'add', onSelect: () => navigate('/sources') },
       { section: 'Actions', label: 'Upload CSV batch', icon: 'cloud_upload', onSelect: () => navigate('/upload') },
-      { section: 'Actions', label: 'Retrain model', icon: 'auto_awesome', onSelect: () => navigate('/review') },
-      { section: 'Actions', label: 'Browse unified records', icon: 'arrow_forward', onSelect: () => navigate('/unified') },
+      { section: 'Actions', label: 'Retrain model', icon: 'auto_awesome', onSelect: () => navigate(withRecordType('/review')) },
+      { section: 'Actions', label: 'Browse unified records', icon: 'arrow_forward', onSelect: () => navigate(withRecordType('/unified')) },
     ];
 
     const recordItems: PaletteItem[] = (recordResults?.items ?? []).map(s => ({
@@ -65,7 +67,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       label: s.name || `Record #${s.id}`,
       hint: `${s.type} · ${s.source_count} source${s.source_count === 1 ? '' : 's'}`,
       icon: 'verified',
-      onSelect: () => navigate(`/unified/${s.id}`),
+      onSelect: () => navigate(withRecordType(`/unified/${s.id}`)),
     }));
 
     const lower = trimmed.toLowerCase();
@@ -73,7 +75,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       ? navItems.filter(i => i.label.toLowerCase().includes(lower))
       : navItems;
     return [...filtered, ...recordItems];
-  }, [navigate, recordResults, trimmed]);
+  }, [navigate, recordResults, trimmed, withRecordType]);
 
   // Reset selection when items change
   useEffect(() => { setActiveIdx(0); }, [items.length]);

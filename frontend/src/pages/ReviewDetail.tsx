@@ -12,6 +12,7 @@ import type {
 } from '../api/types';
 import { SIGNAL_CONFIG } from '../utils/signals';
 import { useRecordType } from '../hooks/useRecordTypes';
+import { useSelectedRecordType } from '../contexts/RecordTypeContext';
 import { fieldValue } from '../utils/recordDisplay';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
@@ -38,6 +39,7 @@ export default function ReviewDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { withRecordType } = useSelectedRecordType();
 
   const [actionInFlight, setActionInFlight] = useState<string | null>(null);
   const [layout, setLayout] = useState<Layout>(getInitialLayout);
@@ -119,7 +121,7 @@ export default function ReviewDetail() {
               <div style={{ marginTop: 8, fontSize: 12 }}>
                 {error instanceof Error ? error.message : 'Match candidate not found'}
               </div>
-              <button onClick={() => navigate('/review')} className="btn btn-sm" style={{ marginTop: 12 }}>
+              <button onClick={() => navigate(withRecordType('/review'))} className="btn btn-sm" style={{ marginTop: 12 }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_back</span>
                 Back to queue
               </button>
@@ -140,7 +142,7 @@ export default function ReviewDetail() {
 
         {/* Header */}
         <div className="fade" style={{ marginBottom: 12 }}>
-          <button onClick={() => navigate('/review')} className="btn btn-sm btn-ghost" style={{ marginBottom: 8 }}>
+          <button onClick={() => navigate(withRecordType('/review'))} className="btn btn-sm btn-ghost" style={{ marginBottom: 8 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_back</span>
             Review queue
           </button>

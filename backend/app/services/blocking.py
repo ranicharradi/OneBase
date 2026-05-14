@@ -7,6 +7,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from sklearn.metrics.pairwise import cosine_similarity
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -188,25 +189,19 @@ def embedding_block(
 
     pairs: set[tuple[RecordRef, RecordRef]] = set()
 
-    for r in rows:
-        scored = []
-        for other in rows:
-            if other.ref == r.ref:
-                continue
-            scored.append((_cosine(r.embedding, other.embedding), other))
-        scored.sort(key=lambda x: -x[0])
-        for _, other in scored[:k]:
-            if side_b_refs is None:
-                if r.data_source_id is None or other.data_source_id is None:
-                    continue
-                if r.data_source_id == other.data_source_id:
-                    continue
-            else:
-                in_b_a = r.ref in side_b_refs
-                in_b_b = other.ref in side_b_refs
-                if in_b_a == in_b_b:
-                    continue
-            pairs.add(_ordered(r.ref, other.ref))
+    if side_b_refs is None:
+        by_source: dict[int, list[_BlockingRow]] = defaultdict(list)
+        for r in rows:
+            if r.data_source_id is not None:
+                by_source[r.data_source_id].append(r)
+        source_lists = list(by_source.values())
+        for i in range(len(source_lists)):
+            for j in range(i + 1, len(source_lists)):
+                _emit_embedding_pairs(source_lists[i], source_lists[j], pairs, k)
+    else:
+        side_a_rows = [r for r in rows if r.ref not in side_b_refs]
+        side_b_rows = [r for r in rows if r.ref in side_b_refs]
+        _emit_embedding_pairs(side_a_rows, side_b_rows, pairs, k)
 
     logger.info(
         "embedding_block(type=%s, mode=%s): %d pairs from %d rows",
@@ -218,21 +213,77 @@ def embedding_block(
     return pairs
 
 
-def _cosine(a, b) -> float:
-    """Cosine similarity for pgvector/list. Returns 0 on shape mismatch or zero norm."""
+def _emit_embedding_pairs(
+    left_rows: list[_BlockingRow],
+    right_rows: list[_BlockingRow],
+    pairs: set[tuple[RecordRef, RecordRef]],
+    k: int,
+) -> None:
+    """Add each row's top-k cosine neighbors from the valid opposite row set."""
+    if k <= 0 or not left_rows or not right_rows:
+        return
+
+    left_rows, left_vectors = _embedding_matrix(left_rows)
+    right_rows, right_vectors = _embedding_matrix(right_rows)
+    if not left_rows or not right_rows:
+        return
+
+    common_dim = len(left_vectors[0])
+    if len(right_vectors[0]) != common_dim:
+        logger.warning(
+            "embedding_block skipped incompatible dimensions: left=%d right=%d",
+            common_dim,
+            len(right_vectors[0]),
+        )
+        return
+
+    similarities = cosine_similarity(left_vectors, right_vectors)
+    left_take = min(k, len(right_rows))
+    right_take = min(k, len(left_rows))
+
+    for left_idx, scores in enumerate(similarities):
+        for right_idx in scores.argsort()[-left_take:][::-1]:
+            pairs.add(_ordered(left_rows[left_idx].ref, right_rows[right_idx].ref))
+
+    for right_idx, scores in enumerate(similarities.T):
+        for left_idx in scores.argsort()[-right_take:][::-1]:
+            pairs.add(_ordered(left_rows[left_idx].ref, right_rows[right_idx].ref))
+
+
+def _embedding_matrix(rows: list[_BlockingRow]) -> tuple[list[_BlockingRow], list[list[float]]]:
+    valid_rows: list[_BlockingRow] = []
+    vectors: list[list[float]] = []
+    expected_dim: int | None = None
+    for row in rows:
+        vector = _embedding_values(row.embedding)
+        if vector is None:
+            continue
+        if expected_dim is None:
+            expected_dim = len(vector)
+        if len(vector) != expected_dim:
+            logger.warning(
+                "embedding_block skipped row %s with dimension %d; expected %d",
+                row.ref,
+                len(vector),
+                expected_dim,
+            )
+            continue
+        valid_rows.append(row)
+        vectors.append(vector)
+    return valid_rows, vectors
+
+
+def _embedding_values(embedding: object) -> list[float] | None:
     try:
-        va = list(a) if not hasattr(a, "tolist") else a.tolist()
-        vb = list(b) if not hasattr(b, "tolist") else b.tolist()
+        values = embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)
     except Exception:
-        return 0.0
-    if len(va) != len(vb):
-        return 0.0
-    dot = sum(x * y for x, y in zip(va, vb, strict=False))
-    na = sum(x * x for x in va) ** 0.5
-    nb = sum(x * x for x in vb) ** 0.5
-    if na == 0 or nb == 0:
-        return 0.0
-    return dot / (na * nb)
+        return None
+    if not values:
+        return None
+    try:
+        return [float(v) for v in values]
+    except (TypeError, ValueError):
+        return None
 
 
 def combine_blocks(*block_results: set[tuple[RecordRef, RecordRef]]) -> set[tuple[RecordRef, RecordRef]]:

@@ -143,6 +143,14 @@ function setupFetch(queueOverride?: Partial<typeof mockQueue>) {
         }),
       )
     }
+    if (urlStr.includes('/api/comparisons/')) {
+      return Promise.resolve(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    }
     if (urlStr.includes('/api/sources')) {
       return Promise.resolve(
         new Response(JSON.stringify(mockSources), {
@@ -191,6 +199,13 @@ describe('ReviewQueue page', () => {
     expect(screen.getByText('Beta Industries')).toBeInTheDocument()
   })
 
+  it('does not render a page-local record type selector', async () => {
+    setupFetch()
+    render(<ReviewQueue />)
+    await screen.findByText('Acme Corp')
+    expect(screen.queryByRole('tablist', { name: /record type/i })).not.toBeInTheDocument()
+  })
+
   it('renders confidence values with correct tone colors', async () => {
     const lowConfItem = {
       id: 3,
@@ -220,8 +235,9 @@ describe('ReviewQueue page', () => {
     const value92 = screen.getByText('92')
     expect(value92.getAttribute('style') || '').toMatch(/--ok/)
 
-    const value75 = screen.getByText('75')
-    expect(value75.getAttribute('style') || '').toMatch(/--warn/)
+    const value75 = screen.getAllByText('75').find(el => (el.getAttribute('style') || '').includes('--warn'))
+    expect(value75).toBeTruthy()
+    expect(value75?.getAttribute('style') || '').toMatch(/--warn/)
 
     // '40' also appears as a bucket count; find the ConfRing element by its danger style
     const value40 = screen.getAllByText('40').find(el => (el.getAttribute('style') || '').includes('--danger'))
@@ -257,7 +273,7 @@ describe('ReviewQueue page', () => {
     render(<ReviewQueue />)
     await screen.findByText('Acme Corp')
     await user.click(screen.getByRole('button', { name: /same/i }))
-    expect(mockNavigate).toHaveBeenCalledWith('/review/1')
+    expect(mockNavigate).toHaveBeenCalledWith('/review/1?type=supplier')
   })
 
   it('renders pagination when total exceeds page size', async () => {

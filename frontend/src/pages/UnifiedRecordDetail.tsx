@@ -7,6 +7,7 @@ import { api } from '../api/client';
 import type { UnifiedRecordDetail as DetailType, LineageResponse } from '../api/types';
 import RecordFieldRow from '../components/RecordFieldRow';
 import { useRecordType } from '../hooks/useRecordTypes';
+import { useSelectedRecordType } from '../contexts/RecordTypeContext';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Kpi from '../components/ui/Kpi';
 import Pill from '../components/ui/Pill';
@@ -32,6 +33,7 @@ const ACTION_LABELS: Record<string, string> = {
 export default function UnifiedRecordDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { withRecordType } = useSelectedRecordType();
 
   const [tab, setTab] = useState<'details' | 'lineage'>('details');
 
@@ -68,7 +70,7 @@ export default function UnifiedRecordDetailPage() {
               <div style={{ marginTop: 8, fontSize: 12 }}>
                 {error instanceof Error ? error.message : 'Unified record not found'}
               </div>
-              <button onClick={() => navigate('/unified')} className="btn btn-sm" style={{ marginTop: 12 }}>
+              <button onClick={() => navigate(withRecordType('/unified'))} className="btn btn-sm" style={{ marginTop: 12 }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_back</span>
                 Back to unified
               </button>
@@ -85,7 +87,7 @@ export default function UnifiedRecordDetailPage() {
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
         <button
-          onClick={() => navigate('/unified')}
+          onClick={() => navigate(withRecordType('/unified'))}
           className="btn btn-sm btn-ghost"
           style={{ marginBottom: 8 }}
         >
@@ -109,7 +111,7 @@ export default function UnifiedRecordDetailPage() {
             {record.match_candidate_id !== null && (
               <button
                 className="btn btn-sm btn-ghost"
-                onClick={() => navigate(`/review/${record.match_candidate_id}`)}
+                onClick={() => navigate(withRecordType(`/review/${record.match_candidate_id}`))}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 12 }}>history</span>
                 Re-open review

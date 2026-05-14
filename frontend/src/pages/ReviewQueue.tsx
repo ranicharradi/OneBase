@@ -1,16 +1,20 @@
 // ── Review Queue — terminal aesthetic, card-first ──
 
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
 import { api } from '../api/client';
-import TypeFilter from '../components/TypeFilter';
-import { useRecordTypes, useRecordType } from '../hooks/useRecordTypes';
-import { defaultType, fieldSummary } from '../utils/recordDisplay';
+import { useRecordType } from '../hooks/useRecordTypes';
+import { fieldSummary } from '../utils/recordDisplay';
 import { useSearch } from '../contexts/SearchContext';
-import type { ReviewQueueResponse, ReviewActionResponse, ReviewStats, DataSource } from '../api/types';
+import { useSelectedRecordType } from '../contexts/RecordTypeContext';
+import type {
+  ReviewQueueResponse, ReviewActionResponse, ReviewStats,
+} from '../api/types';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Pagination from '../components/Pagination';
+
+// ── Constants ────────────────────────────────────────
 
 type BucketFilter = 'pending' | 'confirmed' | 'rejected';
 
@@ -21,6 +25,14 @@ const BUCKETS: { id: BucketFilter; label: string; desc: string; tone: string }[]
 ];
 
 const PAGE_SIZE = 20;
+
+const MODE_LABEL: Record<string, string> = {
+  FILE_VS_FILE:   'File × File',
+  FILE_VS_GOLDEN: 'File × Golden',
+  MULTI_FILE:     'N-Way',
+};
+
+// ── Small helpers ────────────────────────────────────
 
 // Small confidence ring — SVG donut centred on a number
 function ConfRing({ value }: { value: number }) {
@@ -78,30 +90,8 @@ function relativeTime(iso: string | null): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function RunSelector({ runId, onChange }: { runId: string | null; onChange: (id: string | null) => void }) {
-  const { data: runs } = useQuery({
-    queryKey: ['comparison-runs'],
-    queryFn: () => api.get<{ id: number; mode: string; status: string; created_at: string }[]>('/api/comparisons/'),
-  });
-  return (
-    <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 12, color: 'var(--fg-2)' }} className="mono">run:</span>
-      <select
-        className="input"
-        style={{ height: 26, fontSize: 12, minWidth: 200 }}
-        value={runId ?? ''}
-        onChange={(e) => onChange(e.target.value || null)}
-      >
-        <option value="">— all / unscoped —</option>
-        {(runs ?? []).map(r => (
-          <option key={r.id} value={String(r.id)}>
-            #{r.id} · {r.mode} · {r.status} · {new Date(r.created_at).toLocaleDateString()}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
+
+// ── Page ──────────────────────────────────────────────
 
 export default function ReviewQueue() {
   const navigate = useNavigate();
@@ -109,23 +99,19 @@ export default function ReviewQueue() {
   const { query: searchQuery } = useSearch();
   const [searchParams, setSearchParams] = useSearchParams();
   const runId = searchParams.get('comparison_run_id');
-  const { data: recordTypes } = useRecordTypes();
-  const selectedType = searchParams.get('type') ?? defaultType(recordTypes?.types);
-  const setSelectedType = (type: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('type', type);
-    setSearchParams(next);
-    setSourceFilter('');
-    setPage(0);
-  };
+  const { selectedType, withRecordType } = useSelectedRecordType();
   const { data: recordType } = useRecordType(selectedType);
   const summaryFieldKeys = recordType?.fields.filter(field => field.role !== 'name').map(field => field.key) ?? [];
 
   const [bucket, setBucket] = useState<BucketFilter>('pending');
   const [minConfidence, setMinConfidence] = useState(0);
-  const [sourceFilter, setSourceFilter] = useState('');
-  const [page, setPage] = useState(0);
+  const [pageState, setPageState] = useState({ type: selectedType, page: 0 });
+  const page = pageState.type === selectedType ? pageState.page : 0;
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const setPage = useCallback((nextPage: number) => {
+    setPageState({ type: selectedType, page: nextPage });
+  }, [selectedType]);
 
   const handlePageChange = (p: number) => {
     setPage(p);
@@ -136,16 +122,15 @@ export default function ReviewQueue() {
     const p = new URLSearchParams();
     p.set('status', bucket);
     if (minConfidence > 0) p.set('min_confidence', (minConfidence / 100).toFixed(2));
-    if (sourceFilter) p.set('source_a_id', sourceFilter);
     if (runId) p.set('comparison_run_id', runId);
     p.set('limit', String(PAGE_SIZE));
     p.set('type', selectedType);
     p.set('offset', String(page * PAGE_SIZE));
     return p;
-  }, [bucket, minConfidence, sourceFilter, runId, page, selectedType]);
+  }, [bucket, minConfidence, runId, page, selectedType]);
 
   const { data: queue, isLoading } = useQuery({
-    queryKey: ['review-queue', bucket, minConfidence, sourceFilter, page, selectedType, runId],
+    queryKey: ['review-queue', bucket, minConfidence, page, selectedType, runId],
     queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
     placeholderData: keepPreviousData,
   });
@@ -155,10 +140,12 @@ export default function ReviewQueue() {
     queryFn: () => api.get<ReviewStats>(`/api/review/stats?type=${selectedType}`),
   });
 
-  const { data: sources } = useQuery({
-    queryKey: ['sources'],
-    queryFn: () => api.get<DataSource[]>('/api/sources'),
+  const { data: allRuns } = useQuery({
+    queryKey: ['comparison-runs', selectedType],
+    queryFn: () => api.get<{ id: number; mode: string; status: string; created_at: string }[]>(`/api/comparisons/?type=${selectedType}`),
   });
+  const validRuns = (allRuns ?? []).filter(r => r.status === 'completed' || r.status === 'stale');
+  const selectedRun = validRuns.find(r => String(r.id) === runId);
 
   const rejectMutation = useMutation({
     mutationFn: (id: number) =>
@@ -191,51 +178,30 @@ export default function ReviewQueue() {
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
 
-        {/* ── Comparison run selector ── */}
-        <RunSelector runId={runId} onChange={(id) => {
-          const next = new URLSearchParams(searchParams);
-          if (id) next.set('comparison_run_id', id); else next.delete('comparison_run_id');
-          setSearchParams(next);
-        }} />
-
-        {/* ── Comparison run banner ── */}
-        {runId && (
-          <div style={{
-            marginBottom: 10,
-            padding: '8px 12px',
-            background: 'var(--accent-soft)',
-            border: '1px solid var(--accent-border)',
-            borderRadius: 4,
-            fontSize: 12,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>compare_arrows</span>
-            <span className="mono">Comparison run <strong>#{runId}</strong></span>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ marginLeft: 'auto', fontSize: 11 }}
-              onClick={() => {
-                const next = new URLSearchParams(searchParams);
-                next.delete('comparison_run_id');
-                setSearchParams(next);
-              }}
-            >
-              × clear
-            </button>
-          </div>
-        )}
-
         {/* ── Stage rail ── */}
         <div className="fade" style={{
           display: 'flex', alignItems: 'stretch',
           background: 'var(--bg-1)', border: '1px solid var(--border-0)', borderRadius: 6,
           overflow: 'hidden', marginBottom: 12,
         }}>
-          {/* 01 Review — active */}
-          <div style={{ padding: '10px 16px', minWidth: 180, background: 'var(--warn-soft)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden' }}>
-            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--warn)', opacity: 0.08, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>01</span>
+          {/* Match — dimmed */}
+          <div
+            onClick={() => navigate(withRecordType('/runs'))}
+            style={{ padding: '10px 18px', minWidth: 210, opacity: 0.5, background: 'var(--bg-2)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+            title="Go to Match runs"
+          >
+            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>01</span>
+            <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Match</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Candidate pairs</div>
+            <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
+              {(stats?.total_pending ?? 0) + (stats?.total_confirmed ?? 0) + (stats?.total_rejected ?? 0)}{' '}
+              <span style={{ fontSize: 10, color: 'var(--fg-2)', fontWeight: 400 }}>matched</span>
+            </div>
+          </div>
+          <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
+          {/* Review — active */}
+          <div style={{ padding: '10px 18px', minWidth: 210, background: 'var(--warn-soft)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden' }}>
+            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--warn)', opacity: 0.08, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>02</span>
             <div className="label" style={{ color: 'var(--warn)', fontWeight: 600, position: 'relative' }}>Review</div>
             <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Same record?</div>
             <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--warn)', marginTop: 4, position: 'relative' }}>
@@ -244,13 +210,13 @@ export default function ReviewQueue() {
             </div>
           </div>
           <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
-          {/* 02 Merge — dimmed but clickable */}
+          {/* Merge — dimmed, clickable */}
           <div
-            onClick={() => navigate('/merge')}
-            style={{ padding: '10px 16px', minWidth: 180, opacity: 0.5, background: 'var(--bg-2)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+            onClick={() => navigate(withRecordType('/merge'))}
+            style={{ padding: '10px 18px', minWidth: 210, opacity: 0.5, background: 'var(--bg-2)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
             title="Go to Merge queue"
           >
-            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>02</span>
+            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>03</span>
             <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Merge</div>
             <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Reconcile fields</div>
             <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
@@ -259,9 +225,13 @@ export default function ReviewQueue() {
             </div>
           </div>
           <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
-          {/* 03 Unified — dimmed */}
-          <div style={{ padding: '10px 16px', flex: 1, opacity: 0.45, background: 'var(--bg-2)', position: 'relative', overflow: 'hidden' }}>
-            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>03</span>
+          {/* Unified — dimmed */}
+          <div
+            onClick={() => navigate(withRecordType('/unified'))}
+            style={{ padding: '10px 18px', flex: 1, opacity: 0.45, background: 'var(--bg-2)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+            title="Go to Unified records"
+          >
+            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>04</span>
             <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Unified</div>
             <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Unified records</div>
             <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
@@ -271,13 +241,44 @@ export default function ReviewQueue() {
           </div>
         </div>
 
-        {/* ── Title row ── */}
-        <div className="fade" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span className="pill warn" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 1 · REVIEW</span>
-          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Review queue</h1>
-        </div>
-        {recordTypes?.types && <TypeFilter types={recordTypes.types} value={selectedType} onChange={setSelectedType} />}
+        {/* ── Stale warning ── */}
+        {selectedRun?.status === 'stale' && (
+          <div style={{
+            padding: '6px 14px', marginBottom: 8, fontSize: 11,
+            color: 'var(--warn)', background: 'var(--warn-soft)',
+            border: '1px solid var(--border-0)', borderRadius: 6,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>warning</span>
+            Source data has changed since this run — results may be outdated
+          </div>
+        )}
 
+        {/* ── Title row ── */}
+        <div className="fade" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+          <span className="pill warn" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 2 · REVIEW</span>
+          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Review queue</h1>
+          <div style={{ width: 1, height: 18, background: 'var(--border-0)', margin: '0 2px' }} />
+          <select
+            className="input"
+            style={{ height: 26, fontSize: 11, padding: '0 8px', minWidth: 200 }}
+            value={runId ?? ''}
+            onChange={(e) => {
+              const next = new URLSearchParams(searchParams);
+              const val = e.target.value;
+              if (val) next.set('comparison_run_id', val); else next.delete('comparison_run_id');
+              setSearchParams(next);
+              setPage(0);
+            }}
+          >
+            <option value="" disabled>— pick a run —</option>
+            {validRuns.map(r => (
+              <option key={r.id} value={String(r.id)}>
+                #{r.id} · {MODE_LABEL[r.mode] ?? r.mode} · {relativeTime(r.created_at)}
+              </option>
+            ))}
+          </select>
+        </div>
         {/* ── Bucket tabs ── */}
         <div className="fade" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
           {BUCKETS.map(b => {
@@ -335,19 +336,6 @@ export default function ReviewQueue() {
         {/* ── Filters ── */}
         <Panel className="fade">
           <PanelHead>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <select
-                className="input mono"
-                value={sourceFilter}
-                onChange={(e) => { setSourceFilter(e.target.value); setPage(0); }}
-                style={{ height: 24, fontSize: 11, padding: '0 8px', maxWidth: 200 }}
-              >
-                <option value="">All sources</option>
-                {(sources?.filter(s => s.type === selectedType) ?? []).map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span className="label">min confidence</span>
               <input
@@ -398,8 +386,8 @@ export default function ReviewQueue() {
                     overflow: 'hidden',
                     opacity: !isPending ? 0.75 : 1,
                     transition: 'opacity 0.2s, border-color 0.2s, transform 0.12s, box-shadow 0.12s',
-                  animation: 'fadeIn 0.2s ease both',
-                  animationDelay: `${i * 35}ms`,
+                    animation: 'fadeIn 0.2s ease both',
+                    animationDelay: `${i * 35}ms`,
                   }}
                   onMouseEnter={e => {
                     (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)';
@@ -466,7 +454,7 @@ export default function ReviewQueue() {
                         <>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                             <button
-                              onClick={() => navigate(`/review/${item.id}`)}
+                              onClick={() => navigate(withRecordType(`/review/${item.id}`))}
                               style={{
                                 padding: '5px 10px', cursor: 'pointer',
                                 background: 'transparent', color: 'var(--ok)',
@@ -500,7 +488,7 @@ export default function ReviewQueue() {
                           </div>
                           <div style={{ borderTop: '1px solid var(--border-0)', paddingTop: 6, marginTop: 2 }}>
                             <button
-                              onClick={() => navigate(`/review/${item.id}`)}
+                              onClick={() => navigate(withRecordType(`/review/${item.id}`))}
                               style={{
                                 width: '100%', padding: '5px 8px', cursor: 'pointer',
                                 background: 'transparent', border: 'none',

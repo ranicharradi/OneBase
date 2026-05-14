@@ -202,7 +202,7 @@ def list_batches(
             id=b.id,
             data_source_id=b.data_source_id,
             type=b.data_source.type,
-            filename=b.filename,
+            filename=b.filename.split("_", 1)[1] if b.filename and "_" in b.filename else (b.filename or ""),
             uploaded_by=b.uploaded_by,
             row_count=b.row_count,
             status=b.status,

@@ -2,12 +2,12 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router';
-import { useRecordType, useRecordTypes } from '../hooks/useRecordTypes';
-import { defaultType, fieldValue } from '../utils/recordDisplay';
-import TypeFilter from '../components/TypeFilter';
+import { useNavigate } from 'react-router';
+import { useRecordType } from '../hooks/useRecordTypes';
+import { fieldValue } from '../utils/recordDisplay';
 import { api } from '../api/client';
 import { useSearch } from '../contexts/SearchContext';
+import { useSelectedRecordType } from '../contexts/RecordTypeContext';
 import type { DataSource, SingletonListResponse, UnifiedRecordListResponse } from '../api/types';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Seg from '../components/ui/Seg';
@@ -31,14 +31,7 @@ export default function UnifiedRecords() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { query: searchQuery } = useSearch();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { data: recordTypes } = useRecordTypes();
-  const selectedType = searchParams.get('type') ?? defaultType(recordTypes?.types);
-  const setSelectedType = (type: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('type', type);
-    setSearchParams(next);
-  };
+  const { selectedType, withRecordType } = useSelectedRecordType();
   const { data: recordType } = useRecordType(selectedType);
   const displayFields = (recordType?.fields ?? []).filter(field => field.role !== 'name').slice(0, 3);
 
@@ -47,25 +40,46 @@ export default function UnifiedRecords() {
   const [sourceType, setSourceType] = useState<string>('');
   const [singletonSearch, setSingletonSearch] = useState('');
   const [singletonSourceId, setSingletonSourceId] = useState<string>('');
-  const [selectedSingletons, setSelectedSingletons] = useState<Set<number>>(new Set());
+  const [selectedSingletonState, setSelectedSingletonState] = useState<{ type: string; ids: Set<number> }>({
+    type: selectedType,
+    ids: new Set(),
+  });
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [unifiedPage, setUnifiedPage] = useState(0);
-  const [singletonsPage, setSingletonsPage] = useState(0);
+  const [unifiedPageState, setUnifiedPageState] = useState({ type: selectedType, page: 0 });
+  const [singletonsPageState, setSingletonsPageState] = useState({ type: selectedType, page: 0 });
+  const unifiedPage = unifiedPageState.type === selectedType ? unifiedPageState.page : 0;
+  const singletonsPage = singletonsPageState.type === selectedType ? singletonsPageState.page : 0;
+  const selectedSingletons = useMemo(
+    () => selectedSingletonState.type === selectedType ? selectedSingletonState.ids : new Set<number>(),
+    [selectedSingletonState, selectedType],
+  );
   const unifiedTableRef = useRef<HTMLDivElement>(null);
   const singletonsTableRef = useRef<HTMLDivElement>(null);
+
+  const setUnifiedPage = useCallback((nextPage: number) => {
+    setUnifiedPageState({ type: selectedType, page: nextPage });
+  }, [selectedType]);
+
+  const setSingletonsPage = useCallback((nextPage: number) => {
+    setSingletonsPageState({ type: selectedType, page: nextPage });
+  }, [selectedType]);
+
+  const setSelectedSingletons = useCallback((ids: Set<number>) => {
+    setSelectedSingletonState({ type: selectedType, ids });
+  }, [selectedType]);
 
   const handleUnifiedPageChange = useCallback((p: number) => {
     setUnifiedPage(p);
     unifiedTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+  }, [setUnifiedPage]);
 
   const handleSingletonsPageChange = useCallback((p: number) => {
     setSingletonsPage(p);
     singletonsTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+  }, [setSingletonsPage]);
 
   const { data: unifiedData, isLoading: unifiedLoading } = useQuery<UnifiedRecordListResponse>({
     queryKey: ['unified-records', search, sourceType, fromDate, toDate, unifiedPage, selectedType],
@@ -155,12 +169,10 @@ export default function UnifiedRecords() {
   };
 
   const toggleSingleton = (id: number) => {
-    setSelectedSingletons(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(selectedSingletons);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedSingletons(next);
   };
 
   const toggleAllSingletons = () => {
@@ -206,7 +218,6 @@ export default function UnifiedRecords() {
               {unifiedTotal.toLocaleString()} unified · {singletonTotal.toLocaleString()} singletons awaiting promotion
             </div>
           </div>
-          {recordTypes?.types && <TypeFilter types={recordTypes.types} value={selectedType} onChange={setSelectedType} />}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input
               type="date"
@@ -358,7 +369,7 @@ export default function UnifiedRecords() {
                       <tr
                         key={s.id}
                         className="clickable"
-                        onClick={() => navigate(`/unified/${s.id}`)}
+                        onClick={() => navigate(withRecordType(`/unified/${s.id}`))}
                       >
                         <td><IdChip>{s.id}</IdChip></td>
                         <td>

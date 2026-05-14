@@ -5,6 +5,7 @@ from app.models.enums import BatchStatus, RecordStatus
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.models.unified import UnifiedRecord
+from app.services import blocking
 from app.services.blocking import combine_blocks, embedding_block, text_block
 from app.services.record_set import RecordRef, RecordSet
 
@@ -202,6 +203,28 @@ class TestEmbeddingBlock:
         pairs = embedding_block(test_db, rs, None, k=5)
         # No embeddings in SQLite — should return empty set
         assert pairs == set()
+
+    def test_cross_side_ranks_against_valid_opposite_side_rows(self, test_db, monkeypatch):
+        """Cross-side embedding top-k is selected from valid opposite-side rows, not all rows."""
+        a1 = RecordRef(1, "staged")
+        a2 = RecordRef(2, "staged")
+        b1 = RecordRef(3, "staged")
+        b2 = RecordRef(4, "staged")
+        rows = [
+            blocking._BlockingRow(a1, 1, "A1", [1.0, 0.0]),
+            blocking._BlockingRow(a2, 1, "A2", [0.99, 0.01]),
+            blocking._BlockingRow(b1, 2, "B1", [0.0, 1.0]),
+            blocking._BlockingRow(b2, 2, "B2", [0.01, 0.99]),
+        ]
+
+        monkeypatch.setattr(blocking, "_load_rows", lambda db, rs: rows)
+
+        side_a = RecordSet(type_key="supplier", refs=[a1, a2])
+        side_b = RecordSet(type_key="supplier", refs=[b1, b2])
+        pairs = embedding_block(test_db, side_a, side_b, k=1)
+
+        assert pairs
+        assert all((left in side_a.refs) != (right in side_a.refs) for left, right in pairs)
 
 
 class TestCombineBlocks:
