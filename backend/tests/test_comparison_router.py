@@ -77,3 +77,21 @@ def test_get_run_returns_detail(authenticated_client, test_db):
 def test_get_run_returns_404_for_missing(authenticated_client, test_db):
     resp = authenticated_client.get("/api/comparisons/99999")
     assert resp.status_code == 404
+
+
+def test_delete_run_returns_204_for_pending(authenticated_client, test_db):
+    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+    test_db.add(run)
+    test_db.commit()
+
+    resp = authenticated_client.delete(f"/api/comparisons/{run.id}")
+    assert resp.status_code == 204
+
+
+def test_delete_run_returns_409_for_running(authenticated_client, test_db):
+    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="running", created_by="u")
+    test_db.add(run)
+    test_db.commit()
+
+    resp = authenticated_client.delete(f"/api/comparisons/{run.id}")
+    assert resp.status_code == 409
