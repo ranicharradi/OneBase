@@ -1,6 +1,7 @@
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.batch import ImportBatch
+from app.models.comparison import ComparisonRun, comparison_run_batches  # noqa: F401
 from app.models.file_check import FileCheckIssue, FileCheckReport
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.ml_model import MLModelVersion
@@ -22,4 +23,5 @@ __all__ = [
     "MatchGroup",
     "UnifiedRecord",
     "MLModelVersion",
+    "ComparisonRun",
 ]
