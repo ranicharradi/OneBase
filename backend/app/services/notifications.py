@@ -51,3 +51,11 @@ def publish_notification(notification_type: str, data: dict) -> None:
         logger.warning("Failed to publish notification '%s': %s", notification_type, e)
     except Exception as e:
         logger.warning("Unexpected error publishing notification '%s': %s", notification_type, e)
+
+
+def broadcast_comparison_complete(run_id: int, type_key: str, stats: dict) -> None:
+    """Broadcast comparison_complete event to all WebSocket clients."""
+    publish_notification(
+        "comparison_complete",
+        {"run_id": run_id, "type": type_key, "stats": stats},
+    )

@@ -206,3 +206,30 @@ class TestMatchingTaskNotifications:
         from app.tasks.comparison import run_comparison
 
         assert callable(run_comparison)
+
+
+class TestBroadcastComparisonComplete:
+    """Tests for the broadcast_comparison_complete helper."""
+
+    @patch("app.services.notifications._redis_client", None)
+    @patch("app.services.notifications.redis")
+    def test_publishes_comparison_complete_event(self, mock_redis_module):
+        """broadcast_comparison_complete publishes correct comparison_complete event."""
+        from app.services.notifications import CHANNEL, broadcast_comparison_complete
+
+        mock_client = MagicMock()
+        mock_redis_module.from_url.return_value = mock_client
+
+        broadcast_comparison_complete(run_id=42, type_key="supplier", stats={"candidate_count": 7})
+
+        mock_client.publish.assert_called_once()
+        call_args = mock_client.publish.call_args
+        channel = call_args[0][0]
+        message = json.loads(call_args[0][1])
+
+        assert channel == CHANNEL
+        assert message["type"] == "comparison_complete"
+        assert message["data"]["run_id"] == 42
+        assert message["data"]["type"] == "supplier"
+        assert message["data"]["stats"]["candidate_count"] == 7
+        assert "timestamp" in message
