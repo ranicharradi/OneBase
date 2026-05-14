@@ -1,6 +1,7 @@
 // ── Upload — multi-step file ingestion with explicit source selection ──
 
 import { useCallback, useState } from 'react';
+import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type {
@@ -363,7 +364,12 @@ export default function Upload() {
                 queryClient.invalidateQueries({ queryKey: ['dashboard'] });
               }}
             />
-            <div style={{ marginTop: 12, textAlign: 'center' }}>
+            <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-1)', border: '1px solid var(--border-0)', borderRadius: 4 }}>
+              <span className="mono" style={{ fontSize: 12, color: 'var(--fg-1)' }}>
+                Ingest complete · <Link to="/compare" style={{ color: 'var(--accent)' }}>Compare this file →</Link>
+              </span>
+            </div>
+            <div style={{ marginTop: 8, textAlign: 'center' }}>
               <button onClick={handleReset} className="btn btn-sm">
                 <span className="material-symbols-outlined" style={{ fontSize: 12 }}>cloud_upload</span>
                 Upload another file
