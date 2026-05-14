@@ -357,3 +357,45 @@ class TestScorePairAggregation:
         b = _make_record_obj(id=2, normalized_name="B", fields={"supplier_name": "B", "currency": "USD"})
         result = score_pair(a, b)
         assert result["signals"][EXACT_CURRENCY] == 1.0
+
+
+def test_score_pair_works_for_staged_vs_unified(test_db):
+    """score_pair accepts StagedRecord on one side and UnifiedRecord on the other."""
+    from app.models.batch import ImportBatch
+    from app.models.enums import BatchStatus, RecordStatus
+    from app.models.source import DataSource
+    from app.models.staging import StagedRecord
+    from app.models.unified import UnifiedRecord
+
+    src = DataSource(name="s", type="supplier", column_mapping={"name": "x"})
+    test_db.add(src)
+    test_db.flush()
+    batch = ImportBatch(data_source_id=src.id, filename="f", uploaded_by="u", status=BatchStatus.COMPLETED)
+    test_db.add(batch)
+    test_db.flush()
+    staged = StagedRecord(
+        type="supplier",
+        import_batch_id=batch.id,
+        data_source_id=src.id,
+        name="ACME CORP",
+        normalized_name="ACME CORP",
+        status=RecordStatus.ACTIVE,
+        fields={"supplier_name": "ACME CORP"},
+    )
+    test_db.add(staged)
+    test_db.flush()
+    unified = UnifiedRecord(
+        type="supplier",
+        name="ACME CORPORATION",
+        normalized_name="ACME CORPORATION",
+        fields={"supplier_name": "ACME CORPORATION"},
+        provenance={},
+        source_record_ids=[],
+        created_by="u",
+    )
+    test_db.add(unified)
+    test_db.flush()
+    result = score_pair(staged, unified)
+    assert "confidence" in result
+    assert "signals" in result
+    assert 0.0 <= result["confidence"] <= 1.0

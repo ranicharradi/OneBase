@@ -9,9 +9,12 @@ signal match (e.g. same currency alone would renormalize to 1.0 otherwise).
 """
 
 from app.models.staging import StagedRecord
+from app.models.unified import UnifiedRecord
 from app.record_types import RecordType
 from app.record_types import get as get_record_type
 from app.services.signals import compute_signal
+
+Record = StagedRecord | UnifiedRecord
 
 
 def signal_key(kind: str, field: str) -> str:
@@ -24,8 +27,8 @@ def signal_key(kind: str, field: str) -> str:
 
 
 def score_pair(
-    record_a: StagedRecord,
-    record_b: StagedRecord,
+    record_a: Record,
+    record_b: Record,
     record_type: RecordType | None = None,
 ) -> dict:
     """Compute confidence + signal breakdown for a record pair.
