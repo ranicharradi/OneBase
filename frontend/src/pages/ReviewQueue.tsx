@@ -137,14 +137,15 @@ export default function ReviewQueue() {
     p.set('status', bucket);
     if (minConfidence > 0) p.set('min_confidence', (minConfidence / 100).toFixed(2));
     if (sourceFilter) p.set('source_a_id', sourceFilter);
+    if (runId) p.set('comparison_run_id', runId);
     p.set('limit', String(PAGE_SIZE));
     p.set('type', selectedType);
     p.set('offset', String(page * PAGE_SIZE));
     return p;
-  }, [bucket, minConfidence, sourceFilter, page, selectedType]);
+  }, [bucket, minConfidence, sourceFilter, runId, page, selectedType]);
 
   const { data: queue, isLoading } = useQuery({
-    queryKey: ['review-queue', bucket, minConfidence, sourceFilter, page, selectedType],
+    queryKey: ['review-queue', bucket, minConfidence, sourceFilter, page, selectedType, runId],
     queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
     placeholderData: keepPreviousData,
   });
