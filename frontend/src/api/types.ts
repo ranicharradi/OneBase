@@ -98,6 +98,8 @@ export interface BatchResponse {
   error_message: string | null;
   created_at: string;
   task_id: string | null;
+  unified: boolean;
+  last_compared_at: string | null;
 }
 
 export interface TaskStatus {
@@ -465,4 +467,44 @@ export interface AskResponse {
   rows: unknown[][];
   model: string;
   latency_ms: number;
+}
+
+// ── Comparison Run types ──
+
+export type ComparisonMode = 'FILE_VS_FILE' | 'FILE_VS_GOLDEN' | 'MULTI_FILE';
+export type ComparisonStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stale';
+
+export interface ComparisonRunCreate {
+  type: string;
+  mode: ComparisonMode;
+  batch_ids: number[];
+  name?: string;
+}
+
+export interface ComparisonRunResponse {
+  id: number;
+  type: string;
+  mode: ComparisonMode;
+  status: ComparisonStatus;
+  name: string | null;
+  created_by: string;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  task_id: string | null;
+  stats: Record<string, number> | null;
+  batch_ids: number[];
+  error_message: string | null;
+}
+
+export interface ComparisonRunDetail extends ComparisonRunResponse {
+  candidate_counts: Record<string, number>;
+}
+
+export interface ComparisonRunStatus {
+  task_id: string | null;
+  state: string;
+  stage: string | null;
+  progress: number | null;
+  detail: string | null;
 }
