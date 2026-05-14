@@ -22,6 +22,7 @@ from app.services.clustering import find_groups
 from app.services.grouping import group_intra_source
 from app.services.ml_scoring import blocker_filter, ml_score_pair
 from app.services.ml_training import load_active_model
+from app.services.record_set import RecordRef, RecordSet
 from app.services.scoring import score_pair
 
 logger = logging.getLogger(__name__)
@@ -131,21 +132,45 @@ def run_matching_pipeline(
             StagedRecord.intra_source_group_id.is_(None),
         ),
     )
-    representative_ids = {r.id for r in reps}
-    logger.info("Representatives: %d active records of type %s", len(representative_ids), type_key)
+    representative_int_ids = {r.id for r in reps}
+    representative_refs = {RecordRef(rid, "staged") for rid in representative_int_ids}
+    logger.info("Representatives: %d active records of type %s", len(representative_refs), type_key)
+
+    # Build RecordSet from all active staged records across the relevant sources
+    active_record_ids = [
+        rid
+        for (rid,) in db.query(StagedRecord.id)
+        .filter(
+            StagedRecord.type == type_key,
+            StagedRecord.data_source_id.in_(source_ids),
+            StagedRecord.status == RecordStatus.ACTIVE,
+        )
+        .all()
+    ]
+    side_a = RecordSet(type_key=type_key, refs=[RecordRef(rid, "staged") for rid in active_record_ids])
 
     _report("BLOCKING", 0)
-    text_pairs = text_block(db, type_key, source_ids, representative_ids=representative_ids)
+    text_pairs = text_block(db, side_a, None, representative_ids=representative_refs)
     try:
-        emb_pairs = embedding_block(db, type_key, source_ids, representative_ids=representative_ids)
+        emb_pairs = embedding_block(db, side_a, None, representative_ids=representative_refs)
     except Exception as e:
         logger.warning("embedding_block failed, falling back to text-only blocking: %s", e)
         db.rollback()
         emb_pairs = set()
-    all_pairs = combine_blocks(text_pairs, emb_pairs)
+    all_ref_pairs = combine_blocks(text_pairs, emb_pairs)
     _report("BLOCKING", 100)
 
-    logger.info("Blocking produced %d candidate pairs", len(all_pairs))
+    logger.info("Blocking produced %d candidate pairs", len(all_ref_pairs))
+    if not all_ref_pairs:
+        return {"candidate_count": 0, "group_count": 0}
+
+    # Convert RecordRef pairs to int pairs for downstream (scoring, clustering, ML)
+    # Only staged-staged pairs are supported by the current scorer; skip cross-kind.
+    all_pairs: set[tuple[int, int]] = set()
+    for ref_a, ref_b in all_ref_pairs:
+        if ref_a.kind == "staged" and ref_b.kind == "staged":
+            all_pairs.add((ref_a.id, ref_b.id))
+
     if not all_pairs:
         return {"candidate_count": 0, "group_count": 0}
 

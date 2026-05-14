@@ -10,6 +10,7 @@ from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
+from app.services.record_set import RecordRef, RecordSet
 
 
 def _make_source(db: Session, name: str) -> DataSource:
@@ -77,7 +78,7 @@ def test_pipeline_creates_candidates(mock_score_pair, mock_text_block, mock_embe
     s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
     test_db.flush()
 
-    mock_text_block.return_value = {(s1.id, s2.id)}
+    mock_text_block.return_value = {(RecordRef(s1.id, "staged"), RecordRef(s2.id, "staged"))}
     mock_embedding_block.return_value = set()
     mock_score_pair.return_value = {
         "confidence": 0.85,
@@ -116,7 +117,7 @@ def test_pipeline_filters_below_threshold(mock_score_pair, mock_text_block, mock
     s2 = _make_record(test_db, batch2, src2, "Zephyr Holdings")
     test_db.flush()
 
-    mock_text_block.return_value = {(s1.id, s2.id)}
+    mock_text_block.return_value = {(RecordRef(s1.id, "staged"), RecordRef(s2.id, "staged"))}
     mock_embedding_block.return_value = set()
     mock_score_pair.return_value = {
         "confidence": 0.20,
@@ -158,7 +159,7 @@ def test_pipeline_candidate_has_all_signals(mock_score_pair, mock_text_block, mo
         "exact_ci:currency": 0.5,
         "jaro_winkler:contact_name": 0.5,
     }
-    mock_text_block.return_value = {(s1.id, s2.id)}
+    mock_text_block.return_value = {(RecordRef(s1.id, "staged"), RecordRef(s2.id, "staged"))}
     mock_embedding_block.return_value = set()
     mock_score_pair.return_value = {"confidence": 0.85, "signals": signals}
 
@@ -193,7 +194,7 @@ def test_pipeline_assigns_groups(mock_score_pair, mock_text_block, mock_embeddin
     s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
     test_db.flush()
 
-    mock_text_block.return_value = {(s1.id, s2.id)}
+    mock_text_block.return_value = {(RecordRef(s1.id, "staged"), RecordRef(s2.id, "staged"))}
     mock_embedding_block.return_value = set()
     mock_score_pair.return_value = {
         "confidence": 0.85,
@@ -276,7 +277,7 @@ def test_pipeline_returns_stats(mock_score_pair, mock_text_block, mock_embedding
     s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
     test_db.flush()
 
-    mock_text_block.return_value = {(s1.id, s2.id)}
+    mock_text_block.return_value = {(RecordRef(s1.id, "staged"), RecordRef(s2.id, "staged"))}
     mock_embedding_block.return_value = set()
     mock_score_pair.return_value = {
         "confidence": 0.85,
@@ -332,7 +333,7 @@ def test_pipeline_progress_callback(mock_score_pair, mock_text_block, mock_embed
     s2 = _make_record(test_db, batch2, src2, "Acme Corporation")
     test_db.flush()
 
-    mock_text_block.return_value = {(s1.id, s2.id)}
+    mock_text_block.return_value = {(RecordRef(s1.id, "staged"), RecordRef(s2.id, "staged"))}
     mock_embedding_block.return_value = set()
     mock_score_pair.return_value = {
         "confidence": 0.85,
@@ -368,23 +369,29 @@ def test_text_block_filters_to_representatives(test_db):
 
     # src1: two rows with same normalized name — only one is representative
     s1_rep = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
-    _s1_dup = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
+    s1_dup = _make_record(test_db, batch1, src1, "Acme Corp", normalized_name="ACME CORP")
     # src2: one row
     s2 = _make_record(test_db, batch2, src2, "Acme Corporation", normalized_name="ACME CORPORATION")
     test_db.flush()
 
     # Without filter: both src1 rows pair with src2
     # (they share prefix "ACM" and first token "ACME" with s2)
-    pairs_all = text_block(test_db, "supplier", [src1.id, src2.id])
+    all_refs = [
+        RecordRef(s1_rep.id, "staged"),
+        RecordRef(s1_dup.id, "staged"),
+        RecordRef(s2.id, "staged"),
+    ]
+    rs_all = RecordSet(type_key="supplier", refs=all_refs)
+    pairs_all = text_block(test_db, rs_all, None)
     assert len(pairs_all) == 2  # s1_rep-s2 and s1_dup-s2
 
     # With filter: only representative pairs with src2
-    rep_ids = {s1_rep.id, s2.id}
-    pairs_filtered = text_block(test_db, "supplier", [src1.id, src2.id], representative_ids=rep_ids)
+    rep_refs = {RecordRef(s1_rep.id, "staged"), RecordRef(s2.id, "staged")}
+    pairs_filtered = text_block(test_db, rs_all, None, representative_ids=rep_refs)
     assert len(pairs_filtered) == 1
     pair = pairs_filtered.pop()
-    assert min(s1_rep.id, s2.id) == pair[0]
-    assert max(s1_rep.id, s2.id) == pair[1]
+    pair_ids = {pair[0].id, pair[1].id}
+    assert pair_ids == {s1_rep.id, s2.id}
 
 
 @patch("app.services.matching.embedding_block")
@@ -407,14 +414,14 @@ def test_pipeline_groups_duplicates_reduces_candidates(mock_score_pair, mock_tex
 
     # Blocking should be called with representative_ids.
     # After grouping, only 1 representative from src1 + s2 = 2 records for blocking.
-    def fake_text_block(db, type_key, source_ids, representative_ids=None):
+    def fake_text_block(db, side_a, side_b, representative_ids=None):
         # Verify representative_ids was passed and contains only reps
         assert representative_ids is not None
         # Should have s2 + one rep from src1 (not all 3)
-        src1_reps = {rid for rid in representative_ids if rid in {s1a.id, s1b.id, s1c.id}}
-        assert len(src1_reps) == 1, f"Expected 1 src1 rep, got {len(src1_reps)}"
-        rep_id = src1_reps.pop()
-        return {(min(rep_id, s2.id), max(rep_id, s2.id))}
+        src1_ref_ids = {ref.id for ref in representative_ids if ref.id in {s1a.id, s1b.id, s1c.id}}
+        assert len(src1_ref_ids) == 1, f"Expected 1 src1 rep, got {len(src1_ref_ids)}"
+        rep_id = src1_ref_ids.pop()
+        return {(RecordRef(min(rep_id, s2.id), "staged"), RecordRef(max(rep_id, s2.id), "staged"))}
 
     mock_text_block.side_effect = fake_text_block
     mock_embedding_block.return_value = set()
@@ -488,7 +495,7 @@ class TestMLPipelineIntegration:
 
         batch_id, s1, s2 = self._seed_two_source_scenario(test_db)
 
-        mock_text_block.return_value = {(s1.id, s2.id)}
+        mock_text_block.return_value = {(RecordRef(s1.id, "staged"), RecordRef(s2.id, "staged"))}
         mock_embedding_block.return_value = set()
 
         mock_model = MagicMock()
@@ -534,7 +541,7 @@ class TestMLPipelineIntegration:
         """Pipeline should use score_pair when no ML model exists."""
         batch_id, s1, s2 = self._seed_two_source_scenario(test_db)
 
-        mock_text_block.return_value = {(s1.id, s2.id)}
+        mock_text_block.return_value = {(RecordRef(s1.id, "staged"), RecordRef(s2.id, "staged"))}
         mock_embedding_block.return_value = set()
         mock_score_pair.return_value = {
             "confidence": 0.85,
