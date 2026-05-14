@@ -75,6 +75,16 @@ def _build_unified_filter(
     return query
 
 
+@router.get("/count")
+def get_unified_count(
+    type: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    n = db.query(func.count(UnifiedRecord.id)).filter(UnifiedRecord.type == type).scalar() or 0
+    return {"count": n}
+
+
 @router.get("/records", response_model=UnifiedRecordListResponse)
 def list_unified_records(
     type: str | None = Query(None, description="Filter by record type"),
