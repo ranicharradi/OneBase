@@ -114,14 +114,16 @@ export interface TaskStatus {
 // ── Matching notification types (WebSocket) ──
 
 export interface MatchingNotification {
-  type: 'matching_complete' | 'matching_failed' | 'matching_progress';
+  type: 'matching_complete' | 'matching_failed' | 'matching_progress' | 'comparison_complete';
   data: {
-    batch_id: number;
+    batch_id?: number;
     candidate_count?: number;
     group_count?: number;
+    run_id?: number;
     error?: string;
     stage?: string;
     progress?: number;
+    stats?: Record<string, number>;
   };
   timestamp: string;
 }

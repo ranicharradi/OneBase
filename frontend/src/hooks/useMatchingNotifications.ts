@@ -102,7 +102,12 @@ export function useMatchingNotifications(
           }
 
           // Process matching notifications
-          if (parsed.type === 'matching_complete' || parsed.type === 'matching_failed' || parsed.type === 'matching_progress') {
+          if (
+            parsed.type === 'matching_complete' ||
+            parsed.type === 'matching_failed' ||
+            parsed.type === 'matching_progress' ||
+            parsed.type === 'comparison_complete'
+          ) {
             onNotificationRef.current(parsed as MatchingNotification);
           }
         } catch {

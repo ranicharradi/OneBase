@@ -2,9 +2,8 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { api } from '../api/client';
-import { useSearchParams } from 'react-router';
 import TypeFilter from '../components/TypeFilter';
 import { useRecordTypes, useRecordType } from '../hooks/useRecordTypes';
 import { defaultType, fieldSummary } from '../utils/recordDisplay';
@@ -79,11 +78,37 @@ function relativeTime(iso: string | null): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function RunSelector({ runId, onChange }: { runId: string | null; onChange: (id: string | null) => void }) {
+  const { data: runs } = useQuery({
+    queryKey: ['comparison-runs'],
+    queryFn: () => api.get<{ id: number; mode: string; status: string; created_at: string }[]>('/api/comparisons/'),
+  });
+  return (
+    <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 12, color: 'var(--fg-2)' }} className="mono">run:</span>
+      <select
+        className="input"
+        style={{ height: 26, fontSize: 12, minWidth: 200 }}
+        value={runId ?? ''}
+        onChange={(e) => onChange(e.target.value || null)}
+      >
+        <option value="">— all / unscoped —</option>
+        {(runs ?? []).map(r => (
+          <option key={r.id} value={String(r.id)}>
+            #{r.id} · {r.mode} · {r.status} · {new Date(r.created_at).toLocaleDateString()}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function ReviewQueue() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { query: searchQuery } = useSearch();
   const [searchParams, setSearchParams] = useSearchParams();
+  const runId = searchParams.get('comparison_run_id');
   const { data: recordTypes } = useRecordTypes();
   const selectedType = searchParams.get('type') ?? defaultType(recordTypes?.types);
   const setSelectedType = (type: string) => {
@@ -164,6 +189,42 @@ export default function ReviewQueue() {
   return (
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
+
+        {/* ── Comparison run selector ── */}
+        <RunSelector runId={runId} onChange={(id) => {
+          const next = new URLSearchParams(searchParams);
+          if (id) next.set('comparison_run_id', id); else next.delete('comparison_run_id');
+          setSearchParams(next);
+        }} />
+
+        {/* ── Comparison run banner ── */}
+        {runId && (
+          <div style={{
+            marginBottom: 10,
+            padding: '8px 12px',
+            background: 'var(--accent-soft)',
+            border: '1px solid var(--accent-border)',
+            borderRadius: 4,
+            fontSize: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>compare_arrows</span>
+            <span className="mono">Comparison run <strong>#{runId}</strong></span>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ marginLeft: 'auto', fontSize: 11 }}
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('comparison_run_id');
+                setSearchParams(next);
+              }}
+            >
+              × clear
+            </button>
+          </div>
+        )}
 
         {/* ── Stage rail ── */}
         <div className="fade" style={{

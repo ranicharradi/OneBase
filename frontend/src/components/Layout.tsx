@@ -482,6 +482,16 @@ export default function Layout() {
         detail: notification.data.error || 'An unexpected error occurred during matching',
       });
       notifs.add('matching_failed', `Matching failed: ${notification.data.error || 'Unknown error'}`);
+    } else if (notification.type === 'comparison_complete') {
+      const runId = notification.data.run_id;
+      const candidateCount = notification.data.stats?.candidate_count ?? notification.data.candidate_count ?? 0;
+      addToast({
+        type: 'success',
+        message: `Comparison run #${runId} complete`,
+        detail: `${candidateCount} candidates found`,
+        action: { label: 'Review →', href: `/review?comparison_run_id=${runId}` },
+      });
+      notifs.add('comparison_complete', `Comparison run #${runId} complete: ${candidateCount} candidates`);
     }
   }, [addToast, notifs]));
 
