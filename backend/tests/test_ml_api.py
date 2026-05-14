@@ -143,6 +143,10 @@ class TestActiveLearningSort:
         db.add_all([b1, b2])
         db.flush()
 
+        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        db.add(run)
+        db.flush()
+
         pairs = []
         for i, conf in enumerate([0.9, 0.5, 0.3]):
             sa = StagedRecord(
@@ -169,6 +173,7 @@ class TestActiveLearningSort:
             db.flush()
             mc = MatchCandidate(
                 type="supplier",
+                comparison_run_id=run.id,
                 record_a_id=sa.id,
                 record_b_id=sb.id,
                 confidence=conf,
