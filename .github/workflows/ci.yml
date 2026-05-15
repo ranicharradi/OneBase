@@ -81,7 +81,9 @@ jobs:
           cache: pip
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -r requirements-dev.txt
-      - run: pytest -m "not slow"
+      # Force serial: the per-test create_all/drop_all autouse fixture would
+      # race across xdist workers against the shared Postgres database.
+      - run: pytest -m "not slow" -n 0
 
   frontend-lint:
     runs-on: ubuntu-latest
