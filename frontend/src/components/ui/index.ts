@@ -1,3 +1,4 @@
+export { default as Icon } from './Icon';
 export { default as Pill } from './Pill';
 export type { PillTone } from './Pill';
 export { default as SourcePill } from './SourcePill';

@@ -1,7 +1,5 @@
-// ── App shell — terminal aesthetic: sidebar + topbar + main + statusbar ──
-
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
@@ -15,49 +13,9 @@ import CommandPalette from "./CommandPalette";
 import { SearchProvider } from "../contexts/SearchContext";
 import { RecordTypeProvider, useSelectedRecordType } from "../contexts/RecordTypeContext";
 import { api } from "../api/client";
+import Sidebar from "./layout/Sidebar";
+import TopBar from "./layout/TopBar";
 
-interface NavItem {
-  to: string;
-  icon: string;
-  label: string;
-  badge?: number;
-}
-
-interface NavSection {
-  section: string;
-  items: NavItem[];
-}
-
-const NAV: NavSection[] = [
-  {
-    section: "Pipeline",
-    items: [
-      { to: "/dashboard", icon: "home", label: "Overview" },
-      { to: "/upload", icon: "cloud_upload", label: "Upload" },
-      { to: "/sources", icon: "storage", label: "Sources" },
-    ],
-  },
-  {
-    section: "Matching",
-    items: [
-      { to: "/compare", icon: "compare_arrows", label: "Compare" },
-      { to: "/review", icon: "swap_horiz", label: "Review queue" },
-      { to: "/merge", icon: "merge", label: "Merge queue" },
-      { to: "/unified", icon: "verified", label: "Unified" },
-      { to: "/history", icon: "history", label: "History" },
-    ],
-  },
-  {
-    section: "Utilities",
-    items: [
-      { to: "/insights", icon: "insights", label: "Insights" },
-      { to: "/file-checker", icon: "rule", label: "File checker" },
-      { to: "/ask", icon: "forum", label: "Ask" },
-    ],
-  },
-];
-
-// Routes that render `.table` elements — only these benefit from the density toggle
 const DENSITY_ROUTE_PREFIXES = [
   "/upload",
   "/file-checker",
@@ -88,572 +46,6 @@ const BREADCRUMBS: Record<string, string[]> = {
   "/ask": ["Utilities", "Ask"],
   "/users": ["Utilities", "Admin access"],
 };
-
-function Icon({
-  name,
-  size = 14,
-  filled = false,
-}: {
-  name: string;
-  size?: number;
-  filled?: boolean;
-}) {
-  return (
-    <span
-      className={"material-symbols-outlined" + (filled ? " filled" : "")}
-      style={{
-        fontSize: size,
-        width: size,
-        height: size,
-        lineHeight: `${size}px`,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        verticalAlign: "middle",
-        flexShrink: 0,
-        userSelect: "none",
-      }}
-      aria-hidden="true"
-    >
-      {name}
-    </span>
-  );
-}
-
-function Sidebar({
-  collapsed,
-  onToggleCollapse,
-  reviewCount,
-  mergeCount,
-}: {
-  collapsed: boolean;
-  onToggleCollapse: () => void;
-  reviewCount: number;
-  mergeCount: number;
-}) {
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(NAV.map((sec) => [sec.section, true])),
-  );
-  const toggleSection = useCallback((section: string) => {
-    setOpenSections((prev) => ({
-      ...prev,
-      [section]: !(prev[section] ?? true),
-    }));
-  }, []);
-  const { selectedType, recordTypes, isLoading, setSelectedType, withRecordType } = useSelectedRecordType();
-
-  return (
-    <aside
-      style={{
-        width: collapsed ? 56 : 240,
-        transition: "width 0.2s ease",
-        background: "var(--bg-1)",
-        borderRight: "1px solid var(--border-0)",
-        display: "flex",
-        flexDirection: "column",
-        flexShrink: 0,
-      }}
-    >
-      <div
-        style={{
-          height: 48,
-          padding: collapsed ? 0 : "0 10px 0 14px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: collapsed ? "center" : "flex-start",
-          gap: 10,
-          borderBottom: "1px solid var(--border-0)",
-        }}
-      >
-        {collapsed ? (
-          <button
-            onClick={onToggleCollapse}
-            className="nav-item"
-            title="Expand sidebar"
-            aria-label="Expand sidebar"
-            style={{ justifyContent: "center", padding: 0, color: "var(--fg-2)" }}
-          >
-            <span style={{ display: "inline-flex" }}>
-              <Icon name="arrow_forward" size={20} />
-            </span>
-          </button>
-        ) : (
-          <>
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                background: "var(--fg-0)",
-                color: "var(--bg-1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                fontSize: 14,
-                fontFamily: "IBM Plex Mono, monospace",
-                borderRadius: 5,
-                flexShrink: 0,
-              }}
-            >
-              1B
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                lineHeight: 1.1,
-                minWidth: 0,
-                flex: 1,
-              }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 600 }}>OneBase</span>
-              <span className="mono" style={{ fontSize: 9, color: "var(--fg-2)" }}>
-                record unification
-              </span>
-            </div>
-            <button
-              onClick={onToggleCollapse}
-              className="btn btn-ghost btn-sm"
-              title="Collapse sidebar"
-              aria-label="Collapse sidebar"
-              style={{ padding: 4, color: "var(--fg-3)", flexShrink: 0 }}
-            >
-              <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
-                <Icon name="arrow_forward" size={14} />
-              </span>
-            </button>
-          </>
-        )}
-      </div>
-
-      <div
-        style={{
-          padding: collapsed ? "8px 6px" : "10px 12px",
-          borderBottom: "1px solid var(--border-0)",
-        }}
-      >
-        {collapsed ? (
-          <button
-            type="button"
-            className="nav-item"
-            title={`Record type: ${selectedType}`}
-            aria-label={`Record type: ${selectedType}`}
-            style={{ justifyContent: "center", padding: 0, color: "var(--fg-2)" }}
-          >
-            <Icon name="category" size={20} />
-          </button>
-        ) : (
-          <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <span className="label" style={{ fontSize: 10 }}>Record Type</span>
-            <select
-              className="input"
-              aria-label="Record type"
-              value={selectedType}
-              onChange={(event) => setSelectedType(event.target.value)}
-              disabled={isLoading || recordTypes.length === 0}
-              style={{ height: 28, fontSize: 12, padding: "0 8px", width: "100%" }}
-            >
-              {recordTypes.length === 0 ? (
-                <option value={selectedType}>{selectedType}</option>
-              ) : recordTypes.map((type) => (
-                <option key={type.key} value={type.key}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </div>
-
-      <nav className="scroll" style={{ flex: 1, padding: "8px 0" }}>
-        {NAV.map((sec) => {
-          const sectionOpen = openSections[sec.section] ?? true;
-          return (
-            <div key={sec.section}>
-              {!collapsed && (
-                <button
-                  type="button"
-                  className="label"
-                  aria-expanded={sectionOpen}
-                  onClick={() => toggleSection(sec.section)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px 6px",
-                    fontSize: 11,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    background: "transparent",
-                    border: 0,
-                    color: "var(--fg-2)",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    textAlign: "left",
-                  }}
-                >
-                  <span>{sec.section}</span>
-                  <Icon
-                    name={sectionOpen ? "expand_less" : "expand_more"}
-                    size={14}
-                  />
-                </button>
-              )}
-              {(collapsed || sectionOpen) &&
-                sec.items.map((item) => {
-                  const badge =
-                    item.to === "/review"
-                      ? reviewCount
-                      : item.to === "/merge"
-                        ? mergeCount
-                        : undefined;
-                  const badgeColor =
-                    item.to === "/review" ? "var(--warn)" : "var(--accent)";
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={withRecordType(item.to)}
-                      title={collapsed ? item.label : undefined}
-                      className={({ isActive }) =>
-                        `nav-item${isActive ? " active" : ""}`
-                      }
-                      style={{
-                        justifyContent: collapsed ? "center" : "flex-start",
-                        padding: collapsed ? 0 : "0 12px",
-                      }}
-                    >
-                      <Icon name={item.icon} size={collapsed ? 20 : 18} />
-                      {!collapsed && (
-                        <span style={{ flex: 1 }}>{item.label}</span>
-                      )}
-                      {!collapsed && badge !== undefined && badge > 0 && (
-                        <span
-                          className="nav-badge mono"
-                          style={{ background: badgeColor }}
-                        >
-                          {badge}
-                        </span>
-                      )}
-                      {collapsed && badge !== undefined && badge > 0 && (
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: 6,
-                            right: 6,
-                            width: 7,
-                            height: 7,
-                            borderRadius: "50%",
-                            background: badgeColor,
-                          }}
-                        />
-                      )}
-                    </NavLink>
-                  );
-                })}
-            </div>
-          );
-        })}
-      </nav>
-
-    </aside>
-  );
-}
-
-function AvatarMenu({
-  username,
-  isAdmin,
-  onLogout,
-}: {
-  username: string | undefined;
-  isAdmin: boolean;
-  onLogout: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
-  const initial = (username?.[0] ?? "?").toUpperCase();
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
-        setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Account menu"
-        aria-expanded={open}
-        style={{
-          width: 22,
-          height: 22,
-          borderRadius: "50%",
-          background: "var(--accent)",
-          color: "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 11,
-          fontWeight: 600,
-          border: "none",
-          cursor: "pointer",
-          flexShrink: 0,
-        }}
-        title={username ?? "Account"}
-      >
-        {initial}
-      </button>
-
-      {open && (
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: "calc(100% + 6px)",
-            minWidth: 160,
-            background: "var(--bg-1)",
-            border: "1px solid var(--border-0)",
-            borderRadius: 6,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
-            zIndex: 100,
-            overflow: "hidden",
-          }}
-        >
-          {username && (
-            <div
-              style={{
-                padding: "8px 12px",
-                borderBottom: "1px solid var(--border-0)",
-                fontSize: 11,
-                color: "var(--fg-2)",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <span className="pill-dot" style={{ background: "var(--ok)", flexShrink: 0 }} />
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {username}
-              </span>
-            </div>
-          )}
-          {isAdmin && (
-            <button
-              onClick={() => { navigate("/users"); setOpen(false); }}
-              style={{
-                width: "100%",
-                padding: "7px 12px",
-                background: "transparent",
-                border: "none",
-                borderBottom: "1px solid var(--border-0)",
-                cursor: "pointer",
-                fontSize: 12,
-                color: "var(--fg-1)",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                fontFamily: "inherit",
-                textAlign: "left",
-              }}
-            >
-              <Icon name="group" size={13} />
-              Admin access
-            </button>
-          )}
-          <button
-            onClick={() => { onLogout(); setOpen(false); }}
-            style={{
-              width: "100%",
-              padding: "7px 12px",
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 12,
-              color: "var(--fg-1)",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontFamily: "inherit",
-              textAlign: "left",
-            }}
-          >
-            <Icon name="logout" size={13} />
-            Log out
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TopBar({
-  breadcrumb,
-  onOpenPalette,
-  notificationCenter,
-  density,
-  onCycleDensity,
-  showDensity,
-  theme,
-  onToggleTheme,
-  username,
-  isAdmin,
-  onLogout,
-}: {
-  breadcrumb: string[];
-  onOpenPalette: () => void;
-  notificationCenter: React.ReactNode;
-  density: "compact" | "comfortable" | "spacious";
-  onCycleDensity: () => void;
-  showDensity: boolean;
-  theme: "light" | "dark";
-  onToggleTheme: () => void;
-  username: string | undefined;
-  isAdmin: boolean;
-  onLogout: () => void;
-}) {
-  const densityIcon: Record<typeof density, string> = {
-    compact: "density_small",
-    comfortable: "density_medium",
-    spacious: "density_large",
-  };
-  return (
-    <div className="topbar">
-      {breadcrumb.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            color: "var(--fg-2)",
-            fontSize: 12,
-          }}
-        >
-          {breadcrumb.map((b, i) => (
-            <span
-              key={i}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-            >
-              {i > 0 && <Icon name="chevron_right" size={10} />}
-              <span
-                style={{
-                  color:
-                    i === breadcrumb.length - 1 ? "var(--fg-0)" : "var(--fg-2)",
-                  fontWeight: i === breadcrumb.length - 1 ? 500 : 400,
-                }}
-              >
-                {b}
-              </span>
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div style={{ flex: 1 }} />
-
-      <button
-        onClick={onOpenPalette}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "0 10px",
-          height: 26,
-          minWidth: 260,
-          background: "var(--bg-2)",
-          border: "1px solid var(--border-0)",
-          borderRadius: 4,
-          cursor: "pointer",
-          color: "var(--fg-2)",
-          fontFamily: "inherit",
-          fontSize: 12,
-        }}
-        aria-label="Open command palette"
-      >
-        <Icon name="search" size={13} />
-        <span style={{ flex: 1, textAlign: "left" }}>
-          Jump to, search, run…
-        </span>
-        <span className="kbd">⌘K</span>
-      </button>
-
-      {showDensity && (
-        <button
-          onClick={onCycleDensity}
-          className="btn btn-ghost btn-sm"
-          style={{ padding: 4 }}
-          title={`Density: ${density}`}
-          aria-label={`Density: ${density}. Click to cycle.`}
-        >
-          <Icon name={densityIcon[density]} size={14} />
-        </button>
-      )}
-
-      <button
-        onClick={onToggleTheme}
-        className="btn btn-ghost btn-sm"
-        style={{ padding: 4 }}
-        title={
-          theme === "light" ? "Switch to dark theme" : "Switch to light theme"
-        }
-        aria-label="Toggle theme"
-      >
-        <Icon name={theme === "light" ? "dark_mode" : "light_mode"} size={14} />
-      </button>
-
-      {notificationCenter}
-
-      <AvatarMenu username={username} isAdmin={isAdmin} onLogout={onLogout} />
-    </div>
-  );
-}
-
-function StatusDot({
-  tone = "ok",
-  label,
-}: {
-  tone?: "ok" | "warn" | "danger";
-  label: string;
-}) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-      <span
-        className="live-dot"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: `var(--${tone})`,
-          display: "inline-block",
-        }}
-      />
-      <span>{label}</span>
-    </span>
-  );
-}
-
-function StatusBar() {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="statusbar">
-      <StatusDot label="api" />
-      <StatusDot label="worker" />
-      <StatusDot label="redis" />
-      <StatusDot label="postgres" />
-      <span className="sep">│</span>
-      <span style={{ marginLeft: "auto" }}>
-        {now.toISOString().replace("T", " ").slice(0, 19)} UTC
-      </span>
-    </div>
-  );
-}
 
 const NEXT_DENSITY: Record<
   "compact" | "comfortable" | "spacious",
@@ -762,7 +154,6 @@ function LayoutContent() {
     setDensity(NEXT_DENSITY[density]);
   }, [density, setDensity]);
 
-  // Keyboard shortcuts: Cmd/Ctrl+K command palette, [ collapses sidebar
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -784,7 +175,6 @@ function LayoutContent() {
   }, []);
 
   const breadcrumb = useMemo(() => {
-    // Match longest prefix in BREADCRUMBS, then append dynamic ID segment if any
     const path = location.pathname;
     const matched = Object.keys(BREADCRUMBS)
       .sort((a, b) => b.length - a.length)
@@ -796,66 +186,64 @@ function LayoutContent() {
   }, [location.pathname]);
 
   return (
-      <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-        <Sidebar
-          collapsed={collapsed}
-          onToggleCollapse={() => setCollapsed((c) => !c)}
-          reviewCount={reviewStats?.total_pending ?? 0}
-          mergeCount={reviewStats?.total_confirmed ?? 0}
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      <Sidebar
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed((c) => !c)}
+        reviewCount={reviewStats?.total_pending ?? 0}
+        mergeCount={reviewStats?.total_confirmed ?? 0}
+      />
+
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
+        }}
+      >
+        <TopBar
+          breadcrumb={breadcrumb}
+          onOpenPalette={() => setPaletteOpen(true)}
+          density={density}
+          onCycleDensity={cycleDensity}
+          showDensity={routeHasDensity(location.pathname)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          username={user?.username}
+          isAdmin={user?.role === "admin"}
+          onLogout={handleLogout}
+          notificationCenter={
+            <NotificationCenter
+              notifications={notifs.notifications}
+              unreadCount={notifs.unreadCount}
+              isOpen={notifOpen}
+              onToggle={() => setNotifOpen((p) => !p)}
+              onMarkRead={notifs.markRead}
+              onMarkAllRead={notifs.markAllRead}
+              onRemove={notifs.remove}
+              onClearAll={notifs.clearAll}
+            />
+          }
         />
 
-        <div
+        <main
           style={{
             flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 0,
+            minHeight: 0,
+            background: "var(--bg-0)",
+            overflow: "hidden",
           }}
         >
-          <TopBar
-            breadcrumb={breadcrumb}
-            onOpenPalette={() => setPaletteOpen(true)}
-            density={density}
-            onCycleDensity={cycleDensity}
-            showDensity={routeHasDensity(location.pathname)}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            username={user?.username}
-            isAdmin={user?.role === "admin"}
-            onLogout={handleLogout}
-            notificationCenter={
-              <NotificationCenter
-                notifications={notifs.notifications}
-                unreadCount={notifs.unreadCount}
-                isOpen={notifOpen}
-                onToggle={() => setNotifOpen((p) => !p)}
-                onMarkRead={notifs.markRead}
-                onMarkAllRead={notifs.markAllRead}
-                onRemove={notifs.remove}
-                onClearAll={notifs.clearAll}
-              />
-            }
-          />
-
-          <main
-            style={{
-              flex: 1,
-              minHeight: 0,
-              background: "var(--bg-0)",
-              overflow: "hidden",
-            }}
-          >
-            <Outlet />
-          </main>
-
-          <StatusBar />
-        </div>
-
-        <CommandPalette
-          open={paletteOpen}
-          onClose={() => setPaletteOpen(false)}
-        />
-        <ToastContainer toasts={toasts} onDismiss={removeToast} />
+          <Outlet />
+        </main>
       </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+      />
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
+    </div>
   );
 }
