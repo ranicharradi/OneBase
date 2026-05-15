@@ -18,6 +18,7 @@ import Panel, { PanelHead } from '../components/ui/Panel';
 import { LoadingErrorEmpty } from '../components/ui/LoadingErrorEmpty';
 import Pagination from '../components/Pagination';
 import WorkflowStageRail from '../components/WorkflowStageRail';
+import HandoffBanner from '../components/HandoffBanner';
 import ComparisonRunSelect from '../components/ComparisonRunSelect';
 import QueueBucketTabs from '../components/QueueBucketTabs';
 
@@ -162,6 +163,10 @@ export default function ReviewQueue() {
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
 
+        <div style={{ marginBottom: 10 }}>
+          <span className="pill warn" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 2 · REVIEW</span>
+        </div>
+
         <WorkflowStageRail
           activeStage="review"
           match={{
@@ -184,6 +189,12 @@ export default function ReviewQueue() {
           }}
         />
 
+        <HandoffBanner
+          icon="call_split"
+          text={<>items confirmed here move to the <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Merge queue</span> for field-level reconciliation by a data steward.</>}
+          note="auto-routed · no merging on this screen"
+        />
+
         {/* ── Stale warning ── */}
         {selectedRun?.status === 'stale' && (
           <div style={{
@@ -198,10 +209,6 @@ export default function ReviewQueue() {
         )}
 
         {/* ── Title row ── */}
-        <div className="fade" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <span className="pill warn" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 2 · REVIEW</span>
-          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Review queue</h1>
-        </div>
         {/* ── Bucket tabs ── */}
         <QueueBucketTabs
           buckets={BUCKETS}
@@ -209,23 +216,6 @@ export default function ReviewQueue() {
           counts={bucketCounts}
           onChange={(id) => { setBucket(id as BucketFilter); setPage(0); }}
         />
-
-        {/* ── Handoff banner ── */}
-        <div className="fade" style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '8px 14px', marginBottom: 14,
-          background: 'var(--accent-soft)', border: '1px dashed var(--accent-border)',
-          borderRadius: 6, fontSize: 12, color: 'var(--fg-1)',
-        }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--accent)' }}>call_split</span>
-          <span>
-            <b>Handoff:</b> items confirmed here move to the{' '}
-            <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Merge queue</span>{' '}
-            for field-level reconciliation by a data steward.
-          </span>
-          <span style={{ flex: 1 }} />
-          <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>auto-routed · no merging on this screen</span>
-        </div>
 
         {/* ── Filters ── */}
         <Panel className="fade">

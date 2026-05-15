@@ -17,6 +17,7 @@ import SourcePill from '../components/ui/SourcePill';
 import Pill from '../components/ui/Pill';
 import Pagination from '../components/Pagination';
 import WorkflowStageRail from '../components/WorkflowStageRail';
+import HandoffBanner from '../components/HandoffBanner';
 import { LoadingErrorEmpty } from '../components/ui/LoadingErrorEmpty';
 
 type Tab = 'unified' | 'singletons';
@@ -207,6 +208,10 @@ export default function UnifiedRecords() {
   return (
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
+        <div style={{ marginBottom: 10 }}>
+          <span className="pill ok" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 4 · UNIFIED</span>
+        </div>
+
         <WorkflowStageRail
           activeStage="unified"
           match={{ onClick: () => navigate('/compare'), title: 'Go to Runs' }}
@@ -215,11 +220,17 @@ export default function UnifiedRecords() {
           unified={{ count: { value: unifiedTotal.toLocaleString(), unit: 'records' } }}
         />
 
+        <HandoffBanner
+          icon="verified"
+          text="golden records are the pipeline output — export as CSV or push to downstream systems."
+          note="no further stages · singletons promotable"
+          tone="ok"
+        />
+
         {/* Header */}
         <div className="fade" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, marginTop: 12 }}>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Unified records</h1>
-            <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
               {unifiedTotal.toLocaleString()} unified · {singletonTotal.toLocaleString()} singletons awaiting promotion
             </div>
           </div>

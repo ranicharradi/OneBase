@@ -16,6 +16,7 @@ import IdChip from '../components/ui/IdChip';
 import SourcePill from '../components/ui/SourcePill';
 import Pagination from '../components/Pagination';
 import WorkflowStageRail from '../components/WorkflowStageRail';
+import HandoffBanner from '../components/HandoffBanner';
 import ComparisonRunSelect from '../components/ComparisonRunSelect';
 import QueueBucketTabs from '../components/QueueBucketTabs';
 
@@ -105,6 +106,10 @@ export default function MergeQueue() {
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
 
+        <div style={{ marginBottom: 10 }}>
+          <span className="pill accent" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 3 · MERGE</span>
+        </div>
+
         <WorkflowStageRail
           activeStage="merge"
           match={{
@@ -127,6 +132,12 @@ export default function MergeQueue() {
           }}
         />
 
+        <HandoffBanner
+          icon="merge"
+          text={<>merged pairs produce a golden record in <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Unified records</span>.</>}
+          note="field provenance tracked · one record per group"
+        />
+
         {selectedRun?.status === 'stale' && (
           <div style={{
             padding: '6px 14px', marginBottom: 8, fontSize: 11,
@@ -140,10 +151,6 @@ export default function MergeQueue() {
         )}
 
         {/* ── Title row ── */}
-        <div className="fade" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span className="pill accent" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 3 · MERGE</span>
-          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Merge queue</h1>
-        </div>
         <QueueBucketTabs
           buckets={BUCKETS}
           active={bucket}
