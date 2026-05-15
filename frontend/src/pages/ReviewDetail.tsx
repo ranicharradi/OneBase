@@ -17,7 +17,8 @@ import Pill from '../components/ui/Pill';
 import IdChip from '../components/ui/IdChip';
 import SourcePill from '../components/ui/SourcePill';
 import MatchSignalsPanel from '../components/MatchSignalsPanel';
-import FieldComparisonPanel, { type Layout, LAYOUT_KEY, getInitialLayout } from '../components/FieldComparisonPanel';
+import FieldComparisonPanel from '../components/FieldComparisonPanel';
+import { type Layout, LAYOUT_KEY, getInitialLayout } from '../components/fieldComparisonLayout';
 
 
 export default function ReviewDetail() {

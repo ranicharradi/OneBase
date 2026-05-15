@@ -1,5 +1,4 @@
 from sqlalchemy import (
-    JSON,
     Column,
     DateTime,
     ForeignKey,
@@ -15,7 +14,7 @@ try:
 except ImportError:
     Vector = None  # SQLite tests fall back to LargeBinary
 
-from app.models.base import Base
+from app.models.base import Base, json_type
 from app.models.enums import RecordStatus
 
 
@@ -38,8 +37,8 @@ class StagedRecord(Base):
     name = Column(String(255), nullable=True)
     normalized_name = Column(String(255), nullable=True)
     name_embedding = Column(Vector(384) if Vector else LargeBinary, nullable=True)
-    fields = Column(JSON, nullable=False, default=dict)
-    raw_data = Column(JSON, nullable=False, default=dict)
+    fields = Column(json_type(), nullable=False, default=dict)
+    raw_data = Column(json_type(), nullable=False, default=dict)
     intra_source_group_id = Column(Integer, ForeignKey("staged_records.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 

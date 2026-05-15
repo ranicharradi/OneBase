@@ -1,6 +1,6 @@
-from sqlalchemy import JSON, Column, DateTime, Integer, String, Text, func
+from sqlalchemy import Column, DateTime, Integer, String, Text, func
 
-from app.models.base import Base
+from app.models.base import Base, json_type
 
 
 class DataSource(Base):
@@ -12,7 +12,7 @@ class DataSource(Base):
     description = Column(Text, nullable=True)
     file_format = Column(String(20), nullable=False, default="csv")
     delimiter = Column(String(5), default=";")
-    column_mapping = Column(JSON, nullable=False)
+    column_mapping = Column(json_type(), nullable=False)
     filename_pattern = Column(String(255), nullable=True, default=None)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

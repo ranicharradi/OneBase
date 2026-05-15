@@ -1,7 +1,7 @@
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Table, Text, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text, func
 from sqlalchemy.orm import relationship
 
-from app.models.base import Base
+from app.models.base import Base, json_type
 
 comparison_run_batches = Table(
     "comparison_run_batches",
@@ -26,7 +26,7 @@ class ComparisonRun(Base):
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
     task_id = Column(String(255), nullable=True)
-    stats = Column(JSON, nullable=False, default=dict)
+    stats = Column(json_type(), nullable=False, default=dict)
     error_message = Column(Text, nullable=True)
 
     batches = relationship(

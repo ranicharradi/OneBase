@@ -1,13 +1,13 @@
 """Unified (golden record) model with full field-level provenance."""
 
-from sqlalchemy import JSON, Column, DateTime, Float, Index, Integer, LargeBinary, String, func
+from sqlalchemy import Column, DateTime, Float, Index, Integer, LargeBinary, String, func
 
 try:
     from pgvector.sqlalchemy import Vector
 except ImportError:
     Vector = None
 
-from app.models.base import Base
+from app.models.base import Base, json_type
 
 
 class UnifiedRecord(Base):
@@ -20,9 +20,9 @@ class UnifiedRecord(Base):
     name = Column(String(255), nullable=False)
     normalized_name = Column(String(255), nullable=True)
     name_embedding = Column(Vector(384) if Vector else LargeBinary, nullable=True)
-    fields = Column(JSON, nullable=False, default=dict)
-    provenance = Column(JSON, nullable=False, default=dict)
-    source_record_ids = Column(JSON, nullable=False, default=list)
+    fields = Column(json_type(), nullable=False, default=dict)
+    provenance = Column(json_type(), nullable=False, default=dict)
+    source_record_ids = Column(json_type(), nullable=False, default=list)
     dq_completeness = Column(Float, nullable=True)
     dq_validity = Column(Float, nullable=True)
     dq_score = Column(Float, nullable=True)

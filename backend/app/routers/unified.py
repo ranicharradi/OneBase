@@ -355,12 +355,7 @@ def promote_singleton(
             status_code=status.HTTP_409_CONFLICT,
             detail="Record is part of a match candidate; promote via merge flow instead",
         )
-    already_unified = (
-        db.query(UnifiedRecord.id).filter(UnifiedRecord.source_record_ids.contains([record_id])).first()
-        if hasattr(UnifiedRecord.source_record_ids, "contains")
-        else None
-    )
-    if already_unified:
+    if record_id in _get_already_unified_ids(db, record.type):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Record is already part of a unified record",

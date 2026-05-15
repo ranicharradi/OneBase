@@ -96,6 +96,28 @@ const mockRecordTypes = {
   types: [{ key: 'supplier', label: 'Supplier', field_count: 3 }],
 }
 
+const mockRuns = [
+  {
+    id: 99,
+    type: 'supplier',
+    mode: 'FILE_VS_FILE',
+    status: 'completed',
+    name: null,
+    created_by: 'tester',
+    created_at: '2026-03-28T09:00:00Z',
+    started_at: null,
+    finished_at: null,
+    task_id: null,
+    stats: {},
+    batch_ids: [1, 2],
+    batches: [
+      { id: 1, filename: 'sap.csv' },
+      { id: 2, filename: 'oracle.csv' },
+    ],
+    error_message: null,
+  },
+]
+
 const mockSupplierType = {
   key: 'supplier',
   label: 'Supplier',
@@ -145,7 +167,7 @@ function setupFetch(queueOverride?: Partial<typeof mockQueue>) {
     }
     if (urlStr.includes('/api/comparisons/')) {
       return Promise.resolve(
-        new Response(JSON.stringify([]), {
+        new Response(JSON.stringify(mockRuns), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         }),
@@ -179,9 +201,36 @@ describe('ReviewQueue page', () => {
   })
 
   it('renders loading state while fetching', () => {
-    vi.spyOn(global, 'fetch').mockImplementation(() => new Promise(() => {}))
+    vi.spyOn(global, 'fetch').mockImplementation((url) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/api/record-types/supplier')) {
+        return Promise.resolve(
+          new Response(JSON.stringify(mockSupplierType), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }
+      if (urlStr.includes('/api/record-types')) {
+        return Promise.resolve(
+          new Response(JSON.stringify(mockRecordTypes), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }
+      if (urlStr.includes('/api/comparisons/')) {
+        return Promise.resolve(
+          new Response(JSON.stringify(mockRuns), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }
+      return new Promise(() => {})
+    })
     render(<ReviewQueue />)
-    expect(screen.getByText(/loading queue/i)).toBeInTheDocument()
+    return expect(screen.findByText(/loading queue/i)).resolves.toBeInTheDocument()
   })
 
   it('renders empty state when queue is empty', async () => {

@@ -1,5 +1,4 @@
 from sqlalchemy import (
-    JSON,
     Column,
     DateTime,
     Float,
@@ -11,7 +10,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 
-from app.models.base import Base
+from app.models.base import Base, json_type
 from app.models.enums import CandidateStatus
 
 
@@ -38,7 +37,7 @@ class MatchCandidate(Base):
     side_a_kind = Column(String(10), nullable=False, default="staged")
     side_b_kind = Column(String(10), nullable=False, default="staged")
     confidence = Column(Float, nullable=False)
-    match_signals = Column(JSON, nullable=False)
+    match_signals = Column(json_type(), nullable=False)
     status = Column(String(20), default=CandidateStatus.PENDING)
     reviewed_by = Column(String(100), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)

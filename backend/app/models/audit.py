@@ -1,6 +1,6 @@
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 
-from app.models.base import Base
+from app.models.base import Base, json_type
 
 
 class AuditLog(Base):
@@ -11,5 +11,5 @@ class AuditLog(Base):
     action = Column(String(50), nullable=False)
     entity_type = Column(String(50), nullable=True)
     entity_id = Column(Integer, nullable=True)
-    details = Column(JSON, nullable=True)
+    details = Column(json_type(), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
