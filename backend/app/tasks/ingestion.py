@@ -32,6 +32,7 @@ def process_upload(self, batch_id: int):
             from app.models.batch import ImportBatch
             from app.models.enums import BatchStatus
             from app.services.ingestion import run_ingestion
+            from app.services.notifications import publish_notification
 
             batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
 
@@ -49,11 +50,15 @@ def process_upload(self, batch_id: int):
             with open(filepath, "rb") as f:
                 file_content = f.read()
 
-            # Define progress callback
+            # Define progress callback — relays to Celery state and WebSocket.
             def progress_callback(stage: str, pct: int):
                 self.update_state(
                     state=stage.upper(),
                     meta={"stage": stage, "progress": pct},
+                )
+                publish_notification(
+                    "matching_progress",
+                    {"batch_id": batch_id, "stage": stage, "progress": pct},
                 )
 
             # Detect re-upload before ingestion so we can mark runs stale afterward.
@@ -84,11 +89,21 @@ def process_upload(self, batch_id: int):
                 batch_id,
                 row_count,
             )
+            publish_notification(
+                "matching_complete",
+                {"batch_id": batch_id, "row_count": row_count},
+            )
             return {"status": "completed", "batch_id": batch_id, "row_count": row_count}
 
         except Exception as e:
             db.rollback()
             logger.error("Ingestion failed for batch %d: %s", batch_id, e)
+            from app.services.notifications import publish_notification
+
+            publish_notification(
+                "matching_failed",
+                {"batch_id": batch_id, "error": str(e)},
+            )
             # Clean up orphaned file and mark batch as failed
             try:
                 from app.models.batch import ImportBatch
