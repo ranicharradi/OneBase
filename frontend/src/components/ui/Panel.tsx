@@ -1,14 +1,15 @@
-import type { ReactNode } from 'react';
+import type { MouseEventHandler, ReactNode } from 'react';
 
 interface PanelProps {
   children: ReactNode;
   className?: string;
   style?: React.CSSProperties;
+  onClick?: MouseEventHandler<HTMLElement>;
 }
 
-export default function Panel({ children, className, style }: PanelProps) {
+export default function Panel({ children, className, style, onClick }: PanelProps) {
   return (
-    <section className={['panel', className].filter(Boolean).join(' ')} style={style}>
+    <section className={['panel', className].filter(Boolean).join(' ')} style={style} onClick={onClick}>
       {children}
     </section>
   );

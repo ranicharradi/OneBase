@@ -222,7 +222,7 @@ function SourceModal({
     <Modal
       onClose={onClose}
       title={isEditing ? 'Edit data source' : 'New data source'}
-      size="lg"
+      size="lg" // lg gives column-mapper room
       panelStyle={{ maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
     >
       <form

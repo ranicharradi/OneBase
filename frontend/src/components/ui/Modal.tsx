@@ -1,5 +1,3 @@
-// ── Modal shell — backdrop + panel + PanelHead + ESC/outside-click ──
-
 import { type ReactNode, useEffect } from 'react';
 import Panel, { PanelHead } from './Panel';
 
@@ -32,26 +30,25 @@ export function Modal({ onClose, title, children, size = 'md', panelStyle }: Mod
       <Panel
         className="fade"
         style={{ width: '100%', maxWidth: SIZE_MAX_WIDTH[size], boxShadow: 'var(--shadow-lg)', ...panelStyle }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <div onClick={(e) => e.stopPropagation()}>
-          <PanelHead>
-            {typeof title === 'string' ? (
-              <span className="panel-title">{title}</span>
-            ) : (
-              title
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-ghost btn-sm"
-              style={{ padding: 4 }}
-              aria-label="Close"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
-            </button>
-          </PanelHead>
-          {children}
-        </div>
+        <PanelHead>
+          {typeof title === 'string' ? (
+            <span className="panel-title">{title}</span>
+          ) : (
+            title
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-ghost btn-sm"
+            style={{ padding: 4 }}
+            aria-label="Close"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+          </button>
+        </PanelHead>
+        {children}
       </Panel>
     </div>
   );
