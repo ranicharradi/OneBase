@@ -77,7 +77,7 @@ export default function TopBar({
         <span style={{ flex: 1, textAlign: "left" }}>
           Jump to, search, run…
         </span>
-        <span className="kbd">⌘K</span>
+        <span className="kbd">⌘</span>
       </button>
 
       <button
