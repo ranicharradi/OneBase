@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
@@ -19,7 +19,7 @@ from app.schemas.file_check import (
     FileCheckReportListResponse,
     FileCheckReportResponse,
 )
-from app.services.file_check import FileCheckCriteria, analyze_file_content
+from app.services.file_check import FileCheckCriteria, analyze_file_content, summarize_file_check_issues
 from app.utils.paths import safe_upload_path
 
 router = APIRouter(prefix="/api/file-checks", tags=["file-checks"])
@@ -82,12 +82,6 @@ async def create_file_check(
             report.delimiter = analysis.delimiter
             report.status = analysis.status
             report.total_rows = analysis.total_rows
-            report.rows_with_issues = analysis.rows_with_issues
-            report.empty_row_count = analysis.empty_row_count
-            report.missing_value_count = analysis.missing_value_count
-            report.corrupted_value_count = analysis.corrupted_value_count
-            report.stored_issue_count = analysis.stored_issue_count
-            report.issue_cap_reached = analysis.issue_cap_reached
             report.criteria_version = analysis.criteria_version
             report.completed_at = _utcnow()
 
@@ -131,7 +125,7 @@ async def create_file_check(
             detail="File check could not be saved",
         ) from exc
 
-    return report
+    return _report_response(report)
 
 
 @router.get("", response_model=FileCheckReportListResponse)
@@ -142,12 +136,12 @@ def list_file_checks(
     current_user: User = Depends(get_current_user),
 ):
     """List file check report history."""
-    query = db.query(FileCheckReport)
+    query = db.query(FileCheckReport).options(selectinload(FileCheckReport.issues))
     total = query.count()
     items = (
         query.order_by(FileCheckReport.created_at.desc(), FileCheckReport.id.desc()).offset(offset).limit(limit).all()
     )
-    return FileCheckReportListResponse(items=items, total=total)
+    return FileCheckReportListResponse(items=[_report_response(item) for item in items], total=total)
 
 
 @router.get("/{report_id}", response_model=FileCheckReportDetailResponse)
@@ -159,7 +153,12 @@ def get_file_check(
     current_user: User = Depends(get_current_user),
 ):
     """Fetch a file check report with paginated issues."""
-    report = db.query(FileCheckReport).filter(FileCheckReport.id == report_id).first()
+    report = (
+        db.query(FileCheckReport)
+        .options(selectinload(FileCheckReport.issues))
+        .filter(FileCheckReport.id == report_id)
+        .first()
+    )
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File check report not found")
 
@@ -172,13 +171,36 @@ def get_file_check(
         .all()
     )
 
-    report_data = FileCheckReportResponse.model_validate(report).model_dump()
+    report_data = _report_response(report).model_dump()
     return FileCheckReportDetailResponse(
         **report_data,
         issues=issues,
         issue_total=issue_total,
         issue_limit=issue_limit,
         issue_offset=issue_offset,
+    )
+
+
+def _report_response(report: FileCheckReport) -> FileCheckReportResponse:
+    issue_summary = summarize_file_check_issues(report.issues, issue_cap=ISSUE_CAP)
+    return FileCheckReportResponse(
+        id=report.id,
+        original_filename=report.original_filename,
+        file_size_bytes=report.file_size_bytes,
+        delimiter=report.delimiter,
+        status=report.status,
+        total_rows=report.total_rows,
+        rows_with_issues=issue_summary.rows_with_issues,
+        empty_row_count=issue_summary.empty_row_count,
+        missing_value_count=issue_summary.missing_value_count,
+        corrupted_value_count=issue_summary.corrupted_value_count,
+        stored_issue_count=issue_summary.stored_issue_count,
+        issue_cap_reached=issue_summary.issue_cap_reached,
+        criteria_version=report.criteria_version,
+        error_message=report.error_message,
+        checked_by=report.checked_by,
+        created_at=report.created_at,
+        completed_at=report.completed_at,
     )
 
 

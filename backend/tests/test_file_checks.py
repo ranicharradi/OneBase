@@ -34,6 +34,14 @@ def test_file_check_models_have_expected_tables(test_db):
     assert FileCheckReport.__tablename__ == "file_check_reports"
     assert FileCheckIssue.__tablename__ == "file_check_issues"
 
+    report_columns = set(FileCheckReport.__table__.columns.keys())
+    assert "rows_with_issues" not in report_columns
+    assert "empty_row_count" not in report_columns
+    assert "missing_value_count" not in report_columns
+    assert "corrupted_value_count" not in report_columns
+    assert "stored_issue_count" not in report_columns
+    assert "issue_cap_reached" not in report_columns
+
 
 def test_file_check_migration_does_not_create_branch_head():
     """Migrations must form a single linear chain (no branches)."""
@@ -52,12 +60,6 @@ def test_file_check_report_issue_relationship(test_db):
         delimiter=",",
         status="failed",
         total_rows=2,
-        rows_with_issues=1,
-        empty_row_count=0,
-        missing_value_count=1,
-        corrupted_value_count=0,
-        stored_issue_count=1,
-        issue_cap_reached=False,
         criteria_version="v1",
         checked_by="admin",
     )

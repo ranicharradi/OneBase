@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -15,12 +15,6 @@ class FileCheckReport(Base):
     delimiter = Column(String(8), nullable=False)
     status = Column(String(20), nullable=False, default=FileCheckStatus.PROCESSING)
     total_rows = Column(Integer, nullable=False, default=0)
-    rows_with_issues = Column(Integer, nullable=False, default=0)
-    empty_row_count = Column(Integer, nullable=False, default=0)
-    missing_value_count = Column(Integer, nullable=False, default=0)
-    corrupted_value_count = Column(Integer, nullable=False, default=0)
-    stored_issue_count = Column(Integer, nullable=False, default=0)
-    issue_cap_reached = Column(Boolean, nullable=False, default=False)
     criteria_version = Column(String(50), nullable=False, default="v1")
     error_message = Column(Text, nullable=True)
     checked_by = Column(String(100), nullable=False)

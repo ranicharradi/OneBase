@@ -3,11 +3,27 @@
 import csv
 import io
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from app.models.enums import FileCheckIssueType, FileCheckSeverity, FileCheckStatus
 
 CRITERIA_VERSION = "v1"
 MAX_VALUE_PREVIEW = 255
+
+
+class FileCheckIssueLike(Protocol):
+    row_number: int
+    issue_type: str
+
+
+@dataclass(frozen=True)
+class FileCheckIssueSummary:
+    rows_with_issues: int
+    empty_row_count: int
+    missing_value_count: int
+    corrupted_value_count: int
+    stored_issue_count: int
+    issue_cap_reached: bool
 
 
 @dataclass(frozen=True)
@@ -38,6 +54,25 @@ class FileCheckAnalysis:
     issue_cap_reached: bool
     criteria_version: str
     issues: list[FileCheckIssueData] = field(default_factory=list)
+
+
+def summarize_file_check_issues(
+    issues: list[FileCheckIssueLike],
+    issue_cap: int,
+) -> FileCheckIssueSummary:
+    rows_with_issue_numbers = {issue.row_number for issue in issues}
+    empty_row_count = _count_issue_type(issues, FileCheckIssueType.EMPTY_ROW)
+    missing_value_count = _count_issue_type(issues, FileCheckIssueType.MISSING_VALUE)
+    corrupted_value_count = _count_issue_type(issues, FileCheckIssueType.CORRUPTED_VALUE)
+
+    return FileCheckIssueSummary(
+        rows_with_issues=len(rows_with_issue_numbers),
+        empty_row_count=empty_row_count,
+        missing_value_count=missing_value_count,
+        corrupted_value_count=corrupted_value_count,
+        stored_issue_count=len(issues),
+        issue_cap_reached=len(issues) >= issue_cap,
+    )
 
 
 def decode_file_content(file_content: bytes) -> str:
@@ -182,3 +217,7 @@ def _preview_value(value: str | None) -> str | None:
         return None
 
     return value[:MAX_VALUE_PREVIEW]
+
+
+def _count_issue_type(issues: list[FileCheckIssueLike], issue_type: FileCheckIssueType) -> int:
+    return sum(1 for issue in issues if issue.issue_type == issue_type)

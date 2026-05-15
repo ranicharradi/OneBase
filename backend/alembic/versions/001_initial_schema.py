@@ -1,6 +1,6 @@
 """Initial records schema (clean break from supplier-only era).
 
-Revision ID: 001_records_schema
+Revision ID: 001_initial_schema
 Revises:
 Create Date: 2026-05-04
 """
@@ -12,10 +12,17 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "001_records_schema"
+revision = "001_initial_schema"
 down_revision = None
 branch_labels = None
 depends_on = None
+
+FIELD_KEYS = [
+    "supplier_name",
+    "short_name",
+    "currency",
+    "contact_name",
+]
 
 
 def upgrade() -> None:
@@ -61,7 +68,6 @@ def upgrade() -> None:
         sa.Column("error_message", sa.Text, nullable=True),
         sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
         sa.Column("task_id", sa.String(255), nullable=True),
-        sa.Column("matching_task_id", sa.String(255), nullable=True),
     )
 
     # staged_records — hybrid storage: universal name + JSONB extras
@@ -92,35 +98,92 @@ def upgrade() -> None:
         "WITH (m = 16, ef_construction = 64)"
     )
 
+    # comparison_runs
+    op.create_table(
+        "comparison_runs",
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column("type", sa.String(50), nullable=False),
+        sa.Column("mode", sa.String(20), nullable=False),
+        sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
+        sa.Column("name", sa.String(255), nullable=True),
+        sa.Column("created_by", sa.String(100), nullable=False),
+        sa.Column("created_at", sa.DateTime, server_default=sa.func.now(), nullable=False),
+        sa.Column("started_at", sa.DateTime, nullable=True),
+        sa.Column("finished_at", sa.DateTime, nullable=True),
+        sa.Column("task_id", sa.String(255), nullable=True),
+        sa.Column("stats", postgresql.JSONB, nullable=False, server_default="{}"),
+        sa.Column("error_message", sa.Text, nullable=True),
+    )
+    op.create_index("ix_comparison_runs_type_status", "comparison_runs", ["type", "status"])
+    op.create_index("ix_comparison_runs_created_at", "comparison_runs", [sa.text("created_at DESC")])
+
+    # comparison_run_batches
+    op.create_table(
+        "comparison_run_batches",
+        sa.Column(
+            "comparison_run_id",
+            sa.Integer,
+            sa.ForeignKey("comparison_runs.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column(
+            "import_batch_id",
+            sa.Integer,
+            sa.ForeignKey("import_batches.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+    )
+    op.create_index("ix_crb_batch", "comparison_run_batches", ["import_batch_id"])
+
     # match_groups
     op.create_table(
         "match_groups",
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
         sa.Column("type", sa.String(50), nullable=False),
-        sa.Column("status", sa.String(20), server_default="open"),
+        sa.Column(
+            "comparison_run_id",
+            sa.Integer,
+            sa.ForeignKey("comparison_runs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("status", sa.String(20), nullable=False, server_default="open"),
         sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
     )
-    op.create_index("ix_match_groups_type", "match_groups", ["type"])
+    op.create_index("ix_match_groups_run", "match_groups", ["comparison_run_id"])
 
     # match_candidates
     op.create_table(
         "match_candidates",
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
         sa.Column("type", sa.String(50), nullable=False),
-        sa.Column("record_a_id", sa.Integer, sa.ForeignKey("staged_records.id"), nullable=False),
-        sa.Column("record_b_id", sa.Integer, sa.ForeignKey("staged_records.id"), nullable=False),
+        sa.Column(
+            "comparison_run_id",
+            sa.Integer,
+            sa.ForeignKey("comparison_runs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("record_a_id", sa.Integer, nullable=False),
+        sa.Column("record_b_id", sa.Integer, nullable=False),
+        sa.Column("side_a_kind", sa.String(10), nullable=False, server_default="staged"),
+        sa.Column("side_b_kind", sa.String(10), nullable=False, server_default="staged"),
         sa.Column("confidence", sa.Float, nullable=False),
         sa.Column("match_signals", postgresql.JSONB, nullable=False),
-        sa.Column("status", sa.String(20), server_default="pending"),
+        sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
         sa.Column("reviewed_by", sa.String(100), nullable=True),
         sa.Column("reviewed_at", sa.DateTime, nullable=True),
-        sa.Column("group_id", sa.Integer, sa.ForeignKey("match_groups.id"), nullable=True),
+        sa.Column("group_id", sa.Integer, sa.ForeignKey("match_groups.id", ondelete="SET NULL"), nullable=True),
         sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
-        sa.UniqueConstraint("record_a_id", "record_b_id", name="uq_match_pair"),
+        sa.UniqueConstraint(
+            "comparison_run_id",
+            "record_a_id",
+            "record_b_id",
+            "side_a_kind",
+            "side_b_kind",
+            name="uq_match_pair_per_run",
+        ),
     )
-    op.create_index("ix_match_candidates_type", "match_candidates", ["type"])
+    op.create_index("ix_match_candidates_run", "match_candidates", ["comparison_run_id"])
     op.create_index("ix_match_candidates_status", "match_candidates", ["status"])
-    op.create_index("ix_match_candidates_group", "match_candidates", ["group_id"])
 
     # unified_records
     op.create_table(
@@ -128,14 +191,26 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
         sa.Column("type", sa.String(50), nullable=False),
         sa.Column("name", sa.String(255), nullable=False),
+        sa.Column("normalized_name", sa.String(255), nullable=True),
+        sa.Column("name_embedding", Vector(384), nullable=True),
         sa.Column("fields", postgresql.JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
         sa.Column("provenance", postgresql.JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
         sa.Column("source_record_ids", postgresql.JSONB, nullable=False, server_default=sa.text("'[]'::jsonb")),
-        sa.Column("match_candidate_id", sa.Integer, sa.ForeignKey("match_candidates.id"), nullable=True),
+        sa.Column("dq_completeness", sa.Float(), nullable=True),
+        sa.Column("dq_validity", sa.Float(), nullable=True),
+        sa.Column("dq_score", sa.Float(), nullable=True),
         sa.Column("created_by", sa.String(100), nullable=False),
         sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
     )
     op.create_index("ix_unified_records_type", "unified_records", ["type"])
+    op.create_index("ix_unified_records_normalized_name", "unified_records", ["normalized_name"])
+    op.create_index("ix_unified_records_dq_score", "unified_records", ["dq_score"])
+    op.execute(
+        "CREATE INDEX ix_unified_records_name_embedding_hnsw "
+        "ON unified_records USING hnsw (name_embedding vector_cosine_ops) "
+        "WITH (m = 16, ef_construction = 64)"
+    )
+    _create_ask_view()
 
     # audit_log
     op.create_table(
@@ -180,12 +255,6 @@ def upgrade() -> None:
         sa.Column("delimiter", sa.String(8), nullable=False),
         sa.Column("status", sa.String(20), nullable=False, server_default="processing"),
         sa.Column("total_rows", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("rows_with_issues", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("empty_row_count", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("missing_value_count", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("corrupted_value_count", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("stored_issue_count", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("issue_cap_reached", sa.Boolean, nullable=False, server_default=sa.false()),
         sa.Column("criteria_version", sa.String(50), nullable=False, server_default="v1"),
         sa.Column("error_message", sa.Text, nullable=True),
         sa.Column("checked_by", sa.String(100), nullable=False),
@@ -209,6 +278,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    _drop_ask_view()
     op.drop_table("file_check_issues")
     op.drop_table("file_check_reports")
     op.drop_table("ml_model_versions")
@@ -216,7 +286,46 @@ def downgrade() -> None:
     op.drop_table("unified_records")
     op.drop_table("match_candidates")
     op.drop_table("match_groups")
+    op.drop_table("comparison_run_batches")
+    op.drop_table("comparison_runs")
     op.drop_table("staged_records")
     op.drop_table("import_batches")
     op.drop_table("data_sources")
     op.drop_table("users")
+
+
+def _create_ask_view() -> None:
+    bind = op.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+
+    json_cols = ",\n  ".join(f"(u.fields ->> '{key}') AS {key}" for key in FIELD_KEYS)
+    sql = f"""
+        CREATE OR REPLACE VIEW v_unified_records_for_ask AS
+        SELECT
+          u.id,
+          u.type AS record_type,
+          ds.name AS source_name,
+          u.created_at,
+          u.dq_completeness,
+          u.dq_validity,
+          u.dq_score,
+          {json_cols}
+        FROM unified_records u
+        LEFT JOIN LATERAL (
+          SELECT sr.data_source_id
+          FROM staged_records sr
+          WHERE sr.id::text = (u.source_record_ids->>0)
+          LIMIT 1
+        ) first_src ON TRUE
+        LEFT JOIN data_sources ds ON ds.id = first_src.data_source_id
+        """  # noqa: S608
+    op.execute(sql)
+
+
+def _drop_ask_view() -> None:
+    bind = op.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+
+    op.execute("DROP VIEW IF EXISTS v_unified_records_for_ask")
