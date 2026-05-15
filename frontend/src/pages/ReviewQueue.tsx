@@ -15,6 +15,7 @@ import type {
   ReviewQueueResponse, ReviewActionResponse, ReviewStats,
 } from '../api/types';
 import Panel, { PanelHead } from '../components/ui/Panel';
+import { LoadingErrorEmpty } from '../components/ui/LoadingErrorEmpty';
 import Pagination from '../components/Pagination';
 import WorkflowStageRail from '../components/WorkflowStageRail';
 import ComparisonRunSelect from '../components/ComparisonRunSelect';
@@ -247,21 +248,25 @@ export default function ReviewQueue() {
 
           {/* Card list */}
           <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {!runId ? (
-              <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>compare_arrows</span>
-                <div style={{ marginTop: 8 }}>Select a run above to load the review queue.</div>
-              </div>
-            ) : isLoading && !queue ? (
-              <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
-                Loading queue…
-              </div>
-            ) : filteredItems.length === 0 ? (
-              <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>inbox</span>
-                <div style={{ marginTop: 8 }}>No candidates match the current filters.</div>
-              </div>
-            ) : filteredItems.map((item, i) => {
+            <LoadingErrorEmpty
+              isLoading={isLoading && !queue}
+              isEmpty={!runId || filteredItems.length === 0}
+              emptyMessage={
+                !runId ? (
+                  <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>compare_arrows</span>
+                    <div style={{ marginTop: 8 }}>Select a run above to load the review queue.</div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>inbox</span>
+                    <div style={{ marginTop: 8 }}>No candidates match the current filters.</div>
+                  </div>
+                )
+              }
+            >
+              <>
+                {filteredItems.map((item, i) => {
               const isPending = item.status === 'pending';
               const statusTone = item.status === 'confirmed' ? 'ok' : item.status === 'rejected' ? 'danger' : null;
               const recordASummary = fieldSummary(item.record_a_fields as Record<string, unknown>, summaryFieldKeys);
@@ -404,7 +409,9 @@ export default function ReviewQueue() {
                   </div>
                 </div>
               );
-            })}
+                })}
+              </>
+            </LoadingErrorEmpty>
           </div>
 
           {/* Bottom pagination */}

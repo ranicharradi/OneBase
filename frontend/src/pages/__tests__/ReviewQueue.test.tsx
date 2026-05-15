@@ -200,7 +200,7 @@ describe('ReviewQueue page', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders loading state while fetching', () => {
+  it('renders loading state while fetching', async () => {
     vi.spyOn(global, 'fetch').mockImplementation((url) => {
       const urlStr = String(url)
       if (urlStr.includes('/api/record-types/supplier')) {
@@ -229,8 +229,11 @@ describe('ReviewQueue page', () => {
       }
       return new Promise(() => {})
     })
-    render(<ReviewQueue />)
-    return expect(screen.findByText(/loading queue/i)).resolves.toBeInTheDocument()
+    const { container } = render(<ReviewQueue />)
+    // LoadingErrorEmpty renders a <Spinner /> (no text) during loading
+    await vi.waitFor(() => {
+      expect(container.querySelector('.spin')).toBeInTheDocument()
+    })
   })
 
   it('renders empty state when queue is empty', async () => {

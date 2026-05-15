@@ -11,6 +11,7 @@ import { confidenceTone } from '../utils/confidence';
 import type { ReviewQueueItem, ReviewQueueResponse, ReviewStats } from '../api/types';
 import { useSearch } from '../contexts/SearchContext';
 import Panel, { PanelHead } from '../components/ui/Panel';
+import { LoadingErrorEmpty } from '../components/ui/LoadingErrorEmpty';
 import IdChip from '../components/ui/IdChip';
 import SourcePill from '../components/ui/SourcePill';
 import Pagination from '../components/Pagination';
@@ -173,38 +174,34 @@ export default function MergeQueue() {
                 {runId ? `${queue?.total ?? 0} item${(queue?.total ?? 0) !== 1 ? 's' : ''}` : ''}
               </span>
             </PanelHead>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th style={{ width: 70 }}>Pair</th>
-                  <th>Record</th>
-                  <th style={{ width: 90 }} className="num">Confidence</th>
-                  <th style={{ width: 120 }}>Confirmed by</th>
-                  <th style={{ width: 90 }}>Age</th>
-                  <th style={{ width: 120 }} />
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading && (
+            <LoadingErrorEmpty
+              isLoading={isLoading && !queue}
+              isEmpty={!runId || filteredItems.length === 0}
+              emptyMessage={
+                !runId ? (
+                  <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)', display: 'block', marginBottom: 8 }}>merge</span>
+                    Select a run above to load the merge queue.
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+                    {bucket === 'confirmed' ? 'No items awaiting merge — review queue may still be empty.' : `No ${BUCKETS.find(b => b.id === bucket)?.label.toLowerCase()} items.`}
+                  </div>
+                )
+              }
+            >
+              <table className="table">
+                <thead>
                   <tr>
-                    <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--fg-2)', fontSize: 12 }}>Loading…</td>
+                    <th style={{ width: 70 }}>Pair</th>
+                    <th>Record</th>
+                    <th style={{ width: 90 }} className="num">Confidence</th>
+                    <th style={{ width: 120 }}>Confirmed by</th>
+                    <th style={{ width: 90 }}>Age</th>
+                    <th style={{ width: 120 }} />
                   </tr>
-                )}
-                {!runId && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--fg-2)', fontSize: 12 }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)', display: 'block', marginBottom: 8 }}>merge</span>
-                      Select a run above to load the merge queue.
-                    </td>
-                  </tr>
-                )}
-                {runId && !isLoading && filteredItems.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--fg-2)', fontSize: 12 }}>
-                      {bucket === 'confirmed' ? 'No items awaiting merge — review queue may still be empty.' : `No ${BUCKETS.find(b => b.id === bucket)?.label.toLowerCase()} items.`}
-                    </td>
-                  </tr>
-                )}
+                </thead>
+                <tbody>
                 {filteredItems.map((item, i) => {
                   const tone = confidenceTone(item.confidence);
                   return (
@@ -266,8 +263,9 @@ export default function MergeQueue() {
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </LoadingErrorEmpty>
 
             {(queue?.total ?? 0) > PAGE_SIZE && (
               <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border-0)' }}>
