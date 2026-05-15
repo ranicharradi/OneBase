@@ -1,21 +1,17 @@
-// ── Theme + density context — light/dark + compact/comfortable/spacious ──
+// ── Theme context — light/dark ──
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 type Theme = 'light' | 'dark';
-type Density = 'compact' | 'comfortable' | 'spacious';
 
 interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
-  density: Density;
-  setDensity: (d: Density) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
 
 const THEME_KEY = 'onebase_theme';
-const DENSITY_KEY = 'onebase_density';
 
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY);
@@ -23,25 +19,13 @@ function getInitialTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-function getInitialDensity(): Density {
-  const stored = localStorage.getItem(DENSITY_KEY);
-  if (stored === 'compact' || stored === 'comfortable' || stored === 'spacious') return stored;
-  return 'comfortable';
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
-  const [density, setDensityState] = useState<Density>(getInitialDensity);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-density', density);
-    localStorage.setItem(DENSITY_KEY, density);
-  }, [density]);
 
   // Sync with system preference when no explicit theme choice is stored
   useEffect(() => {
@@ -58,7 +42,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, density, setDensity: setDensityState }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -14,22 +14,6 @@ import { api } from "../api/client";
 import Sidebar from "./layout/Sidebar";
 import TopBar from "./layout/TopBar";
 
-const DENSITY_ROUTE_PREFIXES = [
-  "/upload",
-  "/file-checker",
-  "/sources",
-  "/review",
-  "/merge",
-  "/unified",
-  "/users",
-];
-
-function routeHasDensity(pathname: string): boolean {
-  return DENSITY_ROUTE_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(p + "/"),
-  );
-}
-
 const BREADCRUMBS: Record<string, string[]> = {
   "/dashboard": ["Pipeline", "Overview"],
   "/insights": ["Utilities", "Insights"],
@@ -45,15 +29,6 @@ const BREADCRUMBS: Record<string, string[]> = {
   "/users": ["Utilities", "Admin access"],
 };
 
-const NEXT_DENSITY: Record<
-  "compact" | "comfortable" | "spacious",
-  "compact" | "comfortable" | "spacious"
-> = {
-  compact: "comfortable",
-  comfortable: "spacious",
-  spacious: "compact",
-};
-
 export default function Layout() {
   return (
     <SearchProvider>
@@ -66,7 +41,7 @@ export default function Layout() {
 
 function LayoutContent() {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme, density, setDensity } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const { selectedType, withRecordType } = useSelectedRecordType();
 
   const { data: reviewStats } = useQuery({
@@ -134,10 +109,6 @@ function LayoutContent() {
     navigate("/login");
   }, [logout, navigate]);
 
-  const cycleDensity = useCallback(() => {
-    setDensity(NEXT_DENSITY[density]);
-  }, [density, setDensity]);
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -189,9 +160,6 @@ function LayoutContent() {
         <TopBar
           breadcrumb={breadcrumb}
           onOpenPalette={() => setPaletteOpen(true)}
-          density={density}
-          onCycleDensity={cycleDensity}
-          showDensity={routeHasDensity(location.pathname)}
           theme={theme}
           onToggleTheme={toggleTheme}
           username={user?.username}

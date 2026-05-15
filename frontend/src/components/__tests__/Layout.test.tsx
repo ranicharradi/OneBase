@@ -15,8 +15,6 @@ vi.mock('../../hooks/useTheme', () => ({
   useTheme: () => ({
     theme: 'dark',
     toggleTheme: vi.fn(),
-    density: 'comfortable',
-    setDensity: vi.fn(),
   }),
 }))
 

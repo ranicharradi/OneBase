@@ -1,20 +1,9 @@
 import Icon from "../ui/Icon";
 import AvatarMenu from "./AvatarMenu";
 
-type Density = "compact" | "comfortable" | "spacious";
-
-const DENSITY_ICON: Record<Density, string> = {
-  compact: "density_small",
-  comfortable: "density_medium",
-  spacious: "density_large",
-};
-
 interface TopBarProps {
   breadcrumb: string[];
   onOpenPalette: () => void;
-  density: Density;
-  onCycleDensity: () => void;
-  showDensity: boolean;
   theme: "light" | "dark";
   onToggleTheme: () => void;
   username: string | undefined;
@@ -25,9 +14,6 @@ interface TopBarProps {
 export default function TopBar({
   breadcrumb,
   onOpenPalette,
-  density,
-  onCycleDensity,
-  showDensity,
   theme,
   onToggleTheme,
   username,
@@ -93,18 +79,6 @@ export default function TopBar({
         </span>
         <span className="kbd">⌘K</span>
       </button>
-
-      {showDensity && (
-        <button
-          onClick={onCycleDensity}
-          className="btn btn-ghost btn-sm"
-          style={{ padding: 4 }}
-          title={`Density: ${density}`}
-          aria-label={`Density: ${density}. Click to cycle.`}
-        >
-          <Icon name={DENSITY_ICON[density]} size={14} />
-        </button>
-      )}
 
       <button
         onClick={onToggleTheme}
