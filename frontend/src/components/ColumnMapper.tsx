@@ -16,6 +16,22 @@ import Hbar from './ui/Hbar';
 import Pill from './ui/Pill';
 import Spinner from './ui/Spinner';
 
+function autoMap(cols: string[], fieldList: FieldDef[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  const used = new Set<string>();
+  for (const field of fieldList) {
+    for (const syn of field.synonyms ?? []) {
+      const match = cols.find(c => c.trim().toLowerCase() === syn.toLowerCase());
+      if (match && !used.has(match)) {
+        result[field.key] = match;
+        used.add(match);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
 interface ColumnMapperProps {
   columns: string[];
   type: string;
@@ -44,22 +60,6 @@ export default function ColumnMapper({
   const [description, setDescription] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const autoMap = (cols: string[], fieldList: FieldDef[]): Record<string, string> => {
-    const result: Record<string, string> = {};
-    const used = new Set<string>();
-    for (const field of fieldList) {
-      for (const syn of field.synonyms ?? []) {
-        const match = cols.find(c => c.trim().toLowerCase() === syn.toLowerCase());
-        if (match && !used.has(match)) {
-          result[field.key] = match;
-          used.add(match);
-          break;
-        }
-      }
-    }
-    return result;
-  };
-
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [autoMapped, setAutoMapped] = useState<Set<string>>(new Set());
 
@@ -69,7 +69,7 @@ export default function ColumnMapper({
     setMapping((prev) => {
       const next = { ...prev };
       for (const [k, v] of Object.entries(auto)) {
-        if (!next[k]) next[k] = v;
+        if (next[k] === undefined) next[k] = v;
       }
       return next;
     });
