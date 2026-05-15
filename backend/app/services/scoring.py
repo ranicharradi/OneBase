@@ -24,12 +24,10 @@ Record = StagedRecord | UnifiedRecord
 
 
 def _resolve(record: Any, field: str) -> Any:
-    """Resolve a field value from a record's fields dict."""
     return record.fields.get(field) if record.fields else None
 
 
 def _embedding_to_array(embedding: Any) -> np.ndarray | None:
-    """Convert various embedding formats to a numpy array."""
     if embedding is None:
         return None
     if isinstance(embedding, np.ndarray):
@@ -42,14 +40,12 @@ def _embedding_to_array(embedding: Any) -> np.ndarray | None:
 
 
 def _jaro_winkler(a: Any, b: Any, field: str) -> float:
-    """Jaro-Winkler similarity for string fields."""
     av = _resolve(a, field)
     bv = _resolve(b, field)
     return JaroWinkler.similarity(str(av), str(bv))
 
 
 def _token_jaccard(a: Any, b: Any, field: str) -> float:
-    """Token-set Jaccard similarity for string fields."""
     av = _resolve(a, field)
     bv = _resolve(b, field)
     return fuzz.token_set_ratio(str(av), str(bv)) / 100.0
@@ -69,14 +65,12 @@ def _embedding_cosine(a: Any, b: Any, field: str) -> float:
 
 
 def _exact_ci(a: Any, b: Any, field: str) -> float:
-    """Case-insensitive exact match for string fields."""
     av = _resolve(a, field)
     bv = _resolve(b, field)
     return 1.0 if str(av).strip().upper() == str(bv).strip().upper() else 0.0
 
 
 def _exact(a: Any, b: Any, field: str) -> float:
-    """Case-sensitive exact match for string fields."""
     av = _resolve(a, field)
     bv = _resolve(b, field)
     return 1.0 if str(av).strip() == str(bv).strip() else 0.0
