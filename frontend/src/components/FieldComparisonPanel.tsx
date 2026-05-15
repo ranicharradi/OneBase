@@ -1,8 +1,14 @@
 import type { FieldComparison, RecordDetail } from '../api/types';
 import Panel, { PanelHead } from './ui/Panel';
 import SourcePill from './ui/SourcePill';
-import ComparisonStatusPill from './ComparisonStatusPill';
 import type { Layout } from './fieldComparisonLayout';
+
+function statusPill(comp: FieldComparison) {
+  if (comp.is_conflict) return <span className="pill warn" style={{ padding: '1px 6px', fontSize: 10 }}>conflict</span>;
+  if (comp.is_identical) return <span className="pill ok" style={{ padding: '1px 6px', fontSize: 10 }}>identical</span>;
+  if (comp.is_a_only || comp.is_b_only) return <span className="pill info" style={{ padding: '1px 6px', fontSize: 10 }}>source-only</span>;
+  return null;
+}
 
 interface LayoutProps {
   comparisons: FieldComparison[];
@@ -109,7 +115,7 @@ function SideBySideLayout({ comparisons, recordA, recordB, selections = {}, onSe
                   </span>
                 </div>
               </td>
-              <td><ComparisonStatusPill comp={f} /></td>
+              <td>{statusPill(f)}</td>
             </tr>
           );
         })}
@@ -130,7 +136,7 @@ function StackedLayout({ comparisons, recordA, recordB, selections = {}, onSelec
                 <span style={{ fontSize: 12, fontWeight: 600 }}>{f.label}</span>
                 <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 8 }}>{f.field}</span>
               </div>
-              <ComparisonStatusPill comp={f} />
+              {statusPill(f)}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {([['a', recordA, f.value_a] as const, ['b', recordB, f.value_b] as const]).map(([key, sup, val]) => {
@@ -186,7 +192,7 @@ function DiffLayout({ comparisons, recordA, recordB, selections = {}, onSelect }
                 <span style={{ fontSize: 12, fontWeight: 500 }}>{f.label}</span>
                 <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 8 }}>{f.field}</span>
               </div>
-              <ComparisonStatusPill comp={f} />
+              {statusPill(f)}
             </div>
             <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, background: 'var(--bg-0)', border: '1px solid var(--border-0)', borderRadius: 4, overflow: 'hidden' }}>
               {([['a', recordA, f.value_a, f.is_conflict ? '−' : ' ', f.is_conflict ? 'var(--danger)' : 'var(--border-0)', f.is_conflict ? 'var(--danger-soft)' : 'transparent'] as const,

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { useNavigate } from 'react-router';
 import { api } from '../api/client';
 import { useRecordType } from '../hooks/useRecordTypes';
-import { useComparisonRunSelection } from '../hooks/useComparisonRunSelection';
+import { useComparisonRun } from '../hooks/useComparisonRun';
 import { fieldSummary } from '../utils/recordDisplay';
 import { relativeTime } from '../utils/time';
 import { confidenceTone } from '../utils/confidence';
@@ -20,7 +20,7 @@ import Pagination from '../components/Pagination';
 import WorkflowStageRail from '../components/WorkflowStageRail';
 import ComparisonRunSelect from '../components/ComparisonRunSelect';
 import QueueBucketTabs from '../components/QueueBucketTabs';
-import StaleRunWarning from '../components/StaleRunWarning';
+
 
 // ── Constants ────────────────────────────────────────
 
@@ -88,7 +88,7 @@ export default function ReviewQueue() {
   const queryClient = useQueryClient();
   const { query: searchQuery } = useSearch();
   const { selectedType, withRecordType } = useSelectedRecordType();
-  const { runId, validRuns, selectedRun, setRunId } = useComparisonRunSelection(selectedType);
+  const { runId, validRuns, selectedRun, setRunId } = useComparisonRun(selectedType);
   const { data: recordType } = useRecordType(selectedType);
   const summaryFieldKeys = recordType?.fields.filter(field => field.role !== 'name').map(field => field.key) ?? [];
 
@@ -185,7 +185,17 @@ export default function ReviewQueue() {
         />
 
         {/* ── Stale warning ── */}
-        <StaleRunWarning show={selectedRun?.status === 'stale'} />
+        {selectedRun?.status === 'stale' && (
+          <div style={{
+            padding: '6px 14px', marginBottom: 8, fontSize: 11,
+            color: 'var(--warn)', background: 'var(--warn-soft)',
+            border: '1px solid var(--border-0)', borderRadius: 6,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>warning</span>
+            Source data has changed since this run — results may be outdated
+          </div>
+        )}
 
         {/* ── Title row ── */}
         <div className="fade" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>

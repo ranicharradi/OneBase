@@ -2,11 +2,12 @@ import { useEffect } from 'react';
 import { useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { ComparisonRunResponse } from '../api/types';
+import type { ComparisonRunResponse, ComparisonRunStatus } from '../api/types';
 
 const LAST_RUN_KEY = 'onebase_last_comparison_run_id';
+const TERMINAL_STATES = new Set(['COMPLETE', 'SUCCESS', 'FAILURE']);
 
-export function useComparisonRunSelection(selectedType: string) {
+export function useComparisonRun(selectedType: string) {
   const [searchParams, setSearchParams] = useSearchParams();
   const runId = searchParams.get('comparison_run_id');
 
@@ -40,4 +41,20 @@ export function useComparisonRunSelection(selectedType: string) {
   };
 
   return { runId, validRuns, selectedRun, setRunId };
+}
+
+export function useComparisonRunStatus(runId: number | null) {
+  return useQuery({
+    queryKey: ['comparison-status', runId],
+    queryFn: async () => {
+      if (runId == null) throw new Error('no run id');
+      return api.get<ComparisonRunStatus>(`/api/comparisons/${runId}/status`);
+    },
+    enabled: runId != null,
+    refetchInterval: (q) => {
+      const data = q.state.data as ComparisonRunStatus | undefined;
+      if (!data) return 1000;
+      return TERMINAL_STATES.has(data.state) ? false : 1000;
+    },
+  });
 }

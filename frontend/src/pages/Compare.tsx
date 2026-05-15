@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { useComparisonStatus } from '../hooks/useComparisonStatus';
+import { useComparisonRunStatus } from '../hooks/useComparisonRun';
 import type {
   BatchResponse,
   ComparisonMode,
@@ -150,7 +150,7 @@ function MatchingPipeline({ status }: { status?: ComparisonRunStatus }) {
 }
 
 function ActiveRunCard({ run }: { run: ComparisonRunResponse }) {
-  const { data: liveStatus } = useComparisonStatus(run.id);
+  const { data: liveStatus } = useComparisonRunStatus(run.id);
   const navigate = useNavigate();
   const isComplete = liveStatus?.state === 'COMPLETE' || liveStatus?.state === 'SUCCESS';
 

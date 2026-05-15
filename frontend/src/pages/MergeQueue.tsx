@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useSelectedRecordType } from '../contexts/RecordTypeContext';
-import { useComparisonRunSelection } from '../hooks/useComparisonRunSelection';
+import { useComparisonRun } from '../hooks/useComparisonRun';
 import { relativeTime } from '../utils/time';
 import { confidenceTone } from '../utils/confidence';
 import type { ReviewQueueItem, ReviewQueueResponse, ReviewStats } from '../api/types';
@@ -18,7 +18,7 @@ import Pagination from '../components/Pagination';
 import WorkflowStageRail from '../components/WorkflowStageRail';
 import ComparisonRunSelect from '../components/ComparisonRunSelect';
 import QueueBucketTabs from '../components/QueueBucketTabs';
-import StaleRunWarning from '../components/StaleRunWarning';
+
 
 const PAGE_SIZE = 50;
 
@@ -42,7 +42,7 @@ export default function MergeQueue() {
   const navigate = useNavigate();
   const { query: searchQuery } = useSearch();
   const { selectedType, withRecordType } = useSelectedRecordType();
-  const { runId, validRuns, selectedRun, setRunId } = useComparisonRunSelection(selectedType);
+  const { runId, validRuns, selectedRun, setRunId } = useComparisonRun(selectedType);
 
   const [bucket, setBucket] = useState<BucketFilter>('confirmed');
   const [pageState, setPageState] = useState({ type: selectedType, page: 0 });
@@ -127,7 +127,17 @@ export default function MergeQueue() {
           }}
         />
 
-        <StaleRunWarning show={selectedRun?.status === 'stale'} />
+        {selectedRun?.status === 'stale' && (
+          <div style={{
+            padding: '6px 14px', marginBottom: 8, fontSize: 11,
+            color: 'var(--warn)', background: 'var(--warn-soft)',
+            border: '1px solid var(--border-0)', borderRadius: 6,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>warning</span>
+            Source data has changed since this run — results may be outdated
+          </div>
+        )}
 
         {/* ── Title row ── */}
         <div className="fade" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
