@@ -113,7 +113,7 @@ function ProgressRing({ pct, unified, total }: { pct: number; unified: number; t
         />
         {/* Arc */}
         <circle
-          className="progress-ring__bar"
+          className="progress-ring-bar"
           cx="60"
           cy="60"
           r={RING_R}
@@ -367,20 +367,20 @@ export default function Dashboard() {
     );
   }
 
-  const { uploads: uploadsData, matching: matchingData, review: reviewData, unified, recent_activity } = data;
-  const coverage = uploadsData.total_staged > 0
-    ? Math.round((unified.total_unified / uploadsData.total_staged) * 100)
+  const { unified, recent_activity } = data;
+  const coverage = data.uploads.total_staged > 0
+    ? Math.round((unified.total_unified / data.uploads.total_staged) * 100)
     : 0;
   const actions = deriveActions(data);
   const isMatchRunning = matchProgress !== null;
 
-  const reviewedTotal = reviewData.confirmed + reviewData.rejected;
+  const reviewedTotal = data.review.confirmed + data.review.rejected;
 
   // Per-stage completion → derive the "current" stage as the first not-done one.
   const stageDone = [
-    uploadsData.total_staged > 0,
-    matchingData.total_candidates > 0 && !isMatchRunning,
-    reviewedTotal > 0 && reviewData.pending === 0,
+    data.uploads.total_staged > 0,
+    data.matching.total_candidates > 0 && !isMatchRunning,
+    reviewedTotal > 0 && data.review.pending === 0,
     unified.total_unified > 0 && coverage >= 99,
   ];
   let activeIdx = stageDone.findIndex(d => !d);
@@ -394,9 +394,9 @@ export default function Dashboard() {
     unit: string;
     status: StageStatus;
   }> = [
-    { n: 1, label: 'Ingest', stat: uploadsData.total_staged.toLocaleString(), unit: 'rows' },
-    { n: 2, label: 'Match', stat: matchingData.total_candidates.toLocaleString(), unit: 'pairs' },
-    { n: 3, label: 'Review', stat: reviewData.pending.toLocaleString(), unit: 'pending' },
+    { n: 1, label: 'Ingest', stat: data.uploads.total_staged.toLocaleString(), unit: 'rows' },
+    { n: 2, label: 'Match', stat: data.matching.total_candidates.toLocaleString(), unit: 'pairs' },
+    { n: 3, label: 'Review', stat: data.review.pending.toLocaleString(), unit: 'pending' },
     { n: 4, label: 'Unify', stat: unified.total_unified.toLocaleString(), unit: 'merged' },
   ].map((s, i) => ({
     ...s,
@@ -420,7 +420,7 @@ export default function Dashboard() {
               </Pill>
             </div>
             <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>
-              Record unification pipeline · {uploadsData.total_staged.toLocaleString()} rows staged · {unified.total_unified.toLocaleString()} unified
+              Record unification pipeline · {data.uploads.total_staged.toLocaleString()} rows staged · {unified.total_unified.toLocaleString()} unified
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -440,7 +440,7 @@ export default function Dashboard() {
           className="fade"
           style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 14 }}
         >
-          <ProgressRing pct={coverage} unified={unified.total_unified} total={uploadsData.total_staged} />
+          <ProgressRing pct={coverage} unified={unified.total_unified} total={data.uploads.total_staged} />
           <div
             className="kpi-grid"
             style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}
@@ -619,7 +619,7 @@ export default function Dashboard() {
                     </span>
                   </Link>
                 ))
-              ) : uploadsData.total_staged === 0 ? (
+              ) : data.uploads.total_staged === 0 ? (
                 <div style={{ textAlign: 'center', padding: '20px 12px' }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>
                     cloud_upload
