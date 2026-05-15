@@ -154,15 +154,28 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
         }}
       >
         {collapsed ? (
-          <button
-            type="button"
-            className="nav-item"
-            title={`Record type: ${selectedType}`}
-            aria-label={`Record type: ${selectedType}`}
-            style={{ justifyContent: "center", padding: 0, color: "var(--fg-2)" }}
-          >
-            <Icon name="category" size={20} />
-          </button>
+          <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
+            <button
+              type="button"
+              className="nav-item"
+              title={`Record type: ${selectedType}`}
+              aria-label={`Record type: ${selectedType}`}
+              style={{ justifyContent: "center", padding: 0, color: "var(--fg-2)", pointerEvents: "none" }}
+            >
+              <Icon name="category" size={20} />
+            </button>
+            <select
+              aria-label="Record type"
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              disabled={isLoading || recordTypes.length === 0}
+              style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
+            >
+              {recordTypes.map((type) => (
+                <option key={type.key} value={type.key}>{type.label}</option>
+              ))}
+            </select>
+          </div>
         ) : (
           <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             <span className="label" style={{ fontSize: 10 }}>Record Type</span>
