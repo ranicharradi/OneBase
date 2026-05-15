@@ -25,18 +25,6 @@ from app.schemas.unified import (
 router = APIRouter(prefix="/api/unified", tags=["dashboard"])
 
 
-def _audit_action_to_kind(action: str) -> str:
-    if action.startswith("merge"):
-        return "merged"
-    if action.startswith("match_rejected"):
-        return "reviewed"
-    if action == "supersede":
-        return "superseded"
-    if action == "ingest":
-        return "ingested"
-    return "reviewed"
-
-
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard(
     type: str | None = Query(None, description="Filter all stats by record type"),

@@ -29,6 +29,7 @@ from app.schemas.unified import (
     UnifiedRecordListItem,
     UnifiedRecordListResponse,
 )
+from app.services.audit import audit_action_to_kind
 from app.services.record_lookup import load_enriched_records
 from app.services.singleton import get_already_unified_ids, get_paired_ids
 
@@ -327,7 +328,7 @@ def get_lineage(
         events.append(
             LineageEvent(
                 at=a.created_at.isoformat() if a.created_at else "",
-                kind=_audit_action_to_kind(a.action),
+                kind=audit_action_to_kind(a.action),
                 actor=str(a.user_id) if a.user_id else None,
                 summary=a.action.replace("_", " "),
                 details=a.details,
@@ -349,15 +350,3 @@ def get_lineage(
 
     events.sort(key=lambda e: e.at, reverse=True)
     return LineageResponse(events=events)
-
-
-def _audit_action_to_kind(action: str) -> str:
-    if action.startswith("merge"):
-        return "merged"
-    if action.startswith("match_rejected"):
-        return "reviewed"
-    if action == "supersede":
-        return "superseded"
-    if action == "ingest":
-        return "ingested"
-    return "reviewed"
