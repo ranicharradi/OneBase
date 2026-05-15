@@ -25,6 +25,7 @@ from app.models.match import MatchCandidate
 from app.models.ml_model import MLModelVersion
 from app.models.staging import StagedRecord
 from app.record_types import get as get_record_type
+from app.services.ml.features import build_scorer_row, compute_engineered_features
 from app.services.scoring import signal_key
 
 logger = logging.getLogger(__name__)
@@ -67,17 +68,6 @@ class ModelBundle:
     record_type: str
 
 
-def _compute_engineered_features(name_a: str, name_b: str) -> tuple[float, float]:
-    """Compute name_length_ratio and token_count_diff from record names."""
-    len_a = max(len(name_a), 1)
-    len_b = max(len(name_b), 1)
-    name_length_ratio = min(len_a, len_b) / max(len_a, len_b)
-    tokens_a = len(name_a.split())
-    tokens_b = len(name_b.split())
-    token_count_diff = abs(tokens_a - tokens_b)
-    return name_length_ratio, float(token_count_diff)
-
-
 def scorer_feature_names(record_type_key: str) -> list[str]:
     """Return the scorer feature names for a record type: <type signals> + engineered."""
     rt = get_record_type(record_type_key)
@@ -88,29 +78,6 @@ def scorer_feature_names(record_type_key: str) -> list[str]:
 def _safe_lgbm_feature_names(feature_names: list[str]) -> list[str]:
     """Sanitize feature names for LightGBM; colons and other special JSON chars are not allowed."""
     return [name.replace(":", "__") for name in feature_names]
-
-
-def _build_scorer_row(
-    record_a: StagedRecord,
-    record_b: StagedRecord,
-    signals: dict | None,
-    record_type_key: str,
-) -> list[float]:
-    """Build one scorer feature row.
-
-    Reads each type-declared signal from `signals` (the JSONB dict stored on the
-    candidate at scoring time) — falls back to 0.0 for any missing signal.
-    Adds engineered features at the end.
-    """
-    rt = get_record_type(record_type_key)
-    sig_dict = signals or {}
-    row = [float(sig_dict.get(signal_key(s.kind, s.field), 0.0)) for s in rt.signals]
-    name_a = record_a.normalized_name or record_a.name or ""
-    name_b = record_b.normalized_name or record_b.name or ""
-    nlr, tcd = _compute_engineered_features(name_a, name_b)
-    row.append(nlr)
-    row.append(tcd)
-    return row
 
 
 def extract_training_data(db: Session, record_type_key: str) -> tuple[np.ndarray, np.ndarray]:
@@ -143,7 +110,7 @@ def extract_training_data(db: Session, record_type_key: str) -> tuple[np.ndarray
         rec_b = record_map.get(c.record_b_id)
         if rec_a is None or rec_b is None:
             continue
-        rows.append(_build_scorer_row(rec_a, rec_b, c.match_signals, record_type_key))
+        rows.append(build_scorer_row(rec_a, rec_b, c.match_signals, record_type_key))
         labels.append(1 if c.status == CandidateStatus.CONFIRMED else 0)
 
     X = np.array(rows, dtype=np.float64)
@@ -186,7 +153,7 @@ def extract_blocker_training_data(db: Session, record_type_key: str) -> tuple[np
         name_b = rec_b.normalized_name or rec_b.name or ""
         jw = JaroWinkler.similarity(name_a, name_b)
         tj = fuzz.token_set_ratio(name_a, name_b) / 100.0
-        nlr, _ = _compute_engineered_features(name_a, name_b)
+        nlr, _ = compute_engineered_features(name_a, name_b)
         rows.append([jw, tj, nlr])
         labels.append(1 if c.status == CandidateStatus.CONFIRMED else 0)
 

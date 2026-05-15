@@ -13,8 +13,8 @@ from app.models.staging import StagedRecord
 from app.models.unified import UnifiedRecord
 from app.services.blocking import combine_blocks, embedding_block, text_block
 from app.services.clustering import find_groups
-from app.services.ml_scoring import blocker_filter, ml_score_pair
-from app.services.ml_training import load_active_model
+from app.services.ml.score import blocker_filter, ml_score_pair
+from app.services.ml.train import load_active_model
 from app.services.record_set import RecordRef, RecordSet
 from app.services.scoring import score_pair
 

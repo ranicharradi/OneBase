@@ -446,7 +446,7 @@ class TestMLPipelineIntegration:
 
         import numpy as np
 
-        from app.services.ml_training import ModelBundle
+        from app.services.ml.train import ModelBundle
 
         run_id, s1, s2, side_a, side_b = self._seed_two_source_scenario(test_db)
 

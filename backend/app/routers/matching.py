@@ -19,7 +19,7 @@ from app.schemas.matching import (
     RetrainResponse,
     TrainModelResponse,
 )
-from app.services.ml_training import (
+from app.services.ml.train import (
     BLOCKER_FEATURE_NAMES,
     MIN_TRAINING_SAMPLES,
     extract_blocker_training_data,
@@ -28,7 +28,7 @@ from app.services.ml_training import (
     scorer_feature_names,
     train_model,
 )
-from app.services.retraining import retrain_weights
+from app.services.ml.weights import retrain_weights
 from app.services.scoring import signal_key
 
 router = APIRouter(prefix="/api/matching", tags=["matching"])

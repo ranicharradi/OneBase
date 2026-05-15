@@ -10,11 +10,8 @@ from rapidfuzz import fuzz
 from rapidfuzz.distance import JaroWinkler
 
 from app.models.staging import StagedRecord
-from app.services.ml_training import (
-    ModelBundle,
-    _build_scorer_row,
-    _compute_engineered_features,
-)
+from app.services.ml.features import build_scorer_row, compute_engineered_features
+from app.services.ml.train import ModelBundle
 from app.services.record_set import RecordRef
 
 
@@ -40,7 +37,7 @@ def ml_score_pair(
     base_result = weighted_score_pair(record_a, record_b)
     signals = base_result["signals"]
 
-    feature_row = _build_scorer_row(record_a, record_b, signals, record_a.type)
+    feature_row = build_scorer_row(record_a, record_b, signals, record_a.type)
     feature_vector = np.array([feature_row])
     confidence = float(bundle.model.predict(feature_vector)[0])
 
@@ -75,7 +72,7 @@ def blocker_filter(
 
         jw = JaroWinkler.similarity(name_a, name_b)
         tj = fuzz.token_set_ratio(name_a, name_b) / 100.0
-        nlr, _ = _compute_engineered_features(name_a, name_b)
+        nlr, _ = compute_engineered_features(name_a, name_b)
 
         features.append([jw, tj, nlr])
         valid_pairs.append((ref_a, ref_b))

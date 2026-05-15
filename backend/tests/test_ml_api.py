@@ -90,7 +90,7 @@ class TestTrainModelEndpoint:
         _seed_reviewed(test_db, count=80, confirm_ratio=0.5)
         test_db.commit()
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml_training.MODEL_DIR", tmpdir):
+        with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml.train.MODEL_DIR", tmpdir):
             resp = authenticated_client.post("/api/matching/train-model", params={"type": "supplier"})
 
         assert resp.status_code == 200

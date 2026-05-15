@@ -10,7 +10,7 @@ from app.models.batch import ImportBatch
 from app.models.enums import BatchStatus, RecordStatus
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
-from app.services.ml_training import ModelBundle
+from app.services.ml.train import ModelBundle
 from app.services.record_set import RecordRef
 
 pytestmark = pytest.mark.slow
@@ -83,7 +83,7 @@ def _make_mock_bundle(feature_count=8, predict_value=0.85):
 
 class TestMlScorePair:
     def test_returns_confidence_and_signals(self, test_db):
-        from app.services.ml_scoring import ml_score_pair
+        from app.services.ml.score import ml_score_pair
 
         rec_a, rec_b = _seed_pair(test_db)
         bundle = _make_mock_bundle(predict_value=0.85)
@@ -99,7 +99,7 @@ class TestMlScorePair:
         assert "embedding_cosine:supplier_name" in result["signals"]
 
     def test_model_receives_8_features(self, test_db):
-        from app.services.ml_scoring import ml_score_pair
+        from app.services.ml.score import ml_score_pair
 
         rec_a, rec_b = _seed_pair(test_db)
         bundle = _make_mock_bundle()
@@ -113,7 +113,7 @@ class TestMlScorePair:
 
 class TestBlockerFilter:
     def test_filters_low_confidence_pairs(self, test_db):
-        from app.services.ml_scoring import blocker_filter
+        from app.services.ml.score import blocker_filter
 
         s = DataSource(name="S", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
         test_db.add(s)
@@ -182,7 +182,7 @@ class TestBlockerFilter:
         assert filtered[0] == (ref1, ref2)
 
     def test_no_bundle_passes_all(self):
-        from app.services.ml_scoring import blocker_filter
+        from app.services.ml.score import blocker_filter
 
         ref_a = RecordRef(1, "staged")
         ref_b = RecordRef(2, "staged")
@@ -195,14 +195,14 @@ class TestBlockerFilter:
 
 class TestEngineeredFeatures:
     def test_name_length_ratio(self):
-        from app.services.ml_training import _compute_engineered_features
+        from app.services.ml.features import compute_engineered_features
 
-        nlr, tcd = _compute_engineered_features("ACME", "ACME CORP")
+        nlr, tcd = compute_engineered_features("ACME", "ACME CORP")
         assert 0 < nlr <= 1.0
         assert nlr == len("ACME") / len("ACME CORP")
 
     def test_token_count_diff(self):
-        from app.services.ml_training import _compute_engineered_features
+        from app.services.ml.features import compute_engineered_features
 
-        nlr, tcd = _compute_engineered_features("ACME CORP INC", "ACME")
+        nlr, tcd = compute_engineered_features("ACME CORP INC", "ACME")
         assert tcd == 2

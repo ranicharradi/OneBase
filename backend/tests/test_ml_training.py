@@ -13,7 +13,7 @@ from app.models.match import MatchCandidate
 from app.models.ml_model import MLModelVersion
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
-from app.services.ml_training import scorer_feature_names
+from app.services.ml.train import scorer_feature_names
 
 pytestmark = pytest.mark.slow
 
@@ -119,7 +119,7 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
 
 class TestExtractTrainingData:
     def test_extracts_confirmed_and_rejected(self, test_db):
-        from app.services.ml_training import extract_training_data
+        from app.services.ml.train import extract_training_data
 
         _seed_reviewed_candidates(test_db, count=60, confirm_ratio=0.5)
         test_db.flush()
@@ -133,7 +133,7 @@ class TestExtractTrainingData:
         assert set(y) == {0, 1}
 
     def test_excludes_pending_candidates(self, test_db):
-        from app.services.ml_training import extract_training_data
+        from app.services.ml.train import extract_training_data
 
         _seed_reviewed_candidates(test_db, count=60)
         s = DataSource(name="X", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
@@ -190,7 +190,7 @@ class TestExtractTrainingData:
         assert X.shape[0] == 60  # pending excluded
 
     def test_engineered_features_correct(self, test_db):
-        from app.services.ml_training import extract_training_data
+        from app.services.ml.train import extract_training_data
 
         _seed_reviewed_candidates(test_db, count=60)
         test_db.flush()
@@ -204,7 +204,7 @@ class TestExtractTrainingData:
         assert all(d >= 0 for d in token_count_diffs)
 
     def test_insufficient_data_returns_empty(self, test_db):
-        from app.services.ml_training import extract_training_data
+        from app.services.ml.train import extract_training_data
 
         _seed_reviewed_candidates(test_db, count=10)
         test_db.flush()
@@ -215,7 +215,7 @@ class TestExtractTrainingData:
 
 class TestTrainModel:
     def test_train_scorer_returns_metrics(self, test_db):
-        from app.services.ml_training import extract_training_data, train_model
+        from app.services.ml.train import extract_training_data, train_model
 
         _seed_reviewed_candidates(test_db, count=80, confirm_ratio=0.5)
         test_db.flush()
@@ -232,7 +232,7 @@ class TestTrainModel:
         assert result["feature_importances"] is not None
 
     def test_train_blocker_targets_high_recall(self, test_db):
-        from app.services.ml_training import BLOCKER_FEATURE_NAMES, extract_training_data, train_model
+        from app.services.ml.train import BLOCKER_FEATURE_NAMES, extract_training_data, train_model
 
         _seed_reviewed_candidates(test_db, count=100, confirm_ratio=0.5)
         test_db.flush()
@@ -248,7 +248,7 @@ class TestTrainModel:
 
 class TestSaveLoadModel:
     def test_save_and_load_roundtrip(self, test_db):
-        from app.services.ml_training import (
+        from app.services.ml.train import (
             extract_training_data,
             load_active_model,
             save_model,
@@ -261,7 +261,7 @@ class TestSaveLoadModel:
         X, y = extract_training_data(test_db, "supplier")
         result = train_model(X, y, SUPPLIER_FEATURE_NAMES, model_type="scorer")
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml_training.MODEL_DIR", tmpdir):
+        with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml.train.MODEL_DIR", tmpdir):
             save_model(
                 model=result["model"],
                 model_type="scorer",
@@ -282,13 +282,13 @@ class TestSaveLoadModel:
         assert len(bundle.feature_names) == 8
 
     def test_load_returns_none_when_no_model(self, test_db):
-        from app.services.ml_training import load_active_model
+        from app.services.ml.train import load_active_model
 
         bundle = load_active_model(test_db, "scorer", "supplier")
         assert bundle is None
 
     def test_new_model_deactivates_old(self, test_db):
-        from app.services.ml_training import (
+        from app.services.ml.train import (
             extract_training_data,
             save_model,
             train_model,
@@ -300,7 +300,7 @@ class TestSaveLoadModel:
         X, y = extract_training_data(test_db, "supplier")
         result = train_model(X, y, SUPPLIER_FEATURE_NAMES, model_type="scorer")
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml_training.MODEL_DIR", tmpdir):
+        with tempfile.TemporaryDirectory() as tmpdir, patch("app.services.ml.train.MODEL_DIR", tmpdir):
             save_model(
                 result["model"],
                 "scorer",

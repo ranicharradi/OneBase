@@ -109,7 +109,7 @@ class TestRetrainWeights:
         _make_group_with_candidates(test_db, 5, status="confirmed")
         test_db.flush()
 
-        from app.services.retraining import retrain_weights
+        from app.services.ml.weights import retrain_weights
 
         result = retrain_weights(test_db, "supplier")
         assert result is None
@@ -120,7 +120,7 @@ class TestRetrainWeights:
         _make_group_with_candidates(test_db, 10, status="rejected")
         test_db.flush()
 
-        from app.services.retraining import retrain_weights
+        from app.services.ml.weights import retrain_weights
 
         result = retrain_weights(test_db, "supplier")
         assert result is not None
@@ -134,7 +134,7 @@ class TestRetrainWeights:
         _make_group_with_candidates(test_db, 10, status="rejected")
         test_db.flush()
 
-        from app.services.retraining import retrain_weights
+        from app.services.ml.weights import retrain_weights
 
         result = retrain_weights(test_db, "supplier")
         assert result is not None
@@ -147,7 +147,7 @@ class TestRetrainWeights:
         _make_group_with_candidates(test_db, 10, status="rejected")
         test_db.flush()
 
-        from app.services.retraining import retrain_weights
+        from app.services.ml.weights import retrain_weights
 
         result = retrain_weights(test_db, "supplier")
         assert result is not None
