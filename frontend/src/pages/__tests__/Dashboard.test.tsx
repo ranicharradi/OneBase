@@ -50,7 +50,7 @@ function setupAuthAs(role: 'admin' | 'viewer') {
 
 const mockRecordTypes = { types: [{ key: 'supplier', label: 'Supplier', field_count: 7 }] }
 
-function setupFetchBoth() {
+function setupFetchBoth(dashboard: DashboardResponse = mockDashboard) {
   vi.spyOn(global, 'fetch').mockImplementation((url) => {
     const urlStr = String(url)
     if (urlStr.includes('/api/record-types/') || urlStr.match(/\/api\/record-types\/[^?]+/)) {
@@ -61,7 +61,7 @@ function setupFetchBoth() {
     }
     if (urlStr.includes('/api/unified/dashboard')) {
       return Promise.resolve(
-        new Response(JSON.stringify(mockDashboard), {
+        new Response(JSON.stringify(dashboard), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         }),
@@ -79,7 +79,7 @@ function setupFetchBoth() {
   })
 }
 
-function setupFetchDashboardOnly() {
+function setupFetchDashboardOnly(dashboard: DashboardResponse = mockDashboard) {
   return vi.spyOn(global, 'fetch').mockImplementation((url) => {
     const urlStr = String(url)
     if (urlStr.includes('/api/record-types/') || urlStr.match(/\/api\/record-types\/[^?]+/)) {
@@ -90,7 +90,7 @@ function setupFetchDashboardOnly() {
     }
     if (urlStr.includes('/api/unified/dashboard')) {
       return Promise.resolve(
-        new Response(JSON.stringify(mockDashboard), {
+        new Response(JSON.stringify(dashboard), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         }),
@@ -120,24 +120,19 @@ describe('Dashboard page', () => {
     expect(document.querySelector('.kpi-grid')).toBeInTheDocument()
   })
 
-  it('renders KPI cards with correct values after data loads', async () => {
+  it('renders the unified overview layout with populated dashboard data', async () => {
     setupAuthAs('viewer')
     setupFetchDashboardOnly()
     render(<Dashboard />)
 
     await screen.findByRole('heading', { name: /overview/i })
 
-    // KPI labels match the new design
-    expect(screen.getByText('Records staged')).toBeInTheDocument()
-    expect(screen.getByText('Unified records')).toBeInTheDocument()
-    expect(screen.getByText('Pending review')).toBeInTheDocument()
-    expect(screen.getByText('Avg confidence')).toBeInTheDocument()
-
-    // Values from mock data — scope to KPI value cells specifically
-    const kpiValues = Array.from(document.querySelectorAll('.kpi-value')).map(
-      el => el.textContent?.trim(),
-    )
-    expect(kpiValues).toEqual(['150', '60', '25', '0.780'])
+    expect(document.querySelector('.empty-overview-grid')).toBeInTheDocument()
+    expect(screen.getByText('Pipeline Health')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '40% unified' })).toBeInTheDocument()
+    expect(screen.getByText('60 / 150 records')).toBeInTheDocument()
+    expect(document.querySelector('.kpi-grid')).not.toBeInTheDocument()
+    expect(screen.queryByText('Records staged')).not.toBeInTheDocument()
   })
 
   it('renders pipeline stage cards', async () => {
@@ -147,14 +142,14 @@ describe('Dashboard page', () => {
 
     await screen.findByRole('heading', { name: /overview/i })
 
-    // The 4-stage pipeline strip
-    expect(screen.getByText('Ingest')).toBeInTheDocument()
-    expect(screen.getByText('Match')).toBeInTheDocument()
-    expect(screen.getByText('Review')).toBeInTheDocument()
-    expect(screen.getByText('Unify')).toBeInTheDocument()
+    // The 4-stage overview system map
+    expect(screen.getByText('INGEST')).toBeInTheDocument()
+    expect(screen.getByText('MATCH')).toBeInTheDocument()
+    expect(screen.getByText('REVIEW')).toBeInTheDocument()
+    expect(screen.getByText('UNIFY')).toBeInTheDocument()
   })
 
-  it('renders next-action cards when pending review exists', async () => {
+  it('renders next-action cards from populated dashboard data', async () => {
     setupAuthAs('viewer')
     setupFetchDashboardOnly()
     render(<Dashboard />)
@@ -163,6 +158,25 @@ describe('Dashboard page', () => {
 
     expect(screen.getByText('Review 25 match candidates')).toBeInTheDocument()
     expect(screen.getByText('Resolve 1 failed upload')).toBeInTheDocument()
+    expect(screen.getByText('Browse 60 unified records')).toBeInTheDocument()
+  })
+
+  it('renders upload CTA through the same overview when no staged records exist', async () => {
+    setupAuthAs('viewer')
+    setupFetchDashboardOnly({
+      uploads: { total_batches: 0, completed: 0, failed: 0, total_staged: 0 },
+      matching: { total_candidates: 0, total_groups: 0, avg_confidence: null },
+      review: { pending: 0, confirmed: 0, rejected: 0 },
+      unified: { total_unified: 0, merged: 0, singletons: 0 },
+      recent_activity: [],
+    })
+    render(<Dashboard />)
+
+    await screen.findByRole('heading', { name: /overview/i })
+
+    expect(document.querySelector('.empty-overview-grid')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '0% unified' })).toBeInTheDocument()
+    expect(screen.getByText('Upload your first CSV')).toBeInTheDocument()
   })
 
   it('shows ML section for admin users', async () => {
