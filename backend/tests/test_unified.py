@@ -1,5 +1,9 @@
 """Tests for unified records — browse, detail, singleton promotion, export, dashboard."""
 
+import os
+
+import pytest
+
 from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
 from app.models.comparison import ComparisonRun
@@ -8,6 +12,14 @@ from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.models.unified import UnifiedRecord
+
+# Skip tests that rely on the Postgres-only `jsonb_array_length` function when running
+# against SQLite. The app ships on Postgres; SQLite is for fast local iteration.
+# CI runs a dedicated Postgres job (TEST_DATABASE_URL=postgresql://...) where these execute.
+requires_postgres = pytest.mark.skipif(
+    "sqlite" in os.environ.get("TEST_DATABASE_URL", "sqlite://"),
+    reason="Requires PostgreSQL (uses jsonb_array_length)",
+)
 
 
 def _seed_sources(db):
@@ -119,6 +131,7 @@ class TestUnifiedBrowse:
         assert data["total"] == 1
         assert data["items"][0]["name"] == "ACME CORP"
 
+    @requires_postgres
     def test_source_type_filter_singleton(self, authenticated_client, test_db):
         _seed_unified(test_db, "MERGED CO", [1, 2], match_candidate_id=1)
         _seed_unified(test_db, "SINGLETON CO", [3])
@@ -129,6 +142,7 @@ class TestUnifiedBrowse:
         assert data["total"] == 1
         assert data["items"][0]["is_singleton"] is True
 
+    @requires_postgres
     def test_source_type_filter_merged(self, authenticated_client, test_db):
         _seed_unified(test_db, "MERGED CO", [1, 2], match_candidate_id=1)
         _seed_unified(test_db, "SINGLETON CO", [3])
@@ -332,6 +346,7 @@ class TestExport:
 
 
 class TestDashboard:
+    @requires_postgres
     def test_dashboard_empty(self, authenticated_client):
         resp = authenticated_client.get("/api/unified/dashboard")
         assert resp.status_code == 200
@@ -342,6 +357,7 @@ class TestDashboard:
         assert data["unified"]["total_unified"] == 0
         assert data["recent_activity"] == []
 
+    @requires_postgres
     def test_dashboard_with_data(self, authenticated_client, test_db):
         s1, s2 = _seed_sources(test_db)
         b1 = _seed_batch(test_db, s1)
@@ -376,6 +392,7 @@ class TestDashboard:
         assert data["unified"]["total_unified"] == 1
         assert data["unified"]["merged"] == 1
 
+    @requires_postgres
     def test_dashboard_type_filter_scopes_recent_activity(self, authenticated_client, test_db):
         test_db.add_all(
             [

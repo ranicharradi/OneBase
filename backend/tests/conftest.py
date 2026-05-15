@@ -32,6 +32,11 @@ if "sqlite" in TEST_DATABASE_URL:
     )
 else:
     test_engine = create_engine(TEST_DATABASE_URL)
+    # Enable pgvector for Postgres test runs. Production uses Alembic migrations
+    # (which `CREATE EXTENSION` themselves), but the test fixture uses
+    # `Base.metadata.create_all`, which doesn't.
+    with test_engine.begin() as conn:
+        conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
 
 
 TestSessionLocal = sessionmaker(bind=test_engine)
