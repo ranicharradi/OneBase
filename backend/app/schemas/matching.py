@@ -2,13 +2,13 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+
+from app.schemas import APIResponse
 
 
-class MatchCandidateResponse(BaseModel):
+class MatchCandidateResponse(APIResponse):
     """Response schema for a match candidate."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     type: str
@@ -25,10 +25,8 @@ class MatchCandidateResponse(BaseModel):
     created_at: datetime | None = None
 
 
-class MatchGroupResponse(BaseModel):
+class MatchGroupResponse(APIResponse):
     """Response schema for a match group with candidate count."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     type: str

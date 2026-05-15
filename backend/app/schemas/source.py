@@ -3,7 +3,9 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+
+from app.schemas import APIResponse
 
 
 class DataSourceCreate(BaseModel):
@@ -36,10 +38,8 @@ class DataSourceUpdate(BaseModel):
     filename_pattern: str | None = None
 
 
-class DataSourceResponse(BaseModel):
+class DataSourceResponse(APIResponse):
     """Response schema for a data source."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str

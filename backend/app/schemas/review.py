@@ -3,19 +3,19 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+
+from app.schemas import APIResponse, FieldProvenance, PaginatedResponse
 
 # ── Record detail for side-by-side comparison ──
 
 
-class RecordDetail(BaseModel):
+class RecordDetail(APIResponse):
     """Full staged-record detail for side-by-side view.
 
     `fields` holds the type-specific JSONB; the frontend renders it dynamically
     using `/api/record-types/{type}` metadata.
     """
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     type: str
@@ -65,10 +65,8 @@ class MatchDetailResponse(BaseModel):
 # ── Review queue item (enriched candidate) ──
 
 
-class ReviewQueueItem(BaseModel):
+class ReviewQueueItem(APIResponse):
     """Match candidate enriched for the review queue."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     type: str
@@ -89,12 +87,7 @@ class ReviewQueueItem(BaseModel):
     reviewed_at: datetime | None = None
 
 
-class ReviewQueueResponse(BaseModel):
-    """Paginated review queue response."""
-
-    items: list[ReviewQueueItem]
-    total: int
-    has_more: bool
+ReviewQueueResponse = PaginatedResponse[ReviewQueueItem]
 
 
 # ── Review actions (confirm/reject) ──
@@ -124,21 +117,8 @@ class ReviewActionResponse(BaseModel):
 # ── Unified record response ──
 
 
-class FieldProvenance(BaseModel):
-    """Provenance for a single field in a unified record."""
-
-    value: str | None = None
-    source_entity: str | None = None
-    source_record_id: int | None = None
-    auto: bool = False
-    chosen_by: str | None = None
-    chosen_at: str | None = None
-
-
-class UnifiedRecordResponse(BaseModel):
+class UnifiedRecordResponse(APIResponse):
     """Response schema for a unified (golden) record."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     type: str

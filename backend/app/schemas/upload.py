@@ -2,7 +2,9 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+
+from app.schemas import APIResponse
 
 
 class UploadResponse(BaseModel):
@@ -14,10 +16,8 @@ class UploadResponse(BaseModel):
     message: str
 
 
-class BatchResponse(BaseModel):
+class BatchResponse(APIResponse):
     """Response schema for import batch."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     data_source_id: int

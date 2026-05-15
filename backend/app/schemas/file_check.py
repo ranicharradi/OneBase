@@ -2,13 +2,11 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from app.schemas import APIResponse
 
 
-class FileCheckIssueResponse(BaseModel):
+class FileCheckIssueResponse(APIResponse):
     """Response schema for a stored file check issue."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     report_id: int
@@ -21,10 +19,8 @@ class FileCheckIssueResponse(BaseModel):
     created_at: datetime | None = None
 
 
-class FileCheckReportResponse(BaseModel):
+class FileCheckReportResponse(APIResponse):
     """Response schema for a file check report."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     original_filename: str
@@ -54,7 +50,7 @@ class FileCheckReportDetailResponse(FileCheckReportResponse):
     issue_offset: int
 
 
-class FileCheckReportListResponse(BaseModel):
+class FileCheckReportListResponse(APIResponse):
     """Paginated file check report history."""
 
     items: list[FileCheckReportResponse]

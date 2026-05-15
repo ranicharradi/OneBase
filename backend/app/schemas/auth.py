@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.models.enums import UserRole
+from app.schemas import APIResponse
 
 
 class TokenResponse(BaseModel):
@@ -27,11 +28,9 @@ class PasswordChange(BaseModel):
     new_password: str = Field(min_length=8)
 
 
-class UserResponse(BaseModel):
+class UserResponse(APIResponse):
     id: int
     username: str
     is_active: bool
     role: str
     created_at: datetime | None = None
-
-    model_config = {"from_attributes": True}

@@ -3,26 +3,15 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+
+from app.schemas import APIResponse, FieldProvenance, PaginatedResponse
 
 # ── Unified record list/detail ──
 
 
-class FieldProvenance(BaseModel):
-    """Provenance for a single field in a unified record."""
-
-    value: str | None = None
-    source_entity: str | None = None
-    source_record_id: int | None = None
-    auto: bool = False
-    chosen_by: str | None = None
-    chosen_at: str | None = None
-
-
-class UnifiedRecordListItem(BaseModel):
+class UnifiedRecordListItem(APIResponse):
     """Compact unified record for list view."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     type: str
@@ -37,12 +26,7 @@ class UnifiedRecordListItem(BaseModel):
     dq_score: float | None = None
 
 
-class UnifiedRecordListResponse(BaseModel):
-    """Paginated unified record list."""
-
-    items: list[UnifiedRecordListItem]
-    total: int
-    has_more: bool
+UnifiedRecordListResponse = PaginatedResponse[UnifiedRecordListItem]
 
 
 class SourceRecord(BaseModel):
@@ -65,10 +49,8 @@ class MergeHistoryEntry(BaseModel):
     created_at: datetime | None = None
 
 
-class UnifiedRecordDetail(BaseModel):
+class UnifiedRecordDetail(APIResponse):
     """Full unified record with provenance, source records, and merge history."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     type: str
@@ -88,10 +70,8 @@ class UnifiedRecordDetail(BaseModel):
 # ── Singleton promotion ──
 
 
-class SingletonCandidate(BaseModel):
+class SingletonCandidate(APIResponse):
     """Staged record eligible for singleton promotion."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     type: str
@@ -101,12 +81,7 @@ class SingletonCandidate(BaseModel):
     data_source_name: str | None = None
 
 
-class SingletonListResponse(BaseModel):
-    """Paginated singleton candidates."""
-
-    items: list[SingletonCandidate]
-    total: int
-    has_more: bool
+SingletonListResponse = PaginatedResponse[SingletonCandidate]
 
 
 class PromoteResponse(BaseModel):
