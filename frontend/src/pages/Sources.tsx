@@ -18,7 +18,8 @@ import Pill from '../components/ui/Pill';
 import Seg from '../components/ui/Seg';
 import Spinner from '../components/ui/Spinner';
 import SourcePill from '../components/ui/SourcePill';
-import UnifiedBadge from '../components/UnifiedBadge';
+import { relativeTime } from '../utils/time';
+
 
 // "Stale" if the most recent successful batch is older than 7 days.
 const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -34,19 +35,6 @@ interface SourceStats {
   status: 'healthy' | 'stale' | 'new';
 }
 
-function relativeTime(iso: string | null): string {
-  if (!iso) return '—';
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 30) return `${days}d ago`;
-  const weeks = Math.floor(days / 7);
-  return `${weeks}w ago`;
-}
 
 function shortFor(name: string): string {
   // First 3 chars of the longest non-stop word, e.g. "SAP S/4HANA — EMEA" -> "SAP"
@@ -450,16 +438,12 @@ function SourceRow({
   fieldCount,
   onEdit,
   onDelete,
-  anyUnified,
-  lastComparedAt,
 }: {
   src: DataSource;
   stats: SourceStats;
   fieldCount: number;
   onEdit: (source: DataSource) => void;
   onDelete: (source: DataSource) => void;
-  anyUnified: boolean;
-  lastComparedAt: string | null;
 }) {
   const { data: recordType } = useRecordType(src.type);
   const mapping = toColumnMapping(src.column_mapping);
@@ -495,7 +479,6 @@ function SourceRow({
       <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
         {relativeTime(stats.lastSync)}
       </td>
-      <td><UnifiedBadge unified={anyUnified} lastComparedAt={lastComparedAt} /></td>
       <td>
         {stats.status === 'healthy' ? (
           <Pill tone="ok" dot>healthy</Pill>
@@ -751,7 +734,6 @@ export default function Sources() {
                   <th className="num" style={{ width: 90 }}>Mapped</th>
                   <th className="num" style={{ width: 80 }}>Batches</th>
                   <th style={{ width: 110 }}>Last sync</th>
-                  <th style={{ width: 80 }}>Unified</th>
                   <th style={{ width: 100 }}>Status</th>
                   <th style={{ width: 80 }} />
                 </tr>
@@ -760,10 +742,6 @@ export default function Sources() {
                 {filteredSources.map(src => {
                   const stats = statsBySource.get(src.id) ?? { rows: 0, batches: 0, lastSync: null, status: 'new' as const };
                   const typeSummary = recordTypes?.types.find(rt => rt.key === src.type);
-                  const anyUnified = (batches ?? []).some(b => b.data_source_id === src.id && b.unified);
-                  const lastComparedAt = (batches ?? [])
-                    .filter(b => b.data_source_id === src.id && b.last_compared_at != null)
-                    .reduce<string | null>((latest, b) => !latest || (b.last_compared_at! > latest) ? b.last_compared_at! : latest, null);
                   return (
                     <SourceRow
                       key={src.id}
@@ -772,8 +750,6 @@ export default function Sources() {
                       fieldCount={typeSummary?.field_count ?? 0}
                       onEdit={setEditSource}
                       onDelete={setDeleteSource}
-                      anyUnified={anyUnified}
-                      lastComparedAt={lastComparedAt}
                     />
                   );
                 })}

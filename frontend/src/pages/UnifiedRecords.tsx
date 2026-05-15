@@ -5,6 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useNavigate } from 'react-router';
 import { useRecordType } from '../hooks/useRecordTypes';
 import { fieldValue } from '../utils/recordDisplay';
+import { dqTone } from '../utils/confidence';
 import { api } from '../api/client';
 import { useSearch } from '../contexts/SearchContext';
 import { useSelectedRecordType } from '../contexts/RecordTypeContext';
@@ -15,15 +16,10 @@ import IdChip from '../components/ui/IdChip';
 import SourcePill from '../components/ui/SourcePill';
 import Pill from '../components/ui/Pill';
 import Pagination from '../components/Pagination';
+import WorkflowStageRail from '../components/WorkflowStageRail';
 
 type Tab = 'unified' | 'singletons';
 
-function dqTone(score: number | null | undefined): 'ok' | 'warn' | 'danger' | 'neutral' {
-  if (score == null) return 'neutral';
-  if (score >= 0.8) return 'ok';
-  if (score >= 0.5) return 'warn';
-  return 'danger';
-}
 
 const PAGE_SIZE = 50;
 
@@ -210,8 +206,16 @@ export default function UnifiedRecords() {
   return (
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
+        <WorkflowStageRail
+          activeStage="unified"
+          match={{ onClick: () => navigate('/compare'), title: 'Go to Runs' }}
+          review={{ onClick: () => navigate('/review'), title: 'Go to Review queue' }}
+          merge={{ onClick: () => navigate('/merge'), title: 'Go to Merge queue' }}
+          unified={{ count: { value: unifiedTotal.toLocaleString(), unit: 'records' } }}
+        />
+
         {/* Header */}
-        <div className="fade" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div className="fade" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, marginTop: 12 }}>
           <div>
             <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Unified records</h1>
             <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>

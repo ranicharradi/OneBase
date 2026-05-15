@@ -1,36 +1,26 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
+import { useComparisonStatus } from '../hooks/useComparisonStatus';
 import type {
   BatchResponse,
   ComparisonMode,
   ComparisonRunCreate,
   ComparisonRunResponse,
+  ComparisonRunStatus,
 } from '../api/types';
-import { useRecordTypes } from '../hooks/useRecordTypes';
 import Panel, { PanelHead } from '../components/ui/Panel';
-import Seg from '../components/ui/Seg';
 import Spinner from '../components/ui/Spinner';
 import Pill from '../components/ui/Pill';
+import Hbar from '../components/ui/Hbar';
 import type { PillTone } from '../components/ui/Pill';
-import UnifiedBadge from '../components/UnifiedBadge';
+import { stripUuidPrefix, displayFilename } from '../utils/filename';
+import { MODE_LABEL } from '../utils/comparisons';
+import { relativeTime } from '../utils/time';
+import WorkflowStageRail from '../components/WorkflowStageRail';
 
-function trunc(s: string, n = 20): string {
-  if (s.length <= n) return s;
-  const h = Math.floor((n - 1) / 2);
-  const t = Math.ceil((n - 1) / 2);
-  return `${s.slice(0, h)}…${s.slice(s.length - t)}`;
-}
-
-function relTime(iso: string): string {
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  if (s < 604800) return `${Math.floor(s / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString();
-}
+// ── Constants ─────────────────────────────────────────
 
 const BATCH_TONE: Record<string, PillTone> = {
   done: 'ok',
@@ -42,10 +32,177 @@ const BATCH_TONE: Record<string, PillTone> = {
   superseded: 'warn',
 };
 
+const COMP_STAGES = [
+  { key: 'BLOCKING',   label: 'Blocking'   },
+  { key: 'SCORING',    label: 'Scoring'    },
+  { key: 'CLUSTERING', label: 'Clustering' },
+  { key: 'INSERTING',  label: 'Writing'    },
+];
+
+function resolveMode(vsGolden: boolean, count: number): ComparisonMode {
+  if (vsGolden) return 'FILE_VS_GOLDEN';
+  return count >= 3 ? 'MULTI_FILE' : 'FILE_VS_FILE';
+}
+
+// ── Active run pipeline card ───────────────────────────
+
+function MatchingPipeline({ status }: { status?: ComparisonRunStatus }) {
+  const N = COMP_STAGES.length;
+  const isComplete = status?.state === 'COMPLETE' || status?.state === 'SUCCESS';
+  const isFailed = status?.state === 'FAILURE';
+  const activeIdx = status?.stage
+    ? COMP_STAGES.findIndex(s => s.key === status.stage)
+    : -1;
+  const queued = !status || (status.state === 'PENDING' && !status.stage);
+  const pct = isComplete ? 100 : (status?.progress ?? 0);
+
+  const sidePct = (1 / (2 * N)) * 100;
+  const progressPct = isComplete
+    ? 100 - 2 * sidePct
+    : Math.max(0, activeIdx) / Math.max(1, N - 1) * (100 - 2 * sidePct);
+
+  return (
+    <div style={{ padding: '12px 16px 14px', borderTop: '1px solid var(--border-0)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <Hbar
+          value={pct}
+          tone={isComplete ? 'ok' : isFailed ? 'danger' : 'accent'}
+          style={{ height: 3, flex: 1 }}
+        />
+        <span className="mono tnum" style={{
+          fontSize: 11, fontWeight: 600, width: 36, textAlign: 'right',
+          color: isComplete ? 'var(--ok)' : isFailed ? 'var(--danger)' : 'var(--accent)',
+        }}>
+          {Math.round(pct)}%
+        </span>
+      </div>
+
+      <div style={{ position: 'relative' }}>
+        <div style={{
+          position: 'absolute', top: 10,
+          left: `${sidePct}%`, right: `${sidePct}%`,
+          height: 1.5, background: 'var(--border-0)', zIndex: 0,
+        }} />
+        <div style={{
+          position: 'absolute', top: 10,
+          left: `${sidePct}%`, width: `${progressPct}%`,
+          height: 1.5,
+          background: isFailed ? 'var(--danger)' : 'var(--accent)',
+          transition: 'width 0.5s ease', zIndex: 1,
+        }} />
+
+        <div style={{ display: 'flex', position: 'relative', zIndex: 2 }}>
+          {COMP_STAGES.map((stage, i) => {
+            const done   = isComplete || (activeIdx >= 0 && i < activeIdx);
+            const active = !isComplete && !isFailed && i === activeIdx;
+            const failed = isFailed && i === activeIdx;
+
+            const bg     = done ? 'var(--accent)' : active ? 'var(--accent-soft)' : failed ? 'var(--danger-soft)' : 'var(--bg-3)';
+            const border = done ? 'var(--accent)' : active ? 'var(--accent)' : failed ? 'var(--danger)' : 'var(--border-1)';
+
+            return (
+              <div key={stage.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: bg, border: `2px solid ${border}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'background 0.3s, border-color 0.3s',
+                }}>
+                  {done   ? <span style={{ fontSize: 8, color: 'var(--bg-0)', fontWeight: 700 }}>✓</span>
+                  : active ? <Spinner size={8} color="var(--accent)" />
+                  : failed ? <span style={{ fontSize: 8, color: 'var(--danger)', fontWeight: 700 }}>✕</span>
+                  : null}
+                </div>
+                <span className="label" style={{
+                  fontSize: 9, textAlign: 'center',
+                  color: done || active ? 'var(--fg-1)' : 'var(--fg-3)',
+                }}>
+                  {stage.label}
+                </span>
+                <span className="mono tnum" style={{
+                  fontSize: 9, textAlign: 'center', minHeight: 12,
+                  color: done ? 'var(--fg-3)' : active ? 'var(--accent)' : 'var(--fg-3)',
+                }}>
+                  {done ? 'done' : active ? `${Math.round(pct)}%` : '—'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {queued ? (
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--fg-3)' }}>
+          <Spinner size={8} color="var(--fg-3)" />
+          queued, waiting for worker…
+        </div>
+      ) : status?.detail ? (
+        <div className="mono" style={{
+          marginTop: 10, padding: '4px 8px',
+          background: 'var(--bg-2)', borderRadius: 3,
+          fontSize: 10, color: 'var(--fg-2)',
+        }}>
+          {status.detail}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ActiveRunCard({ run }: { run: ComparisonRunResponse }) {
+  const { data: liveStatus } = useComparisonStatus(run.id);
+  const navigate = useNavigate();
+  const isComplete = liveStatus?.state === 'COMPLETE' || liveStatus?.state === 'SUCCESS';
+
+  return (
+    <div className="fade" style={{
+      marginBottom: 10,
+      background: 'var(--bg-1)',
+      border: '1px solid var(--accent-border)',
+      borderRadius: 6,
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '9px 14px',
+        background: 'var(--accent-soft)',
+        display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+      }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--accent)', flexShrink: 0 }}>
+          compare_arrows
+        </span>
+        <span className="mono" style={{ fontSize: 12, fontWeight: 500 }}>
+          Run <span style={{ color: 'var(--accent)' }}>#{run.id}</span>
+        </span>
+        <span className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>{run.type}</span>
+        <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
+          {run.batch_ids.length} batch{run.batch_ids.length !== 1 ? 'es' : ''}
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{relativeTime(run.created_at)}</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isComplete && (
+            <button
+              className="btn btn-sm btn-accent"
+              onClick={() => navigate(`/review?comparison_run_id=${run.id}`)}
+              style={{ fontSize: 10 }}
+            >
+              Review results →
+            </button>
+          )}
+          <Pill tone="info" dot style={{ fontSize: 10 }}>{run.status}</Pill>
+        </div>
+      </div>
+      <MatchingPipeline status={liveStatus} />
+    </div>
+  );
+}
+
+// ── Batch picker ───────────────────────────────────────
+
 function FileCell({ name }: { name: string }) {
-  const dot = name.lastIndexOf('.');
-  const stem = dot > 0 ? name.slice(0, dot) : name;
-  const ext = dot > 0 ? name.slice(dot) : '';
+  const clean = stripUuidPrefix(name);
+  const dot = clean.lastIndexOf('.');
+  const stem = dot > 0 ? clean.slice(0, dot) : clean;
+  const ext = dot > 0 ? clean.slice(dot) : '';
   return (
     <span title={name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: 260, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
       <svg width="13" height="15" viewBox="0 0 13 15" fill="none" style={{ flexShrink: 0, opacity: 0.45 }}>
@@ -58,56 +215,131 @@ function FileCell({ name }: { name: string }) {
   );
 }
 
-const MODE_OPTIONS: { value: ComparisonMode; label: string; desc: string }[] = [
-  { value: 'FILE_VS_FILE', label: 'FILE × FILE', desc: 'compare two batches' },
-  { value: 'FILE_VS_GOLDEN', label: 'FILE × GOLDEN', desc: 'match against unified' },
-  { value: 'MULTI_FILE', label: 'N-WAY', desc: 'cross-compare many' },
-];
+function BatchGroup({
+  type, batches, selected, effectiveSelection, vsGolden, onToggle, lockedType,
+}: {
+  type: string;
+  batches: BatchResponse[];
+  selected: Set<number>;
+  effectiveSelection: number[];
+  vsGolden: boolean;
+  onToggle: (id: number) => void;
+  lockedType: string | null;
+}) {
+  const [open, setOpen] = useState(true);
+  const isLocked = lockedType !== null && lockedType !== type;
 
-const MODE_BOUNDS: Record<ComparisonMode, { min: number; max: number | null }> = {
-  FILE_VS_FILE: { min: 2, max: 2 },
-  FILE_VS_GOLDEN: { min: 1, max: 1 },
-  MULTI_FILE: { min: 2, max: null },
-};
+  return (
+    <Panel style={{ marginBottom: 10, opacity: isLocked ? 0.4 : 1 }}>
+      <div
+        className="panel-head"
+        style={{ cursor: 'pointer', userSelect: 'none' }}
+        onClick={() => setOpen(o => !o)}
+      >
+        <span className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{type}</span>
+        <span className="mono dim" style={{ fontSize: 11 }}>{batches.length} batch{batches.length !== 1 ? 'es' : ''}</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--fg-3)', marginLeft: 'auto', transition: 'transform 0.15s', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
+          expand_more
+        </span>
+      </div>
+
+      {open && (
+        <table className="table">
+          <thead>
+            <tr>
+              <th style={{ width: 36 }} />
+              <th>Filename</th>
+              <th>Uploaded</th>
+              <th className="num">Rows</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {batches.map(b => {
+              const inEffective = effectiveSelection.includes(b.id);
+              const isChecked = selected.has(b.id);
+              const overCap = vsGolden && !inEffective && isChecked;
+              const dimmed = isLocked || (vsGolden && !inEffective && !isChecked && effectiveSelection.length >= 1);
+              return (
+                <tr
+                  key={b.id}
+                  onClick={() => !isLocked && onToggle(b.id)}
+                  className={inEffective ? 'selected' : ''}
+                  style={{ cursor: isLocked ? 'default' : 'pointer', opacity: (overCap || dimmed) ? 0.35 : 1 }}
+                >
+                  <td><input type="checkbox" checked={isChecked} readOnly /></td>
+                  <td><FileCell name={b.filename} /></td>
+                  <td>
+                    <span title={`${new Date(b.created_at).toLocaleString()} by ${b.uploaded_by}`}
+                      className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+                      {relativeTime(b.created_at)}
+                    </span>
+                  </td>
+                  <td className="num">{(b.row_count ?? 0).toLocaleString()}</td>
+                  <td>
+                    <Pill tone={BATCH_TONE[b.status] ?? 'neutral'} dot>
+                      {b.status}
+                    </Pill>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </Panel>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────
 
 export default function Compare() {
   const navigate = useNavigate();
-  const { data: recordTypes } = useRecordTypes();
-  const [type, setType] = useState<string>('');
-  const [mode, setMode] = useState<ComparisonMode>('FILE_VS_FILE');
+  const [vsGolden, setVsGolden] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
   const { data: batches } = useQuery({
-    queryKey: ['batches', type],
-    queryFn: () => api.get<BatchResponse[]>(`/api/import/batches${type ? `?type=${type}` : ''}`),
-    enabled: !!type,
+    queryKey: ['batches'],
+    queryFn: () => api.get<BatchResponse[]>('/api/import/batches'),
   });
 
-  if (!type && recordTypes?.types[0]) {
-    setType(recordTypes.types[0].key);
-  }
+  const { data: allRuns } = useQuery({
+    queryKey: ['comparison-runs'],
+    queryFn: () => api.get<ComparisonRunResponse[]>('/api/comparisons/'),
+    refetchInterval: (q) => {
+      const data = q.state.data as ComparisonRunResponse[] | undefined;
+      return data?.some(r => r.status === 'pending' || r.status === 'running') ? 3000 : false;
+    },
+  });
+
+  const activeRuns = (allRuns ?? []).filter(r => r.status === 'pending' || r.status === 'running');
 
   const selectedIds = useMemo(() => [...selected], [selected]);
-  const bounds = MODE_BOUNDS[mode];
-
-  const effectiveSelection = useMemo(() => {
-    if (bounds.max == null) return selectedIds;
-    return selectedIds.slice(0, bounds.max);
-  }, [selectedIds, bounds.max]);
-
-  const isValid = effectiveSelection.length >= bounds.min;
+  const effectiveSelection = vsGolden ? selectedIds.slice(0, 1) : selectedIds;
+  const mode = resolveMode(vsGolden, effectiveSelection.length);
+  const minFiles = vsGolden ? 1 : 2;
+  const isValid = effectiveSelection.length >= minFiles;
 
   const selectedBatches = useMemo(
     () => (batches ?? []).filter(b => effectiveSelection.includes(b.id)),
     [batches, effectiveSelection],
   );
 
+  const selectedType = selectedBatches[0]?.type ?? '';
+
+  const grouped = useMemo(() => {
+    return (batches ?? []).reduce<Record<string, BatchResponse[]>>((acc, b) => {
+      (acc[b.type] ??= []).push(b);
+      return acc;
+    }, {});
+  }, [batches]);
+
   const launch = useMutation({
     mutationFn: async () => {
-      const payload: ComparisonRunCreate = { type, mode, batch_ids: effectiveSelection };
+      const payload: ComparisonRunCreate = { type: selectedType, mode, batch_ids: effectiveSelection };
       return api.post<ComparisonRunResponse>('/api/comparisons/', payload);
     },
-    onSuccess: (run) => navigate(`/runs?type=${run.type}`),
+    onSuccess: (run) => navigate(`/review?comparison_run_id=${run.id}`),
   });
 
   const toggleRow = (id: number) => {
@@ -118,133 +350,114 @@ export default function Compare() {
     });
   };
 
-  const needMore = bounds.min - effectiveSelection.length;
+  const needMore = minFiles - effectiveSelection.length;
 
   return (
     <div className="scroll" style={{ height: '100%' }}>
-      <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ padding: 20 }}>
+
+        <WorkflowStageRail
+          activeStage="match"
+          match={{ count: { value: activeRuns.length > 0 ? activeRuns.length : (allRuns?.length ?? '—'), unit: activeRuns.length > 0 ? 'running' : 'runs' } }}
+          review={{ onClick: () => navigate('/review'), title: 'Go to Review queue' }}
+          merge={{ onClick: () => navigate('/merge'), title: 'Go to Merge queue' }}
+          unified={{ onClick: () => navigate('/unified'), title: 'Go to Unified records' }}
+        />
+
+        {/* Active run cards */}
+        {activeRuns.map(r => <ActiveRunCard key={r.id} run={r} />)}
 
         {/* Header */}
-        <div className="fade" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div className="fade" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, marginTop: activeRuns.length > 0 ? 8 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Compare</h1>
-            <span style={{ color: 'var(--fg-3)', fontSize: 13 }}>▸ build a run</span>
+            <span className="pill info" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 1 · MATCH</span>
+            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>New run</h1>
           </div>
-          <select
-            className="input"
-            style={{ height: 28, fontSize: 12 }}
-            value={type}
-            onChange={(e) => { setType(e.target.value); setSelected(new Set()); }}
-          >
-            {recordTypes?.types.map(rt => <option key={rt.key} value={rt.key}>{rt.label}</option>)}
-          </select>
-        </div>
-
-        {/* Mode strip */}
-        <div style={{ marginTop: 14, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Seg<ComparisonMode>
-            value={mode}
-            onChange={(m) => { setMode(m); setSelected(new Set()); }}
-            options={MODE_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
-          />
-          <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-            {MODE_OPTIONS.find(o => o.value === mode)?.desc}
-          </span>
-        </div>
-
-        {/* Batches table */}
-        <Panel>
-          <PanelHead>
-            <span className="panel-title">Batches · {type || '—'}</span>
-            {effectiveSelection.length > 0 && (
-              <span className="pill accent" style={{ fontSize: 10 }}>
-                {effectiveSelection.length}{bounds.max ? ` / ${bounds.max}` : ''} selected
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {effectiveSelection.length > 0 && !vsGolden && (
+              <span className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>
+                {MODE_LABEL[mode]}
               </span>
             )}
-          </PanelHead>
-          <table className="table">
-            <thead>
-              <tr>
-                <th style={{ width: 36 }} />
-                <th>Filename</th>
-                <th>Uploaded</th>
-                <th className="num">Rows</th>
-                <th>Status</th>
-                <th>Unified</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(batches ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '28px 0', color: 'var(--fg-3)' }}>
-                    No batches of type <span className="mono">{type}</span> yet
-                  </td>
-                </tr>
-              )}
-              {(batches ?? []).map(b => {
-                const inEffective = effectiveSelection.includes(b.id);
-                const isChecked = selected.has(b.id);
-                const overCap = bounds.max != null && !inEffective && isChecked;
-                const dimmed = bounds.max != null && !inEffective && !isChecked && selected.size >= bounds.max;
-                return (
-                  <tr
-                    key={b.id}
-                    onClick={() => toggleRow(b.id)}
-                    className={inEffective ? 'selected' : ''}
-                    style={{ cursor: 'pointer', opacity: (overCap || dimmed) ? 0.35 : 1 }}
-                  >
-                    <td><input type="checkbox" checked={isChecked} readOnly /></td>
-                    <td><FileCell name={b.filename} /></td>
-                    <td>
-                      <span title={`${new Date(b.created_at).toLocaleString()} by ${b.uploaded_by}`}
-                        className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-                        {relTime(b.created_at)}
-                      </span>
-                    </td>
-                    <td className="num">{(b.row_count ?? 0).toLocaleString()}</td>
-                    <td>
-                      <Pill tone={BATCH_TONE[b.status] ?? 'neutral'} dot>
-                        {b.status}
-                      </Pill>
-                    </td>
-                    <td><UnifiedBadge unified={b.unified} lastComparedAt={b.last_compared_at} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Panel>
+            <button
+              className={`btn btn-sm${vsGolden ? ' btn-accent' : ''}`}
+              onClick={() => { setVsGolden(v => !v); setSelected(new Set()); }}
+              title="Match selected file against the unified golden set"
+            >
+              vs Golden
+            </button>
+            <Link to="/history" className="btn btn-sm">History ▸</Link>
+          </div>
+        </div>
+
+        {/* vs Golden mode banner */}
+        {vsGolden && (
+          <div className="fade" style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '8px 14px', marginBottom: 12,
+            background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+            borderRadius: 6,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--accent)', flexShrink: 0 }}>verified</span>
+            <span className="mono" style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', letterSpacing: '0.04em' }}>FILE × GOLDEN</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>—</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>select one batch to match against the unified golden set</span>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 8px' }}
+              onClick={() => { setVsGolden(false); setSelected(new Set()); }}
+            >
+              cancel
+            </button>
+          </div>
+        )}
+
+        {/* Batches grouped by type */}
+        {batches?.length === 0 ? (
+          <Panel>
+            <PanelHead><span className="panel-title">Batches</span></PanelHead>
+            <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--fg-3)', fontSize: 12 }}>
+              No batches yet
+            </div>
+          </Panel>
+        ) : (
+          Object.entries(grouped).map(([type, typeBatches]) => (
+            <BatchGroup
+              key={type}
+              type={type}
+              batches={typeBatches}
+              selected={selected}
+              effectiveSelection={effectiveSelection}
+              vsGolden={vsGolden}
+              onToggle={toggleRow}
+              lockedType={selectedType || null}
+            />
+          ))
+        )}
 
         {/* Sticky footer */}
         <div style={{
-          position: 'sticky',
-          bottom: 0,
-          marginTop: 16,
-          background: 'var(--bg-0)',
-          borderTop: '1px solid var(--border-0)',
-          padding: '8px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
+          position: 'sticky', bottom: 0, marginTop: 16,
+          background: 'var(--bg-0)', borderTop: '1px solid var(--border-0)',
+          padding: '8px 14px', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', gap: 12,
         }}>
-          {/* Selected batch chips */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
             {effectiveSelection.length === 0 ? (
               <span className="mono" style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-                select {bounds.min}+ batch{bounds.min !== 1 ? 'es' : ''} to compare
+                {vsGolden ? 'select 1 batch to match against the golden set' : 'select 2+ batches of the same type to compare'}
               </span>
             ) : (
               selectedBatches.map(b => (
                 <span key={b.id} className="pill accent" style={{ fontSize: 10, gap: 4, flexShrink: 0 }}>
                   <span className="mono" style={{ opacity: 0.6, fontSize: 9 }}>▤</span>
-                  {trunc(b.filename, 20)}
+                  {displayFilename(b.filename, 20)}
                 </span>
               ))
             )}
           </div>
 
-          {/* Action */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             {!isValid && effectiveSelection.length > 0 && (
               <span className="pill warn" style={{ fontSize: 10 }}>

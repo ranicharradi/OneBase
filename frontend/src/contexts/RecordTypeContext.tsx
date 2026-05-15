@@ -14,7 +14,7 @@ import { useRecordTypes } from '../hooks/useRecordTypes'
 import { defaultType } from '../utils/recordDisplay'
 
 const RECORD_TYPE_STORAGE_KEY = 'onebase_record_type'
-const SCOPED_ROUTE_PREFIXES = ['/runs', '/review', '/merge', '/unified']
+const SCOPED_ROUTE_PREFIXES = ['/review', '/merge', '/unified']
 
 interface RecordTypeContextValue {
   selectedType: string

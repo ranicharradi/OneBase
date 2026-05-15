@@ -100,6 +100,7 @@ export interface BatchResponse {
   task_id: string | null;
   unified: boolean;
   last_compared_at: string | null;
+  type: string;
 }
 
 export interface TaskStatus {
@@ -483,6 +484,11 @@ export interface ComparisonRunCreate {
   name?: string;
 }
 
+export interface BatchSummary {
+  id: number;
+  filename: string;
+}
+
 export interface ComparisonRunResponse {
   id: number;
   type: string;
@@ -496,6 +502,7 @@ export interface ComparisonRunResponse {
   task_id: string | null;
   stats: Record<string, number> | null;
   batch_ids: number[];
+  batches: BatchSummary[];
   error_message: string | null;
 }
 

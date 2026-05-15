@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router';
+import { Link } from 'react-router';
 import { api } from '../api/client';
 import type {
   DashboardResponse,
@@ -12,9 +12,7 @@ import type {
 } from '../api/types';
 import { useMatchingNotifications } from '../hooks/useMatchingNotifications';
 import { useAuth } from '../hooks/useAuth';
-import { useRecordTypes } from '../hooks/useRecordTypes';
-import { defaultType } from '../utils/recordDisplay';
-import TypeFilter from '../components/TypeFilter';
+import { useSelectedRecordType } from '../contexts/RecordTypeContext';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Kpi from '../components/ui/Kpi';
 import Pill from '../components/ui/Pill';
@@ -203,14 +201,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { data: recordTypes } = useRecordTypes();
-  const selectedType = searchParams.get('type') ?? defaultType(recordTypes?.types);
-  const setSelectedType = (type: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('type', type);
-    setSearchParams(next);
-  };
+  const { selectedType } = useSelectedRecordType();
 
   const { data, isLoading, error, refetch } = useQuery<DashboardResponse>({
     queryKey: ['dashboard', selectedType],
@@ -338,9 +329,6 @@ export default function Dashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {recordTypes?.types && (
-              <TypeFilter types={recordTypes.types} value={selectedType} onChange={setSelectedType} />
-            )}
             <button onClick={() => refetch()} className="btn btn-sm">
               <span className="material-symbols-outlined" style={{ fontSize: 12 }}>refresh</span>
               Refresh

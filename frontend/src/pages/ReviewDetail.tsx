@@ -5,35 +5,20 @@ import { useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type {
-  FieldComparison,
   MatchDetailResponse,
   ReviewActionResponse,
-  RecordDetail,
 } from '../api/types';
-import { SIGNAL_CONFIG } from '../utils/signals';
+import { confidenceTone } from '../utils/confidence';
 import { useRecordType } from '../hooks/useRecordTypes';
 import { useSelectedRecordType } from '../contexts/RecordTypeContext';
 import { fieldValue } from '../utils/recordDisplay';
-import Panel, { PanelHead } from '../components/ui/Panel';
+import Panel from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
 import IdChip from '../components/ui/IdChip';
 import SourcePill from '../components/ui/SourcePill';
-import Hbar from '../components/ui/Hbar';
+import MatchSignalsPanel from '../components/MatchSignalsPanel';
+import FieldComparisonPanel, { type Layout, LAYOUT_KEY, getInitialLayout } from '../components/FieldComparisonPanel';
 
-type Layout = 'sideBySide' | 'stacked' | 'diff';
-
-const LAYOUT_KEY = 'onebase_review_layout';
-
-function getInitialLayout(): Layout {
-  const stored = localStorage.getItem(LAYOUT_KEY);
-  if (stored === 'sideBySide' || stored === 'stacked' || stored === 'diff') return stored;
-  return 'sideBySide';
-}
-
-function confidenceTone(conf: number): 'ok' | 'warn' | 'danger' {
-  const pct = conf * 100;
-  return pct >= 85 ? 'ok' : pct >= 70 ? 'warn' : 'danger';
-}
 
 export default function ReviewDetail() {
   const { id } = useParams<{ id: string }>();
@@ -194,75 +179,17 @@ export default function ReviewDetail() {
         </div>
 
         {/* Signals */}
-        <Panel className="fade" style={{ marginBottom: 12 }}>
-          <PanelHead title="Signals" />
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Object.keys(match_signals).length + 1}, 1fr)`, gap: 0 }}>
-            {Object.entries(match_signals).map(([k, v]) => {
-              const meta = SIGNAL_CONFIG[k] ?? { label: k, shortLabel: k, icon: '·' };
-              const pct = Math.round(v * 100);
-              const t = pct >= 85 ? 'ok' : pct >= 60 ? 'warn' : 'danger';
-              return (
-                <div key={k} style={{ padding: '10px 14px', borderRight: '1px solid var(--border-0)' }}>
-                  <div className="label">{meta.label}</div>
-                  <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: `var(--${t})`, marginTop: 4 }}>
-                    {v.toFixed(2)}
-                  </div>
-                  <Hbar value={pct} tone={t} style={{ marginTop: 6 }} />
-                </div>
-              );
-            })}
-            <div style={{ padding: '10px 14px', background: 'var(--bg-2)' }}>
-              <div className="label">Overall</div>
-              <div className="mono tnum" style={{ fontSize: 20, fontWeight: 600, color: `var(--${tone})`, marginTop: 4 }}>
-                {detail.confidence.toFixed(3)}
-              </div>
-              <Hbar value={Math.round(detail.confidence * 100)} tone={tone} style={{ marginTop: 6 }} />
-            </div>
-          </div>
-        </Panel>
+        <MatchSignalsPanel signals={match_signals} confidence={detail.confidence} tone={tone} />
 
         {/* Field comparison — read-only */}
-        <Panel className="fade" style={{ marginBottom: 12 }}>
-          <PanelHead>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span className="panel-title">Field comparison</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: 'var(--fg-2)' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, background: 'var(--warn)', borderRadius: 2 }} />
-                  conflict
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, background: 'var(--ok)', borderRadius: 2 }} />
-                  identical
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, background: 'var(--info)', borderRadius: 2 }} />
-                  source-only
-                </span>
-              </div>
-              {conflictCount > 0 && (
-                <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-                  conflicts resolved in <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Merge step</span>
-                </span>
-              )}
-            </div>
-            <div className="seg">
-              <button className={layout === 'sideBySide' ? 'active' : ''} onClick={() => setLayout('sideBySide')}>Side</button>
-              <button className={layout === 'stacked' ? 'active' : ''} onClick={() => setLayout('stacked')}>Stacked</button>
-              <button className={layout === 'diff' ? 'active' : ''} onClick={() => setLayout('diff')}>Diff</button>
-            </div>
-          </PanelHead>
-
-          {layout === 'sideBySide' && (
-            <SideBySideLayout comparisons={field_comparisons} recordA={record_a} recordB={record_b} />
-          )}
-          {layout === 'stacked' && (
-            <StackedLayout comparisons={field_comparisons} recordA={record_a} recordB={record_b} />
-          )}
-          {layout === 'diff' && (
-            <DiffLayout comparisons={field_comparisons} recordA={record_a} recordB={record_b} />
-          )}
-        </Panel>
+        <FieldComparisonPanel
+          comparisons={field_comparisons}
+          recordA={record_a}
+          recordB={record_b}
+          layout={layout}
+          onLayoutChange={setLayout}
+          conflictCount={conflictCount}
+        />
 
         {/* Sticky verdict bar */}
         {isPending && (
@@ -338,152 +265,6 @@ export default function ReviewDetail() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// ─────────────── Layouts (read-only) ───────────────
-
-interface LayoutProps {
-  comparisons: FieldComparison[];
-  recordA: RecordDetail;
-  recordB: RecordDetail;
-}
-
-function StatusPill({ comp }: { comp: FieldComparison }) {
-  if (comp.is_conflict) return <span className="pill warn" style={{ padding: '1px 6px', fontSize: 10 }}>conflict</span>;
-  if (comp.is_identical) return <span className="pill ok" style={{ padding: '1px 6px', fontSize: 10 }}>identical</span>;
-  if (comp.is_a_only || comp.is_b_only) return <span className="pill info" style={{ padding: '1px 6px', fontSize: 10 }}>source-only</span>;
-  return null;
-}
-
-function SideBySideLayout({ comparisons, recordA, recordB }: LayoutProps) {
-  return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th style={{ width: 180 }}>Field</th>
-          <th style={{ borderLeft: '2px solid var(--accent-border)', color: 'var(--accent)' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {recordA.data_source_name && <SourcePill short={recordA.data_source_name} />}
-              {recordA.name || `#${recordA.id}`}
-            </span>
-          </th>
-          <th style={{ width: 40 }} />
-          <th style={{ borderLeft: '2px solid var(--info-border)', color: 'var(--info)' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {recordB.data_source_name && <SourcePill short={recordB.data_source_name} />}
-              {recordB.name || `#${recordB.id}`}
-            </span>
-          </th>
-          <th style={{ width: 90 }}>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {comparisons.map(f => (
-          <tr key={f.field} style={{ background: f.is_conflict ? 'var(--warn-soft)' : 'transparent' }}>
-            <td>
-              <div style={{ fontWeight: 500 }}>{f.label}</div>
-              <div className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>{f.field}</div>
-            </td>
-            <td style={{ borderLeft: '2px solid var(--accent-border)' }}>
-              <span className="mono" style={{ fontSize: 12, color: f.value_a ? 'var(--fg-0)' : 'var(--fg-3)' }}>
-                {f.value_a || '∅'}
-              </span>
-            </td>
-            <td style={{ textAlign: 'center', color: 'var(--fg-3)' }}>
-              {f.is_conflict ? (
-                <span style={{ color: 'var(--warn)', fontSize: 11, fontWeight: 600 }}>vs</span>
-              ) : f.is_identical ? (
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>check</span>
-              ) : (
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_forward</span>
-              )}
-            </td>
-            <td style={{ borderLeft: '2px solid var(--info-border)' }}>
-              <span className="mono" style={{ fontSize: 12, color: f.value_b ? 'var(--fg-0)' : 'var(--fg-3)' }}>
-                {f.value_b || '∅'}
-              </span>
-            </td>
-            <td><StatusPill comp={f} /></td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function StackedLayout({ comparisons, recordA, recordB }: LayoutProps) {
-  return (
-    <div style={{ padding: 12 }}>
-      {comparisons.map(f => (
-        <div key={f.field} style={{ marginBottom: 10, padding: 10, background: 'var(--bg-0)', border: '1px solid var(--border-0)', borderRadius: 4 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-            <div>
-              <span style={{ fontSize: 12, fontWeight: 600 }}>{f.label}</span>
-              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 8 }}>{f.field}</span>
-            </div>
-            <StatusPill comp={f} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {([['a', recordA, f.value_a] as const, ['b', recordB, f.value_b] as const]).map(([key, sup, val]) => (
-              <div key={key} style={{
-                padding: '8px 10px',
-                border: `1px solid ${key === 'a' ? 'var(--accent-border)' : 'var(--info-border)'}`,
-                borderLeft: `3px solid ${key === 'a' ? 'var(--accent-border)' : 'var(--info-border)'}`,
-                background: 'var(--bg-1)', borderRadius: 4,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  {sup.data_source_name && <SourcePill short={sup.data_source_name} />}
-                </div>
-                <div className="mono" style={{ fontSize: 12, color: val ? 'var(--fg-0)' : 'var(--fg-3)' }}>
-                  {val || '∅'}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DiffLayout({ comparisons, recordA, recordB }: LayoutProps) {
-  return (
-    <div>
-      {comparisons.map((f, i) => (
-        <div key={f.field} style={{ borderBottom: i < comparisons.length - 1 ? '1px solid var(--border-0)' : 'none', padding: '10px 14px' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-            <div>
-              <span style={{ fontSize: 12, fontWeight: 500 }}>{f.label}</span>
-              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 8 }}>{f.field}</span>
-            </div>
-            <StatusPill comp={f} />
-          </div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, background: 'var(--bg-0)', border: '1px solid var(--border-0)', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{
-              padding: '6px 10px',
-              background: f.is_conflict ? 'var(--danger-soft)' : 'transparent',
-              borderLeft: `3px solid ${f.is_conflict ? 'var(--danger)' : 'var(--border-0)'}`,
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <span className="mono" style={{ width: 20, color: 'var(--danger)', fontWeight: 600 }}>{f.is_conflict ? '−' : ' '}</span>
-              {recordA.data_source_name && <SourcePill short={recordA.data_source_name} />}
-              <span style={{ color: 'var(--fg-0)' }}>{f.value_a || '∅'}</span>
-            </div>
-            <div style={{
-              padding: '6px 10px',
-              background: f.is_conflict ? 'var(--ok-soft)' : 'transparent',
-              borderLeft: `3px solid ${f.is_conflict ? 'var(--ok)' : 'var(--border-0)'}`,
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <span className="mono" style={{ width: 20, color: 'var(--ok)', fontWeight: 600 }}>{f.is_conflict ? '+' : ' '}</span>
-              {recordB.data_source_name && <SourcePill short={recordB.data_source_name} />}
-              <span style={{ color: 'var(--fg-0)' }}>{f.value_b || '∅'}</span>
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

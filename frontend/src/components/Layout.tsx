@@ -1,6 +1,6 @@
 // ── App shell — terminal aesthetic: sidebar + topbar + main + statusbar ──
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
@@ -34,17 +34,17 @@ const NAV: NavSection[] = [
     items: [
       { to: "/dashboard", icon: "home", label: "Overview" },
       { to: "/upload", icon: "cloud_upload", label: "Upload" },
-      { to: "/compare", icon: "compare_arrows", label: "Compare" },
       { to: "/sources", icon: "storage", label: "Sources" },
     ],
   },
   {
     section: "Matching",
     items: [
-      { to: "/runs", icon: "history", label: "Runs" },
+      { to: "/compare", icon: "compare_arrows", label: "Compare" },
       { to: "/review", icon: "swap_horiz", label: "Review queue" },
       { to: "/merge", icon: "merge", label: "Merge queue" },
       { to: "/unified", icon: "verified", label: "Unified" },
+      { to: "/history", icon: "history", label: "History" },
     ],
   },
   {
@@ -53,7 +53,6 @@ const NAV: NavSection[] = [
       { to: "/insights", icon: "insights", label: "Insights" },
       { to: "/file-checker", icon: "rule", label: "File checker" },
       { to: "/ask", icon: "forum", label: "Ask" },
-      { to: "/users", icon: "group", label: "Admin access" },
     ],
   },
 ];
@@ -79,10 +78,10 @@ const BREADCRUMBS: Record<string, string[]> = {
   "/dashboard": ["Pipeline", "Overview"],
   "/insights": ["Utilities", "Insights"],
   "/upload": ["Pipeline", "Upload"],
-  "/compare": ["Pipeline", "Compare"],
+  "/compare": ["Matching", "Compare"],
   "/file-checker": ["Utilities", "File checker"],
   "/sources": ["Pipeline", "Sources"],
-  "/runs": ["Matching", "Runs"],
+  "/history": ["Matching", "History"],
   "/review": ["Matching", "Review queue"],
   "/merge": ["Matching", "Merge queue"],
   "/unified": ["Matching", "Unified"],
@@ -124,15 +123,11 @@ function Icon({
 function Sidebar({
   collapsed,
   onToggleCollapse,
-  onLogout,
-  username,
   reviewCount,
   mergeCount,
 }: {
   collapsed: boolean;
   onToggleCollapse: () => void;
-  onLogout: () => void;
-  username: string | undefined;
   reviewCount: number;
   mergeCount: number;
 }) {
@@ -162,7 +157,7 @@ function Sidebar({
       <div
         style={{
           height: 48,
-          padding: collapsed ? 0 : "0 14px",
+          padding: collapsed ? 0 : "0 10px 0 14px",
           display: "flex",
           alignItems: "center",
           justifyContent: collapsed ? "center" : "flex-start",
@@ -170,41 +165,64 @@ function Sidebar({
           borderBottom: "1px solid var(--border-0)",
         }}
       >
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            background: "var(--fg-0)",
-            color: "var(--bg-1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 700,
-            fontSize: 14,
-            fontFamily: "IBM Plex Mono, monospace",
-            borderRadius: 5,
-            flexShrink: 0,
-          }}
-        >
-          1B
-        </div>
-        {!collapsed && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              lineHeight: 1.1,
-              minWidth: 0,
-            }}
+        {collapsed ? (
+          <button
+            onClick={onToggleCollapse}
+            className="nav-item"
+            title="Expand sidebar"
+            aria-label="Expand sidebar"
+            style={{ justifyContent: "center", padding: 0, color: "var(--fg-2)" }}
           >
-            <span style={{ fontSize: 13, fontWeight: 600 }}>OneBase</span>
-            <span
-              className="mono"
-              style={{ fontSize: 9, color: "var(--fg-2)" }}
-            >
-              record unification
+            <span style={{ display: "inline-flex" }}>
+              <Icon name="arrow_forward" size={20} />
             </span>
-          </div>
+          </button>
+        ) : (
+          <>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                background: "var(--fg-0)",
+                color: "var(--bg-1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: 14,
+                fontFamily: "IBM Plex Mono, monospace",
+                borderRadius: 5,
+                flexShrink: 0,
+              }}
+            >
+              1B
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                lineHeight: 1.1,
+                minWidth: 0,
+                flex: 1,
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600 }}>OneBase</span>
+              <span className="mono" style={{ fontSize: 9, color: "var(--fg-2)" }}>
+                record unification
+              </span>
+            </div>
+            <button
+              onClick={onToggleCollapse}
+              className="btn btn-ghost btn-sm"
+              title="Collapse sidebar"
+              aria-label="Collapse sidebar"
+              style={{ padding: 4, color: "var(--fg-3)", flexShrink: 0 }}
+            >
+              <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
+                <Icon name="arrow_forward" size={14} />
+              </span>
+            </button>
+          </>
         )}
       </div>
 
@@ -336,75 +354,139 @@ function Sidebar({
         })}
       </nav>
 
-      <div
+    </aside>
+  );
+}
+
+function AvatarMenu({
+  username,
+  isAdmin,
+  onLogout,
+}: {
+  username: string | undefined;
+  isAdmin: boolean;
+  onLogout: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const initial = (username?.[0] ?? "?").toUpperCase();
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Account menu"
+        aria-expanded={open}
         style={{
-          padding: collapsed ? "8px 6px" : 10,
-          borderTop: "1px solid var(--border-0)",
+          width: 22,
+          height: 22,
+          borderRadius: "50%",
+          background: "var(--accent)",
+          color: "#fff",
           display: "flex",
-          flexDirection: "column",
-          gap: 6,
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 11,
+          fontWeight: 600,
+          border: "none",
+          cursor: "pointer",
+          flexShrink: 0,
         }}
+        title={username ?? "Account"}
       >
-        {!collapsed && username && (
-          <div
+        {initial}
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 6px)",
+            minWidth: 160,
+            background: "var(--bg-1)",
+            border: "1px solid var(--border-0)",
+            borderRadius: 6,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+            zIndex: 100,
+            overflow: "hidden",
+          }}
+        >
+          {username && (
+            <div
+              style={{
+                padding: "8px 12px",
+                borderBottom: "1px solid var(--border-0)",
+                fontSize: 11,
+                color: "var(--fg-2)",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span className="pill-dot" style={{ background: "var(--ok)", flexShrink: 0 }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {username}
+              </span>
+            </div>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => { navigate("/users"); setOpen(false); }}
+              style={{
+                width: "100%",
+                padding: "7px 12px",
+                background: "transparent",
+                border: "none",
+                borderBottom: "1px solid var(--border-0)",
+                cursor: "pointer",
+                fontSize: 12,
+                color: "var(--fg-1)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontFamily: "inherit",
+                textAlign: "left",
+              }}
+            >
+              <Icon name="group" size={13} />
+              Admin access
+            </button>
+          )}
+          <button
+            onClick={() => { onLogout(); setOpen(false); }}
             style={{
+              width: "100%",
+              padding: "7px 12px",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 12,
+              color: "var(--fg-1)",
               display: "flex",
               alignItems: "center",
               gap: 8,
-              padding: "6px 8px",
-              background: "var(--bg-2)",
-              borderRadius: 4,
-              fontSize: 11,
-              minWidth: 0,
+              fontFamily: "inherit",
+              textAlign: "left",
             }}
           >
-            <span className="pill-dot" style={{ background: "var(--ok)" }} />
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {username}
-            </span>
-            <button
-              onClick={onLogout}
-              className="btn btn-ghost btn-sm"
-              style={{ marginLeft: "auto", padding: 4, height: 22 }}
-              title="Log out"
-              aria-label="Log out"
-            >
-              <Icon name="logout" size={12} />
-            </button>
-          </div>
-        )}
-        <button
-          onClick={onToggleCollapse}
-          className="nav-item"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          style={{
-            justifyContent: collapsed ? "center" : "flex-start",
-            padding: collapsed ? 0 : "0 12px",
-            color: "var(--fg-2)",
-            fontSize: 11,
-          }}
-        >
-          <span
-            style={{
-              display: "inline-flex",
-              transform: collapsed ? "rotate(0deg)" : "rotate(180deg)",
-              transition: "transform 0.2s ease",
-            }}
-          >
-            <Icon name="arrow_forward" size={collapsed ? 20 : 16} />
-          </span>
-          {!collapsed && <span style={{ flex: 1 }}>Collapse</span>}
-          {!collapsed && <span className="kbd">[</span>}
-        </button>
-      </div>
-    </aside>
+            <Icon name="logout" size={13} />
+            Log out
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -418,6 +500,8 @@ function TopBar({
   theme,
   onToggleTheme,
   username,
+  isAdmin,
+  onLogout,
 }: {
   breadcrumb: string[];
   onOpenPalette: () => void;
@@ -428,8 +512,9 @@ function TopBar({
   theme: "light" | "dark";
   onToggleTheme: () => void;
   username: string | undefined;
+  isAdmin: boolean;
+  onLogout: () => void;
 }) {
-  const initial = (username?.[0] ?? "?").toUpperCase();
   const densityIcon: Record<typeof density, string> = {
     compact: "density_small",
     comfortable: "density_medium",
@@ -521,23 +606,7 @@ function TopBar({
 
       {notificationCenter}
 
-      <div
-        style={{
-          width: 22,
-          height: 22,
-          borderRadius: "50%",
-          background: "var(--accent)",
-          color: "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 11,
-          fontWeight: 600,
-        }}
-        title={username ?? "Account"}
-      >
-        {initial}
-      </div>
+      <AvatarMenu username={username} isAdmin={isAdmin} onLogout={onLogout} />
     </div>
   );
 }
@@ -731,8 +800,6 @@ function LayoutContent() {
         <Sidebar
           collapsed={collapsed}
           onToggleCollapse={() => setCollapsed((c) => !c)}
-          onLogout={handleLogout}
-          username={user?.username}
           reviewCount={reviewStats?.total_pending ?? 0}
           mergeCount={reviewStats?.total_confirmed ?? 0}
         />
@@ -754,6 +821,8 @@ function LayoutContent() {
             theme={theme}
             onToggleTheme={toggleTheme}
             username={user?.username}
+            isAdmin={user?.role === "admin"}
+            onLogout={handleLogout}
             notificationCenter={
               <NotificationCenter
                 notifications={notifs.notifications}

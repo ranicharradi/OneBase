@@ -1,16 +1,11 @@
 // ── Drag-and-drop file upload zone — terminal aesthetic ──
 
 import { useCallback, useRef, useState } from 'react';
+import { formatFileSize } from '../utils/filesize';
 
 interface DropZoneProps {
   onFileSelected: (file: File) => void;
   disabled?: boolean;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function DropZone({ onFileSelected, disabled = false }: DropZoneProps) {
@@ -153,7 +148,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
               {selectedFile.name}
             </div>
             <div className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-              {formatSize(selectedFile.size)}
+              {formatFileSize(selectedFile.size)}
             </div>
           </>
         ) : (

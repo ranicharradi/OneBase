@@ -13,7 +13,7 @@ import { ApiError } from './api/client';
 
 const Ask = lazy(() => import('./pages/Ask'));
 const Compare = lazy(() => import('./pages/Compare'));
-const Comparisons = lazy(() => import('./pages/Comparisons'));
+const History = lazy(() => import('./pages/History'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const FileChecker = lazy(() => import('./pages/FileChecker'));
 const Insights = lazy(() => import('./pages/Insights'));
@@ -71,7 +71,8 @@ export default function App() {
               <Route path="sources" element={<PageRoute><Sources /></PageRoute>} />
               <Route path="ask" element={<PageRoute><Ask /></PageRoute>} />
               <Route path="compare" element={<PageRoute><Compare /></PageRoute>} />
-              <Route path="runs" element={<PageRoute><Comparisons /></PageRoute>} />
+              <Route path="history" element={<PageRoute><History /></PageRoute>} />
+              <Route path="runs" element={<Navigate to="/history" replace />} />
               <Route path="users" element={<PageRoute><Users /></PageRoute>} />
             </Route>
           </Routes>

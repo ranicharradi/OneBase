@@ -11,6 +11,7 @@ import Kpi from '../components/ui/Kpi';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
 import Spinner from '../components/ui/Spinner';
+import { formatFileSize } from '../utils/filesize';
 
 type IssueTypeFilter = FileCheckIssue['issue_type'] | 'all';
 type SeverityFilter = FileCheckIssue['severity'] | 'all';
@@ -36,11 +37,6 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
-function fileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function statusTone(status: FileCheckReport['status']): 'ok' | 'warn' | 'danger' | 'accent' {
   if (status === 'clean') return 'ok';
@@ -318,7 +314,7 @@ export default function FileChecker() {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
                       <span className="mono" style={{ color: 'var(--fg-2)' }}>
-                        {fileSize(currentReport.file_size_bytes)}
+                        {formatFileSize(currentReport.file_size_bytes)}
                       </span>
                       <span className="mono" style={{ color: 'var(--fg-2)' }}>
                         delimiter {currentReport.delimiter === '\t' ? 'tab' : currentReport.delimiter}

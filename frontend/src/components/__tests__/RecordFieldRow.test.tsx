@@ -1,8 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import RecordFieldRow from '../RecordFieldRow'
-import TypeFilter from '../TypeFilter'
 
 describe('RecordFieldRow', () => {
   it('renders field label and value from dynamic fields', () => {
@@ -45,29 +43,5 @@ describe('RecordFieldRow', () => {
     )
 
     expect(screen.getByText('SAP')).toBeInTheDocument()
-  })
-})
-
-describe('TypeFilter', () => {
-  it('marks selected type and calls onChange', async () => {
-    const user = userEvent.setup()
-    const onChange = vi.fn()
-
-    render(
-      <TypeFilter
-        value="supplier"
-        types={[
-          { key: 'supplier', label: 'Supplier', field_count: 7 },
-          { key: 'material', label: 'Material', field_count: 5 },
-        ]}
-        onChange={onChange}
-      />,
-    )
-
-    expect(screen.getByRole('tab', { name: 'Supplier' })).toHaveAttribute('aria-selected', 'true')
-
-    await user.click(screen.getByRole('tab', { name: 'Material' }))
-
-    expect(onChange).toHaveBeenCalledWith('material')
   })
 })

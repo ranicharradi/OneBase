@@ -1,4 +1,5 @@
 import Hbar from './Hbar';
+import { confidenceTone } from '../../utils/confidence';
 
 interface ConfMiniProps {
   /** 0–1 confidence */
@@ -8,7 +9,7 @@ interface ConfMiniProps {
 
 export default function ConfMini({ value, width = 56 }: ConfMiniProps) {
   const pct = Math.round(value * 100);
-  const tone = pct >= 85 ? 'ok' : pct >= 70 ? 'warn' : 'danger';
+  const tone = confidenceTone(value);
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       <Hbar value={pct} tone={tone} width={width} height={4} />

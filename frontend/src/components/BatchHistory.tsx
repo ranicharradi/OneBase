@@ -6,6 +6,7 @@ import type { BatchResponse } from '../api/types';
 import Panel, { PanelHead } from './ui/Panel';
 import Pill from './ui/Pill';
 import type { PillTone } from './ui/Pill';
+import { displayFilename } from '../utils/filename';
 
 interface BatchHistoryProps {
   dataSourceId?: number;
@@ -23,11 +24,6 @@ const STATUS_TONES: Record<string, PillTone> = {
 };
 
 const DELETABLE_STATUSES = new Set(['pending', 'failed', 'failure']);
-
-function displayFilename(stored: string): string {
-  const match = stored.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(.+)$/);
-  return match ? match[1] : stored;
-}
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);

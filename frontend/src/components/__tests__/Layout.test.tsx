@@ -73,12 +73,12 @@ describe('Layout sidebar', () => {
     render(<Layout />)
 
     expect(screen.getByText('Overview')).toBeInTheDocument()
-    expect(screen.getByText('Runs')).toBeInTheDocument()
+    expect(screen.getByText('History')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /pipeline/i }))
 
     expect(screen.queryByText('Overview')).not.toBeInTheDocument()
-    expect(screen.getByText('Runs')).toBeInTheDocument()
+    expect(screen.getByText('History')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /pipeline/i })).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(screen.getByRole('button', { name: /pipeline/i }))
@@ -87,13 +87,11 @@ describe('Layout sidebar', () => {
     expect(screen.getByRole('button', { name: /pipeline/i })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('places admin access inside utilities without a separate admin group', () => {
+  it('admin access is not in the sidebar nav', () => {
     render(<Layout />)
 
-    expect(screen.queryByRole('button', { name: /^admin$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /admin access/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /utilities/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /admin access/i })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /users & access/i })).not.toBeInTheDocument()
   })
 
   it('uses one global record type selector to scope lifecycle navigation', async () => {
@@ -106,7 +104,7 @@ describe('Layout sidebar', () => {
 
     await user.selectOptions(selector, 'bank')
 
-    expect(screen.getByRole('link', { name: /runs/i })).toHaveAttribute('href', '/runs?type=bank')
+    expect(screen.getByRole('link', { name: /history/i })).toHaveAttribute('href', '/history')
     expect(screen.getByRole('link', { name: /review queue/i })).toHaveAttribute('href', '/review?type=bank')
     expect(screen.getByRole('link', { name: /merge queue/i })).toHaveAttribute('href', '/merge?type=bank')
     expect(screen.getByRole('link', { name: /unified/i })).toHaveAttribute('href', '/unified?type=bank')

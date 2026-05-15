@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Notification } from '../hooks/useNotifications';
+import { relativeTime } from '../utils/time';
 
 interface NotificationCenterProps {
   notifications: Notification[];
@@ -12,15 +13,6 @@ interface NotificationCenterProps {
   onClearAll: () => void;
 }
 
-function timeAgo(timestamp: string): string {
-  const diff = Date.now() - new Date(timestamp).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
 
 const TYPE_TONE: Record<string, 'ok' | 'warn' | 'danger' | 'info' | 'accent'> = {
   matching_complete: 'ok',
@@ -175,7 +167,7 @@ export default function NotificationCenter({
                     >
                       <div style={{ fontSize: 12, color: 'var(--fg-0)', lineHeight: 1.4 }}>{n.message}</div>
                       <div className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginTop: 2 }}>
-                        {timeAgo(n.timestamp)}
+                        {relativeTime(n.timestamp)}
                       </div>
                     </button>
                     <button

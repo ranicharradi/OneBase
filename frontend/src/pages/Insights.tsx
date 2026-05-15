@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { api } from '../api/client';
 import type { InsightsDqResponse } from '../api/types';
 import Hbar from '../components/ui/Hbar';
+import { dqTone } from '../utils/confidence';
 import Kpi from '../components/ui/Kpi';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Spinner from '../components/ui/Spinner';
@@ -11,11 +12,6 @@ function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
 
-function tone(score: number): 'ok' | 'warn' | 'danger' {
-  if (score >= 0.8) return 'ok';
-  if (score >= 0.5) return 'warn';
-  return 'danger';
-}
 
 function parseBucketMid(label: string): number {
   if (label.startsWith('<')) return 0.1;
@@ -45,7 +41,7 @@ export default function Insights() {
             label="Avg DQ Score"
             value={pct(data.avg_dq)}
             bar={Math.round(data.avg_dq * 100)}
-            tone={tone(data.avg_dq)}
+            tone={dqTone(data.avg_dq) as 'ok' | 'warn' | 'danger'}
           />
         </div>
       </Panel>
@@ -56,7 +52,7 @@ export default function Insights() {
           {data.distribution.map((b) => (
             <div key={b.bucket} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="mono" style={{ width: 80, fontSize: 12 }}>{b.bucket}</span>
-              <Hbar value={(b.count / maxBucket) * 100} tone={tone(parseBucketMid(b.bucket))} style={{ flex: 1 }} />
+              <Hbar value={(b.count / maxBucket) * 100} tone={dqTone(parseBucketMid(b.bucket)) as 'ok' | 'warn' | 'danger'} style={{ flex: 1 }} />
               <span className="mono" style={{ width: 40, textAlign: 'right', fontSize: 12 }}>{b.count}</span>
             </div>
           ))}
@@ -70,7 +66,7 @@ export default function Insights() {
           {data.per_source.map((s) => (
             <div key={s.source_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ width: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{s.source_name}</span>
-              <Hbar value={s.avg_dq * 100} tone={tone(s.avg_dq)} style={{ flex: 1 }} />
+              <Hbar value={s.avg_dq * 100} tone={dqTone(s.avg_dq) as 'ok' | 'warn' | 'danger'} style={{ flex: 1 }} />
               <span className="mono" style={{ width: 96, textAlign: 'right', fontSize: 12 }}>{pct(s.avg_dq)} ({s.count})</span>
             </div>
           ))}

@@ -5,12 +5,19 @@ import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useSelectedRecordType } from '../contexts/RecordTypeContext';
+import { useComparisonRunSelection } from '../hooks/useComparisonRunSelection';
+import { relativeTime } from '../utils/time';
+import { confidenceTone } from '../utils/confidence';
 import type { ReviewQueueItem, ReviewQueueResponse, ReviewStats } from '../api/types';
 import { useSearch } from '../contexts/SearchContext';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import IdChip from '../components/ui/IdChip';
 import SourcePill from '../components/ui/SourcePill';
 import Pagination from '../components/Pagination';
+import WorkflowStageRail from '../components/WorkflowStageRail';
+import ComparisonRunSelect from '../components/ComparisonRunSelect';
+import QueueBucketTabs from '../components/QueueBucketTabs';
+import StaleRunWarning from '../components/StaleRunWarning';
 
 const PAGE_SIZE = 50;
 
@@ -29,26 +36,12 @@ const BUCKETS: Bucket[] = [
   { id: 'rejected', label: 'Rejected',         tone: 'danger', desc: 'not a duplicate' },
 ];
 
-function relativeTime(iso: string | null): string {
-  if (!iso) return '—';
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
-function confidenceTone(conf: number): 'ok' | 'warn' | 'danger' {
-  const pct = conf * 100;
-  return pct >= 85 ? 'ok' : pct >= 70 ? 'warn' : 'danger';
-}
 
 export default function MergeQueue() {
   const navigate = useNavigate();
   const { query: searchQuery } = useSearch();
   const { selectedType, withRecordType } = useSelectedRecordType();
+  const { runId, validRuns, selectedRun, setRunId } = useComparisonRunSelection(selectedType);
 
   const [bucket, setBucket] = useState<BucketFilter>('confirmed');
   const [pageState, setPageState] = useState({ type: selectedType, page: 0 });
@@ -71,19 +64,22 @@ export default function MergeQueue() {
     p.set('limit', String(PAGE_SIZE));
     p.set('type', selectedType);
     p.set('offset', String(page * PAGE_SIZE));
+    if (runId) p.set('comparison_run_id', runId);
     return p;
-  }, [bucket, page, selectedType]);
+  }, [bucket, page, selectedType, runId]);
 
   const { data: queue, isLoading } = useQuery({
-    queryKey: ['merge-queue', bucket, page, selectedType],
+    queryKey: ['merge-queue', bucket, page, selectedType, runId],
     queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
     refetchInterval: 30_000,
+    enabled: !!runId,
   });
 
   const { data: stats } = useQuery({
-    queryKey: ['review-stats', selectedType],
-    queryFn: () => api.get<ReviewStats>(`/api/review/stats?type=${selectedType}`),
+    queryKey: ['review-stats', selectedType, runId],
+    queryFn: () => api.get<ReviewStats>(`/api/review/stats?type=${selectedType}${runId ? `&comparison_run_id=${runId}` : ''}`),
     refetchInterval: 30_000,
+    enabled: !!runId,
   });
 
   const bucketCounts: Record<BucketFilter, number> = {
@@ -108,110 +104,41 @@ export default function MergeQueue() {
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
 
-        {/* ── Stage rail ── */}
-        <div className="fade" style={{
-          display: 'flex', alignItems: 'stretch',
-          background: 'var(--bg-1)', border: '1px solid var(--border-0)', borderRadius: 6,
-          overflow: 'hidden', marginBottom: 12,
-          }}>
-          {/* 01 Match — dimmed */}
-          <div
-            onClick={() => navigate(withRecordType('/runs'))}
-            style={{ padding: '10px 16px', minWidth: 210, opacity: 0.5, background: 'var(--bg-2)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
-            title="Go to Match runs"
-          >
-            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>01</span>
-            <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Match</div>
-            <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Candidate pairs</div>
-            <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
-              {(stats?.total_pending ?? 0) + (stats?.total_confirmed ?? 0) + (stats?.total_rejected ?? 0)}{' '}
-              <span style={{ fontSize: 10, color: 'var(--fg-2)', fontWeight: 400 }}>matched</span>
-            </div>
-          </div>
-          <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
-          {/* 02 Review — dimmed, clickable */}
-          <div
-            onClick={() => navigate(withRecordType('/review'))}
-            style={{ padding: '10px 16px', minWidth: 210, opacity: 0.5, background: 'var(--bg-2)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
-            title="Go to Review queue"
-          >
-            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>02</span>
-            <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Review</div>
-            <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Same record?</div>
-            <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
-              {stats?.total_pending ?? '—'}{' '}
-              <span style={{ fontSize: 10, color: 'var(--fg-2)', fontWeight: 400 }}>pending</span>
-            </div>
-          </div>
-          <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
-          {/* 03 Merge — active */}
-          <div style={{ padding: '10px 16px', minWidth: 210, background: 'var(--accent-soft)', borderRight: '1px solid var(--border-0)', position: 'relative', overflow: 'hidden' }}>
-            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--accent)', opacity: 0.08, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>03</span>
-            <div className="label" style={{ color: 'var(--accent)', fontWeight: 600, position: 'relative' }}>Merge</div>
-            <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Reconcile fields</div>
-            <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--accent)', marginTop: 4, position: 'relative' }}>
-              {stats?.total_confirmed ?? '—'}{' '}
-              <span style={{ fontSize: 10, color: 'var(--fg-2)', fontWeight: 400 }}>queued</span>
-            </div>
-          </div>
-          <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>
-          {/* 04 Unified — dimmed */}
-          <div
-            onClick={() => navigate(withRecordType('/unified'))}
-            style={{ padding: '10px 16px', flex: 1, opacity: 0.45, background: 'var(--bg-2)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
-            title="Go to Unified records"
-          >
-            <span className="mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 52, fontWeight: 700, color: 'var(--fg-0)', opacity: 0.05, lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>04</span>
-            <div className="label" style={{ color: 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>Unified</div>
-            <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>Unified records</div>
-            <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
-              {stats?.total_unified ?? '—'}{' '}
-              <span style={{ fontSize: 10, color: 'var(--fg-2)', fontWeight: 400 }}>records</span>
-            </div>
-          </div>
-        </div>
+        <WorkflowStageRail
+          activeStage="merge"
+          match={{
+            onClick: () => navigate('/compare'),
+            title: 'Go to Match runs',
+            count: { value: (stats?.total_pending ?? 0) + (stats?.total_confirmed ?? 0) + (stats?.total_rejected ?? 0), unit: 'matched' },
+          }}
+          review={{
+            onClick: () => navigate(withRecordType(runId ? `/review?comparison_run_id=${runId}` : '/review')),
+            title: 'Go to Review queue',
+            count: { value: stats?.total_pending ?? '—', unit: 'pending' },
+          }}
+          merge={{
+            count: { value: stats?.total_confirmed ?? '—', unit: 'queued' },
+          }}
+          unified={{
+            onClick: () => navigate(withRecordType('/unified')),
+            title: 'Go to Unified records',
+            count: { value: stats?.total_unified ?? '—', unit: 'records' },
+          }}
+        />
+
+        <StaleRunWarning show={selectedRun?.status === 'stale'} />
 
         {/* ── Title row ── */}
         <div className="fade" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <span className="pill accent" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 3 · MERGE</span>
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Merge queue</h1>
         </div>
-        {/* ── Bucket tabs ── */}
-        <div className="fade" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
-          {BUCKETS.map(b => {
-            const active = bucket === b.id;
-            return (
-              <button
-                key={b.id}
-                onClick={() => { setBucket(b.id); setPage(0); }}
-                style={{
-                  padding: '12px 14px', textAlign: 'left', cursor: 'pointer',
-                  background: active ? `var(--${b.tone}-soft)` : 'var(--bg-1)',
-                  border: `1px solid ${active ? `var(--${b.tone})` : 'var(--border-0)'}`,
-                  borderRadius: 6, fontFamily: 'inherit', color: 'var(--fg-0)',
-                  display: 'flex', flexDirection: 'column', gap: 4,
-                  boxShadow: active ? `inset 0 -3px 0 var(--${b.tone})` : 'none',
-                  transition: 'background 0.1s, border-color 0.1s, box-shadow 0.1s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: `var(--${b.tone})`, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    {b.label}
-                  </span>
-                  <span className="pill-dot" style={{ background: `var(--${b.tone})` }} />
-                </div>
-                <span className="mono tnum" style={{
-                  fontSize: 26, fontWeight: 600, lineHeight: 1,
-                  color: active ? `var(--${b.tone})` : 'var(--fg-0)',
-                  transition: 'color 0.15s',
-                }}>
-                  {bucketCounts[b.id]}
-                </span>
-                <span style={{ fontSize: 10, color: 'var(--fg-2)' }}>{b.desc}</span>
-              </button>
-            );
-          })}
-        </div>
+        <QueueBucketTabs
+          buckets={BUCKETS}
+          active={bucket}
+          counts={bucketCounts}
+          onChange={(id) => { setBucket(id as BucketFilter); setPage(0); }}
+        />
 
         {/* ── Upstream hint ── */}
         <div className="fade" style={{
@@ -224,8 +151,8 @@ export default function MergeQueue() {
           <span>
             <b>Upstream:</b> these pairs were confirmed as the same record in the{' '}
             <a
-              onClick={(e) => { e.preventDefault(); navigate(withRecordType('/review')); }}
-              href={withRecordType('/review')}
+              onClick={(e) => { e.preventDefault(); navigate(withRecordType(runId ? `/review?comparison_run_id=${runId}` : '/review')); }}
+              href={withRecordType(runId ? `/review?comparison_run_id=${runId}` : '/review')}
               style={{ color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}
             >
               Review queue
@@ -236,7 +163,16 @@ export default function MergeQueue() {
         {/* ── Table ── */}
         <div ref={tableRef}>
           <Panel className="fade">
-            <PanelHead title={`${queue?.total ?? 0} item${(queue?.total ?? 0) !== 1 ? 's' : ''}`} />
+            <PanelHead>
+              <ComparisonRunSelect
+                validRuns={validRuns}
+                runId={runId}
+                onChange={(id) => { setRunId(id); setPage(0); }}
+              />
+              <span className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+                {runId ? `${queue?.total ?? 0} item${(queue?.total ?? 0) !== 1 ? 's' : ''}` : ''}
+              </span>
+            </PanelHead>
             <table className="table">
               <thead>
                 <tr>
@@ -254,7 +190,15 @@ export default function MergeQueue() {
                     <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--fg-2)', fontSize: 12 }}>Loading…</td>
                   </tr>
                 )}
-                {!isLoading && filteredItems.length === 0 && (
+                {!runId && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--fg-2)', fontSize: 12 }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)', display: 'block', marginBottom: 8 }}>merge</span>
+                      Select a run above to load the merge queue.
+                    </td>
+                  </tr>
+                )}
+                {runId && !isLoading && filteredItems.length === 0 && (
                   <tr>
                     <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--fg-2)', fontSize: 12 }}>
                       {bucket === 'confirmed' ? 'No items awaiting merge — review queue may still be empty.' : `No ${BUCKETS.find(b => b.id === bucket)?.label.toLowerCase()} items.`}
