@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useComparisonRunStatus } from '../hooks/useComparisonRun';
+import { useSelectedRecordType } from '../contexts/RecordTypeContext';
 import type {
   BatchResponse,
   ComparisonMode,
@@ -19,6 +20,7 @@ import { stripUuidPrefix, displayFilename } from '../utils/filename';
 import { MODE_LABEL } from '../utils/comparisons';
 import { relativeTime } from '../utils/time';
 import WorkflowStageRail from '../components/WorkflowStageRail';
+import HandoffBanner from '../components/HandoffBanner';
 
 // ── Constants ─────────────────────────────────────────
 
@@ -149,9 +151,8 @@ function MatchingPipeline({ status }: { status?: ComparisonRunStatus }) {
   );
 }
 
-function ActiveRunCard({ run }: { run: ComparisonRunResponse }) {
+function ActiveRunCard({ run, onReview }: { run: ComparisonRunResponse; onReview: (id: number) => void }) {
   const { data: liveStatus } = useComparisonRunStatus(run.id);
-  const navigate = useNavigate();
   const isComplete = liveStatus?.state === 'COMPLETE' || liveStatus?.state === 'SUCCESS';
 
   return (
@@ -182,7 +183,7 @@ function ActiveRunCard({ run }: { run: ComparisonRunResponse }) {
           {isComplete && (
             <button
               className="btn btn-sm btn-accent"
-              onClick={() => navigate(`/review?comparison_run_id=${run.id}`)}
+              onClick={() => onReview(run.id)}
               style={{ fontSize: 10 }}
             >
               Review results →
@@ -196,7 +197,7 @@ function ActiveRunCard({ run }: { run: ComparisonRunResponse }) {
   );
 }
 
-// ── Batch picker ───────────────────────────────────────
+// ── Batch filename cell ────────────────────────────────
 
 function FileCell({ name }: { name: string }) {
   const clean = stripUuidPrefix(name);
@@ -215,88 +216,19 @@ function FileCell({ name }: { name: string }) {
   );
 }
 
-function BatchGroup({
-  type, batches, selected, effectiveSelection, vsGolden, onToggle, lockedType,
-}: {
-  type: string;
-  batches: BatchResponse[];
-  selected: Set<number>;
-  effectiveSelection: number[];
-  vsGolden: boolean;
-  onToggle: (id: number) => void;
-  lockedType: string | null;
-}) {
-  const [open, setOpen] = useState(true);
-  const isLocked = lockedType !== null && lockedType !== type;
-
-  return (
-    <Panel style={{ marginBottom: 10, opacity: isLocked ? 0.4 : 1 }}>
-      <div
-        className="panel-head"
-        style={{ cursor: 'pointer', userSelect: 'none' }}
-        onClick={() => setOpen(o => !o)}
-      >
-        <span className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{type}</span>
-        <span className="mono dim" style={{ fontSize: 11 }}>{batches.length} batch{batches.length !== 1 ? 'es' : ''}</span>
-        <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--fg-3)', marginLeft: 'auto', transition: 'transform 0.15s', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
-          expand_more
-        </span>
-      </div>
-
-      {open && (
-        <table className="table">
-          <thead>
-            <tr>
-              <th style={{ width: 36 }} />
-              <th>Filename</th>
-              <th>Uploaded</th>
-              <th className="num">Rows</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {batches.map(b => {
-              const inEffective = effectiveSelection.includes(b.id);
-              const isChecked = selected.has(b.id);
-              const overCap = vsGolden && !inEffective && isChecked;
-              const dimmed = isLocked || (vsGolden && !inEffective && !isChecked && effectiveSelection.length >= 1);
-              return (
-                <tr
-                  key={b.id}
-                  onClick={() => !isLocked && onToggle(b.id)}
-                  className={inEffective ? 'selected' : ''}
-                  style={{ cursor: isLocked ? 'default' : 'pointer', opacity: (overCap || dimmed) ? 0.35 : 1 }}
-                >
-                  <td><input type="checkbox" checked={isChecked} readOnly /></td>
-                  <td><FileCell name={b.filename} /></td>
-                  <td>
-                    <span title={`${new Date(b.created_at).toLocaleString()} by ${b.uploaded_by}`}
-                      className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-                      {relativeTime(b.created_at)}
-                    </span>
-                  </td>
-                  <td className="num">{(b.row_count ?? 0).toLocaleString()}</td>
-                  <td>
-                    <Pill tone={BATCH_TONE[b.status] ?? 'neutral'} dot>
-                      {b.status}
-                    </Pill>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-    </Panel>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────
 
 export default function Compare() {
   const navigate = useNavigate();
-  const [vsGolden, setVsGolden] = useState(false);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const { selectedType, withRecordType } = useSelectedRecordType();
+  const [selState, setSelState] = useState<{ type: string; ids: Set<number>; vsGolden: boolean }>({
+    type: selectedType,
+    ids: new Set(),
+    vsGolden: false,
+  });
+
+  const selected = selState.type === selectedType ? selState.ids : new Set<number>();
+  const vsGolden = selState.type === selectedType ? selState.vsGolden : false;
 
   const { data: batches } = useQuery({
     queryKey: ['batches'],
@@ -314,6 +246,11 @@ export default function Compare() {
 
   const activeRuns = (allRuns ?? []).filter(r => r.status === 'pending' || r.status === 'running');
 
+  const typeBatches = useMemo(
+    () => (batches ?? []).filter(b => b.type === selectedType),
+    [batches, selectedType],
+  );
+
   const selectedIds = useMemo(() => [...selected], [selected]);
   const effectiveSelection = vsGolden ? selectedIds.slice(0, 1) : selectedIds;
   const mode = resolveMode(vsGolden, effectiveSelection.length);
@@ -321,32 +258,23 @@ export default function Compare() {
   const isValid = effectiveSelection.length >= minFiles;
 
   const selectedBatches = useMemo(
-    () => (batches ?? []).filter(b => effectiveSelection.includes(b.id)),
-    [batches, effectiveSelection],
+    () => typeBatches.filter(b => effectiveSelection.includes(b.id)),
+    [typeBatches, effectiveSelection],
   );
-
-  const selectedType = selectedBatches[0]?.type ?? '';
-
-  const grouped = useMemo(() => {
-    return (batches ?? []).reduce<Record<string, BatchResponse[]>>((acc, b) => {
-      (acc[b.type] ??= []).push(b);
-      return acc;
-    }, {});
-  }, [batches]);
 
   const launch = useMutation({
     mutationFn: async () => {
       const payload: ComparisonRunCreate = { type: selectedType, mode, batch_ids: effectiveSelection };
       return api.post<ComparisonRunResponse>('/api/comparisons/', payload);
     },
-    onSuccess: (run) => navigate(`/review?comparison_run_id=${run.id}`),
+    onSuccess: (run) => navigate(withRecordType(`/review?comparison_run_id=${run.id}`)),
   });
 
   const toggleRow = (id: number) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
+    setSelState(prev => {
+      const ids = prev.type === selectedType ? new Set(prev.ids) : new Set<number>();
+      if (ids.has(id)) ids.delete(id); else ids.add(id);
+      return { ...prev, type: selectedType, ids };
     });
   };
 
@@ -356,39 +284,32 @@ export default function Compare() {
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
 
+        <div style={{ marginBottom: 10 }}>
+          <span className="pill info" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 1 · MATCH</span>
+        </div>
+
         <WorkflowStageRail
           activeStage="match"
           match={{ count: { value: activeRuns.length > 0 ? activeRuns.length : (allRuns?.length ?? '—'), unit: activeRuns.length > 0 ? 'running' : 'runs' } }}
-          review={{ onClick: () => navigate('/review'), title: 'Go to Review queue' }}
-          merge={{ onClick: () => navigate('/merge'), title: 'Go to Merge queue' }}
-          unified={{ onClick: () => navigate('/unified'), title: 'Go to Unified records' }}
+          review={{ onClick: () => navigate(withRecordType('/review')), title: 'Go to Review queue' }}
+          merge={{ onClick: () => navigate(withRecordType('/merge')), title: 'Go to Merge queue' }}
+          unified={{ onClick: () => navigate(withRecordType('/unified')), title: 'Go to Unified records' }}
+        />
+
+        <HandoffBanner
+          icon="compare_arrows"
+          text={<>completed runs deliver matched pairs to the <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Review queue</span> for human triage.</>}
+          note="auto-routed · no review on this screen"
         />
 
         {/* Active run cards */}
-        {activeRuns.map(r => <ActiveRunCard key={r.id} run={r} />)}
-
-        {/* Header */}
-        <div className="fade" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, marginTop: activeRuns.length > 0 ? 8 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span className="pill info" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 1 · MATCH</span>
-            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>New run</h1>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {effectiveSelection.length > 0 && !vsGolden && (
-              <span className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>
-                {MODE_LABEL[mode]}
-              </span>
-            )}
-            <button
-              className={`btn btn-sm${vsGolden ? ' btn-accent' : ''}`}
-              onClick={() => { setVsGolden(v => !v); setSelected(new Set()); }}
-              title="Match selected file against the unified golden set"
-            >
-              vs Golden
-            </button>
-            <Link to="/history" className="btn btn-sm">History ▸</Link>
-          </div>
-        </div>
+        {activeRuns.map(r => (
+          <ActiveRunCard
+            key={r.id}
+            run={r}
+            onReview={(id) => navigate(withRecordType(`/review?comparison_run_id=${id}`))}
+          />
+        ))}
 
         {/* vs Golden mode banner */}
         {vsGolden && (
@@ -406,34 +327,101 @@ export default function Compare() {
             <button
               className="btn btn-ghost btn-sm"
               style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 8px' }}
-              onClick={() => { setVsGolden(false); setSelected(new Set()); }}
+              onClick={() => setSelState(s => ({ ...s, ids: new Set(), vsGolden: false }))}
             >
               cancel
             </button>
           </div>
         )}
 
-        {/* Batches grouped by type */}
-        {batches?.length === 0 ? (
+        {/* Batches for selected type */}
+        {typeBatches.length === 0 ? (
           <Panel>
-            <PanelHead><span className="panel-title">Batches</span></PanelHead>
+            <PanelHead>
+              <span className="panel-title">Batches</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {effectiveSelection.length > 0 && !vsGolden && (
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>
+                    {MODE_LABEL[mode]}
+                  </span>
+                )}
+                <button
+                  className={`btn btn-sm${vsGolden ? ' btn-accent' : ''}`}
+                  onClick={() => setSelState({ type: selectedType, ids: new Set(), vsGolden: !vsGolden })}
+                  title="Match selected file against the unified golden set"
+                >
+                  vs Golden
+                </button>
+                <Link to="/history" className="btn btn-sm">History ▸</Link>
+              </div>
+            </PanelHead>
             <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--fg-3)', fontSize: 12 }}>
               No batches yet
             </div>
           </Panel>
         ) : (
-          Object.entries(grouped).map(([type, typeBatches]) => (
-            <BatchGroup
-              key={type}
-              type={type}
-              batches={typeBatches}
-              selected={selected}
-              effectiveSelection={effectiveSelection}
-              vsGolden={vsGolden}
-              onToggle={toggleRow}
-              lockedType={selectedType || null}
-            />
-          ))
+          <Panel>
+            <PanelHead>
+              <span className="panel-title">Batches</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {effectiveSelection.length > 0 && !vsGolden && (
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>
+                    {MODE_LABEL[mode]}
+                  </span>
+                )}
+                <button
+                  className={`btn btn-sm${vsGolden ? ' btn-accent' : ''}`}
+                  onClick={() => setSelState({ type: selectedType, ids: new Set(), vsGolden: !vsGolden })}
+                  title="Match selected file against the unified golden set"
+                >
+                  vs Golden
+                </button>
+                <Link to="/history" className="btn btn-sm">History ▸</Link>
+              </div>
+            </PanelHead>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th style={{ width: 36 }} />
+                  <th>Filename</th>
+                  <th>Uploaded</th>
+                  <th className="num">Rows</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {typeBatches.map(b => {
+                  const inEffective = effectiveSelection.includes(b.id);
+                  const isChecked = selected.has(b.id);
+                  const overCap = vsGolden && !inEffective && isChecked;
+                  const dimmed = vsGolden && !inEffective && !isChecked && effectiveSelection.length >= 1;
+                  return (
+                    <tr
+                      key={b.id}
+                      onClick={() => toggleRow(b.id)}
+                      className={inEffective ? 'selected' : ''}
+                      style={{ cursor: 'pointer', opacity: (overCap || dimmed) ? 0.35 : 1 }}
+                    >
+                      <td><input type="checkbox" checked={isChecked} readOnly /></td>
+                      <td><FileCell name={b.filename} /></td>
+                      <td>
+                        <span title={`${new Date(b.created_at).toLocaleString()} by ${b.uploaded_by}`}
+                          className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+                          {relativeTime(b.created_at)}
+                        </span>
+                      </td>
+                      <td className="num">{(b.row_count ?? 0).toLocaleString()}</td>
+                      <td>
+                        <Pill tone={BATCH_TONE[b.status] ?? 'neutral'} dot>
+                          {b.status}
+                        </Pill>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Panel>
         )}
 
         {/* Sticky footer */}
@@ -446,7 +434,7 @@ export default function Compare() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
             {effectiveSelection.length === 0 ? (
               <span className="mono" style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-                {vsGolden ? 'select 1 batch to match against the golden set' : 'select 2+ batches of the same type to compare'}
+                {vsGolden ? 'select 1 batch to match against the golden set' : 'select 2+ batches to compare'}
               </span>
             ) : (
               selectedBatches.map(b => (
