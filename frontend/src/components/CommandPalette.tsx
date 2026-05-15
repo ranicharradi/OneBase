@@ -14,7 +14,6 @@ interface PaletteItem {
   section: "Navigate" | "Actions" | "Records";
   label: string;
   hint?: string;
-  kbd?: string;
   icon: string;
   onSelect: () => void;
 }
@@ -54,72 +53,25 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const items = useMemo<PaletteItem[]>(() => {
     const navItems: PaletteItem[] = [
-      {
-        section: "Navigate",
-        label: "Go to Dashboard",
-        kbd: "G D",
-        icon: "home",
-        onSelect: () => navigate("/dashboard"),
-      },
-      {
-        section: "Navigate",
-        label: "Go to Upload",
-        kbd: "G U",
-        icon: "cloud_upload",
-        onSelect: () => navigate("/upload"),
-      },
-      {
-        section: "Navigate",
-        label: "Go to Sources",
-        kbd: "G S",
-        icon: "storage",
-        onSelect: () => navigate("/sources"),
-      },
-      {
-        section: "Navigate",
-        label: "Go to Review queue",
-        kbd: "G R",
-        icon: "swap_horiz",
-        onSelect: () => navigate(withRecordType("/review")),
-      },
-      {
-        section: "Navigate",
-        label: "Go to Unified records",
-        kbd: "G M",
-        icon: "verified",
-        onSelect: () => navigate(withRecordType("/unified")),
-      },
-      {
-        section: "Navigate",
-        label: "Go to Users & access",
-        kbd: "G A",
-        icon: "group",
-        onSelect: () => navigate("/users"),
-      },
-      {
-        section: "Actions",
-        label: "New data source",
-        icon: "add",
-        onSelect: () => navigate("/sources"),
-      },
-      {
-        section: "Actions",
-        label: "Upload CSV batch",
-        icon: "cloud_upload",
-        onSelect: () => navigate("/upload"),
-      },
-      {
-        section: "Actions",
-        label: "Retrain model",
-        icon: "auto_awesome",
-        onSelect: () => navigate(withRecordType("/review")),
-      },
-      {
-        section: "Actions",
-        label: "Browse unified records",
-        icon: "arrow_forward",
-        onSelect: () => navigate(withRecordType("/unified")),
-      },
+      // Pipeline
+      { section: "Navigate", label: "Go to Overview",      icon: "home",           onSelect: () => navigate("/dashboard") },
+      { section: "Navigate", label: "Go to Upload",        icon: "cloud_upload",   onSelect: () => navigate("/upload") },
+      { section: "Navigate", label: "Go to Sources",       icon: "storage",        onSelect: () => navigate("/sources") },
+      // Matching
+      { section: "Navigate", label: "Go to Compare",       icon: "compare_arrows", onSelect: () => navigate("/compare") },
+      { section: "Navigate", label: "Go to Review queue",  icon: "swap_horiz",     onSelect: () => navigate(withRecordType("/review")) },
+      { section: "Navigate", label: "Go to Merge queue",   icon: "merge",          onSelect: () => navigate(withRecordType("/merge")) },
+      { section: "Navigate", label: "Go to Unified",       icon: "verified",       onSelect: () => navigate(withRecordType("/unified")) },
+      { section: "Navigate", label: "Go to History",       icon: "history",        onSelect: () => navigate("/history") },
+      // Utilities
+      { section: "Navigate", label: "Go to Insights",      icon: "insights",       onSelect: () => navigate("/insights") },
+      { section: "Navigate", label: "Go to File checker",  icon: "rule",           onSelect: () => navigate("/file-checker") },
+      { section: "Navigate", label: "Go to Ask",           icon: "forum",          onSelect: () => navigate("/ask") },
+      // Actions
+      { section: "Actions",  label: "New data source",     icon: "add",            onSelect: () => navigate("/sources") },
+      { section: "Actions",  label: "Upload CSV batch",    icon: "cloud_upload",   onSelect: () => navigate("/upload") },
+      { section: "Actions",  label: "Retrain model",       icon: "auto_awesome",   onSelect: () => navigate(withRecordType("/review")) },
+      { section: "Actions",  label: "Browse unified",      icon: "arrow_forward",  onSelect: () => navigate(withRecordType("/unified")) },
     ];
 
     const recordItems: PaletteItem[] = (recordResults?.items ?? []).map(
@@ -287,7 +239,6 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                         {item.hint}
                       </span>
                     )}
-                    {item.kbd && <span className="kbd">{item.kbd}</span>}
                   </button>
                 );
               })}
