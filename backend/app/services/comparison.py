@@ -1,7 +1,5 @@
 """Comparison run orchestration: validate, create, dispatch, stale."""
 
-from fastapi import HTTPException
-from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
@@ -12,6 +10,22 @@ from app.record_types import get as get_record_type
 
 MIN_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1, "MULTI_FILE": 2}
 MAX_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1, "MULTI_FILE": None}
+
+
+class ComparisonValidationError(ValueError):
+    """Input validation failed for a comparison run."""
+
+
+class ComparisonNotFoundError(ValueError):
+    """Referenced entity (record type, batch) was not found."""
+
+
+class ComparisonConflictError(ValueError):
+    """An active run already exists for this type."""
+
+    def __init__(self, message: str, run_id: int) -> None:
+        super().__init__(message)
+        self.run_id = run_id
 
 
 def create_run(
@@ -26,40 +40,30 @@ def create_run(
     try:
         get_record_type(type)
     except KeyError:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=f"Unknown record type: {type!r}",
-        ) from None
+        raise ComparisonNotFoundError(f"Unknown record type: {type!r}") from None
 
     if mode not in MIN_BATCHES_BY_MODE:
-        raise HTTPException(status_code=400, detail=f"Unknown mode: {mode!r}")
+        raise ComparisonValidationError(f"Unknown mode: {mode!r}")
 
     min_n = MIN_BATCHES_BY_MODE[mode]
     max_n = MAX_BATCHES_BY_MODE[mode]
     if len(batch_ids) < min_n or (max_n is not None and len(batch_ids) > max_n):
         expected = f"{min_n}" if max_n == min_n else f"{min_n}+"
-        raise HTTPException(
-            status_code=400,
-            detail=f"Mode {mode} requires {expected} batches; received {len(batch_ids)}",
-        )
+        raise ComparisonValidationError(f"Mode {mode} requires {expected} batches; received {len(batch_ids)}")
 
     batches = db.query(ImportBatch).filter(ImportBatch.id.in_(batch_ids)).all()
     if len(batches) != len(batch_ids):
-        raise HTTPException(status_code=400, detail="One or more batch_ids not found")
+        raise ComparisonValidationError("One or more batch_ids not found")
 
     types = {b.data_source.type for b in batches}
     if types != {type}:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Batches must all be of type {type!r}; got {types!r}",
-        )
+        raise ComparisonValidationError(f"Batches must all be of type {type!r}; got {types!r}")
 
     if mode == "FILE_VS_GOLDEN":
         unified_count = db.query(UnifiedRecord).filter(UnifiedRecord.type == type).count()
         if unified_count == 0:
-            raise HTTPException(
-                status_code=400,
-                detail="No golden records yet — run a FILE_VS_FILE comparison first to produce them.",
+            raise ComparisonValidationError(
+                "No golden records yet — run a FILE_VS_FILE comparison first to produce them."
             )
 
     conflict = (
@@ -68,10 +72,9 @@ def create_run(
         .first()
     )
     if conflict is not None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"A run of type {type!r} is already in progress (run #{conflict.id})",
-            headers={"X-Conflict-Run-Id": str(conflict.id)},
+        raise ComparisonConflictError(
+            f"A run of type {type!r} is already in progress (run #{conflict.id})",
+            run_id=conflict.id,
         )
 
     run = ComparisonRun(type=type, mode=mode, status="pending", name=name, created_by=username)

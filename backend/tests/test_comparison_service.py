@@ -1,11 +1,15 @@
 import pytest
-from fastapi import HTTPException
 
 from app.models.batch import ImportBatch
 from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus
 from app.models.source import DataSource
-from app.services.comparison import create_run, mark_stale_for_source
+from app.services.comparison import (
+    ComparisonConflictError,
+    ComparisonValidationError,
+    create_run,
+    mark_stale_for_source,
+)
 
 
 def _batch(db, type_key="supplier", name="src"):
@@ -20,25 +24,21 @@ def _batch(db, type_key="supplier", name="src"):
 
 def test_create_run_file_vs_file_requires_two_batches(test_db):
     b1 = _batch(test_db)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ComparisonValidationError):
         create_run(test_db, type="supplier", mode="FILE_VS_FILE", batch_ids=[b1.id], name=None, username="u")
-    assert exc.value.status_code == 400
 
 
 def test_create_run_rejects_cross_type(test_db):
     b1 = _batch(test_db, type_key="supplier", name="a")
     b2 = _batch(test_db, type_key="client", name="b")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ComparisonValidationError):
         create_run(test_db, type="supplier", mode="FILE_VS_FILE", batch_ids=[b1.id, b2.id], name=None, username="u")
-    assert exc.value.status_code == 400
 
 
 def test_create_run_file_vs_golden_requires_unified_records(test_db):
     b1 = _batch(test_db)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ComparisonValidationError, match="No golden records"):
         create_run(test_db, type="supplier", mode="FILE_VS_GOLDEN", batch_ids=[b1.id], name=None, username="u")
-    assert exc.value.status_code == 400
-    assert "No golden records" in exc.value.detail
 
 
 def test_create_run_conflicts_with_running_run_same_type(test_db):
@@ -47,9 +47,9 @@ def test_create_run_conflicts_with_running_run_same_type(test_db):
     existing = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="running", created_by="u")
     test_db.add(existing)
     test_db.commit()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ComparisonConflictError) as exc:
         create_run(test_db, type="supplier", mode="FILE_VS_FILE", batch_ids=[b1.id, b2.id], name=None, username="u")
-    assert exc.value.status_code == 409
+    assert exc.value.run_id == existing.id
 
 
 def test_create_run_happy_path_returns_pending(test_db):

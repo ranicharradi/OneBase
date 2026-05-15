@@ -14,7 +14,12 @@ from app.schemas.comparison import (
     ComparisonRunDetail,
     ComparisonRunResponse,
 )
-from app.services.comparison import create_run
+from app.services.comparison import (
+    ComparisonConflictError,
+    ComparisonNotFoundError,
+    ComparisonValidationError,
+    create_run,
+)
 from app.tasks.comparison import run_comparison
 
 router = APIRouter(prefix="/api/comparisons", tags=["comparisons"])
@@ -45,14 +50,25 @@ def post_run(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    run = create_run(
-        db,
-        type=payload.type,
-        mode=payload.mode,
-        batch_ids=payload.batch_ids,
-        name=payload.name,
-        username=current_user.username,
-    )
+    try:
+        run = create_run(
+            db,
+            type=payload.type,
+            mode=payload.mode,
+            batch_ids=payload.batch_ids,
+            name=payload.name,
+            username=current_user.username,
+        )
+    except ComparisonNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ComparisonConflictError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=str(e),
+            headers={"X-Conflict-Run-Id": str(e.run_id)},
+        ) from e
+    except ComparisonValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     db.commit()
     task = run_comparison.delay(run.id)
     run.task_id = task.id
