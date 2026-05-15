@@ -158,6 +158,7 @@ export interface FieldComparison {
 export interface MatchDetailResponse {
   id: number;
   type: string;
+  comparison_run_id: number;
   confidence: number;
   match_signals: Record<string, number>;
   status: string;

@@ -131,8 +131,9 @@ const mockSupplierType = {
 
 function setupFetch(queueOverride?: Partial<typeof mockQueue>) {
   const queue = { ...mockQueue, ...queueOverride }
-  vi.spyOn(global, 'fetch').mockImplementation((url) => {
+  vi.spyOn(global, 'fetch').mockImplementation((url, init) => {
     const urlStr = String(url)
+    const method = init?.method ?? 'GET'
     if (urlStr.includes('/api/record-types/supplier')) {
       return Promise.resolve(
         new Response(JSON.stringify(mockSupplierType), {
@@ -176,6 +177,22 @@ function setupFetch(queueOverride?: Partial<typeof mockQueue>) {
     if (urlStr.includes('/api/sources')) {
       return Promise.resolve(
         new Response(JSON.stringify(mockSources), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    }
+    if (urlStr.includes('/api/review/candidates/1/confirm') && method === 'POST') {
+      return Promise.resolve(
+        new Response(JSON.stringify({ candidate_id: 1, action: 'confirmed', unified_record_id: null }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    }
+    if (urlStr.includes('/api/review/candidates/1/reject') && method === 'POST') {
+      return Promise.resolve(
+        new Response(JSON.stringify({ candidate_id: 1, action: 'rejected', unified_record_id: null }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         }),
@@ -319,13 +336,19 @@ describe('ReviewQueue page', () => {
     expect(screen.queryByText('Beta Industries')).not.toBeInTheDocument()
   })
 
-  it('navigates to /review/:id when clicking a row', async () => {
+  it('confirms a pending candidate in place when clicking Same', async () => {
     setupFetch()
     const user = userEvent.setup()
     render(<ReviewQueue />)
     await screen.findByText('Acme Corp')
     await user.click(screen.getByRole('button', { name: /same/i }))
-    expect(mockNavigate).toHaveBeenCalledWith('/review/1?type=supplier')
+    await vi.waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/review/candidates/1/confirm',
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+    expect(mockNavigate).not.toHaveBeenCalledWith('/review/1?type=supplier')
   })
 
   it('renders pagination when total exceeds page size', async () => {

@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import Pagination, get_current_user, get_db, get_or_404, get_pagination
 from app.models.audit import AuditLog
-from app.models.enums import RecordStatus
+from app.models.enums import CandidateStatus, RecordStatus
+from app.models.match import MatchCandidate
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.models.unified import UnifiedRecord
@@ -165,6 +166,19 @@ def get_unified_record(
         if isinstance(v, dict):
             provenance[k] = FieldProvenance(**v)
 
+    match_candidate = None
+    if len(source_ids) >= 2:
+        match_candidate = (
+            db.query(MatchCandidate)
+            .filter(
+                MatchCandidate.status == CandidateStatus.MERGED,
+                MatchCandidate.record_a_id.in_(source_ids),
+                MatchCandidate.record_b_id.in_(source_ids),
+            )
+            .order_by(MatchCandidate.reviewed_at.desc().nullslast(), MatchCandidate.id.desc())
+            .first()
+        )
+
     return UnifiedRecordDetail(
         id=unified.id,
         type=unified.type,
@@ -173,6 +187,7 @@ def get_unified_record(
         provenance=provenance,
         source_record_ids=source_ids,
         source_records=source_records,
+        match_candidate_id=match_candidate.id if match_candidate else None,
         merge_history=merge_history,
         created_by=unified.created_by,
         created_at=unified.created_at,

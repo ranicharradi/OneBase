@@ -21,6 +21,7 @@ import WorkflowStageRail from '../components/WorkflowStageRail';
 import HandoffBanner from '../components/HandoffBanner';
 import ComparisonRunSelect from '../components/ComparisonRunSelect';
 import QueueBucketTabs from '../components/QueueBucketTabs';
+import Spinner from '../components/ui/Spinner';
 
 
 // ── Constants ────────────────────────────────────────
@@ -92,6 +93,7 @@ export default function ReviewQueue() {
   const { runId, validRuns, selectedRun, setRunId } = useComparisonRun(selectedType);
   const { data: recordType } = useRecordType(selectedType);
   const summaryFieldKeys = recordType?.fields.filter(field => field.role !== 'name').map(field => field.key) ?? [];
+  const runReady = selectedRun?.status === 'completed' || selectedRun?.status === 'stale';
 
   const [bucket, setBucket] = useState<BucketFilter>('pending');
   const [minConfidence, setMinConfidence] = useState(0);
@@ -123,13 +125,24 @@ export default function ReviewQueue() {
     queryKey: ['review-queue', bucket, minConfidence, page, selectedType, runId],
     queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
     placeholderData: keepPreviousData,
-    enabled: !!runId,
+    enabled: !!runId && runReady,
   });
 
   const { data: stats } = useQuery({
     queryKey: ['review-stats', selectedType, runId],
     queryFn: () => api.get<ReviewStats>(`/api/review/stats?type=${selectedType}${runId ? `&comparison_run_id=${runId}` : ''}`),
-    enabled: !!runId,
+    enabled: !!runId && runReady,
+    placeholderData: keepPreviousData,
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: (id: number) =>
+      api.post<ReviewActionResponse>(`/api/review/candidates/${id}/confirm`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['review-stats', selectedType, runId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
   });
 
   const rejectMutation = useMutation({
@@ -138,6 +151,7 @@ export default function ReviewQueue() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['review-queue'] });
       queryClient.invalidateQueries({ queryKey: ['review-stats', selectedType, runId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 
@@ -250,12 +264,17 @@ export default function ReviewQueue() {
           <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <LoadingErrorEmpty
               isLoading={isLoading && !queue}
-              isEmpty={!runId || filteredItems.length === 0}
+              isEmpty={!runId || !runReady || filteredItems.length === 0}
               emptyMessage={
                 !runId ? (
                   <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>compare_arrows</span>
                     <div style={{ marginTop: 8 }}>Select a run above to load the review queue.</div>
+                  </div>
+                ) : !runReady ? (
+                  <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+                    <Spinner size={14} />
+                    <div style={{ marginTop: 8 }}>Matching run #{runId} is still processing.</div>
                   </div>
                 ) : (
                   <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
@@ -352,14 +371,16 @@ export default function ReviewQueue() {
                         <>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                             <button
-                              onClick={() => navigate(withRecordType(`/review/${item.id}`))}
+                              onClick={(e) => { e.stopPropagation(); confirmMutation.mutate(item.id); }}
+                              disabled={confirmMutation.isPending || rejectMutation.isPending}
                               style={{
-                                padding: '5px 10px', cursor: 'pointer',
+                                padding: '5px 10px', cursor: confirmMutation.isPending || rejectMutation.isPending ? 'default' : 'pointer',
                                 background: 'transparent', color: 'var(--ok)',
                                 border: '1px solid var(--ok)', borderRadius: 3,
                                 fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
                                 letterSpacing: '0.02em', transition: 'background 0.1s, filter 0.1s',
+                                opacity: confirmMutation.isPending || rejectMutation.isPending ? 0.5 : 1,
                               }}
                               onMouseEnter={e => (e.currentTarget.style.background = 'var(--ok-soft)')}
                               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}

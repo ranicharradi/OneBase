@@ -14,10 +14,16 @@ export function useComparisonRun(selectedType: string) {
   const { data: allRuns } = useQuery({
     queryKey: ['comparison-runs', selectedType],
     queryFn: () => api.get<ComparisonRunResponse[]>(`/api/comparisons/?type=${selectedType}`),
+    refetchInterval: (q) => {
+      const data = q.state.data as ComparisonRunResponse[] | undefined;
+      return data?.some(r => r.status === 'pending' || r.status === 'running') ? 1000 : false;
+    },
   });
 
-  const validRuns = (allRuns ?? []).filter(r => r.status === 'completed' || r.status === 'stale');
-  const selectedRun = validRuns.find(r => String(r.id) === runId);
+  const selectedRun = (allRuns ?? []).find(r => String(r.id) === runId);
+  const validRuns = (allRuns ?? []).filter(
+    r => r.status === 'completed' || r.status === 'stale' || (runId != null && String(r.id) === runId),
+  );
 
   useEffect(() => {
     if (runId) localStorage.setItem(LAST_RUN_KEY, runId);

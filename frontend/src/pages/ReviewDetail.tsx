@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type {
   MatchDetailResponse,
+  ReviewQueueResponse,
   ReviewActionResponse,
 } from '../api/types';
 import { confidenceTone } from '../utils/confidence';
@@ -44,23 +45,42 @@ export default function ReviewDetail() {
 
   const isPending = detail?.status === 'pending';
 
-  const invalidate = () => {
+  const queuePath = (candidateId?: number) => {
+    const runQuery = detail?.comparison_run_id ? `?comparison_run_id=${detail.comparison_run_id}` : '';
+    return candidateId
+      ? withRecordType(`/review/${candidateId}${runQuery}`)
+      : withRecordType(`/review${runQuery}`);
+  };
+
+  const advanceAfterAction = async () => {
     queryClient.invalidateQueries({ queryKey: ['review-queue'] });
     queryClient.invalidateQueries({ queryKey: ['review-stats'] });
     queryClient.invalidateQueries({ queryKey: ['review-detail', id] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     setActionInFlight(null);
+
+    if (!detail) return;
+    const params = new URLSearchParams();
+    params.set('status', 'pending');
+    params.set('type', detail.type);
+    params.set('limit', '1');
+    if (detail.comparison_run_id != null) params.set('comparison_run_id', String(detail.comparison_run_id));
+    const next = await queryClient.fetchQuery({
+      queryKey: ['review-next-pending', detail.type, detail.comparison_run_id ?? null],
+      queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
+    });
+    navigate(queuePath(next.items[0]?.id), { replace: true });
   };
 
   const confirmMutation = useMutation({
     mutationFn: () => api.post<ReviewActionResponse>(`/api/review/candidates/${id}/confirm`),
-    onSuccess: invalidate,
+    onSuccess: advanceAfterAction,
     onError: () => setActionInFlight(null),
   });
 
   const rejectMutation = useMutation({
     mutationFn: () => api.post<ReviewActionResponse>(`/api/review/candidates/${id}/reject`),
-    onSuccess: invalidate,
+    onSuccess: advanceAfterAction,
     onError: () => setActionInFlight(null),
   });
 
@@ -128,7 +148,7 @@ export default function ReviewDetail() {
 
         {/* Header */}
         <div className="fade" style={{ marginBottom: 12 }}>
-          <button onClick={() => navigate(withRecordType('/review'))} className="btn btn-sm btn-ghost" style={{ marginBottom: 8 }}>
+          <button onClick={() => navigate(queuePath())} className="btn btn-sm btn-ghost" style={{ marginBottom: 8 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_back</span>
             Review queue
           </button>

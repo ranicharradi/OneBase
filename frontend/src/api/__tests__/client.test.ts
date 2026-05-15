@@ -367,6 +367,7 @@ describe('record API type contracts', () => {
     const matchDetail: MatchDetailResponse = {
       id: 10,
       type: 'supplier',
+      comparison_run_id: 99,
       confidence: 0.92,
       match_signals: { name: 0.92 },
       status: 'pending',

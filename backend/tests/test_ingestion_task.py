@@ -257,6 +257,87 @@ class TestProcessUploadIdempotency:
         assert len(status_at_call_time) == 1
         assert status_at_call_time[0] == BatchStatus.PROCESSING
 
+    @patch("app.tasks.ingestion.get_task_session")
+    def test_enqueues_matching_run_when_two_active_batches_exist(self, mock_get_session, test_db):
+        """process_upload creates and enqueues a comparison run after a second active batch is ingested."""
+        from app.models.staging import StagedRecord
+
+        mock_get_session.side_effect = _mock_task_session(test_db)
+        source_a, existing_batch = self._create_source_and_batch(test_db, status=BatchStatus.COMPLETED)
+        source_b = DataSource(
+            name="Second Source",
+            type="supplier",
+            file_format="csv",
+            delimiter=";",
+            column_mapping={"supplier_name": "Name1"},
+        )
+        test_db.add(source_b)
+        test_db.flush()
+        new_batch = ImportBatch(
+            data_source_id=source_b.id,
+            filename="second.csv",
+            uploaded_by="testuser",
+            status=BatchStatus.PENDING,
+        )
+        test_db.add(new_batch)
+        test_db.flush()
+        test_db.add(
+            StagedRecord(
+                import_batch_id=existing_batch.id,
+                data_source_id=source_a.id,
+                type="supplier",
+                name="Acme",
+                fields={"supplier_name": "Acme"},
+                raw_data={"Name1": "Acme"},
+                status="active",
+            )
+        )
+        test_db.commit()
+
+        def spy_ingestion(db, batch_id, file_content, progress_callback=None):
+            db.add(
+                StagedRecord(
+                    import_batch_id=batch_id,
+                    data_source_id=source_b.id,
+                    type="supplier",
+                    name="Acme Ltd",
+                    fields={"supplier_name": "Acme Ltd"},
+                    raw_data={"Name1": "Acme Ltd"},
+                    status="active",
+                )
+            )
+            batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
+            batch.status = BatchStatus.COMPLETED
+            db.flush()
+            return 1
+
+        fake_task = MagicMock()
+        fake_task.id = "comparison-task-id"
+
+        with (
+            patch(
+                "app.tasks.ingestion.open",
+                MagicMock(
+                    return_value=MagicMock(
+                        __enter__=MagicMock(return_value=MagicMock(read=MagicMock(return_value=SAMPLE_CSV))),
+                        __exit__=MagicMock(return_value=False),
+                    )
+                ),
+            ),
+            patch("app.services.ingestion.run_ingestion", side_effect=spy_ingestion),
+            patch("app.tasks.comparison.run_comparison.delay", return_value=fake_task) as delay,
+        ):
+            from app.tasks.ingestion import process_upload
+
+            process_upload(new_batch.id)
+
+        delay.assert_called_once()
+        from app.models.comparison import ComparisonRun
+
+        run = test_db.query(ComparisonRun).one()
+        assert run.task_id == "comparison-task-id"
+        assert sorted(batch.id for batch in run.batches) == sorted([existing_batch.id, new_batch.id])
+
     def test_retry_configuration(self):
         """process_upload has correct retry configuration."""
         from sqlalchemy.exc import OperationalError

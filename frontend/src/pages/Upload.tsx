@@ -92,6 +92,7 @@ export default function Upload() {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [reUploadStats, setReUploadStats] = useState<UploadStatsResponse>({ staged_count: 0, pending_match_count: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [uploadComplete, setUploadComplete] = useState(false);
 
   const { data: sources } = useQuery({
     queryKey: ['sources'],
@@ -108,6 +109,7 @@ export default function Upload() {
       return api.upload<UploadResponse>('/api/import/upload', formData);
     },
     onSuccess: (data) => {
+      setUploadComplete(false);
       setUploadState({ step: 'PROCESSING', taskId: data.task_id });
       setError(null);
       queryClient.invalidateQueries({ queryKey: ['batches'] });
@@ -210,6 +212,7 @@ export default function Upload() {
     setPendingSourceId(null);
     setPendingFile(null);
     setError(null);
+    setUploadComplete(false);
   };
 
   const reUploadSourceName = pendingSourceId
@@ -359,21 +362,26 @@ export default function Upload() {
             <ProgressTracker
               taskId={uploadState.taskId}
               onComplete={() => {
+                setUploadComplete(true);
                 queryClient.invalidateQueries({ queryKey: ['batches'] });
                 queryClient.invalidateQueries({ queryKey: ['dashboard'] });
               }}
             />
-            <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-1)', border: '1px solid var(--border-0)', borderRadius: 4 }}>
-              <span className="mono" style={{ fontSize: 12, color: 'var(--fg-1)' }}>
-                Ingest complete · <Link to="/compare" style={{ color: 'var(--accent)' }}>Compare this file →</Link>
-              </span>
-            </div>
-            <div style={{ marginTop: 8, textAlign: 'center' }}>
-              <button onClick={handleReset} className="btn btn-sm">
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>cloud_upload</span>
-                Upload another file
-              </button>
-            </div>
+            {uploadComplete && (
+              <>
+                <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-1)', border: '1px solid var(--border-0)', borderRadius: 4 }}>
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--fg-1)' }}>
+                    Ingest complete · <Link to="/compare" style={{ color: 'var(--accent)' }}>Compare this file →</Link>
+                  </span>
+                </div>
+                <div style={{ marginTop: 8, textAlign: 'center' }}>
+                  <button onClick={handleReset} className="btn btn-sm">
+                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>cloud_upload</span>
+                    Upload another file
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 

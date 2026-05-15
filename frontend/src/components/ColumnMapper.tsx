@@ -171,6 +171,7 @@ export default function ColumnMapper({
   }
 
   const usedColumns = new Set(Object.values(mapping));
+  const uniqueColumns = [...new Set(columns)];
   const mappedCount = Object.keys(mapping).length;
   const totalFields = fields.length;
   const requiredMapped = fields.filter(f => f.required && mapping[f.key]).length;
@@ -390,7 +391,7 @@ export default function ColumnMapper({
                       }}
                     >
                       <option value="">— select column —</option>
-                      {columns.map(col => (
+                      {uniqueColumns.map(col => (
                         <option
                           key={col}
                           value={col}

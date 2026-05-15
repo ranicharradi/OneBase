@@ -3,7 +3,10 @@ import Panel, { PanelHead } from './ui/Panel';
 import SourcePill from './ui/SourcePill';
 import type { Layout } from './fieldComparisonLayout';
 
-function statusPill(comp: FieldComparison) {
+function statusPill(comp: FieldComparison, selections: Record<string, number> = {}) {
+  if (comp.is_conflict && selections[comp.field] !== undefined) {
+    return <span className="pill ok" style={{ padding: '1px 6px', fontSize: 10 }}>resolved</span>;
+  }
   if (comp.is_conflict) return <span className="pill warn" style={{ padding: '1px 6px', fontSize: 10 }}>conflict</span>;
   if (comp.is_identical) return <span className="pill ok" style={{ padding: '1px 6px', fontSize: 10 }}>identical</span>;
   if (comp.is_a_only || comp.is_b_only) return <span className="pill info" style={{ padding: '1px 6px', fontSize: 10 }}>source-only</span>;
@@ -69,7 +72,7 @@ function SideBySideLayout({ comparisons, recordA, recordB, selections = {}, onSe
         {comparisons.map(f => {
           const isSelected = selections[f.field] !== undefined;
           return (
-            <tr key={f.field} style={{ background: f.is_conflict ? 'var(--warn-soft)' : 'transparent' }}>
+            <tr key={f.field} style={{ background: f.is_conflict && !isSelected ? 'var(--warn-soft)' : 'transparent' }}>
               <td>
                 <div style={{ fontWeight: 500 }}>{f.label}</div>
                 <div className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>{f.field}</div>
@@ -115,7 +118,7 @@ function SideBySideLayout({ comparisons, recordA, recordB, selections = {}, onSe
                   </span>
                 </div>
               </td>
-              <td>{statusPill(f)}</td>
+              <td>{statusPill(f, selections)}</td>
             </tr>
           );
         })}
@@ -136,7 +139,7 @@ function StackedLayout({ comparisons, recordA, recordB, selections = {}, onSelec
                 <span style={{ fontSize: 12, fontWeight: 600 }}>{f.label}</span>
                 <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 8 }}>{f.field}</span>
               </div>
-              {statusPill(f)}
+              {statusPill(f, selections)}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {([['a', recordA, f.value_a] as const, ['b', recordB, f.value_b] as const]).map(([key, sup, val]) => {
@@ -192,7 +195,7 @@ function DiffLayout({ comparisons, recordA, recordB, selections = {}, onSelect }
                 <span style={{ fontSize: 12, fontWeight: 500 }}>{f.label}</span>
                 <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 8 }}>{f.field}</span>
               </div>
-              {statusPill(f)}
+              {statusPill(f, selections)}
             </div>
             <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, background: 'var(--bg-0)', border: '1px solid var(--border-0)', borderRadius: 4, overflow: 'hidden' }}>
               {([['a', recordA, f.value_a, f.is_conflict ? '−' : ' ', f.is_conflict ? 'var(--danger)' : 'var(--border-0)', f.is_conflict ? 'var(--danger-soft)' : 'transparent'] as const,

@@ -177,6 +177,7 @@ def get_match_detail(
     return MatchDetailResponse(
         id=candidate.id,
         type=candidate.type,
+        comparison_run_id=candidate.comparison_run_id,
         confidence=candidate.confidence,
         match_signals=candidate.match_signals,
         status=candidate.status,

@@ -9,6 +9,15 @@ from app.models.enums import FileCheckIssueType, FileCheckSeverity, FileCheckSta
 
 CRITERIA_VERSION = "v1"
 MAX_VALUE_PREVIEW = 255
+NAME_COLUMN_SYNONYMS = (
+    "Name",
+    "Supplier Name",
+    "BPSNAM_0",
+    "supplier_name",
+    "vendor_name",
+    "nom_fournisseur",
+    "raison_sociale",
+)
 
 
 class FileCheckIssueLike(Protocol):
@@ -128,6 +137,7 @@ def analyze_file_content(
     missing_value_count = 0
     corrupted_value_count = 0
     issue_cap_reached = False
+    required_columns = _resolve_required_columns(headers, criteria.required_columns)
 
     def store_issue(issue: FileCheckIssueData) -> None:
         nonlocal issue_cap_reached
@@ -155,7 +165,7 @@ def analyze_file_content(
             )
             continue
 
-        for column_name in criteria.required_columns:
+        for column_name in required_columns:
             value = row.get(column_name)
             if _is_blank(value):
                 missing_value_count += 1
@@ -190,6 +200,25 @@ def analyze_file_content(
 
 def _is_blank(value: str | None) -> bool:
     return value is None or value.strip() == ""
+
+
+def _resolve_required_columns(headers: list[str], required_columns: tuple[str, ...]) -> tuple[str, ...]:
+    resolved: list[str] = []
+    normalized_headers = {_normalize_header(header): header for header in headers}
+
+    for column_name in required_columns:
+        candidates = NAME_COLUMN_SYNONYMS if _normalize_header(column_name) == "name" else (column_name,)
+        match = next(
+            (normalized_headers[key] for key in map(_normalize_header, candidates) if key in normalized_headers),
+            None,
+        )
+        resolved.append(match or column_name)
+
+    return tuple(resolved)
+
+
+def _normalize_header(value: str) -> str:
+    return value.strip().lower()
 
 
 def _fallback_delimiter(text: str) -> str:

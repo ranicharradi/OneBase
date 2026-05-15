@@ -7,29 +7,35 @@ import type { TaskStatus } from '../api/types';
 const TERMINAL_STATES = ['COMPLETE', 'FAILURE'];
 const FAST_STAGES = ['PENDING', 'PARSING', 'NORMALIZING', 'EMBEDDING'];
 
+function normalize(value: string | null | undefined) {
+  return value ? value.toUpperCase() : null;
+}
+
 export function useTaskStatus(taskId: string | null) {
   const query = useQuery({
     queryKey: ['taskStatus', taskId],
     queryFn: () => api.get<TaskStatus>(`/api/import/batches/${taskId}/status`),
     enabled: !!taskId,
     refetchInterval: (query) => {
-      const state = query.state.data?.state;
+      const state = normalize(query.state.data?.state);
       if (state && TERMINAL_STATES.includes(state)) return false;
-      const stage = query.state.data?.stage;
+      const stage = normalize(query.state.data?.stage);
       return stage && FAST_STAGES.includes(stage) ? 2000 : 5000;
     },
   });
 
   const data = query.data;
+  const state = normalize(data?.state) ?? 'PENDING';
+  const stage = normalize(data?.stage);
 
   return {
-    state: data?.state ?? 'PENDING',
-    stage: data?.stage ?? null,
+    state,
+    stage,
     progress: data?.progress ?? null,
     detail: data?.detail ?? null,
     row_count: data?.row_count ?? null,
-    isComplete: data?.state === 'COMPLETE',
-    isFailed: data?.state === 'FAILURE',
+    isComplete: state === 'COMPLETE',
+    isFailed: state === 'FAILURE',
     isLoading: query.isLoading,
     error: query.error,
   };

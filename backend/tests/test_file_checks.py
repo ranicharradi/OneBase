@@ -133,6 +133,21 @@ def test_analyze_clean_file_returns_clean_status():
     assert result.issues == []
 
 
+def test_analyze_accepts_supplier_name_synonym_for_required_name():
+    content = b"BPSNUM_0;BPSNAM_0;CUR_0\n001;Acme;USD\n002;Beta;EUR\n"
+    result = analyze_file_content(
+        content,
+        filename="FournisseurEOT.csv",
+        criteria=FileCheckCriteria(required_columns=("Name",)),
+        issue_cap=5000,
+    )
+
+    assert result.delimiter == ";"
+    assert result.status == "clean"
+    assert result.missing_value_count == 0
+    assert result.issues == []
+
+
 def test_analyze_sparse_comma_csv_uses_comma_fallback_for_empty_row():
     content = b"Code,Name,Currency\n001\n,,\n"
     result = analyze_file_content(

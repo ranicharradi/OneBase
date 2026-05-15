@@ -50,6 +50,7 @@ class MatchDetailResponse(BaseModel):
 
     id: int
     type: str
+    comparison_run_id: int
     confidence: float
     match_signals: dict[str, float]
     status: str

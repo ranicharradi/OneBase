@@ -81,7 +81,8 @@ export default function UnifiedRecordDetailPage() {
     );
   }
 
-  const isSingleton = record.match_candidate_id === null;
+  const matchCandidateId = typeof record.match_candidate_id === 'number' ? record.match_candidate_id : null;
+  const isSingleton = matchCandidateId === null;
 
   return (
     <div className="scroll" style={{ height: '100%' }}>
@@ -108,10 +109,10 @@ export default function UnifiedRecordDetailPage() {
               {isSingleton ? 'singleton' : 'merged'}
             </Pill>
             <Pill tone="neutral">{record.type}</Pill>
-            {record.match_candidate_id !== null && (
+            {matchCandidateId !== null && (
               <button
                 className="btn btn-sm btn-ghost"
-                onClick={() => navigate(withRecordType(`/review/${record.match_candidate_id}`))}
+                onClick={() => navigate(withRecordType(`/review/${matchCandidateId}`))}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 12 }}>history</span>
                 Re-open review
@@ -152,14 +153,14 @@ export default function UnifiedRecordDetailPage() {
           <button
             className={`btn btn-sm${tab === 'details' ? '' : ' btn-ghost'}`}
             onClick={() => setTab('details')}
-            disabled={tab === 'details'}
+            aria-pressed={tab === 'details'}
           >
             Details
           </button>
           <button
             className={`btn btn-sm${tab === 'lineage' ? '' : ' btn-ghost'}`}
             onClick={() => setTab('lineage')}
-            disabled={tab === 'lineage'}
+            aria-pressed={tab === 'lineage'}
           >
             Lineage
           </button>
