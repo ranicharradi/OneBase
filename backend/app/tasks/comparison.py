@@ -68,9 +68,12 @@ def run_comparison(self, comparison_run_id: int):
 
             # Broadcast completion via websocket (best-effort; failures don't fail the run).
             try:
-                from app.services.notifications import broadcast_comparison_complete
+                from app.services.notifications import publish_notification
 
-                broadcast_comparison_complete(run.id, run.type, stats)
+                publish_notification(
+                    "comparison_complete",
+                    {"run_id": run.id, "type": run.type, "stats": stats},
+                )
             except Exception as e:
                 logger.warning("notification failed: %s", e)
 
