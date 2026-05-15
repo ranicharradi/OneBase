@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db, require_role
+from app.dependencies import get_current_user, get_db, get_or_404, require_role
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.auth import PasswordChange, UserResponse, UserUpdate
@@ -30,12 +30,7 @@ def get_user(
     current_user: User = Depends(get_current_user),
 ):
     """Get a single user by ID."""
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+    user = get_or_404(db, User, user_id)
     return user
 
 
@@ -47,12 +42,7 @@ def update_user(
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Update a user's username and/or role (admin only)."""
-    target = db.get(User, user_id)
-    if not target:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+    target = get_or_404(db, User, user_id)
 
     # Last admin protection
     if update.role and update.role.value != "admin" and target.role == "admin":
@@ -101,12 +91,7 @@ def delete_user(
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Delete a user (admin only)."""
-    target = db.get(User, user_id)
-    if not target:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+    target = get_or_404(db, User, user_id)
 
     if target.id == current_user.id:
         raise HTTPException(
@@ -144,12 +129,7 @@ def toggle_user_active(
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Toggle a user's active status (admin only)."""
-    target = db.get(User, user_id)
-    if not target:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+    target = get_or_404(db, User, user_id)
 
     if target.id == current_user.id:
         raise HTTPException(
@@ -194,12 +174,7 @@ def change_password(
     if error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error)
 
-    target = db.get(User, user_id)
-    if not target:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+    target = get_or_404(db, User, user_id)
 
     target.password_hash = hash_password(body.new_password)
 

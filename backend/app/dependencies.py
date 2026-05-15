@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.models.base import Base
 from app.models.enums import UserRole
 from app.models.user import User
 
@@ -78,3 +79,12 @@ def get_pagination(
     offset: int = Query(0, ge=0),
 ) -> Pagination:
     return Pagination(limit=limit, offset=offset)
+
+
+def get_or_404[T: Base](db: Session, model: type[T], id_: int, label: str | None = None) -> T:
+    """Fetch a model by primary key or raise HTTP 404."""
+    obj = db.get(model, id_)
+    if obj is None:
+        name = label or model.__name__
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{name} not found")
+    return obj

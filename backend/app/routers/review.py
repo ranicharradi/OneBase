@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.dependencies import Pagination, get_current_user, get_db, get_pagination, require_role
+from app.dependencies import Pagination, get_current_user, get_db, get_or_404, get_pagination, require_role
 from app.models.enums import CandidateStatus, UserRole
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
@@ -35,12 +35,7 @@ router = APIRouter(prefix="/api/review", tags=["review"])
 
 def _load_record_detail(db: Session, record_id: int) -> tuple[StagedRecord, DataSource]:
     """Load a staged record and its data source."""
-    record = db.get(StagedRecord, record_id)
-    if not record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Staged record {record_id} not found",
-        )
+    record = get_or_404(db, StagedRecord, record_id, label=f"Staged record {record_id}")
     source = db.get(DataSource, record.data_source_id)
     return record, source
 
@@ -174,12 +169,7 @@ def get_match_detail(
     current_user: User = Depends(get_current_user),
 ):
     """Get full match detail with side-by-side comparison and signal breakdowns."""
-    candidate = db.get(MatchCandidate, candidate_id)
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Match candidate {candidate_id} not found",
-        )
+    candidate = get_or_404(db, MatchCandidate, candidate_id, label=f"Match candidate {candidate_id}")
 
     record_a, source_a = _load_record_detail(db, candidate.record_a_id)
     record_b, source_b = _load_record_detail(db, candidate.record_b_id)
@@ -237,12 +227,7 @@ def confirm_candidate(
     Does NOT create a unified record. Field reconciliation happens separately
     via the merge step.
     """
-    candidate = db.get(MatchCandidate, candidate_id)
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Match candidate {candidate_id} not found",
-        )
+    candidate = get_or_404(db, MatchCandidate, candidate_id, label=f"Match candidate {candidate_id}")
 
     if candidate.status != CandidateStatus.PENDING:
         raise HTTPException(
@@ -273,12 +258,7 @@ def merge_candidate(
 
     Requires field selections for all conflicting fields.
     """
-    candidate = db.get(MatchCandidate, candidate_id)
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Match candidate {candidate_id} not found",
-        )
+    candidate = get_or_404(db, MatchCandidate, candidate_id, label=f"Match candidate {candidate_id}")
 
     if candidate.status != CandidateStatus.CONFIRMED:
         raise HTTPException(
@@ -325,12 +305,7 @@ def reject_match(
     current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
     """Reject a match candidate — records are not duplicates."""
-    candidate = db.get(MatchCandidate, candidate_id)
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Match candidate {candidate_id} not found",
-        )
+    candidate = get_or_404(db, MatchCandidate, candidate_id, label=f"Match candidate {candidate_id}")
 
     if candidate.status != CandidateStatus.PENDING:
         raise HTTPException(

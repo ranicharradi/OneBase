@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.dependencies import Pagination, get_current_user, get_db, get_pagination, require_role
+from app.dependencies import Pagination, get_current_user, get_db, get_or_404, get_pagination, require_role
 from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
 from app.models.enums import (
@@ -136,12 +136,7 @@ def get_unified_record(
     current_user: User = Depends(get_current_user),
 ):
     """Get a unified record with provenance, source records, and merge history."""
-    unified = db.get(UnifiedRecord, record_id)
-    if unified is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unified record {record_id} not found",
-        )
+    unified = get_or_404(db, UnifiedRecord, record_id, label=f"Unified record {record_id}")
 
     source_ids = unified.source_record_ids or []
     source_records: list[SourceRecord] = []
@@ -342,12 +337,7 @@ def promote_singleton(
     current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
     """Promote a singleton staged record to a unified record."""
-    record = db.get(StagedRecord, record_id)
-    if record is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Staged record {record_id} not found",
-        )
+    record = get_or_404(db, StagedRecord, record_id, label=f"Staged record {record_id}")
     if record.status != RecordStatus.ACTIVE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -618,9 +608,7 @@ def get_lineage(
     current_user: User = Depends(get_current_user),
 ):
     """Chronological events for a unified record (audit + provenance combined)."""
-    record = db.get(UnifiedRecord, record_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Unified record not found")
+    record = get_or_404(db, UnifiedRecord, record_id, label="Unified record")
 
     events: list[LineageEvent] = []
 
