@@ -17,6 +17,7 @@ import Panel, { PanelHead } from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
 import Seg from '../components/ui/Seg';
 import Spinner from '../components/ui/Spinner';
+import { LoadingErrorEmpty } from '../components/ui/LoadingErrorEmpty';
 import SourcePill from '../components/ui/SourcePill';
 import { relativeTime } from '../utils/time';
 
@@ -689,73 +690,70 @@ export default function Sources() {
             </PanelHead>
           )}
 
-          {error ? (
-            <div style={{ padding: 28, textAlign: 'center' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--danger)' }}>error</span>
-              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}>
-                Failed to load sources: {error instanceof Error ? error.message : 'Unknown error'}
+          <LoadingErrorEmpty
+            isLoading={isLoading}
+            error={error}
+            isEmpty={!sources || sources.length === 0}
+            errorPrefix="Failed to load sources"
+            emptyMessage={
+              <>
+                <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--fg-3)' }}>storage</span>
+                <div style={{ fontSize: 14, fontWeight: 500, marginTop: 10 }}>No data sources yet</div>
+                <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4, marginBottom: 12 }}>
+                  Create your first data source to begin mapping records for unification.
+                </div>
+                <button
+                  onClick={() => setShowCreate(true)}
+                  disabled={!canCreateSource}
+                  className="btn btn-sm btn-accent"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
+                  Create first source
+                </button>
+              </>
+            }
+          >
+            {filteredSources.length === 0 ? (
+              <div style={{ padding: 36, textAlign: 'center' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>search_off</span>
+                <div style={{ fontSize: 13, marginTop: 8 }}>No sources match the current filter</div>
+                <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
+                  Adjust the tab or clear the search to see all {sources?.length ?? 0} source{(sources?.length ?? 0) !== 1 ? 's' : ''}.
+                </div>
               </div>
-            </div>
-          ) : isLoading ? (
-            <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
-              Loading sources…
-            </div>
-          ) : !sources || sources.length === 0 ? (
-            <div style={{ padding: 36, textAlign: 'center' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--fg-3)' }}>storage</span>
-              <div style={{ fontSize: 14, fontWeight: 500, marginTop: 10 }}>No data sources yet</div>
-              <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4, marginBottom: 12 }}>
-                Create your first data source to begin mapping records for unification.
-              </div>
-              <button
-                onClick={() => setShowCreate(true)}
-                disabled={!canCreateSource}
-                className="btn btn-sm btn-accent"
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
-                Create first source
-              </button>
-            </div>
-          ) : filteredSources.length === 0 ? (
-            <div style={{ padding: 36, textAlign: 'center' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>search_off</span>
-              <div style={{ fontSize: 13, marginTop: 8 }}>No sources match the current filter</div>
-              <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
-                Adjust the tab or clear the search to see all {sources.length} source{sources.length !== 1 ? 's' : ''}.
-              </div>
-            </div>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th style={{ width: 50 }} />
-                  <th>Name</th>
-                  <th className="num" style={{ width: 90 }}>Rows</th>
-                  <th className="num" style={{ width: 90 }}>Mapped</th>
-                  <th className="num" style={{ width: 80 }}>Batches</th>
-                  <th style={{ width: 110 }}>Last sync</th>
-                  <th style={{ width: 100 }}>Status</th>
-                  <th style={{ width: 80 }} />
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSources.map(src => {
-                  const stats = statsBySource.get(src.id) ?? { rows: 0, batches: 0, lastSync: null, status: 'new' as const };
-                  const typeSummary = recordTypes?.types.find(rt => rt.key === src.type);
-                  return (
-                    <SourceRow
-                      key={src.id}
-                      src={src}
-                      stats={stats}
-                      fieldCount={typeSummary?.field_count ?? 0}
-                      onEdit={setEditSource}
-                      onDelete={setDeleteSource}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 50 }} />
+                    <th>Name</th>
+                    <th className="num" style={{ width: 90 }}>Rows</th>
+                    <th className="num" style={{ width: 90 }}>Mapped</th>
+                    <th className="num" style={{ width: 80 }}>Batches</th>
+                    <th style={{ width: 110 }}>Last sync</th>
+                    <th style={{ width: 100 }}>Status</th>
+                    <th style={{ width: 80 }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSources.map(src => {
+                    const stats = statsBySource.get(src.id) ?? { rows: 0, batches: 0, lastSync: null, status: 'new' as const };
+                    const typeSummary = recordTypes?.types.find(rt => rt.key === src.type);
+                    return (
+                      <SourceRow
+                        key={src.id}
+                        src={src}
+                        stats={stats}
+                        fieldCount={typeSummary?.field_count ?? 0}
+                        onEdit={setEditSource}
+                        onDelete={setDeleteSource}
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </LoadingErrorEmpty>
         </Panel>
       </div>
 

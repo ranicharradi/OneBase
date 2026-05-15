@@ -17,6 +17,7 @@ import SourcePill from '../components/ui/SourcePill';
 import Pill from '../components/ui/Pill';
 import Pagination from '../components/Pagination';
 import WorkflowStageRail from '../components/WorkflowStageRail';
+import { LoadingErrorEmpty } from '../components/ui/LoadingErrorEmpty';
 
 type Tab = 'unified' | 'singletons';
 
@@ -340,21 +341,21 @@ export default function UnifiedRecords() {
                 </div>
               )}
 
-              {unifiedLoading && !unifiedData ? (
-                <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
-                  Loading unified records…
-                </div>
-              ) : filteredUnified.length === 0 ? (
-                <div style={{ padding: 36, textAlign: 'center' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>
-                    inbox
-                  </span>
-                  <div style={{ fontSize: 13, marginTop: 8 }}>No unified records yet</div>
-                  <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
-                    Merge match candidates or promote singletons to build your unified records.
-                  </div>
-                </div>
-              ) : (
+              <LoadingErrorEmpty
+                isLoading={unifiedLoading && !unifiedData}
+                isEmpty={filteredUnified.length === 0}
+                emptyMessage={
+                  <>
+                    <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>
+                      inbox
+                    </span>
+                    <div style={{ fontSize: 13, marginTop: 8 }}>No unified records yet</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
+                      Merge match candidates or promote singletons to build your unified records.
+                    </div>
+                  </>
+                }
+              >
                 <table className="table">
                   <thead>
                     <tr>
@@ -409,7 +410,7 @@ export default function UnifiedRecords() {
                     ))}
                   </tbody>
                 </table>
-              )}
+              </LoadingErrorEmpty>
 
               {unifiedTotal > 0 && (
                 <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border-0)' }}>
@@ -445,21 +446,21 @@ export default function UnifiedRecords() {
                 </div>
               )}
 
-              {singletonsLoading && !singletonData ? (
-                <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
-                  Loading singletons…
-                </div>
-              ) : filteredSingletons.length === 0 ? (
-                <div style={{ padding: 36, textAlign: 'center' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--ok)' }}>
-                    check_circle
-                  </span>
-                  <div style={{ fontSize: 13, marginTop: 8 }}>All records matched or unified</div>
-                  <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
-                    No singleton candidates available for promotion.
-                  </div>
-                </div>
-              ) : (
+              <LoadingErrorEmpty
+                isLoading={singletonsLoading && !singletonData}
+                isEmpty={filteredSingletons.length === 0}
+                emptyMessage={
+                  <>
+                    <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--ok)' }}>
+                      check_circle
+                    </span>
+                    <div style={{ fontSize: 13, marginTop: 8 }}>All records matched or unified</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
+                      No singleton candidates available for promotion.
+                    </div>
+                  </>
+                }
+              >
                 <table className="table">
                   <thead>
                     <tr>
@@ -519,7 +520,7 @@ export default function UnifiedRecords() {
                     ))}
                   </tbody>
                 </table>
-              )}
+              </LoadingErrorEmpty>
 
               {singletonTotal > 0 && (
                 <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border-0)' }}>

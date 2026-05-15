@@ -8,6 +8,7 @@ import type { User, UserCreate } from '../api/types';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
 import Spinner from '../components/ui/Spinner';
+import { LoadingErrorEmpty } from '../components/ui/LoadingErrorEmpty';
 import type { PillTone } from '../components/ui/Pill';
 
 const ROLES = ['admin', 'reviewer', 'viewer'] as const;
@@ -476,32 +477,27 @@ export default function Users() {
         </div>
 
         <Panel className="fade">
-          {error ? (
-            <div style={{ padding: 28, textAlign: 'center' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--danger)' }}>error</span>
-              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}>
-                Failed to load users: {error instanceof Error ? error.message : 'Unknown error'}
-              </div>
-            </div>
-          ) : isLoading ? (
-            <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
-              Loading users…
-            </div>
-          ) : !users || users.length === 0 ? (
-            <div style={{ padding: 36, textAlign: 'center' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--fg-3)' }}>group</span>
-              <div style={{ fontSize: 14, fontWeight: 500, marginTop: 10 }}>No users yet</div>
-              <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4, marginBottom: 12 }}>
-                Create the first user account to begin managing system access.
-              </div>
-              {isAdmin && (
-                <button onClick={() => setShowCreate(true)} className="btn btn-sm btn-accent">
-                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>person_add</span>
-                  Create first user
-                </button>
-              )}
-            </div>
-          ) : (
+          <LoadingErrorEmpty
+            isLoading={isLoading}
+            error={error}
+            isEmpty={!users || users.length === 0}
+            errorPrefix="Failed to load users"
+            emptyMessage={
+              <>
+                <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--fg-3)' }}>group</span>
+                <div style={{ fontSize: 14, fontWeight: 500, marginTop: 10 }}>No users yet</div>
+                <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4, marginBottom: 12 }}>
+                  Create the first user account to begin managing system access.
+                </div>
+                {isAdmin && (
+                  <button onClick={() => setShowCreate(true)} className="btn btn-sm btn-accent">
+                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>person_add</span>
+                    Create first user
+                  </button>
+                )}
+              </>
+            }
+          >
             <table className="table">
               <thead>
                 <tr>
@@ -514,7 +510,7 @@ export default function Users() {
                 </tr>
               </thead>
               <tbody>
-                {users.map(user => (
+                {(users ?? []).map(user => (
                   <tr key={user.id}>
                     <td>
                       <Avatar username={user.username} size={26} />
@@ -560,7 +556,7 @@ export default function Users() {
                 ))}
               </tbody>
             </table>
-          )}
+          </LoadingErrorEmpty>
         </Panel>
       </div>
 
