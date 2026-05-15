@@ -1,4 +1,9 @@
-"""Review & merge API router — review queue, match detail, merge/reject actions, and singleton promotion."""
+"""Review & merge API router.
+
+Exports two routers: `router` (/api/review) and `unified_singletons_router`
+(/api/unified/singletons) — promotion endpoints live here for cohesion with
+the review flow but stay at their original `/api/unified` URLs.
+"""
 
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -40,7 +45,7 @@ from app.services.record_lookup import load_enriched_records
 from app.services.singleton import get_already_unified_ids
 
 router = APIRouter(prefix="/api/review", tags=["review"])
-unified_singletons_router = APIRouter(prefix="/api/unified", tags=["review"])
+unified_singletons_router = APIRouter(prefix="/api/unified", tags=["unified"])
 
 
 def _load_record_detail(db: Session, record_id: int) -> tuple[StagedRecord, DataSource]:
