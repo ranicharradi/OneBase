@@ -1,6 +1,6 @@
 // ── ColumnMapper — terminal aesthetic, record-type-driven ──
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import type {
   ColumnMapping,
@@ -62,14 +62,23 @@ export default function ColumnMapper({
 
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [autoMapped, setAutoMapped] = useState<Set<string>>(new Set());
-  const [prevLengths, setPrevLengths] = useState({ fields: 0, columns: 0 });
 
-  if (fields.length !== prevLengths.fields || columns.length !== prevLengths.columns) {
+  useEffect(() => {
+    if (fields.length === 0 || columns.length === 0) return;
     const auto = autoMap(columns, fields);
-    setMapping(auto);
-    setAutoMapped(new Set(Object.keys(auto)));
-    setPrevLengths({ fields: fields.length, columns: columns.length });
-  }
+    setMapping((prev) => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(auto)) {
+        if (!next[k]) next[k] = v;
+      }
+      return next;
+    });
+    setAutoMapped((prev) => {
+      const next = new Set(prev);
+      for (const k of Object.keys(auto)) next.add(k);
+      return next;
+    });
+  }, [fields, columns]);
 
   const updateMapping = (field: string, csvColumn: string) => {
     setAutoMapped(prev => { const s = new Set(prev); s.delete(field); return s; });
