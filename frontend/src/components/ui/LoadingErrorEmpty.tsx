@@ -7,7 +7,6 @@ type Props = {
   isEmpty: boolean;
   emptyMessage?: ReactNode;
   errorPrefix?: string;
-  onRetry?: () => void;
   children: ReactNode;
 };
 

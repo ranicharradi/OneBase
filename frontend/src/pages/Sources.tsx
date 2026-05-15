@@ -693,7 +693,7 @@ export default function Sources() {
           <LoadingErrorEmpty
             isLoading={isLoading}
             error={error}
-            isEmpty={!sources || sources.length === 0}
+            isEmpty={sources != null && sources.length === 0}
             errorPrefix="Failed to load sources"
             emptyMessage={
               <>
