@@ -14,6 +14,7 @@ from app.routers import (
     ask,
     auth,
     comparisons,
+    dashboard,
     file_checks,
     insights,
     matching,
@@ -112,7 +113,9 @@ app.include_router(upload.router)
 app.include_router(file_checks.router)
 app.include_router(matching.router)
 app.include_router(review.router)
+app.include_router(review.unified_singletons_router)
 app.include_router(unified.router)
+app.include_router(dashboard.router)
 app.include_router(insights.router)
 app.include_router(comparisons.router)
 app.include_router(ws.router)

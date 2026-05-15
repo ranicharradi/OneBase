@@ -1,53 +1,36 @@
-"""Unified records API router — list, detail, singleton promotion, export, dashboard."""
+"""Unified records API router — list, count, detail, singleton list, export, lineage."""
 
 import csv
 import io
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.dependencies import Pagination, get_current_user, get_db, get_or_404, get_pagination, require_role
+from app.dependencies import Pagination, get_current_user, get_db, get_or_404, get_pagination
 from app.models.audit import AuditLog
-from app.models.batch import ImportBatch
-from app.models.enums import (
-    BatchStatus,
-    CandidateStatus,
-    RecordStatus,
-    UserRole,
-)
-from app.models.match import MatchCandidate
+from app.models.enums import RecordStatus
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.models.unified import UnifiedRecord
 from app.models.user import User
 from app.record_types import get as get_record_type
 from app.schemas.unified import (
-    BulkPromoteRequest,
-    BulkPromoteResponse,
-    DashboardResponse,
     FieldProvenance,
     LineageEvent,
     LineageResponse,
-    MatchStats,
     MergeHistoryEntry,
-    PromoteResponse,
-    RecentActivity,
-    ReviewProgress,
     SingletonCandidate,
     SingletonListResponse,
     SourceRecord,
     UnifiedRecordDetail,
     UnifiedRecordListItem,
     UnifiedRecordListResponse,
-    UnifiedStats,
-    UploadStats,
 )
-from app.services.audit import log_action
 from app.services.record_lookup import load_enriched_records
+from app.services.singleton import get_already_unified_ids, get_paired_ids
 
 router = APIRouter(prefix="/api/unified", tags=["unified"])
 
@@ -198,31 +181,6 @@ def get_unified_record(
     )
 
 
-def _get_singleton_ids(db: Session, type_key: str | None = None) -> set[int]:
-    """Return record IDs that have appeared as either side of a match candidate."""
-    a_query = db.query(MatchCandidate.record_a_id)
-    b_query = db.query(MatchCandidate.record_b_id)
-    if type_key is not None:
-        a_query = a_query.filter(MatchCandidate.type == type_key)
-        b_query = b_query.filter(MatchCandidate.type == type_key)
-    a_ids = {row[0] for row in a_query.distinct().all()}
-    b_ids = {row[0] for row in b_query.distinct().all()}
-    return a_ids | b_ids
-
-
-def _get_already_unified_ids(db: Session, type_key: str | None = None) -> set[int]:
-    """Return record IDs that are already part of a unified record."""
-    query = db.query(UnifiedRecord.source_record_ids)
-    if type_key is not None:
-        query = query.filter(UnifiedRecord.type == type_key)
-    rows = query.all()
-    out: set[int] = set()
-    for (ids,) in rows:
-        if ids:
-            out.update(ids)
-    return out
-
-
 @router.get("/singletons", response_model=SingletonListResponse)
 def list_singletons(
     type: str | None = Query(None, description="Filter by record type"),
@@ -239,8 +197,8 @@ def list_singletons(
     - Has not already been promoted (not in any UnifiedRecord.source_record_ids)
     - Is the representative of its intra-source group (or has no group)
     """
-    paired_ids = _get_singleton_ids(db, type)
-    unified_ids = _get_already_unified_ids(db, type)
+    paired_ids = get_paired_ids(db, type)
+    unified_ids = get_already_unified_ids(db, type)
     exclude_ids = paired_ids | unified_ids
 
     query = (
@@ -284,152 +242,6 @@ def list_singletons(
         items=items,
         total=total,
         has_more=(pagination.offset + pagination.limit) < total,
-    )
-
-
-def _build_singleton_unified(record: StagedRecord, source_name: str | None, username: str) -> UnifiedRecord:
-    """Construct a UnifiedRecord from a single StagedRecord (no merge — direct promotion)."""
-    rt = get_record_type(record.type)
-    now = datetime.now(UTC).isoformat()
-    fields_payload: dict[str, Any] = dict(record.fields or {})
-    name = fields_payload.get(rt.name_field.key) or record.name
-    if not name:
-        raise ValueError(f"Singleton record must have a '{rt.name_field.key}' value")
-
-    provenance: dict[str, Any] = {}
-    for fdef in rt.fields:
-        val = fields_payload.get(fdef.key)
-        provenance[fdef.key] = {
-            "value": val,
-            "source_entity": source_name,
-            "source_record_id": record.id,
-            "auto": True,
-            "chosen_by": username,
-            "chosen_at": now,
-        }
-    return UnifiedRecord(
-        type=record.type,
-        name=name,
-        fields=fields_payload,
-        provenance=provenance,
-        source_record_ids=[record.id],
-        created_by=username,
-    )
-
-
-@router.post("/singletons/{record_id}/promote", response_model=PromoteResponse)
-def promote_singleton(
-    record_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
-):
-    """Promote a singleton staged record to a unified record."""
-    record = get_or_404(db, StagedRecord, record_id, label=f"Staged record {record_id}")
-    if record.status != RecordStatus.ACTIVE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Record is {record.status}, cannot promote",
-        )
-
-    # Conflict checks
-    paired = (
-        db.query(MatchCandidate.id)
-        .filter((MatchCandidate.record_a_id == record_id) | (MatchCandidate.record_b_id == record_id))
-        .first()
-    )
-    if paired:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Record is part of a match candidate; promote via merge flow instead",
-        )
-    if record_id in _get_already_unified_ids(db, record.type):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Record is already part of a unified record",
-        )
-
-    source = db.get(DataSource, record.data_source_id)
-    source_name = source.name if source else None
-
-    try:
-        unified = _build_singleton_unified(record, source_name, current_user.username)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    db.add(unified)
-    db.flush()
-
-    log_action(
-        db,
-        user_id=current_user.id,
-        action="singleton_promoted",
-        entity_type="unified_record",
-        entity_id=unified.id,
-        details={
-            "type": record.type,
-            "source_record_id": record.id,
-            "name": unified.name,
-        },
-    )
-    db.commit()
-
-    return PromoteResponse(
-        unified_record_id=unified.id,
-        record_name=unified.name,
-        message=f"Singleton {record_id} promoted to unified record {unified.id}",
-    )
-
-
-@router.post("/singletons/bulk-promote", response_model=BulkPromoteResponse)
-def bulk_promote_singletons(
-    body: BulkPromoteRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
-):
-    """Promote multiple singletons in a single request."""
-    promoted_ids: list[int] = []
-
-    for sid in body.record_ids:
-        record = db.get(StagedRecord, sid)
-        if record is None or record.status != RecordStatus.ACTIVE:
-            continue
-
-        paired = (
-            db.query(MatchCandidate.id)
-            .filter((MatchCandidate.record_a_id == sid) | (MatchCandidate.record_b_id == sid))
-            .first()
-        )
-        if paired:
-            continue
-
-        source = db.get(DataSource, record.data_source_id)
-        source_name = source.name if source else None
-        try:
-            unified = _build_singleton_unified(record, source_name, current_user.username)
-        except ValueError:
-            continue
-        db.add(unified)
-        db.flush()
-        promoted_ids.append(unified.id)
-
-        log_action(
-            db,
-            user_id=current_user.id,
-            action="singleton_promoted",
-            entity_type="unified_record",
-            entity_id=unified.id,
-            details={
-                "type": record.type,
-                "source_record_id": record.id,
-                "name": unified.name,
-                "bulk": True,
-            },
-        )
-
-    db.commit()
-
-    return BulkPromoteResponse(
-        promoted_count=len(promoted_ids),
-        unified_record_ids=promoted_ids,
     )
 
 
@@ -491,95 +303,6 @@ def export_unified_csv(
         iter([output.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@router.get("/dashboard", response_model=DashboardResponse)
-def get_dashboard(
-    type: str | None = Query(None, description="Filter all stats by record type"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Get overall pipeline stats. Optional type filter narrows everything to one type."""
-    # Uploads (batches) — type filter requires joining DataSource
-    batches_query = db.query(ImportBatch)
-    if type is not None:
-        batches_query = batches_query.join(DataSource, ImportBatch.data_source_id == DataSource.id).filter(
-            DataSource.type == type
-        )
-
-    total_batches = batches_query.count()
-    completed_batches = batches_query.filter(ImportBatch.status == BatchStatus.COMPLETED).count()
-    failed_batches = batches_query.filter(ImportBatch.status == BatchStatus.FAILED).count()
-
-    # Total active records
-    staged_query = db.query(func.count(StagedRecord.id)).filter(StagedRecord.status == RecordStatus.ACTIVE)
-    if type is not None:
-        staged_query = staged_query.filter(StagedRecord.type == type)
-    total_staged = staged_query.scalar() or 0
-
-    # Match candidates / groups
-    cand_query = db.query(MatchCandidate)
-    if type is not None:
-        cand_query = cand_query.filter(MatchCandidate.type == type)
-    total_candidates = cand_query.count()
-    pending = cand_query.filter(MatchCandidate.status == CandidateStatus.PENDING).count()
-    confirmed = cand_query.filter(MatchCandidate.status == CandidateStatus.CONFIRMED).count()
-    rejected = cand_query.filter(MatchCandidate.status == CandidateStatus.REJECTED).count()
-
-    avg_conf = cand_query.with_entities(func.avg(MatchCandidate.confidence)).scalar()
-    total_groups = cand_query.with_entities(MatchCandidate.group_id).distinct().count()
-
-    # Unified records
-    unified_query = db.query(UnifiedRecord)
-    if type is not None:
-        unified_query = unified_query.filter(UnifiedRecord.type == type)
-    total_unified = unified_query.count()
-    merged = unified_query.filter(func.jsonb_array_length(UnifiedRecord.source_record_ids) > 1).count()
-    singletons_count = unified_query.filter(func.jsonb_array_length(UnifiedRecord.source_record_ids) <= 1).count()
-
-    # Recent activity (audit log, last 20)
-    recent_audit_query = db.query(AuditLog)
-    if type is not None:
-        recent_audit_query = recent_audit_query.filter(AuditLog.details["type"].as_string() == type)
-    recent_audit = recent_audit_query.order_by(AuditLog.created_at.desc()).limit(20).all()
-
-    return DashboardResponse(
-        uploads=UploadStats(
-            total_batches=total_batches,
-            completed=completed_batches,
-            failed=failed_batches,
-            total_staged=total_staged,
-        ),
-        matching=MatchStats(
-            total_candidates=total_candidates,
-            total_groups=total_groups,
-            avg_confidence=float(avg_conf) if avg_conf is not None else None,
-        ),
-        review=ReviewProgress(
-            pending=pending,
-            confirmed=confirmed,
-            rejected=rejected,
-        ),
-        unified=UnifiedStats(
-            total_unified=total_unified,
-            merged=merged,
-            singletons=singletons_count,
-        ),
-        recent_activity=[
-            RecentActivity(
-                id=a.id,
-                action=a.action,
-                entity_type=a.entity_type,
-                entity_id=a.entity_id,
-                entity_name=(a.details.get("name") or a.details.get("filename") or a.details.get("username"))
-                if a.details
-                else None,
-                details=a.details,
-                created_at=a.created_at,
-            )
-            for a in recent_audit
-        ],
     )
 
 
