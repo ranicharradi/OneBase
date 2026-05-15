@@ -9,6 +9,7 @@ from app.models.enums import UserRole
 from app.models.match import MatchCandidate
 from app.models.user import User
 from app.schemas.comparison import (
+    BatchSummary,
     ComparisonRunCreate,
     ComparisonRunDetail,
     ComparisonRunResponse,
@@ -33,6 +34,7 @@ def _to_response(run: ComparisonRun) -> ComparisonRunResponse:
         task_id=run.task_id,
         stats=run.stats or {},
         batch_ids=[b.id for b in run.batches],
+        batches=[BatchSummary(id=b.id, filename=b.filename) for b in run.batches],
         error_message=run.error_message,
     )
 

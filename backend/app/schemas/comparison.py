@@ -7,6 +7,11 @@ ComparisonMode = Literal["FILE_VS_FILE", "FILE_VS_GOLDEN", "MULTI_FILE"]
 ComparisonStatus = Literal["pending", "running", "completed", "failed", "stale"]
 
 
+class BatchSummary(BaseModel):
+    id: int
+    filename: str
+
+
 class ComparisonRunCreate(BaseModel):
     type: str
     mode: ComparisonMode
@@ -27,6 +32,7 @@ class ComparisonRunResponse(BaseModel):
     task_id: str | None
     stats: dict
     batch_ids: list[int]
+    batches: list[BatchSummary] = []
     error_message: str | None = None
 
 
