@@ -4,11 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
 import { useMatchingNotifications } from "../hooks/useMatchingNotifications";
-import { useNotifications } from "../hooks/useNotifications";
 import { ToastContainer } from "./Toast";
 import type { ToastData } from "./Toast";
 import type { MatchingNotification, ReviewStats } from "../api/types";
-import NotificationCenter from "./NotificationCenter";
 import CommandPalette from "./CommandPalette";
 import { SearchProvider } from "../contexts/SearchContext";
 import { RecordTypeProvider, useSelectedRecordType } from "../contexts/RecordTypeContext";
@@ -81,8 +79,6 @@ function LayoutContent() {
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastData[]>([]);
-  const notifs = useNotifications();
-  const [notifOpen, setNotifOpen] = useState(false);
 
   const addToast = useCallback((toast: Omit<ToastData, "id">) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -104,10 +100,6 @@ function LayoutContent() {
             detail: `${candidate_count} candidate pairs found in ${group_count} groups`,
             action: { label: "View results →", href: withRecordType("/review") },
           });
-          notifs.add(
-            "matching_complete",
-            `Matching complete: ${candidate_count} candidates in ${group_count} groups`,
-          );
         } else if (notification.type === "matching_failed") {
           addToast({
             type: "error",
@@ -116,10 +108,6 @@ function LayoutContent() {
               notification.data.error ||
               "An unexpected error occurred during matching",
           });
-          notifs.add(
-            "matching_failed",
-            `Matching failed: ${notification.data.error || "Unknown error"}`,
-          );
         } else if (notification.type === "comparison_complete") {
           const runId = notification.data.run_id;
           const candidateCount =
@@ -135,13 +123,9 @@ function LayoutContent() {
               href: withRecordType(`/review?comparison_run_id=${runId}`),
             },
           });
-          notifs.add(
-            "comparison_complete",
-            `Comparison run #${runId} complete: ${candidateCount} candidates`,
-          );
         }
       },
-      [addToast, notifs, withRecordType],
+      [addToast, withRecordType],
     ),
   );
 
@@ -213,18 +197,6 @@ function LayoutContent() {
           username={user?.username}
           isAdmin={user?.role === "admin"}
           onLogout={handleLogout}
-          notificationCenter={
-            <NotificationCenter
-              notifications={notifs.notifications}
-              unreadCount={notifs.unreadCount}
-              isOpen={notifOpen}
-              onToggle={() => setNotifOpen((p) => !p)}
-              onMarkRead={notifs.markRead}
-              onMarkAllRead={notifs.markAllRead}
-              onRemove={notifs.remove}
-              onClearAll={notifs.clearAll}
-            />
-          }
         />
 
         <main

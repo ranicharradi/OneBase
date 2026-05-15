@@ -1,4 +1,3 @@
-import type React from "react";
 import Icon from "../ui/Icon";
 import AvatarMenu from "./AvatarMenu";
 
@@ -13,7 +12,6 @@ const DENSITY_ICON: Record<Density, string> = {
 interface TopBarProps {
   breadcrumb: string[];
   onOpenPalette: () => void;
-  notificationCenter: React.ReactNode;
   density: Density;
   onCycleDensity: () => void;
   showDensity: boolean;
@@ -27,7 +25,6 @@ interface TopBarProps {
 export default function TopBar({
   breadcrumb,
   onOpenPalette,
-  notificationCenter,
   density,
   onCycleDensity,
   showDensity,
@@ -120,8 +117,6 @@ export default function TopBar({
       >
         <Icon name={theme === "light" ? "dark_mode" : "light_mode"} size={14} />
       </button>
-
-      {notificationCenter}
 
       <AvatarMenu username={username} isAdmin={isAdmin} onLogout={onLogout} />
     </div>
