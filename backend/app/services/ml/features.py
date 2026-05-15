@@ -24,8 +24,8 @@ def build_scorer_row(
 ) -> list[float]:
     """Build one scorer feature row.
 
-    Reads each type-declared signal from `signals` (the JSONB dict stored on
-    the candidate at scoring time) — falls back to 0.0 for any missing signal.
+    Reads each type-declared signal from `signals` (the JSONB dict stored on the
+    candidate at scoring time) — falls back to 0.0 for any missing signal.
     Adds engineered features at the end.
     """
     rt = get_record_type(record_type_key)
