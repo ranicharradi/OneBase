@@ -10,6 +10,8 @@ from app.services.llm import (
     LLMDisabledError,
     LLMProviderError,
     LLMRefusalError,
+    LLMTimeoutError,
+    call_or_raise_http,
     complete_structured,
 )
 
@@ -63,3 +65,23 @@ def test_provider_error_wrapped():
         mk.return_value.models.generate_content.side_effect = RuntimeError("upstream boom")
         with pytest.raises(LLMProviderError):
             complete_structured("anything", MappingSuggestion)
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code", "detail"),
+    [
+        (LLMDisabledError("off"), 503, "LLM is disabled"),
+        (LLMRefusalError("bad output"), 422, "bad output"),
+        (LLMTimeoutError("slow upstream"), 504, "slow upstream"),
+        (LLMProviderError("upstream boom"), 502, "upstream boom"),
+    ],
+)
+def test_call_or_raise_http_maps_llm_errors(error, status_code, detail):
+    def fn():
+        raise error
+
+    with pytest.raises(Exception) as exc:
+        call_or_raise_http(fn)
+
+    assert exc.value.status_code == status_code
+    assert exc.value.detail == detail

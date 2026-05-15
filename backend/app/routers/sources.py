@@ -259,16 +259,7 @@ def suggest_mapping(
         mapping: dict[str, str | None]
 
     t0 = time.perf_counter()
-    try:
-        result = llm_service.complete_structured(prompt, _Sug)
-    except llm_service.LLMDisabledError as exc:
-        raise HTTPException(status_code=503, detail="LLM is disabled") from exc
-    except llm_service.LLMRefusalError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
-    except llm_service.LLMTimeoutError as e:
-        raise HTTPException(status_code=504, detail=str(e)) from e
-    except llm_service.LLMProviderError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+    result = llm_service.call_or_raise_http(lambda: llm_service.complete_structured(prompt, _Sug))
     latency_ms = int((time.perf_counter() - t0) * 1000)
 
     # Pass through LLM suggestions as-is; the caller resolves synonyms to canonical keys.

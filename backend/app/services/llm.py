@@ -7,8 +7,10 @@ contract.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import lru_cache
 
+from fastapi import HTTPException
 from pydantic import BaseModel, ValidationError
 
 from app.config import settings
@@ -82,3 +84,17 @@ def complete_structured[T: BaseModel](prompt: str, output_format: type[T]) -> T:
         return output_format.model_validate_json(text)
     except ValidationError as e:
         raise LLMRefusalError(f"model output failed schema validation: {e}") from e
+
+
+def call_or_raise_http[T](fn: Callable[[], T]) -> T:
+    """Run an LLM operation and map service errors to API-facing HTTP errors."""
+    try:
+        return fn()
+    except LLMDisabledError:
+        raise HTTPException(status_code=503, detail="LLM is disabled") from None
+    except LLMRefusalError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except LLMTimeoutError as e:
+        raise HTTPException(status_code=504, detail=str(e)) from e
+    except LLMProviderError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e

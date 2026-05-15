@@ -46,16 +46,7 @@ def ask(
     )
 
     t0 = time.perf_counter()
-    try:
-        result = llm_service.complete_structured(prompt, _AskSql)
-    except llm_service.LLMDisabledError:
-        raise HTTPException(status_code=503, detail="LLM is disabled") from None
-    except llm_service.LLMRefusalError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
-    except llm_service.LLMTimeoutError as e:
-        raise HTTPException(status_code=504, detail=str(e)) from e
-    except llm_service.LLMProviderError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+    result = llm_service.call_or_raise_http(lambda: llm_service.complete_structured(prompt, _AskSql))
 
     try:
         safe_sql = prepare_safe_select(result.sql, ALLOWED_VIEW, limit_cap=LIMIT_CAP)
