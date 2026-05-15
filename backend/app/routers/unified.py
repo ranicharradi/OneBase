@@ -47,6 +47,7 @@ from app.schemas.unified import (
     UploadStats,
 )
 from app.services.audit import log_action
+from app.services.record_lookup import load_enriched_records
 
 router = APIRouter(prefix="/api/unified", tags=["unified"])
 
@@ -139,32 +140,18 @@ def get_unified_record(
     unified = get_or_404(db, UnifiedRecord, record_id, label=f"Unified record {record_id}")
 
     source_ids = unified.source_record_ids or []
-    source_records: list[SourceRecord] = []
-    if source_ids:
-        rows = (
-            db.query(
-                StagedRecord.id,
-                StagedRecord.type,
-                StagedRecord.name,
-                StagedRecord.fields,
-                StagedRecord.data_source_id,
-                DataSource.name.label("source_name"),
-            )
-            .join(DataSource, StagedRecord.data_source_id == DataSource.id)
-            .filter(StagedRecord.id.in_(source_ids))
-            .all()
+    enriched = load_enriched_records(db, source_ids)
+    source_records = [
+        SourceRecord(
+            id=r["id"],
+            type=r["type"],
+            name=r["name"],
+            fields=r["fields"],
+            data_source_id=r["data_source_id"],
+            data_source_name=r["source_name"],
         )
-        source_records = [
-            SourceRecord(
-                id=r.id,
-                type=r.type,
-                name=r.name,
-                fields=r.fields or {},
-                data_source_id=r.data_source_id,
-                data_source_name=r.source_name,
-            )
-            for r in rows
-        ]
+        for r in enriched.values()
+    ]
 
     # Merge history: audit log entries for the source records and the unified record
     audit_rows = (

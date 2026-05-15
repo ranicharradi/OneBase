@@ -29,6 +29,7 @@ from app.services.merge import (
     execute_merge,
     reject_candidate,
 )
+from app.services.record_lookup import load_enriched_records
 
 router = APIRouter(prefix="/api/review", tags=["review"])
 
@@ -99,32 +100,12 @@ def get_review_queue(
 
     candidates = query.offset(pagination.offset).limit(pagination.limit).all()
 
-    record_ids = set()
+    record_ids: set[int] = set()
     for c in candidates:
         record_ids.add(c.record_a_id)
         record_ids.add(c.record_b_id)
 
-    record_info: dict[int, dict] = {}
-    if record_ids:
-        rows = (
-            db.query(
-                StagedRecord.id,
-                StagedRecord.name,
-                StagedRecord.fields,
-                DataSource.name.label("source_name"),
-            )
-            .join(DataSource, StagedRecord.data_source_id == DataSource.id)
-            .filter(StagedRecord.id.in_(record_ids))
-            .all()
-        )
-        record_info = {
-            r.id: {
-                "name": r.name,
-                "source_name": r.source_name,
-                "fields": r.fields or {},
-            }
-            for r in rows
-        }
+    record_info = load_enriched_records(db, list(record_ids))
 
     items = []
     for c in candidates:
