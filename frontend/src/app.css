@@ -832,3 +832,17 @@
 .float {
   animation: float 4.5s ease-in-out infinite;
 }
+
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: var(--ring-from);
+  }
+  to {
+    stroke-dashoffset: var(--ring-to);
+  }
+}
+
+.progress-ring__bar {
+  stroke-dashoffset: var(--ring-to);
+  animation: ring-fill 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}

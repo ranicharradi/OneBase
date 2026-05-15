@@ -1,6 +1,6 @@
 // ── Dashboard — terminal aesthetic: KPI grid + pipeline + actions + activity ──
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api } from '../api/client';
@@ -85,12 +85,7 @@ const RING_R = 44;
 const RING_C = 2 * Math.PI * RING_R;
 
 function ProgressRing({ pct, unified, total }: { pct: number; unified: number; total: number }) {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setReady(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
-  const dash = ready ? (pct / 100) * RING_C : 0;
+  const dash = (pct / 100) * RING_C;
   const tone = pct >= 75 ? 'var(--ok)' : pct >= 40 ? 'var(--accent)' : 'var(--warn)';
 
   return (
@@ -118,16 +113,20 @@ function ProgressRing({ pct, unified, total }: { pct: number; unified: number; t
         />
         {/* Arc */}
         <circle
+          className="progress-ring__bar"
           cx="60"
           cy="60"
           r={RING_R}
           fill="none"
           stroke={tone}
           strokeWidth={6}
-          strokeDasharray={`${dash} ${RING_C}`}
+          strokeDasharray={RING_C}
           strokeLinecap="round"
           transform="rotate(-90 60 60)"
-          style={{ transition: 'stroke-dasharray 1.4s cubic-bezier(0.4, 0, 0.2, 1)' }}
+          style={{
+            '--ring-from': RING_C,
+            '--ring-to': RING_C - dash,
+          } as React.CSSProperties}
         />
         <text
           x="60"
@@ -247,6 +246,102 @@ export default function Dashboard() {
     }
   }, [queryClient]));
 
+  // ── Hoisted KPI memos (must be above early returns to satisfy Rules of Hooks) ──
+  const uploads = data?.uploads;
+  const matching = data?.matching;
+  const review = data?.review;
+
+  const recordStagedKpi = useMemo(() => {
+    if (!uploads) return null;
+    const totalBatches = uploads.completed + uploads.failed;
+    const successRate = totalBatches > 0
+      ? Math.round((uploads.completed / totalBatches) * 100)
+      : 100;
+    const tone = uploads.failed > 0
+      ? (successRate >= 90 ? 'warn' : 'danger')
+      : 'ok';
+    return (
+      <Kpi
+        icon="inventory_2"
+        label="Records staged"
+        value={uploads.total_staged.toLocaleString()}
+        delta={
+          <>
+            <span className="material-symbols-outlined" style={{ fontSize: 11 }}>
+              {uploads.failed > 0 ? 'error' : 'check_circle'}
+            </span>
+            {uploads.completed} of {totalBatches} batches{uploads.failed > 0 ? ` · ${uploads.failed} failed` : ' clean'}
+          </>
+        }
+        bar={successRate}
+        tone={tone}
+      />
+    );
+  }, [uploads]);
+
+  const pendingReviewKpi = useMemo(() => {
+    if (!review) return null;
+    const reviewedTotal = review.confirmed + review.rejected;
+    const grandTotal = review.pending + reviewedTotal;
+    const completionPct = grandTotal > 0
+      ? Math.round((reviewedTotal / grandTotal) * 100)
+      : 100;
+    const tone = review.pending === 0 ? 'ok' : 'warn';
+    return (
+      <Kpi
+        icon="pending_actions"
+        label="Pending review"
+        value={review.pending.toLocaleString()}
+        delta={
+          review.pending === 0 ? (
+            <>
+              <span className="material-symbols-outlined" style={{ fontSize: 11, color: 'var(--ok)' }}>
+                task_alt
+              </span>
+              queue clear · {reviewedTotal.toLocaleString()} reviewed
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined" style={{ fontSize: 11 }}>schedule</span>
+              {completionPct}% reviewed · {review.confirmed.toLocaleString()} ✓ · {review.rejected.toLocaleString()} ✗
+            </>
+          )
+        }
+        bar={completionPct}
+        tone={tone}
+      />
+    );
+  }, [review]);
+
+  const avgConfidenceKpi = useMemo(() => {
+    if (!matching) return null;
+    const conf = matching.avg_confidence ?? 0;
+    const pct = Math.round(conf * 100);
+    const tone = conf === 0 ? 'warn' : conf >= 0.85 ? 'ok' : conf >= 0.70 ? 'accent' : 'warn';
+    return (
+      <Kpi
+        icon="auto_graph"
+        label="Avg confidence"
+        value={matching.avg_confidence ? matching.avg_confidence.toFixed(3) : '—'}
+        delta={
+          matching.total_groups > 0 ? (
+            <>
+              <span className="material-symbols-outlined" style={{ fontSize: 11 }}>hub</span>
+              {matching.total_candidates.toLocaleString()} candidates · {matching.total_groups.toLocaleString()} groups
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined" style={{ fontSize: 11 }}>hourglass_empty</span>
+              awaiting matches
+            </>
+          )
+        }
+        bar={pct}
+        tone={tone}
+      />
+    );
+  }, [matching]);
+
   if (isLoading) return <Skeleton />;
 
   if (error || !data) {
@@ -272,20 +367,20 @@ export default function Dashboard() {
     );
   }
 
-  const { uploads, matching, review, unified, recent_activity } = data;
-  const coverage = uploads.total_staged > 0
-    ? Math.round((unified.total_unified / uploads.total_staged) * 100)
+  const { uploads: uploadsData, matching: matchingData, review: reviewData, unified, recent_activity } = data;
+  const coverage = uploadsData.total_staged > 0
+    ? Math.round((unified.total_unified / uploadsData.total_staged) * 100)
     : 0;
   const actions = deriveActions(data);
   const isMatchRunning = matchProgress !== null;
 
-  const reviewedTotal = review.confirmed + review.rejected;
+  const reviewedTotal = reviewData.confirmed + reviewData.rejected;
 
   // Per-stage completion → derive the "current" stage as the first not-done one.
   const stageDone = [
-    uploads.total_staged > 0,
-    matching.total_candidates > 0 && !isMatchRunning,
-    reviewedTotal > 0 && review.pending === 0,
+    uploadsData.total_staged > 0,
+    matchingData.total_candidates > 0 && !isMatchRunning,
+    reviewedTotal > 0 && reviewData.pending === 0,
     unified.total_unified > 0 && coverage >= 99,
   ];
   let activeIdx = stageDone.findIndex(d => !d);
@@ -299,9 +394,9 @@ export default function Dashboard() {
     unit: string;
     status: StageStatus;
   }> = [
-    { n: 1, label: 'Ingest', stat: uploads.total_staged.toLocaleString(), unit: 'rows' },
-    { n: 2, label: 'Match', stat: matching.total_candidates.toLocaleString(), unit: 'pairs' },
-    { n: 3, label: 'Review', stat: review.pending.toLocaleString(), unit: 'pending' },
+    { n: 1, label: 'Ingest', stat: uploadsData.total_staged.toLocaleString(), unit: 'rows' },
+    { n: 2, label: 'Match', stat: matchingData.total_candidates.toLocaleString(), unit: 'pairs' },
+    { n: 3, label: 'Review', stat: reviewData.pending.toLocaleString(), unit: 'pending' },
     { n: 4, label: 'Unify', stat: unified.total_unified.toLocaleString(), unit: 'merged' },
   ].map((s, i) => ({
     ...s,
@@ -325,7 +420,7 @@ export default function Dashboard() {
               </Pill>
             </div>
             <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>
-              Record unification pipeline · {uploads.total_staged.toLocaleString()} rows staged · {unified.total_unified.toLocaleString()} unified
+              Record unification pipeline · {uploadsData.total_staged.toLocaleString()} rows staged · {unified.total_unified.toLocaleString()} unified
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -345,38 +440,13 @@ export default function Dashboard() {
           className="fade"
           style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 14 }}
         >
-          <ProgressRing pct={coverage} unified={unified.total_unified} total={uploads.total_staged} />
+          <ProgressRing pct={coverage} unified={unified.total_unified} total={uploadsData.total_staged} />
           <div
             className="kpi-grid"
             style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}
           >
             {/* Records staged — ingestion success rate */}
-            {(() => {
-              const totalBatches = uploads.completed + uploads.failed;
-              const successRate = totalBatches > 0
-                ? Math.round((uploads.completed / totalBatches) * 100)
-                : 100;
-              const tone = uploads.failed > 0
-                ? (successRate >= 90 ? 'warn' : 'danger')
-                : 'ok';
-              return (
-                <Kpi
-                  icon="inventory_2"
-                  label="Records staged"
-                  value={uploads.total_staged.toLocaleString()}
-                  delta={
-                    <>
-                      <span className="material-symbols-outlined" style={{ fontSize: 11 }}>
-                        {uploads.failed > 0 ? 'error' : 'check_circle'}
-                      </span>
-                      {uploads.completed} of {totalBatches} batches{uploads.failed > 0 ? ` · ${uploads.failed} failed` : ' clean'}
-                    </>
-                  }
-                  bar={successRate}
-                  tone={tone}
-                />
-              );
-            })()}
+            {recordStagedKpi}
 
             {/* Unified records — coverage = unified / staged */}
             <Kpi
@@ -394,67 +464,10 @@ export default function Dashboard() {
             />
 
             {/* Pending review — load on the queue */}
-            {(() => {
-              const reviewedTotal = review.confirmed + review.rejected;
-              const grandTotal = review.pending + reviewedTotal;
-              const completionPct = grandTotal > 0
-                ? Math.round((reviewedTotal / grandTotal) * 100)
-                : 100;
-              const tone = review.pending === 0 ? 'ok' : 'warn';
-              return (
-                <Kpi
-                  icon="pending_actions"
-                  label="Pending review"
-                  value={review.pending.toLocaleString()}
-                  delta={
-                    review.pending === 0 ? (
-                      <>
-                        <span className="material-symbols-outlined" style={{ fontSize: 11, color: 'var(--ok)' }}>
-                          task_alt
-                        </span>
-                        queue clear · {reviewedTotal.toLocaleString()} reviewed
-                      </>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined" style={{ fontSize: 11 }}>schedule</span>
-                        {completionPct}% reviewed · {review.confirmed.toLocaleString()} ✓ · {review.rejected.toLocaleString()} ✗
-                      </>
-                    )
-                  }
-                  bar={completionPct}
-                  tone={tone}
-                />
-              );
-            })()}
+            {pendingReviewKpi}
 
             {/* Avg confidence — match score health */}
-            {(() => {
-              const conf = matching.avg_confidence ?? 0;
-              const pct = Math.round(conf * 100);
-              const tone = conf === 0 ? 'warn' : conf >= 0.85 ? 'ok' : conf >= 0.70 ? 'accent' : 'warn';
-              return (
-                <Kpi
-                  icon="auto_graph"
-                  label="Avg confidence"
-                  value={matching.avg_confidence ? matching.avg_confidence.toFixed(3) : '—'}
-                  delta={
-                    matching.total_groups > 0 ? (
-                      <>
-                        <span className="material-symbols-outlined" style={{ fontSize: 11 }}>hub</span>
-                        {matching.total_candidates.toLocaleString()} candidates · {matching.total_groups.toLocaleString()} groups
-                      </>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined" style={{ fontSize: 11 }}>hourglass_empty</span>
-                        awaiting matches
-                      </>
-                    )
-                  }
-                  bar={pct}
-                  tone={tone}
-                />
-              );
-            })()}
+            {avgConfidenceKpi}
           </div>
         </div>
 
@@ -606,7 +619,7 @@ export default function Dashboard() {
                     </span>
                   </Link>
                 ))
-              ) : uploads.total_staged === 0 ? (
+              ) : uploadsData.total_staged === 0 ? (
                 <div style={{ textAlign: 'center', padding: '20px 12px' }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>
                     cloud_upload
