@@ -14,6 +14,7 @@ import type {
 import { ToastContainer, type ToastData } from '../components/Toast';
 import { useRecordType, useRecordTypes } from '../hooks/useRecordTypes';
 import Panel, { PanelHead } from '../components/ui/Panel';
+import { Modal } from '../components/ui/Modal';
 import Pill from '../components/ui/Pill';
 import Seg from '../components/ui/Seg';
 import Spinner from '../components/ui/Spinner';
@@ -218,34 +219,16 @@ function SourceModal({
   };
 
   return (
-    <div className="backdrop" onClick={onClose} role="dialog" aria-modal="true">
+    <Modal
+      onClose={onClose}
+      title={isEditing ? 'Edit data source' : 'New data source'}
+      size="lg"
+      panelStyle={{ maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+    >
       <form
         onSubmit={handleSubmit}
-        onClick={(e) => e.stopPropagation()}
-        className="panel fade"
-        style={{
-          width: '100%',
-          maxWidth: 560,
-          maxHeight: '85vh',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: 'var(--shadow-lg)',
-        }}
+        style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
       >
-        <PanelHead>
-          <span className="panel-title">{isEditing ? 'Edit data source' : 'New data source'}</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn btn-ghost btn-sm"
-            style={{ padding: 4 }}
-            aria-label="Close"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
-          </button>
-        </PanelHead>
-
         <div className="scroll" style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {formError && (
             <div className="pill danger" style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}>
@@ -357,7 +340,7 @@ function SourceModal({
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }
 
@@ -383,51 +366,39 @@ function DeleteConfirm({
   });
 
   return (
-    <div className="backdrop" onClick={onClose} role="dialog" aria-modal="true">
+    <Modal
+      onClose={onClose}
+      title={<span className="panel-title" style={{ color: 'var(--danger)' }}>Delete source</span>}
+      size="sm"
+    >
+      <div style={{ padding: 16 }}>
+        <p style={{ fontSize: 13, margin: 0, marginBottom: 8 }}>
+          Delete <b>{source.name}</b>?
+        </p>
+        <p style={{ fontSize: 11, color: 'var(--fg-2)', margin: 0 }}>
+          This cannot be undone. Existing batches and unified records will be preserved, but new uploads will fail.
+        </p>
+      </div>
       <div
-        onClick={(e) => e.stopPropagation()}
-        className="panel fade"
         style={{
-          width: '100%',
-          maxWidth: 400,
-          boxShadow: 'var(--shadow-lg)',
+          padding: '10px 14px',
+          borderTop: '1px solid var(--border-0)',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: 8,
         }}
       >
-        <PanelHead>
-          <span className="panel-title" style={{ color: 'var(--danger)' }}>Delete source</span>
-          <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ padding: 4 }} aria-label="Close">
-            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
-          </button>
-        </PanelHead>
-        <div style={{ padding: 16 }}>
-          <p style={{ fontSize: 13, margin: 0, marginBottom: 8 }}>
-            Delete <b>{source.name}</b>?
-          </p>
-          <p style={{ fontSize: 11, color: 'var(--fg-2)', margin: 0 }}>
-            This cannot be undone. Existing batches and unified records will be preserved, but new uploads will fail.
-          </p>
-        </div>
-        <div
-          style={{
-            padding: '10px 14px',
-            borderTop: '1px solid var(--border-0)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 8,
-          }}
+        <button onClick={onClose} className="btn btn-sm">Cancel</button>
+        <button
+          onClick={() => !mutation.isPending && mutation.mutate()}
+          disabled={mutation.isPending}
+          className="btn btn-sm btn-danger"
         >
-          <button onClick={onClose} className="btn btn-sm">Cancel</button>
-          <button
-            onClick={() => !mutation.isPending && mutation.mutate()}
-            disabled={mutation.isPending}
-            className="btn btn-sm btn-danger"
-          >
-            {mutation.isPending && <Spinner size={10} color="var(--danger)" />}
-            Delete
-          </button>
-        </div>
+          {mutation.isPending && <Spinner size={10} color="var(--danger)" />}
+          Delete
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }
 

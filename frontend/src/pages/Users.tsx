@@ -5,7 +5,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import type { User, UserCreate } from '../api/types';
-import Panel, { PanelHead } from '../components/ui/Panel';
+import Panel from '../components/ui/Panel';
+import { Modal } from '../components/ui/Modal';
 import Pill from '../components/ui/Pill';
 import Spinner from '../components/ui/Spinner';
 import { LoadingErrorEmpty } from '../components/ui/LoadingErrorEmpty';
@@ -98,85 +99,74 @@ function CreateUserModal({
   };
 
   return (
-    <div className="backdrop" onClick={onClose} role="dialog" aria-modal="true">
-      <Panel
-        className="fade"
-        style={{ width: '100%', maxWidth: 440, boxShadow: 'var(--shadow-lg)' }}
-      >
-        <form onSubmit={handleSubmit} onClick={(e) => e.stopPropagation()}>
-          <PanelHead>
-            <span className="panel-title">New user</span>
-            <button type="button" onClick={onClose} className="btn btn-ghost btn-sm" style={{ padding: 4 }} aria-label="Close">
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
-            </button>
-          </PanelHead>
-          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {formError && (
-              <div className="pill danger" style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
-                {formError}
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="label">
-                Username <span style={{ color: 'var(--danger)' }}>*</span>
-              </label>
+    <Modal onClose={onClose} title="New user" size="md">
+      <form onSubmit={handleSubmit}>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {formError && (
+            <div className="pill danger" style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
+              {formError}
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label className="label">
+              Username <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            <input
+              type="text"
+              required
+              autoFocus
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="e.g. jane.smith"
+              className="input"
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label className="label">
+              Password <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            <div style={{ position: 'relative' }}>
               <input
-                type="text"
+                type={showPassword ? 'text' : 'password'}
                 required
-                autoFocus
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. jane.smith"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="min 4 characters"
                 className="input"
+                style={{ width: '100%', paddingRight: 32 }}
               />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="label">
-                Password <span style={{ color: 'var(--danger)' }}>*</span>
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="min 4 characters"
-                  className="input"
-                  style={{ width: '100%', paddingRight: 32 }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="btn btn-ghost btn-sm"
-                  style={{ position: 'absolute', right: 4, top: 2, padding: 4, height: 22 }}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
-                    {showPassword ? 'visibility_off' : 'visibility'}
-                  </span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="btn btn-ghost btn-sm"
+                style={{ position: 'absolute', right: 4, top: 2, padding: 4, height: 22 }}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                  {showPassword ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
             </div>
           </div>
-          <div
-            style={{
-              padding: '10px 14px',
-              borderTop: '1px solid var(--border-0)',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 8,
-            }}
-          >
-            <button type="button" onClick={onClose} className="btn btn-sm">Cancel</button>
-            <button type="submit" disabled={mutation.isPending} className="btn btn-sm btn-accent">
-              {mutation.isPending && <Spinner size={10} color="#fff" />}
-              Create user
-            </button>
-          </div>
-        </form>
-      </Panel>
-    </div>
+        </div>
+        <div
+          style={{
+            padding: '10px 14px',
+            borderTop: '1px solid var(--border-0)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 8,
+          }}
+        >
+          <button type="button" onClick={onClose} className="btn btn-sm">Cancel</button>
+          <button type="submit" disabled={mutation.isPending} className="btn btn-sm btn-accent">
+            {mutation.isPending && <Spinner size={10} color="#fff" />}
+            Create user
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -261,178 +251,170 @@ function EditUserModal({
     deleteMutation.isPending;
 
   return (
-    <div className="backdrop" onClick={onClose} role="dialog" aria-modal="true">
-      <Panel
-        className="fade"
-        style={{ width: '100%', maxWidth: 520, boxShadow: 'var(--shadow-lg)' }}
-      >
-        <div onClick={(e) => e.stopPropagation()}>
-          <PanelHead>
-            <span className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Avatar username={target.username} size={26} />
-              <span>
-                Edit user — <span className="mono" style={{ fontWeight: 500 }}>{target.username}</span>
-                {isSelf && <span style={{ color: 'var(--fg-2)', marginLeft: 6, fontWeight: 400 }}>(you)</span>}
-              </span>
+    <Modal
+      onClose={onClose}
+      title={
+        <span className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Avatar username={target.username} size={26} />
+          <span>
+            Edit user — <span className="mono" style={{ fontWeight: 500 }}>{target.username}</span>
+            {isSelf && <span style={{ color: 'var(--fg-2)', marginLeft: 6, fontWeight: 400 }}>(you)</span>}
+          </span>
+        </span>
+      }
+      size="md"
+    >
+      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {formError && (
+          <div className="pill danger" style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
+            {formError}
+          </div>
+        )}
+
+        {/* Profile */}
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="label">Profile</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: 10 }}>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="input"
+              placeholder="Username"
+            />
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="input mono"
+              disabled={isSelf}
+              style={{ fontSize: 12 }}
+            >
+              {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          {isSelf && (
+            <span className="mono" style={{ fontSize: 10, color: 'var(--fg-3)' }}>
+              Cannot change your own role
             </span>
-            <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ padding: 4 }} aria-label="Close">
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="submit"
+              disabled={isPending || (username === target.username && role === target.role)}
+              className="btn btn-sm btn-accent"
+            >
+              {updateMutation.isPending && <Spinner size={10} color="#fff" />}
+              Save changes
             </button>
-          </PanelHead>
+          </div>
+        </form>
 
-          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {formError && (
-              <div className="pill danger" style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
-                {formError}
-              </div>
-            )}
+        <div style={{ borderTop: '1px solid var(--border-0)' }} />
 
-            {/* Profile */}
-            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div className="label">Profile</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: 10 }}>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="input"
-                  placeholder="Username"
-                />
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="input mono"
-                  disabled={isSelf}
-                  style={{ fontSize: 12 }}
-                >
-                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              {isSelf && (
-                <span className="mono" style={{ fontSize: 10, color: 'var(--fg-3)' }}>
-                  Cannot change your own role
+        {/* Password reset */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="label">Reset password</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New password (min 4 chars)"
+                className="input"
+                style={{ width: '100%', paddingRight: 32 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="btn btn-ghost btn-sm"
+                style={{ position: 'absolute', right: 4, top: 2, padding: 4, height: 22 }}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                  {showPassword ? 'visibility_off' : 'visibility'}
                 </span>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button
-                  type="submit"
-                  disabled={isPending || (username === target.username && role === target.role)}
-                  className="btn btn-sm btn-accent"
-                >
-                  {updateMutation.isPending && <Spinner size={10} color="#fff" />}
-                  Save changes
-                </button>
-              </div>
-            </form>
-
-            <div style={{ borderTop: '1px solid var(--border-0)' }} />
-
-            {/* Password reset */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div className="label">Reset password</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ position: 'relative', flex: 1 }}>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="New password (min 4 chars)"
-                    className="input"
-                    style={{ width: '100%', paddingRight: 32 }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="btn btn-ghost btn-sm"
-                    style={{ position: 'absolute', right: 4, top: 2, padding: 4, height: 22 }}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
-                      {showPassword ? 'visibility_off' : 'visibility'}
-                    </span>
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={handlePasswordReset}
-                  disabled={isPending || !newPassword}
-                  className="btn btn-sm"
-                >
-                  {passwordMutation.isPending && <Spinner size={10} />}
-                  Reset
-                </button>
-              </div>
+              </button>
             </div>
-
-            <div style={{ borderTop: '1px solid var(--border-0)' }} />
-
-            {/* Danger zone */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div className="label" style={{ color: 'var(--danger)' }}>Danger zone</div>
-              {isSelf ? (
-                <span className="mono" style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-                  You cannot deactivate or delete your own account.
-                </span>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={() => toggleMutation.mutate()}
-                    disabled={isPending}
-                    className={target.is_active ? 'btn btn-sm btn-danger' : 'btn btn-sm'}
-                  >
-                    {toggleMutation.isPending ? (
-                      <Spinner size={10} color={target.is_active ? 'var(--danger)' : undefined} />
-                    ) : (
-                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>
-                        {target.is_active ? 'block' : 'check_circle'}
-                      </span>
-                    )}
-                    {target.is_active ? 'Deactivate' : 'Activate'}
-                  </button>
-
-                  {!confirmDelete ? (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDelete(true)}
-                      disabled={isPending}
-                      className="btn btn-sm btn-danger"
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>delete</span>
-                      Delete user
-                    </button>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 500 }}>
-                        Confirm?
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => deleteMutation.mutate()}
-                        disabled={isPending}
-                        className="btn btn-sm"
-                        style={{ background: 'var(--danger)', color: '#fff', borderColor: 'var(--danger)' }}
-                      >
-                        {deleteMutation.isPending && <Spinner size={10} color="#fff" />}
-                        Yes, delete
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDelete(false)}
-                        className="btn btn-sm"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={handlePasswordReset}
+              disabled={isPending || !newPassword}
+              className="btn btn-sm"
+            >
+              {passwordMutation.isPending && <Spinner size={10} />}
+              Reset
+            </button>
           </div>
         </div>
-      </Panel>
-    </div>
+
+        <div style={{ borderTop: '1px solid var(--border-0)' }} />
+
+        {/* Danger zone */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="label" style={{ color: 'var(--danger)' }}>Danger zone</div>
+          {isSelf ? (
+            <span className="mono" style={{ fontSize: 11, color: 'var(--fg-3)' }}>
+              You cannot deactivate or delete your own account.
+            </span>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => toggleMutation.mutate()}
+                disabled={isPending}
+                className={target.is_active ? 'btn btn-sm btn-danger' : 'btn btn-sm'}
+              >
+                {toggleMutation.isPending ? (
+                  <Spinner size={10} color={target.is_active ? 'var(--danger)' : undefined} />
+                ) : (
+                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>
+                    {target.is_active ? 'block' : 'check_circle'}
+                  </span>
+                )}
+                {target.is_active ? 'Deactivate' : 'Activate'}
+              </button>
+
+              {!confirmDelete ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={isPending}
+                  className="btn btn-sm btn-danger"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>delete</span>
+                  Delete user
+                </button>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 500 }}>
+                    Confirm?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => deleteMutation.mutate()}
+                    disabled={isPending}
+                    className="btn btn-sm"
+                    style={{ background: 'var(--danger)', color: '#fff', borderColor: 'var(--danger)' }}
+                  >
+                    {deleteMutation.isPending && <Spinner size={10} color="#fff" />}
+                    Yes, delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    className="btn btn-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 

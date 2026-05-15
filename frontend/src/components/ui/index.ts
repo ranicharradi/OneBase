@@ -9,3 +9,4 @@ export { default as Panel, PanelHead } from './Panel';
 export { default as Seg } from './Seg';
 export { default as Spinner } from './Spinner';
 export { LoadingErrorEmpty } from './LoadingErrorEmpty';
+export { Modal } from './Modal';
