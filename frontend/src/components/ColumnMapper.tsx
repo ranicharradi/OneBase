@@ -1,6 +1,6 @@
 // ── ColumnMapper — terminal aesthetic, record-type-driven ──
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import type {
   ColumnMapping,
@@ -54,7 +54,7 @@ export default function ColumnMapper({
   sampleRows,
 }: ColumnMapperProps) {
   const { data: recordType, isLoading, error } = useRecordType(type);
-  const fields: FieldDef[] = recordType?.fields ?? [];
+  const fields: FieldDef[] = useMemo(() => recordType?.fields ?? [], [recordType]);
 
   const [sourceName, setSourceName] = useState(initialSourceName ?? '');
   const [description, setDescription] = useState('');
@@ -63,9 +63,14 @@ export default function ColumnMapper({
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [autoMapped, setAutoMapped] = useState<Set<string>>(new Set());
 
+  // Seed user-untouched fields with autoMap suggestions whenever the source
+  // columns or record-type fields change. Synchronously calling setState
+  // here is intentional — this is a one-shot merge from props, not a render
+  // cascade, and re-runs are gated by the stable deps above.
   useEffect(() => {
     if (fields.length === 0 || columns.length === 0) return;
     const auto = autoMap(columns, fields);
+    /* eslint-disable react-hooks/set-state-in-effect */
     setMapping((prev) => {
       const next = { ...prev };
       for (const [k, v] of Object.entries(auto)) {
@@ -78,6 +83,7 @@ export default function ColumnMapper({
       for (const k of Object.keys(auto)) next.add(k);
       return next;
     });
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [fields, columns]);
 
   const updateMapping = (field: string, csvColumn: string) => {

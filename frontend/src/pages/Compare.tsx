@@ -227,7 +227,10 @@ export default function Compare() {
     vsGolden: false,
   });
 
-  const selected = selState.type === selectedType ? selState.ids : new Set<number>();
+  const selected = useMemo(
+    () => (selState.type === selectedType ? selState.ids : new Set<number>()),
+    [selState.type, selState.ids, selectedType],
+  );
   const vsGolden = selState.type === selectedType ? selState.vsGolden : false;
 
   const { data: batches } = useQuery({
