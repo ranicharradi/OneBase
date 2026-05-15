@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../api/client';
-import type { UnifiedRecordListResponse } from '../api/types';
-import { useSelectedRecordType } from '../contexts/RecordTypeContext';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../api/client";
+import type { UnifiedRecordListResponse } from "../api/types";
+import { useSelectedRecordType } from "../contexts/RecordTypeContext";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -11,7 +11,7 @@ interface CommandPaletteProps {
 }
 
 interface PaletteItem {
-  section: 'Navigate' | 'Actions' | 'Records';
+  section: "Navigate" | "Actions" | "Records";
   label: string;
   hint?: string;
   kbd?: string;
@@ -22,13 +22,13 @@ interface PaletteItem {
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { selectedType, withRecordType } = useSelectedRecordType();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
-      setQuery('');
+      setQuery("");
       setActiveIdx(0);
       // focus after the dialog mounts
       requestAnimationFrame(() => inputRef.current?.focus());
@@ -39,9 +39,13 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const trimmed = query.trim();
   const recordEnabled = open && trimmed.length >= 2;
   const { data: recordResults } = useQuery<UnifiedRecordListResponse>({
-    queryKey: ['command-palette-records', trimmed, selectedType],
+    queryKey: ["command-palette-records", trimmed, selectedType],
     queryFn: () => {
-      const params = new URLSearchParams({ search: trimmed, limit: '8', type: selectedType });
+      const params = new URLSearchParams({
+        search: trimmed,
+        limit: "8",
+        type: selectedType,
+      });
       return api.get(`/api/unified/records?${params}`);
     },
     enabled: recordEnabled,
@@ -50,35 +54,95 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const items = useMemo<PaletteItem[]>(() => {
     const navItems: PaletteItem[] = [
-      { section: 'Navigate', label: 'Go to Dashboard', kbd: 'G D', icon: 'home', onSelect: () => navigate('/dashboard') },
-      { section: 'Navigate', label: 'Go to Upload', kbd: 'G U', icon: 'cloud_upload', onSelect: () => navigate('/upload') },
-      { section: 'Navigate', label: 'Go to Sources', kbd: 'G S', icon: 'storage', onSelect: () => navigate('/sources') },
-      { section: 'Navigate', label: 'Go to Review queue', kbd: 'G R', icon: 'swap_horiz', onSelect: () => navigate(withRecordType('/review')) },
-      { section: 'Navigate', label: 'Go to Unified records', kbd: 'G M', icon: 'verified', onSelect: () => navigate(withRecordType('/unified')) },
-      { section: 'Navigate', label: 'Go to Users & access', kbd: 'G A', icon: 'group', onSelect: () => navigate('/users') },
-      { section: 'Actions', label: 'New data source', icon: 'add', onSelect: () => navigate('/sources') },
-      { section: 'Actions', label: 'Upload CSV batch', icon: 'cloud_upload', onSelect: () => navigate('/upload') },
-      { section: 'Actions', label: 'Retrain model', icon: 'auto_awesome', onSelect: () => navigate(withRecordType('/review')) },
-      { section: 'Actions', label: 'Browse unified records', icon: 'arrow_forward', onSelect: () => navigate(withRecordType('/unified')) },
+      {
+        section: "Navigate",
+        label: "Go to Dashboard",
+        kbd: "G D",
+        icon: "home",
+        onSelect: () => navigate("/dashboard"),
+      },
+      {
+        section: "Navigate",
+        label: "Go to Upload",
+        kbd: "G U",
+        icon: "cloud_upload",
+        onSelect: () => navigate("/upload"),
+      },
+      {
+        section: "Navigate",
+        label: "Go to Sources",
+        kbd: "G S",
+        icon: "storage",
+        onSelect: () => navigate("/sources"),
+      },
+      {
+        section: "Navigate",
+        label: "Go to Review queue",
+        kbd: "G R",
+        icon: "swap_horiz",
+        onSelect: () => navigate(withRecordType("/review")),
+      },
+      {
+        section: "Navigate",
+        label: "Go to Unified records",
+        kbd: "G M",
+        icon: "verified",
+        onSelect: () => navigate(withRecordType("/unified")),
+      },
+      {
+        section: "Navigate",
+        label: "Go to Users & access",
+        kbd: "G A",
+        icon: "group",
+        onSelect: () => navigate("/users"),
+      },
+      {
+        section: "Actions",
+        label: "New data source",
+        icon: "add",
+        onSelect: () => navigate("/sources"),
+      },
+      {
+        section: "Actions",
+        label: "Upload CSV batch",
+        icon: "cloud_upload",
+        onSelect: () => navigate("/upload"),
+      },
+      {
+        section: "Actions",
+        label: "Retrain model",
+        icon: "auto_awesome",
+        onSelect: () => navigate(withRecordType("/review")),
+      },
+      {
+        section: "Actions",
+        label: "Browse unified records",
+        icon: "arrow_forward",
+        onSelect: () => navigate(withRecordType("/unified")),
+      },
     ];
 
-    const recordItems: PaletteItem[] = (recordResults?.items ?? []).map(s => ({
-      section: 'Records' as const,
-      label: s.name || `Record #${s.id}`,
-      hint: `${s.type} · ${s.source_count} source${s.source_count === 1 ? '' : 's'}`,
-      icon: 'verified',
-      onSelect: () => navigate(withRecordType(`/unified/${s.id}`)),
-    }));
+    const recordItems: PaletteItem[] = (recordResults?.items ?? []).map(
+      (s) => ({
+        section: "Records" as const,
+        label: s.name || `Record #${s.id}`,
+        hint: `${s.type} · ${s.source_count} source${s.source_count === 1 ? "" : "s"}`,
+        icon: "verified",
+        onSelect: () => navigate(withRecordType(`/unified/${s.id}`)),
+      }),
+    );
 
     const lower = trimmed.toLowerCase();
     const filtered = lower
-      ? navItems.filter(i => i.label.toLowerCase().includes(lower))
+      ? navItems.filter((i) => i.label.toLowerCase().includes(lower))
       : navItems;
     return [...filtered, ...recordItems];
   }, [navigate, recordResults, trimmed, withRecordType]);
 
   // Reset selection when items change
-  useEffect(() => { setActiveIdx(0); }, [items.length]);
+  useEffect(() => {
+    setActiveIdx(0);
+  }, [items.length]);
 
   // Group items by section in render order
   const grouped = useMemo(() => {
@@ -92,16 +156,16 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   if (!open) return null;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       e.preventDefault();
       onClose();
-    } else if (e.key === 'ArrowDown') {
+    } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIdx(i => Math.min(i + 1, items.length - 1));
-    } else if (e.key === 'ArrowUp') {
+      setActiveIdx((i) => Math.min(i + 1, items.length - 1));
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActiveIdx(i => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter') {
+      setActiveIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
       e.preventDefault();
       const item = items[activeIdx];
       if (item) {
@@ -112,29 +176,38 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   };
 
   return (
-    <div className="backdrop backdrop-top" onClick={onClose} role="dialog" aria-modal="true" aria-label="Command palette">
+    <div
+      className="backdrop backdrop-top"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Command palette"
+    >
       <div
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
         style={{
           width: 560,
-          background: 'var(--bg-1)',
-          border: '1px solid var(--border-1)',
+          background: "var(--bg-1)",
+          border: "1px solid var(--border-1)",
           borderRadius: 8,
-          boxShadow: 'var(--shadow-lg)',
-          overflow: 'hidden',
+          boxShadow: "var(--shadow-lg)",
+          overflow: "hidden",
         }}
       >
         <div
           style={{
-            padding: '12px 14px',
-            borderBottom: '1px solid var(--border-0)',
-            display: 'flex',
-            alignItems: 'center',
+            padding: "12px 14px",
+            borderBottom: "1px solid var(--border-0)",
+            display: "flex",
+            alignItems: "center",
             gap: 10,
           }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--fg-2)' }}>
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: 16, color: "var(--fg-2)" }}
+          >
             search
           </span>
           <input
@@ -144,55 +217,75 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             placeholder="Type a command, search records, paste an ID…"
             style={{
               flex: 1,
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              fontFamily: 'inherit',
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              fontFamily: "inherit",
               fontSize: 14,
-              color: 'var(--fg-0)',
+              color: "var(--fg-0)",
             }}
             aria-label="Command palette query"
           />
           <span className="kbd">ESC</span>
         </div>
 
-        <div className="scroll" style={{ maxHeight: '50vh' }}>
+        <div className="scroll" style={{ maxHeight: "50vh" }}>
           {items.length === 0 && (
-            <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
+            <div
+              style={{
+                padding: 28,
+                textAlign: "center",
+                fontSize: 12,
+                color: "var(--fg-2)",
+              }}
+            >
               No matches
             </div>
           )}
           {Object.entries(grouped).map(([section, entries]) => (
             <div key={section}>
-              <div className="label" style={{ padding: '10px 14px 4px' }}>{section}</div>
+              <div className="label" style={{ padding: "10px 14px 4px" }}>
+                {section}
+              </div>
               {entries.map(({ item, idx }) => {
                 const active = idx === activeIdx;
                 return (
                   <button
                     key={`${section}-${idx}`}
                     onMouseEnter={() => setActiveIdx(idx)}
-                    onClick={() => { item.onSelect(); onClose(); }}
+                    onClick={() => {
+                      item.onSelect();
+                      onClose();
+                    }}
                     style={{
-                      width: '100%',
-                      padding: '8px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
+                      width: "100%",
+                      padding: "8px 14px",
+                      display: "flex",
+                      alignItems: "center",
                       gap: 10,
-                      background: active ? 'var(--bg-2)' : 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      color: 'var(--fg-0)',
+                      background: active ? "var(--bg-2)" : "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      color: "var(--fg-0)",
                       fontSize: 13,
-                      textAlign: 'left',
+                      textAlign: "left",
                     }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--fg-2)' }}>
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontSize: 14, color: "var(--fg-2)" }}
+                    >
                       {item.icon}
                     </span>
                     <span style={{ flex: 1 }}>{item.label}</span>
                     {item.hint && (
-                      <span className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>{item.hint}</span>
+                      <span
+                        className="mono"
+                        style={{ fontSize: 11, color: "var(--fg-2)" }}
+                      >
+                        {item.hint}
+                      </span>
                     )}
                     {item.kbd && <span className="kbd">{item.kbd}</span>}
                   </button>
@@ -204,17 +297,23 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
         <div
           style={{
-            padding: '8px 14px',
-            borderTop: '1px solid var(--border-0)',
-            display: 'flex',
+            padding: "8px 14px",
+            borderTop: "1px solid var(--border-0)",
+            display: "flex",
             gap: 14,
-            color: 'var(--fg-2)',
+            color: "var(--fg-2)",
             fontSize: 10,
           }}
         >
-          <span><span className="kbd">↑↓</span> navigate</span>
-          <span><span className="kbd">↵</span> select</span>
-          <span><span className="kbd">⌘K</span> open</span>
+          <span>
+            <span className="kbd">↑↓</span> navigate
+          </span>
+          <span>
+            <span className="kbd">↵</span> select
+          </span>
+          <span>
+            <span className="kbd">⌘</span> open
+          </span>
         </div>
       </div>
     </div>
