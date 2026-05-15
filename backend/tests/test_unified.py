@@ -396,8 +396,8 @@ class TestDashboard:
     def test_dashboard_type_filter_scopes_recent_activity(self, authenticated_client, test_db):
         test_db.add_all(
             [
-                AuditLog(action="supplier_action", entity_type="data_source", details={"type": "supplier"}),
-                AuditLog(action="material_action", entity_type="data_source", details={"type": "material"}),
+                AuditLog(action="upload", entity_type="import_batch", details={"type": "supplier"}),
+                AuditLog(action="upload", entity_type="import_batch", details={"type": "material"}),
             ]
         )
         test_db.commit()
@@ -406,6 +406,59 @@ class TestDashboard:
         assert resp.status_code == 200
         actions = [item["action"] for item in resp.json()["recent_activity"]]
         assert actions == ["supplier_action"]
+
+    @requires_postgres
+    def test_dashboard_recent_activity_is_curated_with_actor(self, authenticated_client, test_db):
+        from app.models.user import User
+
+        user = test_db.query(User).filter(User.username == "testuser").one()
+        test_db.add_all(
+            [
+                AuditLog(
+                    user_id=user.id,
+                    action="upload",
+                    entity_type="import_batch",
+                    entity_id=10,
+                    details={"filename": "noisy_supplier_upload.csv", "type": "supplier"},
+                ),
+                *[
+                    AuditLog(
+                        action="match_rejected",
+                        entity_type="match_candidate",
+                        entity_id=20 + i,
+                        details={"type": "supplier", "reviewed_by": "reviewer", "name": f"Noisy Candidate Name {i}"},
+                    )
+                    for i in range(3)
+                ],
+                AuditLog(
+                    action="singleton_promoted",
+                    entity_type="unified_record",
+                    entity_id=50,
+                    details={"type": "supplier", "chosen_by": "reviewer", "name": "Noisy Singleton Name"},
+                ),
+                AuditLog(
+                    user_id=user.id,
+                    action="login",
+                    entity_type="user",
+                    entity_id=user.id,
+                    details={"type": "supplier"},
+                ),
+            ]
+        )
+        test_db.commit()
+
+        resp = authenticated_client.get("/api/unified/dashboard?type=supplier")
+        assert resp.status_code == 200
+        activity = resp.json()["recent_activity"]
+        by_action = {item["action"]: item for item in activity}
+
+        assert set(by_action) == {"match_rejected", "upload"}
+        assert by_action["match_rejected"]["actor"] == "reviewer"
+        assert by_action["match_rejected"]["title"] == "Rejected 3 match candidates"
+        assert by_action["match_rejected"]["tone"] == "warn"
+        assert "Noisy Candidate Name" not in by_action["match_rejected"]["title"]
+        assert by_action["upload"]["actor"] == "testuser"
+        assert by_action["upload"]["title"] == "Uploaded supplier batch"
 
 
 # ── DQ score exposure tests ──

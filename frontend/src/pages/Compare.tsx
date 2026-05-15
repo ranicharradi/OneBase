@@ -287,10 +287,6 @@ export default function Compare() {
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
 
-        <div style={{ marginBottom: 10 }}>
-          <span className="pill info" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 1 · MATCH</span>
-        </div>
-
         <WorkflowStageRail
           activeStage="match"
           match={{ count: { value: activeRuns.length > 0 ? activeRuns.length : (allRuns?.length ?? '—'), unit: activeRuns.length > 0 ? 'running' : 'runs' } }}

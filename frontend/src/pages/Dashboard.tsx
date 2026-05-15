@@ -175,6 +175,14 @@ function toneForAction(action: string): 'ok' | 'warn' | 'accent' | 'fg-3' {
   return 'fg-3';
 }
 
+function activityToneColor(tone: string | null | undefined): string {
+  if (tone === 'ok') return 'var(--ok)';
+  if (tone === 'warn') return 'var(--warn)';
+  if (tone === 'danger') return 'var(--danger)';
+  if (tone === 'info' || tone === 'accent') return 'var(--accent)';
+  return 'var(--fg-3)';
+}
+
 function formatRelativeTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -277,48 +285,47 @@ function DashboardOverview({
   ];
 
   return (
-    <div className="scroll" style={{ height: '100%' }}>
-      <div style={{ padding: 20 }}>
-        {/* Page header */}
-        <div
-          className="fade"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
-              <span style={{ color: 'var(--fg-2)', fontWeight: 400 }}>Modular Data Pipeline · </span>
-              Overview
-            </h1>
-            {matchProgress ? (
-              <Pill tone="accent">
-                <Spinner size={10} />
-                {matchProgress.stage} · {matchProgress.progress}%
-              </Pill>
-            ) : (
-              <Pill tone="accent" dot>
-                <span className="live-dot">live</span>
-              </Pill>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={onRefresh} disabled={isRefreshing} className="btn btn-sm">
-              {isRefreshing ? (
-                <Spinner size={12} />
-              ) : (
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>refresh</span>
-              )}
-              {isRefreshing ? 'Refreshing…' : 'Refresh'}
-            </button>
-            <Link to="/upload" className="btn btn-sm btn-primary" style={{ textDecoration: 'none' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
-              New batch
-            </Link>
-          </div>
+    <div className="dashboard-overview-page">
+      {/* Page header */}
+      <div
+        className="fade"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
+            <span style={{ color: 'var(--fg-2)', fontWeight: 400 }}>Modular Data Pipeline · </span>
+            Overview
+          </h1>
+          {matchProgress ? (
+            <Pill tone="accent">
+              <Spinner size={10} />
+              {matchProgress.stage} · {matchProgress.progress}%
+            </Pill>
+          ) : (
+            <Pill tone="accent" dot>
+              <span className="live-dot">live</span>
+            </Pill>
+          )}
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={onRefresh} disabled={isRefreshing} className="btn btn-sm">
+            {isRefreshing ? (
+              <Spinner size={12} />
+            ) : (
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>refresh</span>
+            )}
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+          <Link to="/upload" className="btn btn-sm btn-primary" style={{ textDecoration: 'none' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
+            New batch
+          </Link>
+        </div>
+      </div>
 
-        {/* 3-column layout: Unified% · Pipeline+NextSteps · Activity */}
-        <div className="empty-overview-wrap fade">
-          <div className="empty-overview-grid">
+      {/* 3-column layout: Unified% · Pipeline+NextSteps · Activity */}
+      <div className="empty-overview-wrap fade">
+        <div className="empty-overview-grid">
             {/* LEFT — Unified ring */}
             <Panel className="eo-ring" style={{ display: 'flex', flexDirection: 'column' }}>
               <PanelHead title="Unified %" />
@@ -531,8 +538,10 @@ function DashboardOverview({
                 ) : (
                   <div style={{ padding: '6px 0' }}>
                     {recentActivity.slice(0, 20).map((a, i, arr) => {
-                      const tone = toneForAction(a.action);
-                      const text = a.entity_name ?? a.action;
+                      const tone = a.tone ?? toneForAction(a.action);
+                      const title = a.title ?? a.entity_name ?? a.action;
+                      const actor = a.actor ?? 'System';
+                      const subtitle = a.subtitle ?? a.entity_type ?? '';
                       return (
                         <div
                           key={a.id}
@@ -550,14 +559,7 @@ function DashboardOverview({
                               width: 7,
                               height: 7,
                               borderRadius: '50%',
-                              background:
-                                tone === 'ok'
-                                  ? 'var(--ok)'
-                                  : tone === 'warn'
-                                  ? 'var(--warn)'
-                                  : tone === 'accent'
-                                  ? 'var(--accent)'
-                                  : 'var(--fg-3)',
+                              background: activityToneColor(tone),
                               marginTop: 6,
                             }}
                           />
@@ -567,8 +569,18 @@ function DashboardOverview({
                                 {formatRelativeTime(a.created_at)}
                               </span>
                               <span style={{ color: 'var(--fg-3)' }}>·</span>
-                              <span style={{ color: 'var(--fg-0)', marginLeft: 6 }}>{text}</span>
+                              <span className="mono" style={{ color: 'var(--fg-2)', marginLeft: 6 }}>
+                                {actor}
+                              </span>
                             </div>
+                            <div style={{ fontSize: 12, color: 'var(--fg-0)', lineHeight: 1.4 }}>
+                              {title}
+                            </div>
+                            {subtitle && (
+                              <div className="mono" style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>
+                                {subtitle}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -577,103 +589,100 @@ function DashboardOverview({
                 )}
               </div>
             </Panel>
-          </div>
         </div>
-
-        {/* ML & matching */}
-        {isAdmin && modelStatus && (
-          <Panel className="fade" style={{ marginTop: 14 }}>
-            <PanelHead title="ML & matching" />
-            <div style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-              <div>
-                <div className="label">Reviews</div>
-                <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
-                  {modelStatus.review_count}
-                </div>
-              </div>
-              <div>
-                <div className="label">ML model</div>
-                <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4, color: 'var(--fg-2)' }}>
-                  {modelStatus.ml_model_exists ? 'Trained' : 'None'}
-                </div>
-              </div>
-              <div>
-                <div className="label">Last trained</div>
-                <div className="mono" style={{ fontSize: 12, marginTop: 4, color: 'var(--fg-2)' }}>
-                  {modelStatus.last_trained ? new Date(modelStatus.last_trained).toLocaleDateString() : '—'}
-                </div>
-              </div>
-              <div>
-                <div className="label">Signal weights</div>
-                <div className="mono" style={{ fontSize: 11, marginTop: 4, color: 'var(--fg-1)' }}>
-                  {Object.values(modelStatus.current_weights).map(w => w.toFixed(2)).join(' · ')}
-                </div>
-              </div>
-            </div>
-            <div
-              style={{
-                padding: '10px 14px',
-                borderTop: '1px solid var(--border-0)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 10,
-              }}
-            >
-              {confirmAction ? (
-                <>
-                  <span style={{ fontSize: 12, color: 'var(--warn)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>warning</span>
-                    {confirmAction === 'retrain'
-                      ? 'Recalculate signal weights from review decisions?'
-                      : 'Train a new ML model from review decisions?'}
-                  </span>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={onConfirmMlAction}
-                      className="btn btn-sm btn-accent"
-                      disabled={isRetraining || isTraining}
-                    >
-                      Confirm
-                    </button>
-                    <button onClick={onCancelMlAction} className="btn btn-sm">
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-                    Retraining requires ≥20 reviews · ML training requires ≥50 reviews.
-                  </span>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={onRequestRetrain}
-                      disabled={modelStatus.review_count < 20 || isRetraining}
-                      className="btn btn-sm"
-                      title={modelStatus.review_count < 20 ? 'Need at least 20 reviews' : ''}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>tune</span>
-                      Retrain weights
-                    </button>
-                    <button
-                      onClick={onRequestTrain}
-                      disabled={modelStatus.review_count < 50 || isTraining}
-                      className="btn btn-sm"
-                      title={modelStatus.review_count < 50 ? 'Need at least 50 reviews' : ''}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>auto_awesome</span>
-                      Train ML model
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </Panel>
-        )}
-
-        <div style={{ height: 12 }} />
       </div>
+
+      {/* ML & matching */}
+      {isAdmin && modelStatus && (
+        <Panel className="dashboard-overview-ml fade">
+          <PanelHead title="ML & matching" />
+          <div style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+            <div>
+              <div className="label">Reviews</div>
+              <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
+                {modelStatus.review_count}
+              </div>
+            </div>
+            <div>
+              <div className="label">ML model</div>
+              <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4, color: 'var(--fg-2)' }}>
+                {modelStatus.ml_model_exists ? 'Trained' : 'None'}
+              </div>
+            </div>
+            <div>
+              <div className="label">Last trained</div>
+              <div className="mono" style={{ fontSize: 12, marginTop: 4, color: 'var(--fg-2)' }}>
+                {modelStatus.last_trained ? new Date(modelStatus.last_trained).toLocaleDateString() : '—'}
+              </div>
+            </div>
+            <div>
+              <div className="label">Signal weights</div>
+              <div className="mono" style={{ fontSize: 11, marginTop: 4, color: 'var(--fg-1)' }}>
+                {Object.values(modelStatus.current_weights).map(w => w.toFixed(2)).join(' · ')}
+              </div>
+            </div>
+          </div>
+          <div
+            style={{
+              padding: '10px 14px',
+              borderTop: '1px solid var(--border-0)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            {confirmAction ? (
+              <>
+                <span style={{ fontSize: 12, color: 'var(--warn)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>warning</span>
+                  {confirmAction === 'retrain'
+                    ? 'Recalculate signal weights from review decisions?'
+                    : 'Train a new ML model from review decisions?'}
+                </span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={onConfirmMlAction}
+                    className="btn btn-sm btn-accent"
+                    disabled={isRetraining || isTraining}
+                  >
+                    Confirm
+                  </button>
+                  <button onClick={onCancelMlAction} className="btn btn-sm">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+                  Retraining requires ≥20 reviews · ML training requires ≥50 reviews.
+                </span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={onRequestRetrain}
+                    disabled={modelStatus.review_count < 20 || isRetraining}
+                    className="btn btn-sm"
+                    title={modelStatus.review_count < 20 ? 'Need at least 20 reviews' : ''}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>tune</span>
+                    Retrain weights
+                  </button>
+                  <button
+                    onClick={onRequestTrain}
+                    disabled={modelStatus.review_count < 50 || isTraining}
+                    className="btn btn-sm"
+                    title={modelStatus.review_count < 50 ? 'Need at least 50 reviews' : ''}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>auto_awesome</span>
+                    Train ML model
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }

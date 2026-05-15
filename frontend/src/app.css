@@ -847,7 +847,47 @@
   animation: ring-fill 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-/* ── Empty Overview responsive grid ── */
+/* ── Dashboard Overview responsive grid ── */
+.dashboard-overview-page {
+  height: 100%;
+  min-height: 0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dashboard-overview-page > .fade:first-child {
+  flex: 0 0 auto;
+}
+.dashboard-overview-page .empty-overview-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.dashboard-overview-page .empty-overview-grid {
+  height: 100%;
+  min-height: 0;
+}
+.dashboard-overview-page .eo-pipeline {
+  min-height: 0;
+}
+.dashboard-overview-page .eo-pipeline > .panel {
+  display: flex;
+  flex-direction: column;
+}
+.dashboard-overview-page .eo-pipeline > .panel:first-child {
+  flex: 0 0 auto;
+}
+.dashboard-overview-page .eo-pipeline > .panel:last-child {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.dashboard-overview-page .eo-pipeline > .panel:last-child > div:last-child {
+  overflow: auto;
+}
+.dashboard-overview-ml {
+  flex: 0 0 auto;
+  margin-top: 14px;
+}
 .empty-overview-wrap {
   container-type: inline-size;
   container-name: empty-overview;
@@ -873,6 +913,15 @@
   .empty-overview-grid > .eo-ring { grid-area: ring; }
   .empty-overview-grid > .eo-pipeline { grid-area: pipeline; }
   .empty-overview-grid > .eo-activity { grid-area: activity; max-height: 360px; }
+  .dashboard-overview-page {
+    overflow: auto;
+  }
+  .dashboard-overview-page .empty-overview-wrap {
+    flex: 0 0 auto;
+  }
+  .dashboard-overview-page .empty-overview-grid {
+    height: auto;
+  }
 }
 @container empty-overview (max-width: 620px) {
   .empty-overview-grid {

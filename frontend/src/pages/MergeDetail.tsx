@@ -156,7 +156,6 @@ export default function MergeDetail() {
             Merge queue
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span className="pill accent" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 2 · MERGE</span>
             <IdChip style={{ fontSize: 13, padding: '3px 8px' }}>#{detail.id}</IdChip>
             <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, minWidth: 0 }}>
               {record_a.name || `Record #${record_a.id}`}{' '}

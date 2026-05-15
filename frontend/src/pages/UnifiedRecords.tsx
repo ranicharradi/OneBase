@@ -208,10 +208,6 @@ export default function UnifiedRecords() {
   return (
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
-        <div style={{ marginBottom: 10 }}>
-          <span className="pill ok" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 4 · UNIFIED</span>
-        </div>
-
         <WorkflowStageRail
           activeStage="unified"
           match={{ onClick: () => navigate('/compare'), title: 'Go to Runs' }}

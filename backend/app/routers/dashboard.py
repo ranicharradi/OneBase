@@ -24,6 +24,153 @@ from app.schemas.unified import (
 
 router = APIRouter(prefix="/api/unified", tags=["dashboard"])
 
+NOISY_DASHBOARD_ACTIONS = {"login", "login_failed", "llm_call", "singleton_promoted"}
+SUMMARIZED_DASHBOARD_ACTIONS = {"match_rejected", "merge_confirmed"}
+SUMMARY_ACTIVITY_THRESHOLD = 3
+
+
+def _record_type_label(details: dict | None) -> str:
+    raw = details.get("type") if details else None
+    if not raw:
+        raw = details.get("record_type") if details else None
+    return str(raw).replace("_", " ").capitalize() if raw else "Pipeline"
+
+
+def _actor_for_activity(audit: AuditLog, usernames_by_id: dict[int, str]) -> str:
+    if audit.user_id and audit.user_id in usernames_by_id:
+        return usernames_by_id[audit.user_id]
+    details = audit.details or {}
+    for key in ("reviewed_by", "chosen_by", "uploaded_by", "created_by", "username"):
+        value = details.get(key)
+        if value:
+            return str(value)
+    return "System"
+
+
+def _activity_presentation(action: str, details: dict | None) -> tuple[str, str, str, str] | None:
+    record_type = _record_type_label(details)
+
+    match action:
+        case "upload":
+            return "upload", "info", f"Uploaded {record_type.lower()} batch", "/upload"
+        case "delete_batch":
+            return "upload", "warn", "Deleted upload batch", "/upload"
+        case "create_source":
+            return "source", "info", "Created data source", "/sources"
+        case "update_source":
+            return "source", "info", "Updated data source", "/sources"
+        case "delete_source":
+            return "source", "warn", "Deleted data source", "/sources"
+        case "merge_confirmed":
+            return "merge", "ok", "Merged records", "/unified"
+        case "match_rejected":
+            return "review", "warn", "Rejected match candidate", "/review"
+        case "user_created" | "create_user":
+            return "system", "info", "Created user", "/users"
+        case "user_updated":
+            return "system", "info", "Updated user", "/users"
+        case "user_deleted":
+            return "system", "warn", "Deleted user", "/users"
+        case _:
+            return None
+
+
+def _summary_title(action: str, count: int) -> str:
+    if action == "match_rejected":
+        return f"Rejected {count} match candidates"
+    if action == "merge_confirmed":
+        return f"Merged {count} record groups"
+    return f"{count} {action.replace('_', ' ')} events"
+
+
+def curate_dashboard_activity(audit_rows: list[AuditLog], usernames_by_id: dict[int, str]) -> list[RecentActivity]:
+    activity_with_order: list[tuple[int, RecentActivity]] = []
+    summary_buckets: dict[tuple[str, str, str], dict] = {}
+
+    for idx, audit in enumerate(audit_rows):
+        if audit.action in NOISY_DASHBOARD_ACTIONS:
+            continue
+
+        presentation = _activity_presentation(audit.action, audit.details)
+        if presentation is None:
+            continue
+
+        kind, tone, title, href = presentation
+        actor = _actor_for_activity(audit, usernames_by_id)
+        record_type = _record_type_label(audit.details)
+
+        if audit.action in SUMMARIZED_DASHBOARD_ACTIONS:
+            key = (audit.action, actor, record_type)
+            bucket = summary_buckets.setdefault(
+                key,
+                {
+                    "count": 0,
+                    "first_idx": idx,
+                    "first_audit": audit,
+                    "kind": kind,
+                    "tone": tone,
+                    "href": href,
+                    "actor": actor,
+                    "record_type": record_type,
+                },
+            )
+            bucket["count"] += 1
+            continue
+
+        activity_with_order.append(
+            (
+                idx,
+                RecentActivity(
+                    id=audit.id,
+                    action=audit.action,
+                    entity_type=audit.entity_type,
+                    entity_id=audit.entity_id,
+                    entity_name=None,
+                    details=audit.details,
+                    created_at=audit.created_at,
+                    kind=kind,
+                    tone=tone,
+                    title=title,
+                    subtitle=f"{record_type} pipeline",
+                    actor=actor,
+                    href=href,
+                ),
+            )
+        )
+
+    for (action, _actor, _record_type), bucket in summary_buckets.items():
+        count = bucket["count"]
+        if count < SUMMARY_ACTIVITY_THRESHOLD:
+            continue
+
+        first_audit = bucket["first_audit"]
+        raw_type = first_audit.details.get("type") if first_audit.details else None
+        details = {"type": raw_type, "count": count} if raw_type else {"count": count}
+        record_type = bucket["record_type"]
+        activity_with_order.append(
+            (
+                bucket["first_idx"],
+                RecentActivity(
+                    id=first_audit.id,
+                    action=action,
+                    entity_type=first_audit.entity_type,
+                    entity_id=None,
+                    entity_name=None,
+                    details=details,
+                    created_at=first_audit.created_at,
+                    kind=bucket["kind"],
+                    tone=bucket["tone"],
+                    title=_summary_title(action, count),
+                    subtitle=f"{record_type} pipeline",
+                    actor=bucket["actor"],
+                    href=bucket["href"],
+                ),
+            )
+        )
+
+    activity_with_order.sort(key=lambda item: item[0])
+    return [item for _idx, item in activity_with_order[:20]]
+
 
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard(
@@ -73,7 +220,9 @@ def get_dashboard(
     recent_audit_query = db.query(AuditLog)
     if type is not None:
         recent_audit_query = recent_audit_query.filter(AuditLog.details["type"].as_string() == type)
-    recent_audit = recent_audit_query.order_by(AuditLog.created_at.desc()).limit(20).all()
+    recent_audit = recent_audit_query.order_by(AuditLog.created_at.desc()).limit(60).all()
+    user_ids = {a.user_id for a in recent_audit if a.user_id is not None}
+    usernames_by_id = dict(db.query(User.id, User.username).filter(User.id.in_(user_ids)).all()) if user_ids else {}
 
     return DashboardResponse(
         uploads=UploadStats(
@@ -97,18 +246,5 @@ def get_dashboard(
             merged=merged,
             singletons=singletons_count,
         ),
-        recent_activity=[
-            RecentActivity(
-                id=a.id,
-                action=a.action,
-                entity_type=a.entity_type,
-                entity_id=a.entity_id,
-                entity_name=(a.details.get("name") or a.details.get("filename") or a.details.get("username"))
-                if a.details
-                else None,
-                details=a.details,
-                created_at=a.created_at,
-            )
-            for a in recent_audit
-        ],
+        recent_activity=curate_dashboard_activity(recent_audit, usernames_by_id),
     )

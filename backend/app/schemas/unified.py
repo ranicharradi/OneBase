@@ -142,6 +142,12 @@ class RecentActivity(BaseModel):
     entity_name: str | None = None
     details: dict[str, Any] | None = None
     created_at: datetime | None = None
+    kind: str | None = None
+    tone: str | None = None
+    title: str | None = None
+    subtitle: str | None = None
+    actor: str | None = None
+    href: str | None = None
 
 
 class DashboardResponse(BaseModel):

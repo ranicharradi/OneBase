@@ -161,6 +161,38 @@ describe('Dashboard page', () => {
     expect(screen.getByText('Browse 60 unified records')).toBeInTheDocument()
   })
 
+  it('renders curated activity with actor instead of raw entity names', async () => {
+    setupAuthAs('viewer')
+    setupFetchDashboardOnly({
+      ...mockDashboard,
+      recent_activity: [
+        {
+          id: 1,
+          action: 'match_rejected',
+          entity_type: 'match_candidate',
+          entity_id: 20,
+          entity_name: 'Noisy Candidate Name',
+          details: { type: 'supplier', reviewed_by: 'reviewer' },
+          created_at: '2026-05-15T10:00:00Z',
+          kind: 'review',
+          tone: 'warn',
+          title: 'Rejected match candidate',
+          subtitle: 'Supplier pipeline',
+          actor: 'reviewer',
+          href: '/review',
+        },
+      ],
+    })
+    render(<Dashboard />)
+
+    await screen.findByRole('heading', { name: /overview/i })
+
+    expect(screen.getByText('reviewer')).toBeInTheDocument()
+    expect(screen.getByText('Rejected match candidate')).toBeInTheDocument()
+    expect(screen.getByText('Supplier pipeline')).toBeInTheDocument()
+    expect(screen.queryByText('Noisy Candidate Name')).not.toBeInTheDocument()
+  })
+
   it('renders upload CTA through the same overview when no staged records exist', async () => {
     setupAuthAs('viewer')
     setupFetchDashboardOnly({

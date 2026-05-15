@@ -347,6 +347,12 @@ export interface RecentActivity {
   entity_name: string | null;
   details: Record<string, unknown> | null;
   created_at: string | null;
+  kind?: string | null;
+  tone?: 'ok' | 'warn' | 'danger' | 'info' | string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  actor?: string | null;
+  href?: string | null;
 }
 
 export interface DashboardResponse {

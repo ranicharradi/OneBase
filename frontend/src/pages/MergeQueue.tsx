@@ -106,10 +106,6 @@ export default function MergeQueue() {
     <div className="scroll" style={{ height: '100%' }}>
       <div style={{ padding: 20 }}>
 
-        <div style={{ marginBottom: 10 }}>
-          <span className="pill accent" style={{ padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>STAGE 3 · MERGE</span>
-        </div>
-
         <WorkflowStageRail
           activeStage="merge"
           match={{
