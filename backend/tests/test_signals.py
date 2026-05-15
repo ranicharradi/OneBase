@@ -1,10 +1,10 @@
-"""Tests for the signal-kind registry and built-in signal functions."""
+"""Tests for the built-in signal functions."""
 
 from types import SimpleNamespace
 
 import pytest
 
-from app.services.signals import compute_signal, get_kind, list_kinds, register_kind
+from app.services.scoring import compute_signal
 
 
 def _rec(**kwargs):
@@ -19,24 +19,6 @@ def _rec(**kwargs):
     name_embedding = kwargs.pop("name_embedding", None)
     name = kwargs.pop("name", None)
     return SimpleNamespace(name=name, fields=kwargs, name_embedding=name_embedding)
-
-
-@pytest.fixture(autouse=True)
-def _isolate_signal_registry():
-    from app.services.signals.registry import _KINDS, _testing_clear_registry
-
-    snapshot = dict(_KINDS)
-
-    _testing_clear_registry()
-    # Re-register built-ins by re-importing the module (importlib.reload)
-    import importlib
-
-    from app.services.signals import builtins
-
-    importlib.reload(builtins)
-    yield
-    _testing_clear_registry()
-    _KINDS.update(snapshot)
 
 
 def test_jaro_winkler_kind_returns_one_for_identical_strings():
@@ -76,21 +58,11 @@ def test_compute_signal_returns_none_when_either_side_missing():
     assert compute_signal("exact_ci", a, b, field="currency") is None
 
 
-def test_register_kind_and_lookup():
-    register_kind("test_one", lambda a, b, field: 0.42)
-    assert get_kind("test_one")(None, None, None) == 0.42
-    assert "test_one" in list_kinds()
-
-
-def test_register_kind_rejects_duplicates():
-    register_kind("dup_check", lambda a, b, field: 0.0)
-    with pytest.raises(ValueError, match="already registered"):
-        register_kind("dup_check", lambda a, b, field: 1.0)
-
-
-def test_get_kind_unknown_raises():
-    with pytest.raises(KeyError):
-        get_kind("never_registered_kind_xyz")
+def test_compute_signal_unknown_kind_raises():
+    a = _rec(supplier_name="ACME")
+    b = _rec(supplier_name="ACME")
+    with pytest.raises(KeyError, match="no signal kind registered under"):
+        compute_signal("never_registered_kind_xyz", a, b, field="supplier_name")
 
 
 def test_exact_kind_case_sensitive():

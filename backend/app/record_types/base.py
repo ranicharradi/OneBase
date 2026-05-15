@@ -42,7 +42,7 @@ class FieldDef:
 class Signal:
     """One matching signal in a type's signal list.
 
-    `kind` references a registered function in app.services.signals.registry.
+    `kind` references a signal function in app.services.scoring.SIGNAL_FNS.
     `field` is the FieldDef.key the signal operates on. `weight` contributes to
     the weighted-sum confidence (defaults to 1.0 — must be > 0).
     """
