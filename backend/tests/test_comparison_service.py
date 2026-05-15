@@ -24,14 +24,14 @@ def _batch(db, type_key="supplier", name="src"):
 
 def test_create_run_file_vs_file_requires_two_batches(test_db):
     b1 = _batch(test_db)
-    with pytest.raises(ComparisonValidationError):
+    with pytest.raises(ComparisonValidationError, match="requires 2 batches"):
         create_run(test_db, type="supplier", mode="FILE_VS_FILE", batch_ids=[b1.id], name=None, username="u")
 
 
 def test_create_run_rejects_cross_type(test_db):
     b1 = _batch(test_db, type_key="supplier", name="a")
     b2 = _batch(test_db, type_key="client", name="b")
-    with pytest.raises(ComparisonValidationError):
+    with pytest.raises(ComparisonValidationError, match="must all be of type"):
         create_run(test_db, type="supplier", mode="FILE_VS_FILE", batch_ids=[b1.id, b2.id], name=None, username="u")
 
 

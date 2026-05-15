@@ -1,4 +1,8 @@
-"""Comparison run orchestration: validate, create, dispatch, stale."""
+"""Comparison run orchestration: validate, create, mark-stale.
+
+Domain errors below intentionally subclass ValueError instead of HTTPException so
+the service stays transport-agnostic; the router translates each to a status code.
+"""
 
 from sqlalchemy.orm import Session
 
@@ -13,16 +17,14 @@ MAX_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1, "MULTI_FILE": Non
 
 
 class ComparisonValidationError(ValueError):
-    """Input validation failed for a comparison run."""
+    pass
 
 
 class ComparisonNotFoundError(ValueError):
-    """Referenced entity (record type, batch) was not found."""
+    pass
 
 
 class ComparisonConflictError(ValueError):
-    """An active run already exists for this type."""
-
     def __init__(self, message: str, run_id: int) -> None:
         super().__init__(message)
         self.run_id = run_id
