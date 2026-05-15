@@ -2,15 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import Icon from "../ui/Icon";
 
-export default function AvatarMenu({
-  username,
-  isAdmin,
-  onLogout,
-}: {
+interface AvatarMenuProps {
   username: string | undefined;
   isAdmin: boolean;
   onLogout: () => void;
-}) {
+}
+
+export default function AvatarMenu({ username, isAdmin, onLogout }: AvatarMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();

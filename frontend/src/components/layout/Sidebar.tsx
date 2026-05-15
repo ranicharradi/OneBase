@@ -44,17 +44,14 @@ const NAV: NavSection[] = [
   },
 ];
 
-export default function Sidebar({
-  collapsed,
-  onToggleCollapse,
-  reviewCount,
-  mergeCount,
-}: {
+interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   reviewCount: number;
   mergeCount: number;
-}) {
+}
+
+export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, mergeCount }: SidebarProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     () => Object.fromEntries(NAV.map((sec) => [sec.section, true])),
   );
@@ -277,7 +274,6 @@ export default function Sidebar({
           );
         })}
       </nav>
-
     </aside>
   );
 }

@@ -2,6 +2,28 @@ import type React from "react";
 import Icon from "../ui/Icon";
 import AvatarMenu from "./AvatarMenu";
 
+type Density = "compact" | "comfortable" | "spacious";
+
+const DENSITY_ICON: Record<Density, string> = {
+  compact: "density_small",
+  comfortable: "density_medium",
+  spacious: "density_large",
+};
+
+interface TopBarProps {
+  breadcrumb: string[];
+  onOpenPalette: () => void;
+  notificationCenter: React.ReactNode;
+  density: Density;
+  onCycleDensity: () => void;
+  showDensity: boolean;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
+  username: string | undefined;
+  isAdmin: boolean;
+  onLogout: () => void;
+}
+
 export default function TopBar({
   breadcrumb,
   onOpenPalette,
@@ -14,24 +36,7 @@ export default function TopBar({
   username,
   isAdmin,
   onLogout,
-}: {
-  breadcrumb: string[];
-  onOpenPalette: () => void;
-  notificationCenter: React.ReactNode;
-  density: "compact" | "comfortable" | "spacious";
-  onCycleDensity: () => void;
-  showDensity: boolean;
-  theme: "light" | "dark";
-  onToggleTheme: () => void;
-  username: string | undefined;
-  isAdmin: boolean;
-  onLogout: () => void;
-}) {
-  const densityIcon: Record<typeof density, string> = {
-    compact: "density_small",
-    comfortable: "density_medium",
-    spacious: "density_large",
-  };
+}: TopBarProps) {
   return (
     <div className="topbar">
       {breadcrumb.length > 0 && (
@@ -100,7 +105,7 @@ export default function TopBar({
           title={`Density: ${density}`}
           aria-label={`Density: ${density}. Click to cycle.`}
         >
-          <Icon name={densityIcon[density]} size={14} />
+          <Icon name={DENSITY_ICON[density]} size={14} />
         </button>
       )}
 
