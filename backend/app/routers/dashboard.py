@@ -98,9 +98,12 @@ def curate_dashboard_activity(audit_rows: list[AuditLog], usernames_by_id: dict[
         kind, tone, title, href = presentation
         actor = _actor_for_activity(audit, usernames_by_id)
         record_type = _record_type_label(audit.details)
+        action_label = audit.action
+        if audit.action in {"upload", "delete_batch"} and audit.user_id is None:
+            action_label = f"{record_type.lower()}_action"
 
         if audit.action in SUMMARIZED_DASHBOARD_ACTIONS:
-            key = (audit.action, actor, record_type)
+            key = (action_label, actor, record_type)
             bucket = summary_buckets.setdefault(
                 key,
                 {
@@ -122,7 +125,7 @@ def curate_dashboard_activity(audit_rows: list[AuditLog], usernames_by_id: dict[
                 idx,
                 RecentActivity(
                     id=audit.id,
-                    action=audit.action,
+                    action=action_label,
                     entity_type=audit.entity_type,
                     entity_id=audit.entity_id,
                     entity_name=None,
