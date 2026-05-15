@@ -656,6 +656,71 @@ def test_execute_merge_file_vs_golden_adds_a_only_field(test_db):
     assert result.fields["vat_id"] == "FR123"
 
 
+def test_execute_merge_file_vs_golden_stringifies_extra_a_only_field(test_db):
+    """Extra JSON fields keep the historical stringified merge semantics."""
+    db = test_db
+    src = DataSource(name="src-extra", type="supplier", column_mapping={"name": "Supplier Name"})
+    db.add(src)
+    db.flush()
+    batch = ImportBatch(data_source_id=src.id, filename="f.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
+    db.add(batch)
+    db.flush()
+
+    staged = StagedRecord(
+        type="supplier",
+        import_batch_id=batch.id,
+        data_source_id=src.id,
+        name="ACME CORP",
+        normalized_name="ACME CORP",
+        status=RecordStatus.ACTIVE,
+        fields={"supplier_name": "ACME CORP", "legacy_code": 123},
+    )
+    unified = UnifiedRecord(
+        type="supplier",
+        name="ACME CORP",
+        normalized_name="ACME CORP",
+        fields={"supplier_name": "ACME CORP"},
+        provenance={},
+        source_record_ids=[999],
+        created_by="u",
+    )
+    db.add_all([staged, unified])
+    db.flush()
+
+    run = ComparisonRun(type="supplier", mode="FILE_VS_GOLDEN", status="completed", created_by="u")
+    db.add(run)
+    db.flush()
+
+    cand = MatchCandidate(
+        type="supplier",
+        comparison_run_id=run.id,
+        record_a_id=staged.id,
+        record_b_id=unified.id,
+        side_a_kind="staged",
+        side_b_kind="unified",
+        confidence=0.95,
+        match_signals={},
+        status=CandidateStatus.PENDING,
+    )
+    db.add(cand)
+    db.flush()
+
+    result = execute_merge(
+        db,
+        candidate=cand,
+        record_a=staged,
+        record_b=unified,
+        source_a_name="src-extra",
+        source_b_name="Golden",
+        field_selections=[],
+        username="reviewer1",
+    )
+    db.flush()
+
+    assert result.fields["legacy_code"] == "123"
+    assert result.provenance["legacy_code"]["value"] == "123"
+
+
 def test_execute_merge_file_vs_golden_keeps_b_only_field(test_db):
     """Golden has a field (contract_type) absent from staged — it must be kept unchanged."""
     db = test_db

@@ -374,7 +374,7 @@ class TestRunIngestionXlsx:
             type="supplier",
             file_format="xlsx",
             delimiter=";",
-            column_mapping={"supplier_name": "Name"},
+            column_mapping={"supplier_name": "Name", "short_name": "Amount"},
         )
         test_db.add(source)
         test_db.flush()
@@ -423,7 +423,7 @@ class TestRunIngestionXlsx:
         )
         assert record.name == "Acme Corp"
         # fields are stringified for the matching pipeline
-        assert record.fields == {"supplier_name": "Acme Corp"}
+        assert record.fields == {"supplier_name": "Acme Corp", "short_name": "1234.56"}
         # raw_data preserves original types
         assert record.raw_data["Amount"] == 1234.56
         assert record.raw_data["Active"] is True

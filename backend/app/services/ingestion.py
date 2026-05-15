@@ -23,18 +23,16 @@ from app.record_types import get as get_record_type
 from app.services.embedding import compute_embeddings
 from app.services.normalization import normalize_name
 from app.utils.tabular_parser import parse_file
+from app.utils.values import normalize_value
 
 logger = logging.getLogger(__name__)
 
 _NAME_MAX_LEN = 255  # matches StagedRecord.name column
 
 
-def _clean(value: str | None) -> str | None:
-    """Strip whitespace and treat empty as None."""
-    if value is None:
-        return None
-    s = str(value).strip()
-    return s if s else None
+def _clean_ingested_value(value: object) -> str | None:
+    cleaned = normalize_value(value)
+    return str(cleaned) if cleaned is not None else None
 
 
 def run_ingestion(
@@ -110,7 +108,7 @@ def run_ingestion(
             for field_key, csv_col in column_mapping.items():
                 if field_key not in valid_field_keys:
                     continue  # silently ignore stale mappings
-                value = _clean(row.get(csv_col))
+                value = _clean_ingested_value(row.get(csv_col))
                 if value is not None:
                     fields[field_key] = value
 

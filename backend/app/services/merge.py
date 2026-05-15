@@ -19,20 +19,20 @@ from app.models.unified import UnifiedRecord
 from app.record_types import RecordType
 from app.record_types import get as get_record_type
 from app.services.audit import log_action
-
-
-def _normalize_value(val: Any) -> str | None:
-    """Normalize a field value for comparison (strip whitespace, treat empty as None)."""
-    if val is None:
-        return None
-    s = str(val).strip()
-    return s if s else None
+from app.utils.values import normalize_value
 
 
 def _field_value(record: StagedRecord, field_key: str) -> str | None:
     """Read a field value from a record's JSONB store."""
     fields = record.fields or {}
-    return _normalize_value(fields.get(field_key))
+    value = normalize_value(fields.get(field_key))
+    return str(value) if value is not None else None
+
+
+def _field_value_from_mapping(fields: dict[str, Any], field_key: str) -> str | None:
+    """Normalize a JSON field value for merge comparisons."""
+    value = normalize_value(fields.get(field_key))
+    return str(value) if value is not None else None
 
 
 def compare_fields(
@@ -117,8 +117,8 @@ def _update_existing_unified(
 
     # Add extra-field comparisons manually
     for key in extra_keys:
-        val_a = _normalize_value(staged_fields.get(key))
-        val_b = _normalize_value(unified_fields_src.get(key))
+        val_a = _field_value_from_mapping(staged_fields, key)
+        val_b = _field_value_from_mapping(unified_fields_src, key)
         comp: dict[str, Any] = {
             "field": key,
             "value_a": val_a,
