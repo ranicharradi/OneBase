@@ -1,6 +1,7 @@
 from collections.abc import Generator
+from dataclasses import dataclass
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -64,3 +65,16 @@ def require_role(*allowed_roles: UserRole):
         return current_user
 
     return dependency
+
+
+@dataclass
+class Pagination:
+    limit: int
+    offset: int
+
+
+def get_pagination(
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> Pagination:
+    return Pagination(limit=limit, offset=offset)

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db, require_role
+from app.dependencies import Pagination, get_current_user, get_db, get_pagination, require_role
 from app.models.enums import UserRole
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.staging import StagedRecord
@@ -38,8 +38,7 @@ router = APIRouter(prefix="/api/matching", tags=["matching"])
 def list_groups(
     comparison_run_id: int = Query(..., description="Required: scope groups to a single run"),
     type: str | None = Query(None, description="Filter by record type"),
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -60,7 +59,7 @@ def list_groups(
     if type is not None:
         base = base.filter(MatchGroup.type == type)
 
-    groups = base.offset(offset).limit(limit).all()
+    groups = base.offset(pagination.offset).limit(pagination.limit).all()
 
     return [
         MatchGroupResponse(
@@ -81,8 +80,7 @@ def list_candidates(
     group_id: int | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
     min_confidence: float | None = Query(None),
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -98,7 +96,9 @@ def list_candidates(
     if min_confidence is not None:
         query = query.filter(MatchCandidate.confidence >= min_confidence)
 
-    candidates = query.order_by(MatchCandidate.confidence.desc()).offset(offset).limit(limit).all()
+    candidates = (
+        query.order_by(MatchCandidate.confidence.desc()).offset(pagination.offset).limit(pagination.limit).all()
+    )
 
     record_ids = set()
     for c in candidates:

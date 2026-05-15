@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db, require_role
+from app.dependencies import Pagination, get_current_user, get_db, get_pagination, require_role
 from app.models.comparison import ComparisonRun
 from app.models.enums import UserRole
 from app.models.match import MatchCandidate
@@ -65,8 +65,7 @@ def list_runs(
     type: str | None = Query(None),
     mode: str | None = Query(None),
     run_status: str | None = Query(None, alias="status"),
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -77,7 +76,7 @@ def list_runs(
         q = q.filter(ComparisonRun.mode == mode)
     if run_status is not None:
         q = q.filter(ComparisonRun.status == run_status)
-    runs = q.order_by(ComparisonRun.created_at.desc()).offset(offset).limit(limit).all()
+    runs = q.order_by(ComparisonRun.created_at.desc()).offset(pagination.offset).limit(pagination.limit).all()
     return [_to_response(r) for r in runs]
 
 

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db, require_role
+from app.dependencies import Pagination, get_current_user, get_db, get_pagination, require_role
 from app.models.enums import CandidateStatus, UserRole
 from app.models.match import MatchCandidate
 from app.models.source import DataSource
@@ -57,8 +57,7 @@ def get_review_queue(
     source_b_id: int | None = Query(None, description="Filter by record B source"),
     min_confidence: float | None = Query(None, ge=0.0, le=1.0),
     max_confidence: float | None = Query(None, ge=0.0, le=1.0),
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    pagination: Pagination = Depends(get_pagination),
     sort: Literal["confidence_desc", "confidence_asc", "active_learning"] = Query(
         "confidence_desc", description="Sort order for the queue"
     ),
@@ -103,7 +102,7 @@ def get_review_queue(
     else:
         query = query.order_by(MatchCandidate.confidence.desc())
 
-    candidates = query.offset(offset).limit(limit).all()
+    candidates = query.offset(pagination.offset).limit(pagination.limit).all()
 
     record_ids = set()
     for c in candidates:
@@ -161,7 +160,7 @@ def get_review_queue(
     return ReviewQueueResponse(
         items=items,
         total=total,
-        has_more=(offset + limit) < total,
+        has_more=(pagination.offset + pagination.limit) < total,
     )
 
 

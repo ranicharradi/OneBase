@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db, require_role
+from app.dependencies import Pagination, get_current_user, get_db, get_pagination, require_role
 from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
 from app.models.enums import (
@@ -92,8 +92,7 @@ def list_unified_records(
     is_singleton: bool | None = Query(None),
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -102,7 +101,7 @@ def list_unified_records(
     query = _build_unified_filter(query, search, is_singleton, from_date, to_date, type)
 
     total = query.count()
-    records = query.order_by(UnifiedRecord.created_at.desc()).offset(offset).limit(limit).all()
+    records = query.order_by(UnifiedRecord.created_at.desc()).offset(pagination.offset).limit(pagination.limit).all()
 
     items = []
     for r in records:
@@ -126,7 +125,7 @@ def list_unified_records(
     return UnifiedRecordListResponse(
         items=items,
         total=total,
-        has_more=(offset + limit) < total,
+        has_more=(pagination.offset + pagination.limit) < total,
     )
 
 
@@ -247,8 +246,7 @@ def list_singletons(
     type: str | None = Query(None, description="Filter by record type"),
     search: str | None = Query(None),
     source_id: int | None = Query(None),
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -286,7 +284,7 @@ def list_singletons(
         query = query.filter(StagedRecord.data_source_id == source_id)
 
     total = query.count()
-    rows = query.order_by(StagedRecord.name).offset(offset).limit(limit).all()
+    rows = query.order_by(StagedRecord.name).offset(pagination.offset).limit(pagination.limit).all()
 
     items = [
         SingletonCandidate(
@@ -303,7 +301,7 @@ def list_singletons(
     return SingletonListResponse(
         items=items,
         total=total,
-        has_more=(offset + limit) < total,
+        has_more=(pagination.offset + pagination.limit) < total,
     )
 
 
