@@ -65,9 +65,9 @@ def _build_unified_filter(
     if search:
         query = query.filter(UnifiedRecord.name.ilike(f"%{search}%"))
     if is_singleton is True:
-        query = query.filter(func.json_array_length(UnifiedRecord.source_record_ids) <= 1)
+        query = query.filter(func.jsonb_array_length(UnifiedRecord.source_record_ids) <= 1)
     elif is_singleton is False:
-        query = query.filter(func.json_array_length(UnifiedRecord.source_record_ids) > 1)
+        query = query.filter(func.jsonb_array_length(UnifiedRecord.source_record_ids) > 1)
     if from_date:
         query = query.filter(UnifiedRecord.created_at >= from_date)
     if to_date:
