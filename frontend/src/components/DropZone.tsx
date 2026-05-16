@@ -11,6 +11,7 @@ interface DropZoneProps {
 export default function DropZone({ onFileSelected, disabled = false }: DropZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -34,12 +35,15 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
     const lower = file.name.toLowerCase();
     const accepted =
       lower.endsWith('.csv') ||
-      lower.endsWith('.tsv') ||
       lower.endsWith('.xlsx') ||
       file.type === 'text/csv';
     if (accepted) {
       setSelectedFile(file);
+      setError('');
       onFileSelected(file);
+    } else {
+      setSelectedFile(null);
+      setError('Only CSV and Excel files are accepted.');
     }
   }, [onFileSelected]);
 
@@ -167,6 +171,21 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
             <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
               up to 100 MB · UTF-8 preferred
             </div>
+            {error && (
+              <div
+                role="alert"
+                className="pill danger"
+                style={{
+                  margin: '12px auto 0',
+                  padding: '6px 10px',
+                  width: 'fit-content',
+                  maxWidth: '100%',
+                  justifyContent: 'center',
+                }}
+              >
+                {error}
+              </div>
+            )}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleBrowseClick(); }}
@@ -183,7 +202,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
               Browse files
             </button>
             <div className="mono" style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 12 }}>
-              .csv · .tsv · .xlsx · delimiters auto-detected
+              .csv · .xlsx · delimiters auto-detected
             </div>
           </>
         )}
@@ -192,7 +211,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
       <input
         ref={fileInputRef}
         type="file"
-        accept=".csv,.tsv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         onChange={handleFileInput}
         style={{ display: 'none' }}
         disabled={disabled}

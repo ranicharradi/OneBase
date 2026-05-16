@@ -157,7 +157,7 @@ def detect_columns_xlsx(file_content: bytes) -> list[str]:
 
 _CSV_DELIMITER_CANDIDATES = (",", ";", "\t", "|")
 
-_CSV_EXTENSIONS = {".csv", ".tsv"}
+_CSV_EXTENSIONS = {".csv"}
 _XLSX_EXTENSIONS = {".xlsx"}
 
 

@@ -289,12 +289,13 @@ class TestDetectHeadersDispatch:
         assert columns == ["code", "name", "city"]
         assert delimiter == ","
 
-    def test_detect_headers_csv_tab_sniff(self, test_db):
+    def test_detect_headers_tsv_rejected(self, test_db):
+        import pytest
+
         from app.utils.tabular_parser import detect_headers
 
-        columns, delimiter = detect_headers(b"code\tname\tcity\n", "vendors.tsv")
-        assert columns == ["code", "name", "city"]
-        assert delimiter == "\t"
+        with pytest.raises(ValueError, match="Unsupported file format"):
+            detect_headers(b"code\tname\tcity\n", "vendors.tsv")
 
     def test_detect_headers_csv_pipe_sniff(self, test_db):
         from app.utils.tabular_parser import detect_headers
@@ -320,9 +321,11 @@ class TestDetectHeadersDispatch:
             detect_headers(b"junk", "vendors.pdf")
 
 
-def test_format_for_filename_helpers(test_db):
-    """parse_file treats .tsv as CSV with the supplied delimiter."""
+def test_parse_file_rejects_tsv(test_db):
+    """Core ingestion parsing accepts only CSV and XLSX files."""
+    import pytest
+
     from app.utils.tabular_parser import parse_file
 
-    rows = parse_file(b"code\tname\n001\tAcme\n", "vendors.tsv", delimiter="\t")
-    assert rows == [{"code": "001", "name": "Acme"}]
+    with pytest.raises(ValueError, match="Unsupported file format"):
+        parse_file(b"code\tname\n001\tAcme\n", "vendors.tsv", delimiter="\t")
