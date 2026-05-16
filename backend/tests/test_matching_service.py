@@ -578,3 +578,89 @@ def test_run_matching_pipeline_file_vs_golden_emits_unified_side(test_db):
     if cand is not None:
         assert cand.side_b_kind == "unified"
         assert cand.side_a_kind == "staged"
+
+
+@patch("app.services.matching.embedding_block")
+@patch("app.services.matching.text_block")
+@patch("app.services.matching.score_pair")
+def test_pipeline_uses_per_type_confidence_threshold(mock_score_pair, mock_text_block, mock_embedding_block, test_db):
+    """When the record type declares confidence_threshold, the pipeline uses it
+    instead of settings.matching_confidence_threshold."""
+    from unittest.mock import patch as _patch
+
+    from app.config import settings
+    from app.models.batch import ImportBatch
+    from app.models.comparison import ComparisonRun
+    from app.models.enums import BatchStatus, RecordStatus
+    from app.models.match import MatchCandidate
+    from app.models.source import DataSource
+    from app.models.staging import StagedRecord
+    from app.record_types import _testing_clear_registry, register
+    from app.record_types.base import FieldDef, RecordType, Role, Signal
+    from app.record_types.supplier import SUPPLIER
+    from app.services.matching import run_matching_pipeline
+    from app.services.record_set import RecordRef, RecordSet
+
+    # Register a test type with a low confidence_threshold (0.50).
+    test_rt = RecordType(
+        key="t_threshold",
+        label="T",
+        fields=(FieldDef(key="n", label="N", role=Role.NAME, required=True),),
+        signals=(Signal(kind="jaro_winkler", field="n", weight=1.0),),
+        confidence_threshold=0.50,
+    )
+    _testing_clear_registry()
+    register(SUPPLIER)
+    register(test_rt)
+    try:
+        # Two records of the test type.
+        src = DataSource(name="s", type="t_threshold", file_format="csv", delimiter=",", column_mapping={"n": "N"})
+        test_db.add(src)
+        test_db.flush()
+        batch = ImportBatch(data_source_id=src.id, filename="f", uploaded_by="u", status=BatchStatus.COMPLETED)
+        test_db.add(batch)
+        test_db.flush()
+        ra = StagedRecord(
+            import_batch_id=batch.id,
+            data_source_id=src.id,
+            type="t_threshold",
+            name="A",
+            normalized_name="A",
+            fields={"n": "A"},
+            status=RecordStatus.ACTIVE,
+        )
+        rb = StagedRecord(
+            import_batch_id=batch.id,
+            data_source_id=src.id,
+            type="t_threshold",
+            name="B",
+            normalized_name="B",
+            fields={"n": "B"},
+            status=RecordStatus.ACTIVE,
+        )
+        test_db.add_all([ra, rb])
+        test_db.flush()
+
+        # Score lands BETWEEN the global threshold (default 0.80, possibly higher
+        # in env) and the per-type 0.50 — it should pass the per-type check.
+        mock_text_block.return_value = {(RecordRef(ra.id, "staged"), RecordRef(rb.id, "staged"))}
+        mock_embedding_block.return_value = set()
+        mock_score_pair.return_value = {"confidence": 0.60, "signals": {"jaro_winkler:n": 0.60}}
+
+        run = ComparisonRun(name="r", type="t_threshold", mode="FILE_VS_FILE", status="pending", created_by="u")
+        test_db.add(run)
+        test_db.flush()
+
+        side_a = RecordSet.from_batches(test_db, [batch.id])
+        # Force global threshold to something higher than 0.60 so we know per-type wins.
+        with _patch.object(settings, "matching_confidence_threshold", 0.80):
+            result = run_matching_pipeline(test_db, run.id, side_a, side_b=None)
+
+        assert result["candidate_count"] == 1, "candidate should pass per-type 0.50 even though global is 0.80"
+        cand = test_db.query(MatchCandidate).filter(MatchCandidate.comparison_run_id == run.id).one()
+        assert abs(cand.confidence - 0.60) < 1e-6
+    finally:
+        _testing_clear_registry()
+        register(SUPPLIER)
+        from app.record_types import bank as _bank  # noqa: F401
+        from app.record_types import client as _client  # noqa: F401

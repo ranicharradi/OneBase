@@ -11,6 +11,7 @@ from app.models.enums import CandidateStatus
 from app.models.match import MatchCandidate, MatchGroup
 from app.models.staging import StagedRecord
 from app.models.unified import UnifiedRecord
+from app.record_types import get as get_record_type
 from app.services.blocking import combine_blocks, embedding_block, text_block
 from app.services.clustering import find_groups
 from app.services.ml.score import blocker_filter, ml_score_pair
@@ -47,6 +48,10 @@ def run_matching_pipeline(
 
     run = db.query(ComparisonRun).filter(ComparisonRun.id == comparison_run_id).one()
     type_key = side_a.type_key
+    rt = get_record_type(type_key)
+    threshold = (
+        rt.confidence_threshold if rt.confidence_threshold is not None else settings.matching_confidence_threshold
+    )
 
     if side_a.is_empty:
         logger.info("run %d: side_a empty — skipping", run.id)
@@ -120,7 +125,7 @@ def run_matching_pipeline(
             continue  # NAME guard fired or pair otherwise unscoreable
         conf = result["confidence"]
         signals = result["signals"]
-        if conf >= settings.matching_confidence_threshold:
+        if conf >= threshold:
             scored.append((ref_a, ref_b, conf, signals))
         new_pct = int((idx + 1) / len(pair_list) * 100)
         if new_pct != last_pct:
