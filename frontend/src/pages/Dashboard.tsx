@@ -710,7 +710,7 @@ export default function Dashboard() {
   const [confirmAction, setConfirmAction] = useState<AdminMlAction | null>(null);
 
   const retrainMutation = useMutation({
-    mutationFn: () => api.post('/api/matching/retrain'),
+    mutationFn: () => api.post(`/api/matching/retrain?type=${selectedType}`),
     onSuccess: () => {
       setConfirmAction(null);
       queryClient.invalidateQueries({ queryKey: ['model-status'] });
@@ -720,7 +720,7 @@ export default function Dashboard() {
   });
 
   const trainMutation = useMutation({
-    mutationFn: () => api.post('/api/matching/train-model'),
+    mutationFn: () => api.post(`/api/matching/train-model?type=${selectedType}`),
     onSuccess: () => {
       setConfirmAction(null);
       queryClient.invalidateQueries({ queryKey: ['model-status'] });

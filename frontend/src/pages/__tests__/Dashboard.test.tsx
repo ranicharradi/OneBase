@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
 import { render } from '../../test/test-utils'
 import Dashboard from '../Dashboard'
 import { useAuth } from '../../hooks/useAuth'
@@ -25,7 +25,6 @@ const mockDashboard: DashboardResponse = {
 }
 
 const mockModelStatus: ModelStatusResponse = {
-  last_retrained: '2026-03-28T10:00:00Z',
   last_trained: '2026-03-27T08:00:00Z',
   review_count: 55,
   current_weights: { jaro_winkler: 0.30, token_jaccard: 0.20, embedding_cosine: 0.25 },
@@ -51,7 +50,7 @@ function setupAuthAs(role: 'admin' | 'viewer') {
 const mockRecordTypes = { types: [{ key: 'supplier', label: 'Supplier', field_count: 7 }] }
 
 function setupFetchBoth(dashboard: DashboardResponse = mockDashboard) {
-  vi.spyOn(global, 'fetch').mockImplementation((url) => {
+  return vi.spyOn(global, 'fetch').mockImplementation((url, init) => {
     const urlStr = String(url)
     if (urlStr.includes('/api/record-types/') || urlStr.match(/\/api\/record-types\/[^?]+/)) {
       return Promise.resolve(new Response('Not found', { status: 404 }))
@@ -70,6 +69,14 @@ function setupFetchBoth(dashboard: DashboardResponse = mockDashboard) {
     if (urlStr.includes('/api/matching/model-status')) {
       return Promise.resolve(
         new Response(JSON.stringify(mockModelStatus), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    }
+    if (urlStr.includes('/api/matching/retrain') || urlStr.includes('/api/matching/train-model')) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ ok: true }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         }),
@@ -242,5 +249,30 @@ describe('Dashboard page', () => {
       ([url]: [unknown]) => String(url).includes('/api/unified/dashboard'),
     )
     expect(String(dashboardCall?.[0])).toContain('type=supplier')
+  })
+
+  it('passes type query param when triggering the retrain mutation', async () => {
+    setupAuthAs('admin')
+    const fetchSpy = setupFetchBoth()
+    render(<Dashboard />)
+
+    // Wait for the ML panel to appear
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /retrain weights/i })).toBeInTheDocument()
+    })
+
+    // Click "Retrain weights" → opens confirmation
+    fireEvent.click(screen.getByRole('button', { name: /retrain weights/i }))
+
+    // Click "Confirm" → fires the mutation
+    fireEvent.click(await screen.findByRole('button', { name: /confirm/i }))
+
+    await waitFor(() => {
+      const retrainCall = (fetchSpy as unknown as ReturnType<typeof vi.spyOn>).mock?.calls?.find(
+        ([url]: [unknown]) => String(url).includes('/api/matching/retrain'),
+      )
+      expect(retrainCall).toBeDefined()
+      expect(String(retrainCall?.[0])).toContain('type=supplier')
+    })
   })
 })

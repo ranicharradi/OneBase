@@ -361,11 +361,21 @@ def reject_candidate(
     db: Session,
     candidate: MatchCandidate,
     username: str,
+    from_status: str | None = None,
 ) -> None:
-    """Mark a match candidate as rejected."""
+    """Mark a match candidate as rejected.
+
+    If `from_status` is provided, it is recorded in the audit details so the
+    lineage trail captures whether the candidate was rejected from PENDING or
+    from a prior CONFIRMED decision.
+    """
     candidate.status = CandidateStatus.REJECTED
     candidate.reviewed_by = username
     candidate.reviewed_at = datetime.now(UTC)
+
+    details: dict[str, Any] = {"type": candidate.type, "reviewed_by": username}
+    if from_status is not None:
+        details["from_status"] = from_status
 
     log_action(
         db,
@@ -373,5 +383,5 @@ def reject_candidate(
         action="match_rejected",
         entity_type="match_candidate",
         entity_id=candidate.id,
-        details={"type": candidate.type, "reviewed_by": username},
+        details=details,
     )

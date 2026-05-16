@@ -78,6 +78,18 @@ async def lifespan(app: FastAPI):
         db.rollback()
     finally:
         db.close()
+
+    # Startup: rebuild Ask view from current RecordType registry so newly
+    # registered types' fields become queryable. No-op on non-Postgres.
+    db = SessionLocal()
+    try:
+        from app.services.ask_view import refresh_ask_view
+
+        refresh_ask_view(db)
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
     yield
     # Shutdown: nothing to clean up
 

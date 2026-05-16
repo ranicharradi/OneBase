@@ -2,6 +2,7 @@
 
 import re
 
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -101,11 +102,67 @@ def update_source(db: Session, source_id: int, data: DataSourceUpdate) -> DataSo
     return source
 
 
+_UNIFIED_REFS_SQL = {
+    "postgresql": """
+        SELECT COUNT(*) FROM unified_records u
+        WHERE EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(u.source_record_ids) sid
+            WHERE sid::int IN (
+                SELECT id FROM staged_records WHERE data_source_id = :sid
+            )
+        )
+    """,
+    "sqlite": """
+        SELECT COUNT(*) FROM unified_records u
+        WHERE EXISTS (
+            SELECT 1 FROM json_each(u.source_record_ids) je
+            WHERE CAST(je.value AS INTEGER) IN (
+                SELECT id FROM staged_records WHERE data_source_id = :sid
+            )
+        )
+    """,
+}
+
+
+def _count_unified_refs(db: Session, source_id: int) -> int:
+    """Return the number of UnifiedRecords whose ``source_record_ids`` references
+    a staged record belonging to ``source_id``.
+
+    Uses dialect-specific JSON SQL. Mirrors the pattern in
+    ``app/routers/insights.py:_per_source_aggregate``.
+    """
+    dialect = db.bind.dialect.name if db.bind is not None else ""
+    sql = _UNIFIED_REFS_SQL.get(dialect)
+    if sql is None:
+        # Unknown dialect — fall back to a Python-side scan so we never silently
+        # allow a delete that would create dangling references.
+        from app.models.staging import StagedRecord
+        from app.models.unified import UnifiedRecord
+
+        staged_ids = {
+            sid for (sid,) in db.query(StagedRecord.id).filter(
+                StagedRecord.data_source_id == source_id
+            )
+        }
+        if not staged_ids:
+            return 0
+        count = 0
+        for (refs,) in db.query(UnifiedRecord.source_record_ids):
+            if refs and any(int(r) in staged_ids for r in refs):
+                count += 1
+        return count
+    return db.execute(text(sql), {"sid": source_id}).scalar() or 0
+
+
 def delete_source(db: Session, source_id: int) -> bool:
     """Delete a data source and all related data.
 
     Cascades through: MatchCandidates → StagedRecords → ImportBatches → DataSource.
     Returns True if deleted, False if not found.
+
+    Raises ``ValueError`` if any UnifiedRecord references staged records from
+    this source — those references would become dangling. The caller must
+    delete or unmerge the affected unified records first.
     """
     from app.models.batch import ImportBatch
     from app.models.match import MatchCandidate
@@ -114,6 +171,13 @@ def delete_source(db: Session, source_id: int) -> bool:
     source = get_source(db, source_id)
     if source is None:
         return False
+
+    unified_count = _count_unified_refs(db, source_id)
+    if unified_count > 0:
+        raise ValueError(
+            f"Cannot delete source — {unified_count} unified record(s) reference it. "
+            f"Delete or unmerge them first."
+        )
 
     staged_subq = db.query(StagedRecord.id).filter(StagedRecord.data_source_id == source_id)
     candidate_subq = db.query(MatchCandidate.id).filter(
