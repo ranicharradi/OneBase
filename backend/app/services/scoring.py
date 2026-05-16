@@ -76,12 +76,31 @@ def _exact(a: Any, b: Any, field: str) -> float:
     return 1.0 if str(av).strip() == str(bv).strip() else 0.0
 
 
-SIGNAL_FNS: dict[str, Callable[[Any, Any, str], float]] = {
+def _iban_prefix_ci(a: Any, b: Any, field: str) -> float | None:
+    """Compare the bank+branch slot of an IBAN (chars [4:12]).
+
+    The slice runs on the canonicalized (whitespace-stripped, uppercased) form, so
+    callers may pass values that weren't normalized via FieldDef.normalize="identifier".
+    Returns None when either side is too short to yield a full 8-char slot.
+    """
+    av = _resolve(a, field)
+    bv = _resolve(b, field)
+    if av is None or bv is None:
+        return None
+    pa = "".join(str(av).split()).upper()[4:12]
+    pb = "".join(str(bv).split()).upper()[4:12]
+    if len(pa) < 8 or len(pb) < 8:
+        return None
+    return 1.0 if pa == pb else 0.0
+
+
+SIGNAL_FNS: dict[str, Callable[[Any, Any, str], float | None]] = {
     "jaro_winkler": _jaro_winkler,
     "token_jaccard": _token_jaccard,
     "embedding_cosine": _embedding_cosine,
     "exact_ci": _exact_ci,
     "exact": _exact,
+    "iban_prefix_ci": _iban_prefix_ci,
 }
 
 
