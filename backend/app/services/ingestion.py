@@ -102,6 +102,7 @@ def run_ingestion(
 
         # 3. MAP and STORE
         name_field_key = rt.name_field.key
+        field_defs_by_key = {f.key: f for f in rt.fields}
         records: list[StagedRecord] = []
         for row in rows:
             fields: dict[str, str] = {}
@@ -109,8 +110,12 @@ def run_ingestion(
                 if field_key not in valid_field_keys:
                     continue  # silently ignore stale mappings
                 value = _clean_ingested_value(row.get(csv_col))
-                if value is not None:
-                    fields[field_key] = value
+                if value is None:
+                    continue
+                fd = field_defs_by_key.get(field_key)
+                if fd is not None and fd.normalize == "identifier":
+                    value = "".join(str(value).split()).upper()
+                fields[field_key] = value
 
             name_value = fields.get(name_field_key)
             if name_value and len(name_value) > _NAME_MAX_LEN:
