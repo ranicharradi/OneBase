@@ -171,7 +171,6 @@ def get_model_status(
     return {
         "type": type,
         "last_trained": scorer.created_at.isoformat() if scorer else None,
-        "last_retrained": None,
         "review_count": review_count,
         "current_weights": current_weights,
         "ml_model_exists": scorer is not None,

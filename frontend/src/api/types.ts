@@ -373,7 +373,6 @@ export interface UploadStatsResponse {
 // ── ML Model status ──
 
 export interface ModelStatusResponse {
-  last_retrained: string | null;
   last_trained: string | null;
   review_count: number;
   current_weights: Record<string, number>;

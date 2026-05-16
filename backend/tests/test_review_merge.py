@@ -3,6 +3,7 @@
 import pytest
 from sqlalchemy.orm import Session
 
+from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
 from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
@@ -358,6 +359,61 @@ class TestReviewAPI:
         resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/reject")
         assert resp.status_code == 200
         assert resp.json()["action"] == "rejected"
+
+    def test_reject_after_confirm_undoes_decision(self, authenticated_client, test_db):
+        """Rejecting a CONFIRMED candidate is allowed and records from_status."""
+        _, _, candidate = self._setup_data(test_db)
+
+        # Step 1: confirm the candidate
+        confirm_resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/confirm")
+        assert confirm_resp.status_code == 200
+
+        # Step 2: reject the now-confirmed candidate
+        reject_resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/reject")
+        assert reject_resp.status_code == 200
+        assert reject_resp.json()["action"] == "rejected"
+
+        # Candidate ends up REJECTED
+        test_db.expire_all()
+        refreshed = test_db.query(MatchCandidate).filter_by(id=candidate.id).one()
+        assert refreshed.status == CandidateStatus.REJECTED
+
+        # Audit row records the prior state
+        audit_row = (
+            test_db.query(AuditLog)
+            .filter(
+                AuditLog.action == "match_rejected",
+                AuditLog.entity_type == "match_candidate",
+                AuditLog.entity_id == candidate.id,
+            )
+            .order_by(AuditLog.id.desc())
+            .first()
+        )
+        assert audit_row is not None
+        assert audit_row.details["from_status"] == "confirmed"
+
+    def test_cannot_reject_already_merged(self, authenticated_client, test_db):
+        """Rejecting a MERGED candidate still returns 400 — terminal state."""
+        rec_a, _, candidate = self._setup_data(test_db)
+
+        # Confirm then merge to reach MERGED
+        confirm_resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/confirm")
+        assert confirm_resp.status_code == 200
+
+        merge_resp = authenticated_client.post(
+            f"/api/review/candidates/{candidate.id}/merge",
+            json={
+                "field_selections": [
+                    {"field": "supplier_name", "chosen_record_id": rec_a.id},
+                    {"field": "currency", "chosen_record_id": rec_a.id},
+                ]
+            },
+        )
+        assert merge_resp.status_code == 200
+
+        # Now try to reject — must be 400
+        reject_resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/reject")
+        assert reject_resp.status_code == 400
 
     def test_cannot_merge_already_rejected(self, authenticated_client, test_db):
         rec_a, rec_b, candidate = self._setup_data(test_db)
