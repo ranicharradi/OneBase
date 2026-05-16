@@ -42,4 +42,5 @@ def _testing_clear_registry() -> None:
 
 # Type registrations live below this line. Each module's import call has the
 # side effect of registering its type.
+from app.record_types import bank as _bank  # noqa: E402, F401
 from app.record_types import supplier as _supplier  # noqa: E402, F401
