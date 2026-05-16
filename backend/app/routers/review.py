@@ -300,16 +300,22 @@ def reject_match(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.REVIEWER)),
 ):
-    """Reject a match candidate — records are not duplicates."""
+    """Reject a match candidate — records are not duplicates.
+
+    Allowed from PENDING (initial rejection) or CONFIRMED (undoing a prior
+    confirm decision from the merge queue). Terminal states (MERGED, REJECTED,
+    INVALIDATED) still return 400.
+    """
     candidate = get_or_404(db, MatchCandidate, candidate_id, label=f"Match candidate {candidate_id}")
 
-    if candidate.status != CandidateStatus.PENDING:
+    if candidate.status not in (CandidateStatus.PENDING, CandidateStatus.CONFIRMED):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Candidate is {candidate.status}, cannot reject",
         )
 
-    reject_candidate(db, candidate, current_user.username)
+    prior_status = str(candidate.status)
+    reject_candidate(db, candidate, current_user.username, from_status=prior_status)
     db.commit()
 
     return ReviewActionResponse(
