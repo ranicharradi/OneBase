@@ -36,6 +36,7 @@ class FieldDef:
     role: Role
     required: bool = False
     synonyms: tuple[str, ...] = ()  # known source column names for auto-mapping
+    normalize: str | None = None  # None or "identifier" (strip-ws + uppercase at ingestion)
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,14 @@ class RecordType:
             raise ValueError(
                 f"type {self.key!r} must declare exactly one field with role=NAME (found {len(name_fields)})"
             )
+
+        allowed_normalize = {None, "identifier"}
+        for f in self.fields:
+            if f.normalize not in allowed_normalize:
+                raise ValueError(
+                    f"type {self.key!r} field {f.key!r}: normalize={f.normalize!r} "
+                    f"is not in {sorted(str(v) for v in allowed_normalize)}"
+                )
 
         for s in self.signals:
             if s.field not in seen_keys:
