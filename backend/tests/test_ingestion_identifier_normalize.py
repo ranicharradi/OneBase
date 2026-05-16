@@ -9,24 +9,24 @@ from app.models.batch import ImportBatch
 from app.models.enums import BatchStatus
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
-from app.record_types import _testing_clear_registry, register
+from app.record_types import _testing_clear_registry, all_types, register
 from app.record_types.base import FieldDef, RecordType, Role, Signal
 
 
 @contextmanager
 def _temporary_type(rt: RecordType):
     """Register `rt` for the test, then restore the original registry."""
-    # Re-register the standard types after we clear.
-    from app.record_types.supplier import SUPPLIER
-
+    saved = all_types()
     _testing_clear_registry()
-    register(SUPPLIER)
+    for t in saved:
+        register(t)
     register(rt)
     try:
         yield
     finally:
         _testing_clear_registry()
-        register(SUPPLIER)
+        for t in saved:
+            register(t)
 
 
 SAMPLE_CSV = b"Name;BIC;IBAN\nArab Tunisian Bank; atbk tntt ;tn97 0100 1020 1105 0086 1125\n"
