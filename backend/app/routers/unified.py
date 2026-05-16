@@ -228,7 +228,6 @@ def list_singletons(
         )
         .join(DataSource, StagedRecord.data_source_id == DataSource.id)
         .filter(StagedRecord.status == RecordStatus.ACTIVE)
-        .filter(StagedRecord.intra_source_group_id.is_(None) | (StagedRecord.intra_source_group_id == StagedRecord.id))
     )
     if type is not None:
         query = query.filter(StagedRecord.type == type)

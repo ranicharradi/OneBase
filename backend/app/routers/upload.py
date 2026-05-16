@@ -31,88 +31,57 @@ MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 
 @router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file(
-    file: UploadFile | None = File(None),
-    file_ref: str | None = Form(None),
+    file: UploadFile = File(...),
     data_source_id: int = Form(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Upload a CSV file for processing.
+    """Upload a CSV or XLSX file for processing.
 
-    Accepts either a file upload or a file_ref from a prior match-source call.
     Creates an ImportBatch and dispatches a Celery task to process the file.
     """
-    if file_ref and file is None:
-        # Load from previously saved file
-        try:
-            filepath = safe_upload_path(UPLOAD_DIR, file_ref)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid file reference",
-            ) from None
-        if not os.path.isfile(filepath):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="file_ref not found. Please re-upload the file.",
-            )
-        stored_filename = file_ref
-        original_filename = file_ref.split("_", 1)[1] if "_" in file_ref else file_ref
-    elif file is not None:
-        # Validate file extension
-        filename_lower = (file.filename or "").lower()
-        if not filename_lower or not (filename_lower.endswith(".csv") or filename_lower.endswith(".xlsx")):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only .csv and .xlsx files are accepted",
-            )
-        is_xlsx = filename_lower.endswith(".xlsx")
-
-        # Validate data source exists
-        source = db.query(DataSource).filter(DataSource.id == data_source_id).first()
-        if source is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Data source not found",
-            )
-
-        # Save file to disk
-        file_content = await file.read()
-
-        # Validate file size
-        if len(file_content) > MAX_UPLOAD_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail=f"File exceeds maximum size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
-            )
-
-        # Validate UTF-8 encoding (CSV only — xlsx is a binary zip container)
-        if not is_xlsx:
-            try:
-                file_content.decode("utf-8")
-            except UnicodeDecodeError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="File is not valid UTF-8. Please re-save as UTF-8 and try again.",
-                ) from None
-        stored_filename = f"{uuid.uuid4()}_{file.filename}"
-        filepath = os.path.join(UPLOAD_DIR, stored_filename)
-        with open(filepath, "wb") as f:
-            f.write(file_content)
-        original_filename = file.filename
-    else:
+    # Validate file extension
+    filename_lower = (file.filename or "").lower()
+    if not filename_lower or not (filename_lower.endswith(".csv") or filename_lower.endswith(".xlsx")):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Either file or file_ref must be provided",
+            detail="Only .csv and .xlsx files are accepted",
         )
+    is_xlsx = filename_lower.endswith(".xlsx")
 
-    # Validate data source exists (for file_ref path too)
+    # Validate data source exists
     source = db.query(DataSource).filter(DataSource.id == data_source_id).first()
     if source is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Data source not found",
         )
+
+    # Read content
+    file_content = await file.read()
+
+    # Validate file size
+    if len(file_content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"File exceeds maximum size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
+        )
+
+    # Validate UTF-8 encoding (CSV only — xlsx is a binary zip container)
+    if not is_xlsx:
+        try:
+            file_content.decode("utf-8")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File is not valid UTF-8. Please re-save as UTF-8 and try again.",
+            ) from None
+
+    stored_filename = f"{uuid.uuid4()}_{file.filename}"
+    filepath = os.path.join(UPLOAD_DIR, stored_filename)
+    with open(filepath, "wb") as f:
+        f.write(file_content)
+    original_filename = file.filename
 
     # Block re-upload while a batch is still processing for this source
     active_batch = (

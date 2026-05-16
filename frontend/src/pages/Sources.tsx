@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 import type {
   BatchResponse,
   ColumnMapping,
@@ -144,7 +144,6 @@ function SourceModal({
   const [type, setType] = useState(source?.type ?? (recordTypes.types[0]?.key || ''));
   const [description, setDescription] = useState(source?.description ?? '');
   const [delimiter, setDelimiter] = useState(source?.delimiter ?? ';');
-  const [filenamePattern, setFilenamePattern] = useState(source?.filename_pattern ?? '');
 
   const { data: recordType, isLoading: fieldsLoading, error: fieldsError } = useRecordType(type);
   const fields = useMemo(() => recordType?.fields ?? [], [recordType]);
@@ -166,7 +165,6 @@ function SourceModal({
           description: description.trim() || null,
           delimiter,
           column_mapping: effectiveMapping,
-          filename_pattern: filenamePattern.trim() || null,
         };
         return api.put<DataSource>(`/api/sources/${source.id}`, update);
       }
@@ -177,7 +175,6 @@ function SourceModal({
         description: description.trim() || undefined,
         delimiter,
         column_mapping: effectiveMapping,
-        filename_pattern: filenamePattern.trim() || undefined,
       });
     },
     onSuccess: () => {
@@ -298,16 +295,6 @@ function SourceModal({
                 style={{ width: 80, textAlign: 'center' }}
               />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-              <label className="label">Filename pattern</label>
-              <input
-                type="text"
-                value={filenamePattern}
-                onChange={e => setFilenamePattern(e.target.value)}
-                placeholder="regex (optional)"
-                className="input mono"
-              />
-            </div>
           </div>
 
           {fieldsLoading ? (
@@ -365,6 +352,12 @@ function DeleteConfirm({
     },
   });
 
+  const errorDetail = mutation.error instanceof ApiError
+    ? mutation.error.message
+    : mutation.error
+      ? 'Failed to delete source'
+      : null;
+
   return (
     <Modal
       onClose={onClose}
@@ -376,8 +369,18 @@ function DeleteConfirm({
           Delete <b>{source.name}</b>?
         </p>
         <p style={{ fontSize: 11, color: 'var(--fg-2)', margin: 0 }}>
-          This cannot be undone. Existing batches and unified records will be preserved, but new uploads will fail.
+          This cannot be undone. Batches, staged records, and match candidates for this source will be removed.
+          Sources referenced by unified records cannot be deleted — unmerge or delete those records first.
         </p>
+        {errorDetail && (
+          <div
+            className="pill danger"
+            style={{ marginTop: 12, padding: '8px 10px', width: '100%', justifyContent: 'flex-start' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
+            <span>{errorDetail}</span>
+          </div>
+        )}
       </div>
       <div
         style={{

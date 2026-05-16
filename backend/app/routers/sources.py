@@ -121,13 +121,20 @@ def delete_data_source(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """Delete a data source and all related data."""
+    """Delete a data source and all related data.
+
+    Returns 409 if any UnifiedRecord references staged records from this source —
+    those references would become dangling. Delete or unmerge them first.
+    """
     source = get_source(db, source_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
     source_name = source.name
     source_type = source.type
-    delete_source(db, source_id)
+    try:
+        delete_source(db, source_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
     log_action(
         db,
         user_id=current_user.id,
