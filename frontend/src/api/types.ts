@@ -91,9 +91,10 @@ export interface BatchResponse {
   filename: string;
   uploaded_by: string;
   row_count: number | null;
-  status: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   error_message: string | null;
-  created_at: string;
+  // Backend schema declares datetime | None, so the value can be null on the wire.
+  created_at: string | null;
   task_id: string | null;
   unified: boolean;
   last_compared_at: string | null;
@@ -121,7 +122,8 @@ export interface MatchingNotification {
     error?: string;
     stage?: string;
     progress?: number;
-    stats?: Record<string, number>;
+    // Backend includes scope_size_a / scope_size_b which can be null on the wire.
+    stats?: Record<string, number | null>;
   };
   timestamp: string;
 }

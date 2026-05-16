@@ -690,7 +690,7 @@ export default function Compare() {
                       </td>
                       <td>
                         <span
-                          title={`${new Date(b.created_at).toLocaleString()} by ${b.uploaded_by}`}
+                          title={`${b.created_at ? new Date(b.created_at).toLocaleString() : ''} by ${b.uploaded_by}`}
                           className="mono"
                           style={{ fontSize: 11, color: "var(--fg-2)" }}
                         >

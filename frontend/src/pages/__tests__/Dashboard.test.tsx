@@ -50,7 +50,7 @@ function setupAuthAs(role: 'admin' | 'viewer') {
 const mockRecordTypes = { types: [{ key: 'supplier', label: 'Supplier', field_count: 7 }] }
 
 function setupFetchBoth(dashboard: DashboardResponse = mockDashboard) {
-  return vi.spyOn(global, 'fetch').mockImplementation((url, init) => {
+  return vi.spyOn(global, 'fetch').mockImplementation((url) => {
     const urlStr = String(url)
     if (urlStr.includes('/api/record-types/') || urlStr.match(/\/api\/record-types\/[^?]+/)) {
       return Promise.resolve(new Response('Not found', { status: 404 }))

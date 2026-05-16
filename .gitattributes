@@ -1,0 +1,5 @@
+# Force LF line endings for files executed in Linux containers regardless of
+# the developer's local git autocrlf setting. CRLF in entrypoint.sh causes
+# `exec /entrypoint.sh: no such file or directory` on Docker startup.
+*.sh text eol=lf
+backend/entrypoint.sh text eol=lf

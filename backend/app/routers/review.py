@@ -60,7 +60,9 @@ def _load_record_detail(db: Session, record_id: int) -> tuple[StagedRecord, Data
 
 @router.get("/queue", response_model=ReviewQueueResponse)
 def get_review_queue(
-    status_filter: str = Query("pending", alias="status"),
+    status_filter: Literal["pending", "confirmed", "rejected", "merged", "invalidated"] = Query(
+        "pending", alias="status"
+    ),
     type: str | None = Query(None, description="Filter by record type"),
     comparison_run_id: int | None = Query(None, description="Scope to a specific comparison run"),
     source_a_id: int | None = Query(None, description="Filter by record A source"),

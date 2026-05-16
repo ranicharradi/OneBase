@@ -520,7 +520,7 @@ export default function Sources() {
       cur.batches += 1;
       if (ok) {
         cur.rows += b.row_count ?? 0;
-        if (!cur.lastSync || new Date(b.created_at) > new Date(cur.lastSync)) {
+        if (b.created_at && (!cur.lastSync || new Date(b.created_at) > new Date(cur.lastSync))) {
           cur.lastSync = b.created_at;
         }
       }

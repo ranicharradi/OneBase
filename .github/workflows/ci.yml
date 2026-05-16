@@ -81,6 +81,15 @@ jobs:
           cache: pip
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -r requirements-dev.txt
+      # Smoke-test the Alembic migration chain end-to-end against Postgres.
+      # Catches missing down_revision links and broken downgrade() before merge.
+      - name: Alembic round-trip
+        env:
+          DATABASE_URL: postgresql://onebase:onebase@localhost:5432/onebase_test
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
       # Force serial: the per-test create_all/drop_all autouse fixture would
       # race across xdist workers against the shared Postgres database.
       - run: pytest -m "not slow" -n 0
