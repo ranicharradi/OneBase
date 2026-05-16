@@ -2,10 +2,13 @@
 
 The matcher reads each type's `signals` list and dispatches each Signal.kind
 to a function in the SIGNAL_FNS dict. Signals that return None (one or both sides
-missing the field) are dropped from the weighted sum. Confidence is divided by the
-*total* configured weight (not just the active subset) so that pairs with few
-firing signals cannot reach 1.0 on a single weak signal match (e.g. same currency
-alone would renormalize to 1.0 otherwise).
+missing the field) are dropped from the weighted sum.
+
+Strategy is controlled by RecordType.scoring:
+  - 'total_weight' (default): divides by sum of ALL declared weights. Pairs with few
+    firing signals cannot reach 1.0 on a single weak signal (e.g. currency alone).
+  - 'contributing_weight': divides by sum of weights of signals that actually fired.
+    Returns None when no NAME-role signal fires (empty-name guard).
 """
 
 from collections.abc import Callable
@@ -130,31 +133,52 @@ def score_pair(
     record_a: Record,
     record_b: Record,
     record_type: RecordType | None = None,
-) -> dict:
+) -> dict | None:
     """Compute confidence + signal breakdown for a record pair.
 
     `record_type` defaults to looking up by record_a.type. Both records must
     share a type — passing mismatched records is a programmer error.
 
-    Returns a dict with:
-      - 'confidence' (float 0-1): weighted average of active signals
-      - 'signals' (dict[str, float]): signal contributions keyed by "{kind}:{field}"
+    Returns:
+      - dict with 'confidence' (float 0-1) and 'signals' (dict[str, float]) on success
+      - None when the record type uses scoring='contributing_weight' and no
+        NAME-derived signal fires on either side (empty-name guard)
+
+    Strategies (driven by RecordType.scoring):
+      - 'total_weight' (default): divides by sum of ALL declared signal weights.
+        Missing signals proportionally lower confidence — protects against
+        empty-NAME pairs producing high confidence via a single weak signal.
+      - 'contributing_weight': divides by sum of weights of signals that fired.
+        A pair where no NAME-derived signal fires returns None (no candidate).
     """
     if record_a.type != record_b.type:
         raise ValueError(f"score_pair received records of differing types: {record_a.type!r} vs {record_b.type!r}")
 
     rt = record_type or get_record_type(record_a.type)
+    name_field_key = rt.name_field.key
 
     signals: dict[str, float] = {}
     weighted_score = 0.0
+    contributing_weight = 0.0
     total_weight = sum(sig.weight for sig in rt.signals)
+    name_signal_fired = False
 
     for sig in rt.signals:
         value = compute_signal(sig.kind, record_a, record_b, sig.field)
         if value is None:
-            continue  # missing field — signal dropped, weight still counts against total
+            continue
         signals[signal_key(sig.kind, sig.field)] = value
         weighted_score += value * sig.weight
+        contributing_weight += sig.weight
+        if sig.field == name_field_key:
+            name_signal_fired = True
 
-    confidence = weighted_score / total_weight if total_weight > 0 else 0.0
+    if rt.scoring == "contributing_weight":
+        if not name_signal_fired:
+            return None
+        denom = contributing_weight
+    else:  # 'total_weight'
+        denom = total_weight
+
+    confidence = weighted_score / denom if denom > 0 else 0.0
     return {"confidence": confidence, "signals": signals}

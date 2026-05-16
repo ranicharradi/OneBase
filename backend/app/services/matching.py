@@ -116,6 +116,8 @@ def run_matching_pipeline(
             logger.info("dropping pair (%s, %s) — ref no longer resolvable", ref_a, ref_b)
             continue
         result = ml_score_pair(ra, rb, scorer_bundle) if using_ml else score_pair(ra, rb)
+        if result is None:
+            continue  # NAME guard fired or pair otherwise unscoreable
         conf = result["confidence"]
         signals = result["signals"]
         if conf >= settings.matching_confidence_threshold:

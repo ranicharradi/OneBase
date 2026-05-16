@@ -206,3 +206,19 @@ class TestEngineeredFeatures:
 
         nlr, tcd = compute_engineered_features("ACME CORP INC", "ACME")
         assert tcd == 2
+
+
+def test_ml_score_pair_propagates_none_from_weighted_scorer():
+    """When the underlying weighted scorer returns None (NAME guard), ml_score_pair returns None."""
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from app.services.ml.score import ml_score_pair
+
+    bundle = SimpleNamespace(record_type="supplier", model=None, threshold=0.5)
+    rec_a = SimpleNamespace(type="supplier")
+    rec_b = SimpleNamespace(type="supplier")
+
+    with patch("app.services.scoring.score_pair", return_value=None):
+        result = ml_score_pair(rec_a, rec_b, bundle)
+        assert result is None

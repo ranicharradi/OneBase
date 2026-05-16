@@ -19,8 +19,11 @@ def ml_score_pair(
     record_a: StagedRecord,
     record_b: StagedRecord,
     bundle: ModelBundle,
-) -> dict:
+) -> dict | None:
     """Score a pair using the scorer ML model.
+
+    Returns None when the underlying weighted scorer returns None (NAME guard
+    or unscoreable pair) — callers must handle this case.
 
     The bundle must be trained on the same record type as the records.
     """
@@ -35,6 +38,8 @@ def ml_score_pair(
     from app.services.scoring import score_pair as weighted_score_pair
 
     base_result = weighted_score_pair(record_a, record_b)
+    if base_result is None:
+        return None
     signals = base_result["signals"]
 
     feature_row = build_scorer_row(record_a, record_b, signals, record_a.type)
