@@ -25,7 +25,8 @@ const STATUS_TONES: Record<string, PillTone> = {
 
 const DELETABLE_STATUSES = new Set(['pending', 'failed', 'failure']);
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '—';
   const d = new Date(dateStr);
   return d.toLocaleString('en-GB', {
     month: 'short',
@@ -77,7 +78,11 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
   }
 
   const sorted = batches
-    ? [...batches].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    ? [...batches].sort((a, b) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return tb - ta;
+      })
     : [];
 
   if (sorted.length === 0) {

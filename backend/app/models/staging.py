@@ -39,14 +39,12 @@ class StagedRecord(Base):
     name_embedding = Column(Vector(384) if Vector else LargeBinary, nullable=True)
     fields = Column(json_type(), nullable=False, default=dict)
     raw_data = Column(json_type(), nullable=False, default=dict)
-    intra_source_group_id = Column(Integer, ForeignKey("staged_records.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (
         Index("ix_staged_records_normalized_name", "normalized_name"),
         Index("ix_staged_records_source_status", "data_source_id", "status"),
         Index("ix_staged_records_type_source", "type", "data_source_id"),
-        Index("ix_staged_records_intra_group", "intra_source_group_id"),
         Index(
             "ix_staged_records_name_embedding_hnsw",
             "name_embedding",

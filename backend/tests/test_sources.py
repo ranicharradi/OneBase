@@ -114,6 +114,53 @@ class TestDeleteSource:
         response = authenticated_client.delete("/api/sources/999")
         assert response.status_code == 404
 
+    def test_delete_source_blocked_when_unified_references(self, authenticated_client, test_db):
+        """Returns 409 when a UnifiedRecord references staged records from this source."""
+        from app.models.batch import ImportBatch
+        from app.models.source import DataSource
+        from app.models.staging import StagedRecord
+        from app.models.unified import UnifiedRecord
+
+        create_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
+        source_id = create_resp.json()["id"]
+
+        batch = ImportBatch(
+            data_source_id=source_id,
+            filename="seed.csv",
+            uploaded_by="seed",
+            row_count=1,
+            status="completed",
+        )
+        test_db.add(batch)
+        test_db.flush()
+        staged = StagedRecord(
+            import_batch_id=batch.id,
+            data_source_id=source_id,
+            type="supplier",
+            name="Acme",
+            fields={"supplier_name": "Acme"},
+            raw_data={},
+        )
+        test_db.add(staged)
+        test_db.flush()
+        unified = UnifiedRecord(
+            type="supplier",
+            name="Acme",
+            fields={"supplier_name": "Acme"},
+            provenance={},
+            source_record_ids=[staged.id],
+            created_by="seed",
+        )
+        test_db.add(unified)
+        test_db.commit()
+
+        response = authenticated_client.delete(f"/api/sources/{source_id}")
+        assert response.status_code == 409
+        assert "unified" in response.json()["detail"].lower()
+
+        # Source still present
+        assert test_db.query(DataSource).filter(DataSource.id == source_id).first() is not None
+
 
 def test_suggest_mapping_disabled_returns_503(authenticated_client, test_db):
     resp = authenticated_client.post(

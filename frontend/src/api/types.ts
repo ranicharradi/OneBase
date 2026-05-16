@@ -51,7 +51,6 @@ export interface DataSource {
   file_format: string;
   delimiter: string;
   column_mapping: Record<string, unknown>;
-  filename_pattern: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -63,7 +62,6 @@ export interface DataSourceCreate {
   file_format?: string;
   delimiter?: string;
   column_mapping: ColumnMapping;
-  filename_pattern?: string | null;
 }
 
 export interface DataSourceUpdate {
@@ -71,7 +69,6 @@ export interface DataSourceUpdate {
   description?: string | null;
   delimiter?: string | null;
   column_mapping?: ColumnMapping;
-  filename_pattern?: string | null;
 }
 
 export interface UserCreate {
@@ -94,9 +91,10 @@ export interface BatchResponse {
   filename: string;
   uploaded_by: string;
   row_count: number | null;
-  status: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   error_message: string | null;
-  created_at: string;
+  // Backend schema declares datetime | None, so the value can be null on the wire.
+  created_at: string | null;
   task_id: string | null;
   unified: boolean;
   last_compared_at: string | null;
@@ -124,7 +122,8 @@ export interface MatchingNotification {
     error?: string;
     stage?: string;
     progress?: number;
-    stats?: Record<string, number>;
+    // Backend includes scope_size_a / scope_size_b which can be null on the wire.
+    stats?: Record<string, number | null>;
   };
   timestamp: string;
 }
@@ -373,7 +372,6 @@ export interface UploadStatsResponse {
 // ── ML Model status ──
 
 export interface ModelStatusResponse {
-  last_retrained: string | null;
   last_trained: string | null;
   review_count: number;
   current_weights: Record<string, number>;

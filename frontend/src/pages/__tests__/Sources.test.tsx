@@ -23,7 +23,6 @@ const source: DataSource = {
   file_format: 'csv',
   delimiter: ';',
   column_mapping: { supplier_name: 'Vendor Name' },
-  filename_pattern: null,
   created_at: '2026-05-01T12:00:00Z',
   updated_at: '2026-05-01T12:00:00Z',
 }
@@ -139,7 +138,6 @@ describe('Sources page record types', () => {
     mockSources = [{
       ...source,
       description: 'ERP export',
-      filename_pattern: '^sap',
     }]
     const user = userEvent.setup()
     render(<Sources />)
@@ -147,14 +145,12 @@ describe('Sources page record types', () => {
     await screen.findByText('SAP Vendors')
     await user.click(screen.getByRole('button', { name: /edit sap vendors/i }))
     await user.clear(screen.getByPlaceholderText(/optional description/i))
-    await user.clear(screen.getByPlaceholderText(/regex/i))
     await user.click(screen.getByRole('button', { name: /update source/i }))
 
     await waitFor(() => {
       const put = requests.find(req => req.url.endsWith('/api/sources/1') && req.method === 'PUT')
       expect(put?.body).toMatchObject({
         description: null,
-        filename_pattern: null,
       })
     })
   })

@@ -22,7 +22,6 @@ class DataSourceCreate(BaseModel):
     file_format: str = "csv"
     delimiter: str = ";"
     column_mapping: dict[str, str]
-    filename_pattern: str | None = None
 
 
 class DataSourceUpdate(BaseModel):
@@ -35,7 +34,6 @@ class DataSourceUpdate(BaseModel):
     description: str | None = None
     delimiter: str | None = None
     column_mapping: dict[str, str] | None = None
-    filename_pattern: str | None = None
 
 
 class DataSourceResponse(APIResponse):
@@ -48,7 +46,6 @@ class DataSourceResponse(APIResponse):
     file_format: str
     delimiter: str
     column_mapping: dict[str, Any]
-    filename_pattern: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

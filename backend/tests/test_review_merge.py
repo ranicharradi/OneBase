@@ -3,6 +3,7 @@
 import pytest
 from sqlalchemy.orm import Session
 
+from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
 from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
@@ -359,6 +360,61 @@ class TestReviewAPI:
         assert resp.status_code == 200
         assert resp.json()["action"] == "rejected"
 
+    def test_reject_after_confirm_undoes_decision(self, authenticated_client, test_db):
+        """Rejecting a CONFIRMED candidate is allowed and records from_status."""
+        _, _, candidate = self._setup_data(test_db)
+
+        # Step 1: confirm the candidate
+        confirm_resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/confirm")
+        assert confirm_resp.status_code == 200
+
+        # Step 2: reject the now-confirmed candidate
+        reject_resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/reject")
+        assert reject_resp.status_code == 200
+        assert reject_resp.json()["action"] == "rejected"
+
+        # Candidate ends up REJECTED
+        test_db.expire_all()
+        refreshed = test_db.query(MatchCandidate).filter_by(id=candidate.id).one()
+        assert refreshed.status == CandidateStatus.REJECTED
+
+        # Audit row records the prior state
+        audit_row = (
+            test_db.query(AuditLog)
+            .filter(
+                AuditLog.action == "match_rejected",
+                AuditLog.entity_type == "match_candidate",
+                AuditLog.entity_id == candidate.id,
+            )
+            .order_by(AuditLog.id.desc())
+            .first()
+        )
+        assert audit_row is not None
+        assert audit_row.details["from_status"] == "confirmed"
+
+    def test_cannot_reject_already_merged(self, authenticated_client, test_db):
+        """Rejecting a MERGED candidate still returns 400 — terminal state."""
+        rec_a, _, candidate = self._setup_data(test_db)
+
+        # Confirm then merge to reach MERGED
+        confirm_resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/confirm")
+        assert confirm_resp.status_code == 200
+
+        merge_resp = authenticated_client.post(
+            f"/api/review/candidates/{candidate.id}/merge",
+            json={
+                "field_selections": [
+                    {"field": "supplier_name", "chosen_record_id": rec_a.id},
+                    {"field": "currency", "chosen_record_id": rec_a.id},
+                ]
+            },
+        )
+        assert merge_resp.status_code == 200
+
+        # Now try to reject — must be 400
+        reject_resp = authenticated_client.post(f"/api/review/candidates/{candidate.id}/reject")
+        assert reject_resp.status_code == 400
+
     def test_cannot_merge_already_rejected(self, authenticated_client, test_db):
         rec_a, rec_b, candidate = self._setup_data(test_db)
 
@@ -393,52 +449,13 @@ class TestReviewAPI:
         assert resp.json()["total"] == 0
 
 
-def test_merge_expands_group_members(test_db):
-    """Merging grouped reps includes all group members in source_record_ids."""
+def test_merge_records_source_ids_pair(test_db):
+    """Merging two records records exactly [record_a.id, record_b.id]."""
     src1 = _make_source(test_db, "TTEI")
     src2 = _make_source(test_db, "EOT")
     batch1 = _make_batch(test_db, src1)
     batch2 = _make_batch(test_db, src2)
 
-    # src1: 3 rows grouped under s1a as representative
-    s1a = _make_record(test_db, batch1, src1, "Acme Corp", currency="TND")
-    s1b = _make_record(test_db, batch1, src1, "Acme Corp")
-    s1c = _make_record(test_db, batch1, src1, "Acme Corp")
-    s1a.intra_source_group_id = s1a.id
-    s1b.intra_source_group_id = s1a.id
-    s1c.intra_source_group_id = s1a.id
-
-    # src2: single ungrouped row — same name so no conflict in merge
-    s2 = _make_record(test_db, batch2, src2, "Acme Corp", currency="TND")
-    test_db.flush()
-
-    candidate = _make_candidate(test_db, s1a, s2)
-    test_db.flush()
-
-    unified = execute_merge(
-        db=test_db,
-        candidate=candidate,
-        record_a=s1a,
-        record_b=s2,
-        source_a_name="TTEI",
-        source_b_name="EOT",
-        field_selections=[],
-        username="reviewer",
-    )
-    test_db.flush()
-
-    # source_record_ids should include all 3 TTEI members + EOT row
-    assert set(unified.source_record_ids) == {s1a.id, s1b.id, s1c.id, s2.id}
-
-
-def test_merge_ungrouped_backward_compat(test_db):
-    """Merging ungrouped records keeps source_record_ids as [a, b]."""
-    src1 = _make_source(test_db, "TTEI")
-    src2 = _make_source(test_db, "EOT")
-    batch1 = _make_batch(test_db, src1)
-    batch2 = _make_batch(test_db, src2)
-
-    # Both ungrouped (intra_source_group_id is None) — same name so no conflict
     s1 = _make_record(test_db, batch1, src1, "Acme Corp", currency="TND")
     s2 = _make_record(test_db, batch2, src2, "Acme Corp", currency="TND")
     test_db.flush()

@@ -1,9 +1,3 @@
-import type { FieldDef, RecordType } from '../api/types'
-
-export function getNameField(recordType: RecordType | undefined): FieldDef | undefined {
-  return recordType?.fields.find(field => field.role === 'name')
-}
-
 export function fieldValue(fields: Record<string, unknown> | null | undefined, key: string): string | null {
   const value = fields?.[key]
   if (value === null || value === undefined || value === '') return null
