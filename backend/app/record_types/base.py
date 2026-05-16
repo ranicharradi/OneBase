@@ -64,6 +64,8 @@ class RecordType:
     label: str
     fields: tuple[FieldDef, ...] = field(default_factory=tuple)
     signals: tuple[Signal, ...] = field(default_factory=tuple)
+    scoring: str = "total_weight"
+    confidence_threshold: float | None = None
 
     def __post_init__(self) -> None:
         # Coerce list inputs to tuples for hashability/immutability
@@ -89,6 +91,15 @@ class RecordType:
                     f"type {self.key!r} field {f.key!r}: normalize={f.normalize!r} "
                     f"is not in {sorted(str(v) for v in allowed_normalize)}"
                 )
+
+        allowed_scoring = {"total_weight", "contributing_weight"}
+        if self.scoring not in allowed_scoring:
+            raise ValueError(f"type {self.key!r}: scoring={self.scoring!r} not in {sorted(allowed_scoring)}")
+
+        if self.confidence_threshold is not None and not (0.0 < self.confidence_threshold <= 1.0):
+            raise ValueError(
+                f"type {self.key!r}: confidence_threshold must be in (0, 1], got {self.confidence_threshold}"
+            )
 
         for s in self.signals:
             if s.field not in seen_keys:
