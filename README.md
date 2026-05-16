@@ -114,19 +114,27 @@ curl http://localhost:8000/api/import/batches/abc-123/status \
 curl "http://localhost:8000/api/review/queue?page=1&per_page=20" \
   -H "Authorization: Bearer $TOKEN"
 
-# Confirm a match (merges into unified record)
-curl -X POST http://localhost:8000/api/review/42/confirm \
+# Inspect a single candidate
+curl http://localhost:8000/api/review/candidates/42 \
+  -H "Authorization: Bearer $TOKEN"
+
+# Confirm a match (queues it for merge)
+curl -X POST http://localhost:8000/api/review/candidates/42/confirm \
+  -H "Authorization: Bearer $TOKEN"
+
+# Merge a confirmed group into a unified record
+curl -X POST http://localhost:8000/api/review/candidates/42/merge \
   -H "Authorization: Bearer $TOKEN"
 
 # Reject a false positive
-curl -X POST http://localhost:8000/api/review/43/reject \
+curl -X POST http://localhost:8000/api/review/candidates/43/reject \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Unified Records with Provenance
 
 ```bash
-curl http://localhost:8000/api/unified/1 \
+curl http://localhost:8000/api/unified/records/1 \
   -H "Authorization: Bearer $TOKEN"
 # Each field tracks its source record, reviewer, and timestamp:
 # { "name": "Acme Corp", "provenance": {
@@ -152,7 +160,20 @@ ws.onmessage = (event) => {
 # After 20+ reviews, train a LightGBM classifier from review decisions
 curl -X POST http://localhost:8000/api/matching/train-model \
   -H "Authorization: Bearer $TOKEN"
+
+# Or just retrain the linear signal weights from confirmed/rejected decisions
+curl -X POST http://localhost:8000/api/matching/retrain \
+  -H "Authorization: Bearer $TOKEN"
 ```
+
+### Other surfaces
+
+Beyond the core dedup pipeline, the API exposes:
+
+- `POST /api/file-checks` — pre-ingest data-quality validation; returns a `FileCheckReport` with row/column issues.
+- `POST /api/comparisons` / `GET /api/comparisons/{id}` — run the matching engine between two arbitrary record sets (e.g. two batches, a source vs. unified records). Runs as a Celery task.
+- `POST /api/ask` — natural-language Q&A over the data, backed by Google Gemini. Generated SQL is parsed by `sql_guard.py` and rejected unless it is a single read-only `SELECT`. Requires `LLM_ENABLED=true` + `LLM_API_KEY`.
+- `GET /api/insights/*`, `GET /api/dashboard/*` — aggregated stats consumed by the Insights and Dashboard pages.
 
 ## Environment Configuration
 
@@ -175,23 +196,23 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d    # dev: a
 | `MATCHING_CONFIDENCE_THRESHOLD` | `0.45` | Minimum score to surface a match candidate |
 | `MATCHING_BLOCKING_K` | `20` | Nearest neighbors for vector blocking |
 | `MATCHING_MAX_CLUSTER_SIZE` | `50` | Maximum records in one match cluster |
+| `LLM_ENABLED` | `false` | Enable Ask / LLM features |
+| `LLM_API_KEY` | — | Google Gemini API key (required when `LLM_ENABLED=true`) |
+| `LLM_MODEL` | `gemini-3-flash-preview` | Gemini model id |
+| `LLM_REQUEST_TIMEOUT_S` | `15` | Per-request LLM timeout |
 
 ## Testing
 
 ```bash
 cd backend && source .venv/bin/activate
 
-python3 -m pytest                                # full suite (~336 tests, SQLite)
+python3 -m pytest                                # full suite (SQLite, parallel via pytest-xdist -n auto by default)
 python3 -m pytest -m "not slow"                  # skip ML/embedding tests (fast dev loop)
 python3 -m pytest tests/test_auth.py -v          # single file
 python3 -m pytest tests/test_auth.py::test_login_success -v  # single test
 
-# Optional parallel runs with pytest-xdist
-pip install pytest-xdist
-python3 -m pytest -n auto -m "not slow"
-
-# Integration test against PostgreSQL
-TEST_DATABASE_URL=postgresql://user:pass@localhost/testdb python3 -m pytest
+# Integration test against PostgreSQL — must run serially (autouse create_all/drop_all races on a shared DB)
+TEST_DATABASE_URL=postgresql://user:pass@localhost/testdb python3 -m pytest -n 0
 
 # New migration after model changes
 alembic revision --autogenerate -m "description"
@@ -232,8 +253,6 @@ npm run test      # vitest (run once)
 
 ## Documentation
 
-See [`docs/`](docs/) for detailed documentation:
-
-- [`docs/architecture/`](docs/architecture/) — Project structure reference
-- [`docs/design/`](docs/design/) — Feature design documents (upload flow, column mapping, matching pipeline, ML scorer)
-- [`docs/backlog/`](docs/backlog/) — Known gaps and planned work
+- [`CLAUDE.md`](CLAUDE.md) — Architecture overview, backend/frontend structure, design decisions, env-var reference. Written for Claude Code but the most current reference for humans too.
+- [`pfe/`](pfe/) — LaTeX source of the OneBase end-of-studies report.
+- [`docs/superpowers/`](docs/superpowers/) — In-flight plans and specs.

@@ -115,10 +115,13 @@ def process_upload(self, batch_id: int):
                         name=f"Auto match after batch #{batch.id}",
                         username=batch.uploaded_by,
                     )
+                    # Reserve a task id and commit it with the run before dispatch so the
+                    # worker can never observe run.task_id == NULL.
+                    signature = run_comparison.s(run.id)
+                    signature.freeze()
+                    run.task_id = signature.id
                     db.commit()
-                    task = run_comparison.delay(run.id)
-                    run.task_id = task.id
-                    db.commit()
+                    signature.apply_async()
                     matching_run_id = run.id
                     progress_callback("matching_enqueued", 100)
                     logger.info("Enqueued comparison run %d after batch %d", run.id, batch_id)
@@ -132,9 +135,10 @@ def process_upload(self, batch_id: int):
                 db.rollback()
                 logger.info("Skipping auto-match for batch %d: %s", batch_id, e)
             except Exception:
+                # Auto-match is best-effort — never fail an otherwise-successful ingestion
+                # because the broker is unreachable or the comparison task can't be scheduled.
                 db.rollback()
                 logger.exception("Failed to enqueue matching after batch %d", batch_id)
-                raise
 
             logger.info(
                 "Ingestion complete for batch %d: %d rows",

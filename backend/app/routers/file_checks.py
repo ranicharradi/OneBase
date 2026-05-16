@@ -9,10 +9,12 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session, selectinload
 
+from app import record_types
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
 from app.models.enums import FileCheckStatus, UserRole
 from app.models.file_check import FileCheckIssue, FileCheckReport
+from app.models.source import DataSource
 from app.models.user import User
 from app.schemas.file_check import (
     FileCheckReportDetailResponse,
@@ -76,7 +78,7 @@ async def create_file_check(
             analysis = analyze_file_content(
                 file_content,
                 filename=original_filename,
-                criteria=FileCheckCriteria(),
+                criteria=FileCheckCriteria(name_column_synonyms=_collect_name_column_synonyms(db)),
                 issue_cap=ISSUE_CAP,
             )
             report.delimiter = analysis.delimiter
@@ -206,6 +208,35 @@ def _report_response(report: FileCheckReport) -> FileCheckReportResponse:
 
 def _utcnow() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _collect_name_column_synonyms(db: Session) -> tuple[str, ...]:
+    """Gather header strings that should satisfy a required canonical 'Name' column.
+
+    Combines the registered record types' NAME-role field keys + their declared synonyms
+    with the actual source-column values that any DataSource has mapped to a NAME-role field.
+    This lets the file checker accept ERP-format headers (e.g. BPSNAM_0) without a hardcoded list.
+    """
+    synonyms: set[str] = set()
+    name_field_keys_by_type: dict[str, str] = {}
+    for rt in record_types.all_types():
+        name_field = rt.name_field
+        name_field_keys_by_type[rt.key] = name_field.key
+        synonyms.add(name_field.key)
+        synonyms.update(name_field.synonyms)
+
+    sources = db.query(DataSource.type, DataSource.column_mapping).all()
+    for source_type, mapping in sources:
+        if not mapping:
+            continue
+        name_field_key = name_field_keys_by_type.get(source_type)
+        if not name_field_key:
+            continue
+        mapped = mapping.get(name_field_key)
+        if mapped:
+            synonyms.add(mapped)
+
+    return tuple(sorted(synonyms))
 
 
 async def _read_upload(file: UploadFile) -> bytes:

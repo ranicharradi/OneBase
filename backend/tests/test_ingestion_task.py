@@ -311,8 +311,8 @@ class TestProcessUploadIdempotency:
             db.flush()
             return 1
 
-        fake_task = MagicMock()
-        fake_task.id = "comparison-task-id"
+        fake_signature = MagicMock()
+        fake_signature.id = "comparison-task-id"
 
         with (
             patch(
@@ -325,13 +325,15 @@ class TestProcessUploadIdempotency:
                 ),
             ),
             patch("app.services.ingestion.run_ingestion", side_effect=spy_ingestion),
-            patch("app.tasks.comparison.run_comparison.delay", return_value=fake_task) as delay,
+            patch("app.tasks.comparison.run_comparison.s", return_value=fake_signature) as signature_factory,
         ):
             from app.tasks.ingestion import process_upload
 
             process_upload(new_batch.id)
 
-        delay.assert_called_once()
+        signature_factory.assert_called_once()
+        fake_signature.freeze.assert_called_once()
+        fake_signature.apply_async.assert_called_once()
         from app.models.comparison import ComparisonRun
 
         run = test_db.query(ComparisonRun).one()

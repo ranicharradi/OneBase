@@ -358,6 +358,8 @@ function DeleteConfirm({
     mutationFn: () => api.delete(`/api/sources/${source.id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sources'] });
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
+      queryClient.invalidateQueries({ queryKey: ['comparison-runs'] });
       queryClient.invalidateQueries({ queryKey: ['review-queue'] });
       queryClient.invalidateQueries({ queryKey: ['review-stats'] });
       onDeleted('Source deleted');
@@ -376,7 +378,7 @@ function DeleteConfirm({
           Delete <b>{source.name}</b>?
         </p>
         <p style={{ fontSize: 11, color: 'var(--fg-2)', margin: 0 }}>
-          This cannot be undone. Existing batches and unified records will be preserved, but new uploads will fail.
+          This cannot be undone. All batches, staged records, and match candidates for this source will be deleted.
         </p>
       </div>
       <div

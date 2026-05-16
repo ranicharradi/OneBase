@@ -9,15 +9,6 @@ from app.models.enums import FileCheckIssueType, FileCheckSeverity, FileCheckSta
 
 CRITERIA_VERSION = "v1"
 MAX_VALUE_PREVIEW = 255
-NAME_COLUMN_SYNONYMS = (
-    "Name",
-    "Supplier Name",
-    "BPSNAM_0",
-    "supplier_name",
-    "vendor_name",
-    "nom_fournisseur",
-    "raison_sociale",
-)
 
 
 class FileCheckIssueLike(Protocol):
@@ -38,6 +29,7 @@ class FileCheckIssueSummary:
 @dataclass(frozen=True)
 class FileCheckCriteria:
     required_columns: tuple[str, ...] = ("Name",)
+    name_column_synonyms: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -137,7 +129,7 @@ def analyze_file_content(
     missing_value_count = 0
     corrupted_value_count = 0
     issue_cap_reached = False
-    required_columns = _resolve_required_columns(headers, criteria.required_columns)
+    required_columns = _resolve_required_columns(headers, criteria.required_columns, criteria.name_column_synonyms)
 
     def store_issue(issue: FileCheckIssueData) -> None:
         nonlocal issue_cap_reached
@@ -202,12 +194,19 @@ def _is_blank(value: str | None) -> bool:
     return value is None or value.strip() == ""
 
 
-def _resolve_required_columns(headers: list[str], required_columns: tuple[str, ...]) -> tuple[str, ...]:
+def _resolve_required_columns(
+    headers: list[str],
+    required_columns: tuple[str, ...],
+    name_column_synonyms: tuple[str, ...] = (),
+) -> tuple[str, ...]:
     resolved: list[str] = []
     normalized_headers = {_normalize_header(header): header for header in headers}
 
     for column_name in required_columns:
-        candidates = NAME_COLUMN_SYNONYMS if _normalize_header(column_name) == "name" else (column_name,)
+        if _normalize_header(column_name) == "name":
+            candidates = (column_name, *name_column_synonyms)
+        else:
+            candidates = (column_name,)
         match = next(
             (normalized_headers[key] for key in map(_normalize_header, candidates) if key in normalized_headers),
             None,

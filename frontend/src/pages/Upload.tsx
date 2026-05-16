@@ -15,6 +15,7 @@ import DropZone from '../components/DropZone';
 import ProgressTracker from '../components/ProgressTracker';
 import ColumnMapper from '../components/ColumnMapper';
 import ReUploadDialog from '../components/ReUploadDialog';
+import BatchHistory from '../components/BatchHistory';
 import Panel, { PanelHead } from '../components/ui/Panel';
 import Spinner from '../components/ui/Spinner';
 import { useRecordTypes } from '../hooks/useRecordTypes';
@@ -382,6 +383,13 @@ export default function Upload() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* Recent batches — shown when idle or after processing */}
+        {(uploadState.step === 'PICK_SOURCE' || uploadState.step === 'PROCESSING') && (
+          <div className="fade" style={{ marginTop: 14 }}>
+            <BatchHistory />
           </div>
         )}
 
