@@ -1,17 +1,7 @@
 """Tests for the BANK record type registration and shape."""
 
-import pytest
-
 from app.record_types import get as get_record_type
 from app.record_types.base import Role
-
-
-@pytest.fixture(autouse=True)
-def _ensure_bank_registered():
-    """Ensure BANK type is registered (in case a parallel test cleared registry)."""
-    from app.record_types import bank as _bank  # noqa: F401
-
-    yield
 
 
 def test_bank_type_registered():

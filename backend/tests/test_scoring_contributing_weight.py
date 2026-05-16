@@ -16,9 +16,14 @@ def _restore_registry():
     yield
     _testing_clear_registry()
     register(SUPPLIER)
-    # Re-register types that other tests rely on.
-    from app.record_types import bank as _bank  # noqa: F401
-    from app.record_types import client as _client  # noqa: F401
+    # Re-register types that other tests rely on. We import the type objects
+    # directly because module-level `register()` calls in bank.py / client.py
+    # only fire once per process — re-importing the modules here is a no-op.
+    from app.record_types.bank import BANK
+    from app.record_types.client import CLIENT
+
+    register(BANK)
+    register(CLIENT)
 
 
 def _make_record(type_key, name, fields, embedding=None):

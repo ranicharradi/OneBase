@@ -662,5 +662,8 @@ def test_pipeline_uses_per_type_confidence_threshold(mock_score_pair, mock_text_
     finally:
         _testing_clear_registry()
         register(SUPPLIER)
-        from app.record_types import bank as _bank  # noqa: F401
-        from app.record_types import client as _client  # noqa: F401
+        from app.record_types.bank import BANK
+        from app.record_types.client import CLIENT
+
+        register(BANK)
+        register(CLIENT)
