@@ -1,24 +1,10 @@
-"""Tests for path traversal prevention in file_ref handling (Task 5.0)."""
+"""Tests for the safe_upload_path utility used by delete_batch."""
 
 import os
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.utils.paths import safe_upload_path
-
-VALID_SOURCE = {
-    "name": "SAP Export",
-    "description": "SAP supplier export",
-    "file_format": "csv",
-    "delimiter": ";",
-    "type": "supplier",
-    "column_mapping": {
-        "supplier_name": "Name1",
-    },
-}
-
-SAMPLE_CSV = b"\xef\xbb\xbfVendorCode;Name1;ShortName;Currency\nV001;Acme Corp SARL;ACME;EUR\nV002;Beta GmbH;BETA;USD\n"
 
 
 class TestSafeUploadPath:
@@ -74,72 +60,3 @@ class TestSafeUploadPath:
         result = safe_upload_path(upload_dir, "550e8400-e29b-41d4-a716-446655440000_data.csv")
         assert "550e8400" in result
         assert result.startswith(os.path.realpath(upload_dir) + os.sep)
-
-
-class TestUploadPathTraversal:
-    """Integration tests: file_ref with traversal attempts returns 400."""
-
-    def test_upload_file_ref_traversal_returns_400(self, authenticated_client, test_db):
-        """Upload with file_ref=../../etc/passwd returns 400."""
-        source_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
-        source_id = source_resp.json()["id"]
-
-        with patch("app.routers.upload.process_upload"):
-            response = authenticated_client.post(
-                "/api/import/upload",
-                data={
-                    "data_source_id": str(source_id),
-                    "file_ref": "../../etc/passwd",
-                },
-            )
-
-        assert response.status_code == 400
-        assert "Invalid file reference" in response.json()["detail"]
-
-    def test_upload_file_ref_absolute_path_returns_400(self, authenticated_client, test_db):
-        """Upload with file_ref=/etc/passwd returns 400."""
-        source_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
-        source_id = source_resp.json()["id"]
-
-        with patch("app.routers.upload.process_upload"):
-            response = authenticated_client.post(
-                "/api/import/upload",
-                data={
-                    "data_source_id": str(source_id),
-                    "file_ref": "/etc/passwd",
-                },
-            )
-
-        assert response.status_code == 400
-        assert "Invalid file reference" in response.json()["detail"]
-
-    def test_upload_valid_file_ref_works(self, authenticated_client, test_db):
-        """Upload with a valid file_ref that exists works normally."""
-        source_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
-        source_id = source_resp.json()["id"]
-
-        # Create a real file in upload dir
-        os.makedirs("data/uploads", exist_ok=True)
-        test_ref = "test-uuid_valid.csv"
-        test_path = os.path.join("data", "uploads", test_ref)
-        with open(test_path, "wb") as f:
-            f.write(SAMPLE_CSV)
-
-        try:
-            with patch("app.routers.upload.process_upload") as mock_task:
-                mock_result = MagicMock()
-                mock_result.id = "test-task-id"
-                mock_task.delay.return_value = mock_result
-
-                response = authenticated_client.post(
-                    "/api/import/upload",
-                    data={
-                        "data_source_id": str(source_id),
-                        "file_ref": test_ref,
-                    },
-                )
-
-            assert response.status_code == 201
-        finally:
-            if os.path.exists(test_path):
-                os.unlink(test_path)

@@ -73,18 +73,6 @@ def compare_fields(
     return comparisons
 
 
-def _expand_group_members(db: Session, record_id: int) -> list[int]:
-    """Return all StagedRecord IDs in the same intra-source group."""
-    record = db.get(StagedRecord, record_id)
-    if record is None:
-        return [record_id]
-    group_id = record.intra_source_group_id
-    if group_id is None:
-        return [record_id]
-    member_ids = db.query(StagedRecord.id).filter(StagedRecord.intra_source_group_id == group_id).all()
-    return [m.id for m in member_ids]
-
-
 def _update_existing_unified(
     db: Session,
     candidate: MatchCandidate,
@@ -180,8 +168,7 @@ def _update_existing_unified(
     flag_modified(unified, "fields")
     flag_modified(unified, "provenance")
 
-    expanded = _expand_group_members(db, staged.id)
-    unified.source_record_ids = list({*unified.source_record_ids, *expanded})
+    unified.source_record_ids = list({*unified.source_record_ids, staged.id})
 
     candidate.status = CandidateStatus.MERGED
     candidate.reviewed_by = username
@@ -322,7 +309,7 @@ def execute_merge(
         name=merged_name,
         fields=fields_payload,
         provenance=provenance,
-        source_record_ids=(_expand_group_members(db, record_a.id) + _expand_group_members(db, record_b.id)),
+        source_record_ids=[record_a.id, record_b.id],
         created_by=username,
     )
 
@@ -341,7 +328,7 @@ def execute_merge(
         details={
             "type": candidate.type,
             "unified_record_name": merged_name,
-            "source_record_ids": (_expand_group_members(db, record_a.id) + _expand_group_members(db, record_b.id)),
+            "source_record_ids": [record_a.id, record_b.id],
             "conflict_count": sum(1 for c in comparisons if c["is_conflict"]),
         },
     )

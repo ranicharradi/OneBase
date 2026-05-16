@@ -51,7 +51,6 @@ export interface DataSource {
   file_format: string;
   delimiter: string;
   column_mapping: Record<string, unknown>;
-  filename_pattern: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -63,7 +62,6 @@ export interface DataSourceCreate {
   file_format?: string;
   delimiter?: string;
   column_mapping: ColumnMapping;
-  filename_pattern?: string | null;
 }
 
 export interface DataSourceUpdate {
@@ -71,7 +69,6 @@ export interface DataSourceUpdate {
   description?: string | null;
   delimiter?: string | null;
   column_mapping?: ColumnMapping;
-  filename_pattern?: string | null;
 }
 
 export interface UserCreate {

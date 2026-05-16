@@ -34,8 +34,4 @@ def audit_action_to_kind(action: str) -> str:
         return "merged"
     if action.startswith("match_rejected"):
         return "reviewed"
-    if action == "supersede":
-        return "superseded"
-    if action == "ingest":
-        return "ingested"
     return "reviewed"

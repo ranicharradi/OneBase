@@ -347,7 +347,6 @@ describe('record API type contracts', () => {
       file_format: 'csv',
       delimiter: ',',
       column_mapping: { name: 'Supplier Name', required: true, maxLength: 120 },
-      filename_pattern: null,
       created_at: null,
       updated_at: null,
     }
@@ -356,13 +355,11 @@ describe('record API type contracts', () => {
       type: dataSource.type,
       description: null,
       column_mapping: { name: 'Supplier Name' },
-      filename_pattern: null,
     }
     const updateSource: DataSourceUpdate = {
       description: null,
       delimiter: null,
       column_mapping: { email: 'Email' },
-      filename_pattern: null,
     }
     const matchDetail: MatchDetailResponse = {
       id: 10,

@@ -449,52 +449,13 @@ class TestReviewAPI:
         assert resp.json()["total"] == 0
 
 
-def test_merge_expands_group_members(test_db):
-    """Merging grouped reps includes all group members in source_record_ids."""
+def test_merge_records_source_ids_pair(test_db):
+    """Merging two records records exactly [record_a.id, record_b.id]."""
     src1 = _make_source(test_db, "TTEI")
     src2 = _make_source(test_db, "EOT")
     batch1 = _make_batch(test_db, src1)
     batch2 = _make_batch(test_db, src2)
 
-    # src1: 3 rows grouped under s1a as representative
-    s1a = _make_record(test_db, batch1, src1, "Acme Corp", currency="TND")
-    s1b = _make_record(test_db, batch1, src1, "Acme Corp")
-    s1c = _make_record(test_db, batch1, src1, "Acme Corp")
-    s1a.intra_source_group_id = s1a.id
-    s1b.intra_source_group_id = s1a.id
-    s1c.intra_source_group_id = s1a.id
-
-    # src2: single ungrouped row — same name so no conflict in merge
-    s2 = _make_record(test_db, batch2, src2, "Acme Corp", currency="TND")
-    test_db.flush()
-
-    candidate = _make_candidate(test_db, s1a, s2)
-    test_db.flush()
-
-    unified = execute_merge(
-        db=test_db,
-        candidate=candidate,
-        record_a=s1a,
-        record_b=s2,
-        source_a_name="TTEI",
-        source_b_name="EOT",
-        field_selections=[],
-        username="reviewer",
-    )
-    test_db.flush()
-
-    # source_record_ids should include all 3 TTEI members + EOT row
-    assert set(unified.source_record_ids) == {s1a.id, s1b.id, s1c.id, s2.id}
-
-
-def test_merge_ungrouped_backward_compat(test_db):
-    """Merging ungrouped records keeps source_record_ids as [a, b]."""
-    src1 = _make_source(test_db, "TTEI")
-    src2 = _make_source(test_db, "EOT")
-    batch1 = _make_batch(test_db, src1)
-    batch2 = _make_batch(test_db, src2)
-
-    # Both ungrouped (intra_source_group_id is None) — same name so no conflict
     s1 = _make_record(test_db, batch1, src1, "Acme Corp", currency="TND")
     s2 = _make_record(test_db, batch2, src2, "Acme Corp", currency="TND")
     test_db.flush()

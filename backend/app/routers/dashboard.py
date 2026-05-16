@@ -71,6 +71,10 @@ def _activity_presentation(action: str, details: dict | None) -> tuple[str, str,
             return "system", "info", "Updated user", "/users"
         case "user_deleted":
             return "system", "warn", "Deleted user", "/users"
+        case "user_toggled_active":
+            return "system", "info", "Toggled user active state", "/users"
+        case "user_password_changed":
+            return "system", "info", "Changed user password", "/users"
         case _:
             return None
 
