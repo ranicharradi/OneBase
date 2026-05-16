@@ -21,6 +21,17 @@ DOMAIN_STOPWORDS = {
     "EL",
 }
 
+# Standalone currency tokens — common noise in financial-entity names (banks,
+# multi-currency vendor variants). Token-level, so substrings (USDA, TNDM, etc.)
+# survive untouched.
+CURRENCY_STOPWORDS = {
+    "TND",
+    "EUR",
+    "EURO",
+    "USD",
+    "DINARS",
+}
+
 # Legal suffixes sorted by length (longest first) to match longest first
 LEGAL_SUFFIXES = [
     "GMBH & CO KG",
@@ -100,7 +111,8 @@ def normalize_name(name: str | None) -> str:
     result = LEGAL_PATTERN.sub("", result)
 
     # Remove domain stopwords (token-level, preserves substrings like TUNISAIR)
-    result = " ".join(t for t in result.split() if t not in DOMAIN_STOPWORDS)
+    stopwords = DOMAIN_STOPWORDS | CURRENCY_STOPWORDS
+    result = " ".join(t for t in result.split() if t not in stopwords)
 
     # Collapse multiple spaces and strip
     result = re.sub(r"\s+", " ", result).strip()
