@@ -41,12 +41,12 @@ python3 -m venv .venv && source .venv/bin/activate
 cd backend
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements-dev.txt
-ENV_PROFILE=dev alembic upgrade head
-ENV_PROFILE=dev uvicorn app.main:app --reload    # API on :8000
+alembic upgrade head
+uvicorn app.main:app --reload    # API on :8000
 
 # 3. Celery worker (second terminal, venv activated)
 cd backend && source .venv/bin/activate
-ENV_PROFILE=dev celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
 
 # 4. Frontend (from frontend/)
 cd frontend
@@ -177,19 +177,18 @@ Beyond the core dedup pipeline, the API exposes:
 
 ## Environment Configuration
 
-Layered `.env` files controlled by `ENV_PROFILE`:
+The backend loads a single repo-root `.env` file. Native local development defaults to `localhost` for Postgres and Redis; Docker Compose injects container service hostnames for the `api` and `worker` containers.
 
 ```bash
-ENV_PROFILE=dev uvicorn app.main:app --reload   # .env → .env.dev (localhost)
-ENV_PROFILE=prod celery -A ...                  # .env → .env.prod (real hosts)
-docker-compose up -d                                                     # .env only (Docker hostnames, no host ports on DBs)
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d    # dev: also exposes Postgres/Redis to host
+uvicorn app.main:app --reload                                           # local native dev, reads .env
+docker-compose up -d                                                    # Docker hostnames injected by Compose
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # dev: also exposes Postgres/Redis to host
 ```
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `postgresql://onebase:changeme@postgres:5432/onebase` | PostgreSQL connection string |
-| `REDIS_URL` | `redis://redis:6379/0` | Redis for Celery broker/backend |
+| `DATABASE_URL` | `postgresql://onebase:changeme@localhost:5432/onebase` | PostgreSQL connection string |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis for Celery broker/backend |
 | `JWT_SECRET` | `change-me-in-production` | JWT signing secret |
 | `ADMIN_USERNAME` | — | Initial admin user (created on first startup) |
 | `ADMIN_PASSWORD` | — | Initial admin password |

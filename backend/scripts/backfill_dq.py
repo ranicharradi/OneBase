@@ -1,7 +1,7 @@
 """Backfill dq_completeness / dq_validity / dq_score on existing UnifiedRecords.
 
 Usage:
-    ENV_PROFILE=dev python -m scripts.backfill_dq
+    python -m scripts.backfill_dq
 """
 
 from app.database import SessionLocal

@@ -3,7 +3,7 @@
 Idempotent: re-running is a no-op. Skips any source whose name already exists.
 
 Usage:
-    cd backend && ENV_PROFILE=dev python -m scripts.seed_record_type_sources
+    cd backend && python -m scripts.seed_record_type_sources
 """
 
 from __future__ import annotations

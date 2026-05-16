@@ -11,12 +11,7 @@ services:
 
   api:
     environment:
-      POSTGRES_PASSWORD: changeme
       JWT_SECRET: dev-secret-do-not-use-in-prod
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: changeme
       ENVIRONMENT: development
-
-  worker:
-    environment:
-      POSTGRES_PASSWORD: changeme

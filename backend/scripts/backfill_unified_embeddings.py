@@ -1,7 +1,7 @@
 """One-shot: populate normalized_name + name_embedding on existing UnifiedRecords.
 
 Idempotent: skips rows where both fields are already populated.
-Run: `cd backend && ENV_PROFILE=dev python3 scripts/backfill_unified_embeddings.py`
+Run: `cd backend && python3 scripts/backfill_unified_embeddings.py`
 """
 
 import logging

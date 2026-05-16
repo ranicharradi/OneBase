@@ -1,27 +1,13 @@
-import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # backend/../
-_PROFILE = os.getenv("ENV_PROFILE", "").lower()
-
-
-def _env_files() -> list[str]:
-    """Return env files to load, in priority order (last wins)."""
-    base = _PROJECT_ROOT / ".env"
-    profile = _PROJECT_ROOT / f".env.{_PROFILE}" if _PROFILE else None
-    files = []
-    if base.exists():
-        files.append(str(base))
-    if profile and profile.exists():
-        files.append(str(profile))
-    return files
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql://onebase:changeme@postgres:5432/onebase"
-    redis_url: str = "redis://redis:6379/0"
+    database_url: str = "postgresql://onebase:changeme@localhost:5432/onebase"
+    redis_url: str = "redis://localhost:6379/0"
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480
@@ -47,7 +33,7 @@ class Settings(BaseSettings):
     llm_model: str = "gemini-3-flash-preview"
     llm_request_timeout_s: int = 15
 
-    model_config = {"env_file": _env_files(), "extra": "ignore"}
+    model_config = {"env_file": str(_PROJECT_ROOT / ".env"), "extra": "ignore"}
 
 
 def validate_production_secrets(s: Settings) -> None:

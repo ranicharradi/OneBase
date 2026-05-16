@@ -19,8 +19,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements-dev.txt
-ENV_PROFILE=dev alembic upgrade head
-ENV_PROFILE=dev uvicorn app.main:app --reload
+alembic upgrade head
+uvicorn app.main:app --reload
 
 # Frontend (from frontend/)
 npm install

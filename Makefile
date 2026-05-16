@@ -13,10 +13,10 @@ lint-fix:
 	cd backend && ../$(PYTHON) -m ruff check app/ --fix && ../$(PYTHON) -m ruff format app/
 
 dev-api:
-	cd backend && ENV_PROFILE=dev ../$(PYTHON) -m uvicorn app.main:app --reload
+	cd backend && ../$(PYTHON) -m uvicorn app.main:app --reload
 
 dev-worker:
-	cd backend && ENV_PROFILE=dev ../.venv/bin/celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+	cd backend && ../.venv/bin/celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
 
 # Frontend
 dev-ui:
