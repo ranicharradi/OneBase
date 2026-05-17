@@ -468,14 +468,16 @@ export interface AskResponse {
 
 // ── Match Run types ──
 
-export type MatchMode = 'FILE_VS_FILE' | 'FILE_VS_GOLDEN' | 'MULTI_FILE';
+export type MatchMode = 'FILE_VS_FILE' | 'FILE_VS_GOLDEN';
 export type MatchStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stale';
 
 export interface MatchRunCreate {
   type: string;
-  mode: MatchMode;
-  batch_ids: number[];
-  name?: string;
+  file_ids: number[];
+}
+
+export interface MatchRunDispatchResponse {
+  runs: MatchRunResponse[];
 }
 
 export interface BatchSummary {

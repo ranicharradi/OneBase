@@ -8,6 +8,7 @@ import type {
   BatchResponse,
   MatchMode,
   MatchRunCreate,
+  MatchRunDispatchResponse,
   MatchRunResponse,
   MatchRunStatus,
 } from "../api/types";
@@ -40,11 +41,6 @@ const COMP_STAGES = [
   { key: "CLUSTERING", label: "Clustering" },
   { key: "INSERTING", label: "Writing" },
 ];
-
-function resolveMode(vsGolden: boolean, count: number): MatchMode {
-  if (vsGolden) return "FILE_VS_GOLDEN";
-  return count >= 3 ? "MULTI_FILE" : "FILE_VS_FILE";
-}
 
 // ── Active run pipeline card ───────────────────────────
 
@@ -442,9 +438,22 @@ export default function Match() {
 
   const selectedIds = useMemo(() => [...selected], [selected]);
   const effectiveSelection = vsGolden ? selectedIds.slice(0, 1) : selectedIds;
-  const mode = resolveMode(vsGolden, effectiveSelection.length);
+  const dispatchMode: MatchMode = vsGolden ? "FILE_VS_GOLDEN" : "FILE_VS_FILE";
   const minFiles = vsGolden ? 1 : 2;
-  const isValid = effectiveSelection.length >= minFiles;
+
+  const goldenCountQuery = useQuery({
+    queryKey: ["golden-count", selectedType],
+    queryFn: () => api.get<{ count: number }>(`/api/unified/count?type=${selectedType}`),
+  });
+  const goldenCount = goldenCountQuery.data?.count ?? 0;
+  const noGoldenForSingle = effectiveSelection.length === 1 && goldenCount === 0;
+
+  const isValid = effectiveSelection.length >= minFiles && !noGoldenForSingle;
+
+  const pairwiseRunCount =
+    effectiveSelection.length >= 2
+      ? (effectiveSelection.length * (effectiveSelection.length - 1)) / 2
+      : 0;
 
   const selectedBatches = useMemo(
     () => typeBatches.filter((b) => effectiveSelection.includes(b.id)),
@@ -455,13 +464,18 @@ export default function Match() {
     mutationFn: async () => {
       const payload: MatchRunCreate = {
         type: selectedType,
-        mode,
-        batch_ids: effectiveSelection,
+        file_ids: effectiveSelection,
       };
-      return api.post<MatchRunResponse>("/api/matches/", payload);
+      return api.post<MatchRunDispatchResponse>("/api/matches", payload);
     },
-    onSuccess: (run) =>
-      navigate(withRecordType(`/review?match_run_id=${run.id}`)),
+    onSuccess: (dispatch) => {
+      const runs = dispatch.runs ?? [];
+      if (runs.length === 1) {
+        navigate(withRecordType(`/review?match_run_id=${runs[0].id}`));
+      } else {
+        navigate(withRecordType("/match"));
+      }
+    },
   });
 
   const toggleRow = (id: number) => {
@@ -589,7 +603,7 @@ export default function Match() {
                     className="mono"
                     style={{ fontSize: 11, color: "var(--accent)" }}
                   >
-                    {MODE_LABEL[mode]}
+                    {MODE_LABEL[dispatchMode]}
                   </span>
                 )}
                 <button
@@ -631,7 +645,7 @@ export default function Match() {
                     className="mono"
                     style={{ fontSize: 11, color: "var(--accent)" }}
                   >
-                    {MODE_LABEL[mode]}
+                    {MODE_LABEL[dispatchMode]}
                   </span>
                 )}
                 <button
@@ -770,9 +784,22 @@ export default function Match() {
               flexShrink: 0,
             }}
           >
-            {!isValid && effectiveSelection.length > 0 && (
+            {noGoldenForSingle && (
+              <span className="pill warn" style={{ fontSize: 10 }}>
+                No golden records yet — select at least 2 files
+              </span>
+            )}
+            {!isValid && !noGoldenForSingle && effectiveSelection.length > 0 && (
               <span className="pill warn" style={{ fontSize: 10 }}>
                 need {needMore} more
+              </span>
+            )}
+            {pairwiseRunCount > 1 && (
+              <span
+                className="mono"
+                style={{ fontSize: 10, color: "var(--fg-3)" }}
+              >
+                Will dispatch {pairwiseRunCount} runs
               </span>
             )}
             <button
@@ -781,7 +808,7 @@ export default function Match() {
               onClick={() => launch.mutate()}
             >
               {launch.isPending ? <Spinner size={10} color="#fff" /> : null}
-              Compare ▸
+              Match ▸
             </button>
           </div>
         </div>
