@@ -777,6 +777,50 @@ def test_execute_merge_file_vs_golden_stringifies_extra_a_only_field(test_db):
     assert result.provenance["legacy_code"]["value"] == "123"
 
 
+def _make_two_staged_records(db: Session):
+    """Return two ACTIVE StagedRecords from two different sources."""
+    src_a = _make_source(db, "SRC_ALPHA")
+    src_b = _make_source(db, "SRC_BETA")
+    batch_a = _make_batch(db, src_a)
+    batch_b = _make_batch(db, src_b)
+    rec_a = _make_record(db, batch_a, src_a, "Alpha Corp")
+    rec_b = _make_record(db, batch_b, src_b, "Alpha Corporation")
+    return rec_a, rec_b
+
+
+def test_review_queue_hides_candidates_with_superseded_records(authenticated_client, test_db):
+    """A PENDING candidate whose underlying record is SUPERSEDED is not shown in the queue."""
+    a, b = _make_two_staged_records(test_db)
+    run = _make_run(test_db)
+    cand = MatchCandidate(
+        type=a.type,
+        comparison_run_id=run.id,
+        record_a_id=a.id,
+        record_b_id=b.id,
+        side_a_kind="staged",
+        side_b_kind="staged",
+        confidence=0.9,
+        match_signals={},
+        status=CandidateStatus.PENDING,
+    )
+    test_db.add(cand)
+    test_db.commit()
+
+    # Sanity: candidate appears
+    r = authenticated_client.get("/api/review/queue")
+    body = r.json()
+    assert any(c["id"] == cand.id for c in body["items"])
+
+    # Supersede record A
+    a.status = RecordStatus.SUPERSEDED
+    test_db.commit()
+
+    # Candidate should now be hidden
+    r = authenticated_client.get("/api/review/queue")
+    body = r.json()
+    assert not any(c["id"] == cand.id for c in body["items"])
+
+
 def test_execute_merge_file_vs_golden_keeps_b_only_field(test_db):
     """Golden has a field (contract_type) absent from staged — it must be kept unchanged."""
     db = test_db

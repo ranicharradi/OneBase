@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.dependencies import Pagination, get_current_user, get_db, get_or_404, get_pagination, require_role
 from app.models.enums import CandidateStatus, RecordStatus, UserRole
@@ -87,6 +87,17 @@ def get_review_queue(
         query = query.filter(MatchCandidate.confidence >= min_confidence)
     if max_confidence is not None:
         query = query.filter(MatchCandidate.confidence <= max_confidence)
+
+    SA = aliased(StagedRecord)
+    SB = aliased(StagedRecord)
+    query = (
+        query.outerjoin(SA, (MatchCandidate.side_a_kind == "staged") & (MatchCandidate.record_a_id == SA.id))
+        .outerjoin(SB, (MatchCandidate.side_b_kind == "staged") & (MatchCandidate.record_b_id == SB.id))
+        .filter(
+            ((MatchCandidate.side_a_kind != "staged") | (SA.status == RecordStatus.ACTIVE)),
+            ((MatchCandidate.side_b_kind != "staged") | (SB.status == RecordStatus.ACTIVE)),
+        )
+    )
 
     if source_a_id is not None or source_b_id is not None:
         RecA = db.query(StagedRecord.id, StagedRecord.data_source_id).subquery("rec_a")
