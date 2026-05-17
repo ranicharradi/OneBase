@@ -145,7 +145,6 @@ function SourceModal({
   const [type, setType] = useState(recordTypes.types[0]?.key || '');
   const [description, setDescription] = useState('');
   const [delimiter, setDelimiter] = useState(';');
-  const [filenamePattern, setFilenamePattern] = useState('');
 
   const { data: recordType, isLoading: fieldsLoading, error: fieldsError } = useRecordType(type);
   const fields = useMemo(() => recordType?.fields ?? [], [recordType]);
@@ -171,7 +170,6 @@ function SourceModal({
         description: description.trim() || undefined,
         delimiter,
         column_mapping: effectiveMapping,
-        filename_pattern: filenamePattern.trim() || undefined,
       });
     },
     onSuccess: () => {
@@ -286,16 +284,6 @@ function SourceModal({
                 placeholder=";"
                 className="input mono"
                 style={{ width: 80, textAlign: 'center' }}
-              />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-              <label className="label">Filename pattern</label>
-              <input
-                type="text"
-                value={filenamePattern}
-                onChange={e => setFilenamePattern(e.target.value)}
-                placeholder="regex (optional)"
-                className="input mono"
               />
             </div>
           </div>

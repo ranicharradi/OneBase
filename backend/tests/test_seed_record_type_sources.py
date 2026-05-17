@@ -35,7 +35,6 @@ def test_seed_bank_mapping_complete(test_db):
     seed(test_db)
     src = test_db.query(DataSource).filter(DataSource.name == "banks_eot").one()
     assert src.type == "bank"
-    assert src.file_format == "xlsx"
     expected_keys = {
         "bank_name",
         "short_name",
@@ -55,7 +54,6 @@ def test_seed_client_mapping_complete(test_db):
     seed(test_db)
     src = test_db.query(DataSource).filter(DataSource.name == "clients_tc").one()
     assert src.type == "client"
-    assert src.file_format == "xlsx"
     expected_keys = {
         "customer_name",
         "short_name",

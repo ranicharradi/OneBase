@@ -45,17 +45,15 @@ def seed(db: Session) -> int:
     """Insert any missing default DataSource rows. Returns the number created."""
     existing = {n for (n,) in db.query(DataSource.name).all()}
     created = 0
-    for name, type_key, mapping, pattern in SEEDS:
+    for name, type_key, mapping, _pattern in SEEDS:
         if name in existing:
             continue
         db.add(
             DataSource(
                 name=name,
                 type=type_key,
-                file_format="xlsx",
                 delimiter=";",
                 column_mapping=dict(mapping),
-                filename_pattern=pattern,
             )
         )
         created += 1

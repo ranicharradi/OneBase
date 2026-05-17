@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 VALID_SOURCE = {
     "name": "SAP Export",
     "description": "SAP supplier export",
-    "file_format": "csv",
     "delimiter": ";",
     "type": "supplier",
     "column_mapping": {
@@ -217,7 +216,6 @@ class TestDeleteBatchEndpoint:
         source = DataSource(
             name="Test Source",
             type="supplier",
-            file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1"},
         )
@@ -252,7 +250,6 @@ class TestDeleteBatchEndpoint:
         source = DataSource(
             name="Test Source",
             type="supplier",
-            file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1"},
         )
@@ -283,7 +280,6 @@ class TestReuploadGuard:
 
         source = DataSource(
             name="Test Source",
-            file_format="csv",
             delimiter=";",
             type="supplier",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
@@ -322,7 +318,6 @@ class TestReuploadGuard:
 
         source = DataSource(
             name="Test Source",
-            file_format="csv",
             delimiter=";",
             type="supplier",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
@@ -360,7 +355,6 @@ class TestReuploadGuard:
 
         source = DataSource(
             name="Test Source",
-            file_format="csv",
             delimiter=";",
             type="supplier",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},

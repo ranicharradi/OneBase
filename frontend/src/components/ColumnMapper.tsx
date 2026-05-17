@@ -39,7 +39,6 @@ interface ColumnMapperProps {
   isSubmitting?: boolean;
   initialSourceName?: string;
   detectedDelimiter?: string;
-  detectedFormat?: 'csv' | 'xlsx';
   recordTypeKey?: string;
   sampleRows?: Record<string, unknown>[];
 }
@@ -51,7 +50,6 @@ export default function ColumnMapper({
   isSubmitting = false,
   initialSourceName,
   detectedDelimiter,
-  detectedFormat,
   recordTypeKey,
   sampleRows,
 }: ColumnMapperProps) {
@@ -145,7 +143,6 @@ export default function ColumnMapper({
       name: sourceName.trim(),
       type,
       description: description.trim() || undefined,
-      ...(detectedFormat ? { file_format: detectedFormat } : {}),
       delimiter: detectedDelimiter || ',',
       column_mapping: columnMapping as unknown as ColumnMapping,
     });

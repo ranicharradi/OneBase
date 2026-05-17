@@ -52,7 +52,6 @@ def test_identifier_fields_are_canonicalized(mock_embed, test_db):
         source = DataSource(
             name="test bank source",
             type="test_bank",
-            file_format="csv",
             delimiter=";",
             column_mapping={
                 "bank_name": "Name",

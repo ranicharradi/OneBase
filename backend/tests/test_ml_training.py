@@ -22,8 +22,8 @@ SUPPLIER_FEATURE_NAMES = scorer_feature_names("supplier")
 
 def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
     """Create reviewed match candidates with realistic signals."""
-    s1 = DataSource(name="SRC1", type="supplier", file_format="csv", column_mapping={"supplier_name": "name"})
-    s2 = DataSource(name="SRC2", type="supplier", file_format="csv", column_mapping={"supplier_name": "name"})
+    s1 = DataSource(name="SRC1", type="supplier", column_mapping={"supplier_name": "name"})
+    s2 = DataSource(name="SRC2", type="supplier", column_mapping={"supplier_name": "name"})
     db.add_all([s1, s2])
     db.flush()
 
@@ -136,7 +136,7 @@ class TestExtractTrainingData:
         from app.services.ml.train import extract_training_data
 
         _seed_reviewed_candidates(test_db, count=60)
-        s = DataSource(name="X", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
+        s = DataSource(name="X", type="supplier", column_mapping={"supplier_name": "n"})
         test_db.add(s)
         test_db.flush()
         b = ImportBatch(data_source_id=s.id, filename="x.csv", uploaded_by="u", status="completed", row_count=1)

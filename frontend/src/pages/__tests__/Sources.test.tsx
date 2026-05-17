@@ -34,10 +34,8 @@ const source: DataSource = {
   name: 'SAP Vendors',
   type: 'supplier',
   description: 'ERP export',
-  file_format: 'csv',
   delimiter: ';',
   column_mapping: { supplier_name: 'Vendor Name' },
-  filename_pattern: null,
   created_at: '2026-05-01T12:00:00Z',
   updated_at: '2026-05-01T12:00:00Z',
 }

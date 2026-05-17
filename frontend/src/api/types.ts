@@ -48,10 +48,8 @@ export interface DataSource {
   name: string;
   type: string;
   description: string | null;
-  file_format: string;
   delimiter: string;
   column_mapping: Record<string, unknown>;
-  filename_pattern: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -60,10 +58,8 @@ export interface DataSourceCreate {
   name: string;
   type: string;
   description?: string | null;
-  file_format?: string;
   delimiter?: string;
   column_mapping: ColumnMapping;
-  filename_pattern?: string | null;
 }
 
 export interface UserCreate {

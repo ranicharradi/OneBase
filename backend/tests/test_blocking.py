@@ -16,7 +16,6 @@ def _make_source(db, source_id, name):
         id=source_id,
         name=name,
         type="supplier",
-        file_format="csv",
         column_mapping={"name": "Supplier Name"},
     )
     db.add(source)

@@ -18,7 +18,6 @@ def _make_source(db: Session, name: str) -> DataSource:
     src = DataSource(
         name=name,
         type="supplier",
-        file_format="csv",
         column_mapping={"name": "Supplier Name"},
     )
     db.add(src)
@@ -614,7 +613,7 @@ def test_pipeline_uses_per_type_confidence_threshold(mock_score_pair, mock_text_
     register(test_rt)
     try:
         # Two records of the test type.
-        src = DataSource(name="s", type="t_threshold", file_format="csv", delimiter=",", column_mapping={"n": "N"})
+        src = DataSource(name="s", type="t_threshold", delimiter=",", column_mapping={"n": "N"})
         test_db.add(src)
         test_db.flush()
         batch = ImportBatch(data_source_id=src.id, filename="f", uploaded_by="u", status=BatchStatus.COMPLETED)

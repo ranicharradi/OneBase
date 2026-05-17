@@ -17,7 +17,7 @@ from app.services.merge import compare_fields, execute_merge, reject_candidate
 
 
 def _make_source(db: Session, name: str) -> DataSource:
-    src = DataSource(name=name, type="supplier", file_format="csv", column_mapping={"name": "N"})
+    src = DataSource(name=name, type="supplier", column_mapping={"name": "N"})
     db.add(src)
     db.flush()
     return src

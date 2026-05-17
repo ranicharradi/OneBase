@@ -10,9 +10,7 @@ class DataSource(Base):
     name = Column(String(100), unique=True, nullable=False)
     type = Column(String(50), nullable=False)  # RecordType.key, locked at creation
     description = Column(Text, nullable=True)
-    file_format = Column(String(20), nullable=False, default="csv")
     delimiter = Column(String(5), default=";")
     column_mapping = Column(json_type(), nullable=False)
-    filename_pattern = Column(String(255), nullable=True, default=None)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

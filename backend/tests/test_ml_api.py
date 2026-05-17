@@ -17,8 +17,8 @@ pytestmark = pytest.mark.slow
 
 def _seed_reviewed(db, count=60, confirm_ratio=0.5):
     """Seed reviewed candidates for training."""
-    s1 = DataSource(name="S1", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
-    s2 = DataSource(name="S2", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
+    s1 = DataSource(name="S1", type="supplier", column_mapping={"supplier_name": "n"})
+    s2 = DataSource(name="S2", type="supplier", column_mapping={"supplier_name": "n"})
     db.add_all([s1, s2])
     db.flush()
     b1 = ImportBatch(
@@ -134,8 +134,8 @@ class TestTrainModelEndpoint:
 
 class TestActiveLearningSort:
     def _seed_queue(self, db):
-        s1 = DataSource(name="Q1", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
-        s2 = DataSource(name="Q2", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
+        s1 = DataSource(name="Q1", type="supplier", column_mapping={"supplier_name": "n"})
+        s2 = DataSource(name="Q2", type="supplier", column_mapping={"supplier_name": "n"})
         db.add_all([s1, s2])
         db.flush()
         b1 = ImportBatch(data_source_id=s1.id, filename="a.csv", uploaded_by="u", status="completed", row_count=3)

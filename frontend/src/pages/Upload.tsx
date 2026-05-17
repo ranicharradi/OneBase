@@ -507,7 +507,6 @@ export default function Upload() {
               }
               initialSourceName={uploadState.suggestedName}
               detectedDelimiter={uploadState.detectedDelimiter}
-              detectedFormat={uploadState.detectedFormat}
               recordTypeKey={uploadState.type}
             />
             <div style={{ marginTop: 12, textAlign: "center" }}>

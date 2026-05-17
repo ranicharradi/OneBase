@@ -38,7 +38,6 @@ def _make_source(db, name, mapping):
     src = DataSource(
         name=name,
         type="bank",
-        file_format="csv",
         delimiter=";",
         column_mapping=mapping,
     )

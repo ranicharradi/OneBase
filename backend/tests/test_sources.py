@@ -24,7 +24,6 @@ def _create_user_with_role(db, username: str, role: str) -> User:
 VALID_SOURCE = {
     "name": "SAP Export",
     "description": "SAP supplier export",
-    "file_format": "csv",
     "delimiter": ";",
     "type": "supplier",
     "column_mapping": {

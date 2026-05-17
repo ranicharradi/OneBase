@@ -1,23 +1,11 @@
 """Data source create/list/read/delete service."""
 
-import re
-
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.source import DataSource
 from app.record_types import get as get_record_type
 from app.schemas.source import DataSourceCreate
-
-
-def _validate_filename_pattern(pattern: str | None) -> None:
-    """Validate a regex pattern. Raises ValueError if invalid."""
-    if pattern is None:
-        return
-    try:
-        re.compile(pattern)
-    except re.error as e:
-        raise ValueError(f"Invalid filename pattern: {e}") from e
 
 
 def _validate_record_type(record_type_key: str) -> None:
@@ -52,17 +40,14 @@ def _validate_column_mapping(record_type_key: str, mapping: dict | None) -> None
 
 def create_source(db: Session, data: DataSourceCreate) -> DataSource:
     """Create a new data source."""
-    _validate_filename_pattern(data.filename_pattern)
     _validate_record_type(data.type)
     _validate_column_mapping(data.type, data.column_mapping)
     source = DataSource(
         name=data.name,
         type=data.type,
         description=data.description,
-        file_format=data.file_format,
         delimiter=data.delimiter,
         column_mapping=data.column_mapping,
-        filename_pattern=data.filename_pattern,
     )
     db.add(source)
     try:

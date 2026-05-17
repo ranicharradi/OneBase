@@ -38,7 +38,6 @@ class TestRunIngestion:
         source = DataSource(
             name="Test Source",
             type="supplier",
-            file_format="csv",
             delimiter=";",
             column_mapping={
                 "supplier_name": "Name1",
@@ -177,7 +176,6 @@ class TestProcessUploadIdempotency:
         source = DataSource(
             name="Test Source",
             type="supplier",
-            file_format="csv",
             delimiter=";",
             column_mapping={
                 "supplier_name": "Name1",
@@ -268,7 +266,6 @@ class TestProcessUploadIdempotency:
         source_b = DataSource(
             name="Second Source",
             type="supplier",
-            file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1"},
         )
@@ -354,7 +351,6 @@ class TestFileCleanupOnFailure:
         source = DataSource(
             name="Test Source",
             type="supplier",
-            file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
         )
@@ -396,7 +392,6 @@ class TestFileCleanupOnFailure:
         source = DataSource(
             name="Test Source",
             type="supplier",
-            file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
         )
@@ -452,7 +447,6 @@ def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
     source_a = DataSource(
         name="Source A",
         type="supplier",
-        file_format="csv",
         delimiter=";",
         column_mapping={"supplier_name": "Name1"},
     )
@@ -486,7 +480,6 @@ def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
     source_b = DataSource(
         name="Source B",
         type="supplier",
-        file_format="csv",
         delimiter=";",
         column_mapping={"supplier_name": "Name1"},
     )
@@ -557,7 +550,6 @@ class TestRunIngestionXlsx:
         source = DataSource(
             name="XL Test Source",
             type="supplier",
-            file_format="xlsx",
             delimiter=";",
             column_mapping={"supplier_name": "Name", "short_name": "Amount"},
         )

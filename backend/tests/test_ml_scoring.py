@@ -39,7 +39,7 @@ def _make_record(db, source, batch, name, **kwargs):
 
 
 def _seed_pair(db):
-    s = DataSource(name="S", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
+    s = DataSource(name="S", type="supplier", column_mapping={"supplier_name": "n"})
     db.add(s)
     db.flush()
     b = ImportBatch(data_source_id=s.id, filename="x.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=2)
@@ -115,7 +115,7 @@ class TestBlockerFilter:
     def test_filters_low_confidence_pairs(self, test_db):
         from app.services.ml.score import blocker_filter
 
-        s = DataSource(name="S", type="supplier", file_format="csv", column_mapping={"supplier_name": "n"})
+        s = DataSource(name="S", type="supplier", column_mapping={"supplier_name": "n"})
         test_db.add(s)
         test_db.flush()
         b = ImportBatch(data_source_id=s.id, filename="x.csv", uploaded_by="u", status="completed", row_count=4)

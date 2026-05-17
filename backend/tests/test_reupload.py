@@ -24,7 +24,6 @@ class TestReuploadSupersession:
         source = DataSource(
             name="Test Source",
             type="supplier",
-            file_format="csv",
             delimiter=";",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
         )

@@ -14,7 +14,6 @@ def _make_source(db: Session, name: str) -> DataSource:
     src = DataSource(
         name=name,
         type="supplier",
-        file_format="csv",
         column_mapping={"name": "Supplier Name"},
     )
     db.add(src)

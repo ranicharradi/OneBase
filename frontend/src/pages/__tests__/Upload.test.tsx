@@ -54,10 +54,8 @@ describe('Upload source creation from file preflight', () => {
           name: 'Vendors',
           type: 'supplier',
           description: null,
-          file_format: 'xlsx',
           delimiter: ';',
           column_mapping: { supplier_name: 'Vendor Name' },
-          filename_pattern: null,
           created_at: null,
           updated_at: null,
         })
@@ -79,7 +77,7 @@ describe('Upload source creation from file preflight', () => {
     vi.unstubAllGlobals()
   })
 
-  it('preserves detected Excel format when creating a source', async () => {
+  it('creates a source and uploads when submitting column mapping', async () => {
     const user = userEvent.setup()
     render(<Upload />)
 
@@ -94,7 +92,7 @@ describe('Upload source creation from file preflight', () => {
 
     await waitFor(() => {
       const post = requests.find(req => req.url.endsWith('/api/sources') && req.method === 'POST')
-      expect(post?.body).toMatchObject({ file_format: 'xlsx' })
+      expect(post?.body).toMatchObject({ name: 'Vendors', type: 'supplier' })
     })
   })
 })

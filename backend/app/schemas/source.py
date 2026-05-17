@@ -19,10 +19,8 @@ class DataSourceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     type: str = Field(min_length=1, max_length=50)
     description: str | None = None
-    file_format: str = "csv"
     delimiter: str = ";"
     column_mapping: dict[str, str]
-    filename_pattern: str | None = None
 
 
 class DataSourceResponse(APIResponse):
@@ -32,10 +30,8 @@ class DataSourceResponse(APIResponse):
     name: str
     type: str
     description: str | None
-    file_format: str
     delimiter: str
     column_mapping: dict[str, Any]
-    filename_pattern: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

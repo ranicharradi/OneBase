@@ -10,7 +10,6 @@ from app.utils.paths import safe_upload_path
 VALID_SOURCE = {
     "name": "SAP Export",
     "description": "SAP supplier export",
-    "file_format": "csv",
     "delimiter": ";",
     "type": "supplier",
     "column_mapping": {
