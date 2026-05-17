@@ -57,7 +57,7 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
   if (isLoading) {
     return (
       <Panel>
-        <PanelHead title="Recent batches" />
+        <PanelHead title="Recent files" />
         <div style={{ padding: 20, fontSize: 12, color: 'var(--fg-2)', textAlign: 'center' }}>
           Loading…
         </div>
@@ -68,9 +68,9 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
   if (error) {
     return (
       <Panel>
-        <PanelHead title="Recent batches" />
+        <PanelHead title="Recent files" />
         <div style={{ padding: 20, fontSize: 12, color: 'var(--danger)', textAlign: 'center' }}>
-          Failed to load batch history
+          Failed to load file history
         </div>
       </Panel>
     );
@@ -83,14 +83,14 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
   if (sorted.length === 0) {
     return (
       <Panel>
-        <PanelHead title="Recent batches" />
+        <PanelHead title="Recent files" />
         <div style={{ padding: 28, textAlign: 'center' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>
             history
           </span>
           <div style={{ fontSize: 13, marginTop: 8 }}>No uploads yet</div>
           <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
-            Upload a CSV file to see batch history here.
+            Upload a CSV file to see file history here.
           </div>
         </div>
       </Panel>
@@ -103,7 +103,7 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
   return (
     <Panel>
       <PanelHead>
-        <span className="panel-title">Recent batches</span>
+        <span className="panel-title">Recent files</span>
         <span className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
           {sorted.length} total · {completed} ok · {failed} failed
         </span>
@@ -146,8 +146,8 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
                       disabled={deleteMutation.isPending}
                       className="btn btn-ghost btn-sm"
                       style={{ padding: 4, color: 'var(--danger)' }}
-                      title="Dismiss batch"
-                      aria-label={`Dismiss batch ${displayFilename(batch.filename)}`}
+                      title="Dismiss file"
+                      aria-label={`Dismiss file ${displayFilename(batch.filename)}`}
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
                     </button>

@@ -578,7 +578,7 @@ export default function Match() {
             </span>
             <span style={{ fontSize: 11, color: "var(--fg-2)" }}>—</span>
             <span style={{ fontSize: 11, color: "var(--fg-2)" }}>
-              select one batch to match against the unified golden set
+              select one file to match against the unified golden set
             </span>
             <button
               className="btn btn-ghost btn-sm"
@@ -596,7 +596,7 @@ export default function Match() {
         {typeBatches.length === 0 ? (
           <Panel>
             <PanelHead>
-              <span className="panel-title">Batches</span>
+              <span className="panel-title">Files</span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {effectiveSelection.length > 0 && !vsGolden && (
                   <span
@@ -632,13 +632,13 @@ export default function Match() {
                 fontSize: 12,
               }}
             >
-              No batches yet
+              No files yet
             </div>
           </Panel>
         ) : (
           <Panel>
             <PanelHead>
-              <span className="panel-title">Batches</span>
+              <span className="panel-title">Files</span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {effectiveSelection.length > 0 && !vsGolden && (
                   <span
@@ -757,8 +757,8 @@ export default function Match() {
                 style={{ fontSize: 11, color: "var(--fg-3)" }}
               >
                 {vsGolden
-                  ? "select 1 batch to match against the golden set"
-                  : "select 2+ batches to compare"}
+                  ? "select 1 file to match against the golden set"
+                  : "select 2+ files to compare"}
               </span>
             ) : (
               selectedBatches.map((b) => (

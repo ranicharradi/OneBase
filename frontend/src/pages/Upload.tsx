@@ -565,7 +565,7 @@ export default function Upload() {
           </div>
         )}
 
-        {/* Recent batches — shown when idle or after processing */}
+        {/* Recent files — shown when idle or after processing */}
         {(uploadState.step === "PICK_SOURCE" ||
           uploadState.step === "PROCESSING") && (
           <div className="fade" style={{ marginTop: 14 }}>

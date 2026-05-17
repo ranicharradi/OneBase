@@ -670,7 +670,7 @@ export default function Sources() {
                     <th>Name</th>
                     <th className="num" style={{ width: 90 }}>Rows</th>
                     <th className="num" style={{ width: 90 }}>Mapped</th>
-                    <th className="num" style={{ width: 80 }}>Batches</th>
+                    <th className="num" style={{ width: 80 }}>Files</th>
                     <th style={{ width: 110 }}>Last sync</th>
                     <th style={{ width: 100 }}>Status</th>
                     <th style={{ width: 80 }} />

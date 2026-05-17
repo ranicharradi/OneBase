@@ -54,7 +54,7 @@ function HistoryGroup({ type, runs, navigate }: { type: string; runs: MatchRunRe
             <tr>
               <th style={{ width: 64 }}>#</th>
               <th>Files</th>
-              <th className="num" style={{ width: 72 }}>Batches</th>
+              <th className="num" style={{ width: 72 }}>Files</th>
               <th className="num" style={{ width: 96 }}>Candidates</th>
               <th style={{ width: 80 }}>Status</th>
               <th style={{ width: 100 }}>Created</th>
