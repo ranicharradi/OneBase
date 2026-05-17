@@ -258,7 +258,7 @@ class TestProcessUploadIdempotency:
         assert status_at_call_time[0] == BatchStatus.PROCESSING
 
     @patch("app.tasks.ingestion.get_task_session")
-    def test_enqueues_matching_run_when_two_active_batches_exist(self, mock_get_session, test_db):
+    def test_does_not_enqueue_matching_run_when_two_active_batches_exist(self, mock_get_session, test_db):
         """After Track B: ingestion does NOT auto-dispatch matching even with two active batches."""
         from app.models.comparison import ComparisonRun
         from app.models.staging import StagedRecord
