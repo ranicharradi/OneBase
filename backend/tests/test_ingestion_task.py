@@ -44,6 +44,7 @@ class TestRunIngestion:
                 "short_name": "ShortName",
                 "currency": "Currency",
             },
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -51,6 +52,8 @@ class TestRunIngestion:
         batch = ImportBatch(
             data_source_id=source.id,
             filename="test.csv",
+            original_filename="test.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )
@@ -182,6 +185,7 @@ class TestProcessUploadIdempotency:
                 "short_name": "ShortName",
                 "currency": "Currency",
             },
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -189,6 +193,8 @@ class TestProcessUploadIdempotency:
         batch = ImportBatch(
             data_source_id=source.id,
             filename="test.csv",
+            original_filename="test.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=status,
         )
@@ -268,12 +274,15 @@ class TestProcessUploadIdempotency:
             type="supplier",
             delimiter=";",
             column_mapping={"supplier_name": "Name1"},
+            identity_field_key="supplier_name",
         )
         test_db.add(source_b)
         test_db.flush()
         new_batch = ImportBatch(
             data_source_id=source_b.id,
             filename="second.csv",
+            original_filename="second.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )
@@ -353,6 +362,7 @@ class TestFileCleanupOnFailure:
             type="supplier",
             delimiter=";",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -366,6 +376,8 @@ class TestFileCleanupOnFailure:
         batch = ImportBatch(
             data_source_id=source.id,
             filename=test_filename,
+            original_filename=test_filename,
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )
@@ -394,6 +406,7 @@ class TestFileCleanupOnFailure:
             type="supplier",
             delimiter=";",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -407,6 +420,8 @@ class TestFileCleanupOnFailure:
         batch = ImportBatch(
             data_source_id=source.id,
             filename=test_filename,
+            original_filename=test_filename,
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )
@@ -449,6 +464,7 @@ def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
         type="supplier",
         delimiter=";",
         column_mapping={"supplier_name": "Name1"},
+        identity_field_key="supplier_name",
     )
     test_db.add(source_a)
     test_db.flush()
@@ -456,6 +472,8 @@ def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
     existing_batch = ImportBatch(
         data_source_id=source_a.id,
         filename="existing.csv",
+        original_filename="existing.csv",
+        file_extension=".csv",
         uploaded_by="testuser",
         status=BatchStatus.COMPLETED,
     )
@@ -482,6 +500,7 @@ def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
         type="supplier",
         delimiter=";",
         column_mapping={"supplier_name": "Name1"},
+        identity_field_key="supplier_name",
     )
     test_db.add(source_b)
     test_db.flush()
@@ -489,6 +508,8 @@ def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
     new_batch = ImportBatch(
         data_source_id=source_b.id,
         filename="new.csv",
+        original_filename="new.csv",
+        file_extension=".csv",
         uploaded_by="testuser",
         status=BatchStatus.PENDING,
     )
@@ -552,6 +573,7 @@ class TestRunIngestionXlsx:
             type="supplier",
             delimiter=";",
             column_mapping={"supplier_name": "Name", "short_name": "Amount"},
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -559,6 +581,8 @@ class TestRunIngestionXlsx:
         batch = ImportBatch(
             data_source_id=source.id,
             filename="vendors.xlsx",
+            original_filename="vendors.xlsx",
+            file_extension=".xlsx",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )
