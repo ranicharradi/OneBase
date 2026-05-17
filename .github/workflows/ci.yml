@@ -42,8 +42,7 @@ jobs:
           cache-dependency-glob: |
             backend/pyproject.toml
             backend/uv.lock
-      - run: uv sync --locked --no-dev
-      - run: uv run --locked --no-dev --with pip-audit pip-audit
+      - run: uv run --no-project --with pip-audit -- pip-audit -r requirements.txt
 
   backend-test:
     runs-on: ubuntu-latest
