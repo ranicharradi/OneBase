@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
     retry_backoff_max=120,
     retry_jitter=True,
 )
-def process_upload(self, batch_id: int):
+def process_upload(self, batch_id: int, force_replace: bool = False):
     """Process an uploaded CSV file through the full ingestion pipeline.
 
     Creates its own database session (Celery tasks manage their own sessions).
@@ -62,7 +62,7 @@ def process_upload(self, batch_id: int):
                 )
 
             # Run ingestion pipeline
-            row_count = run_ingestion(db, batch_id, file_content, progress_callback)
+            row_count = run_ingestion(db, batch_id, file_content, progress_callback, force_replace=force_replace)
             db.commit()
 
             logger.info(

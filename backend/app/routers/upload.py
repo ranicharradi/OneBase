@@ -36,6 +36,7 @@ async def upload_file(
     file: UploadFile | None = File(None),
     file_ref: str | None = Form(None),
     data_source_id: int = Form(...),
+    force_replace: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
@@ -148,7 +149,7 @@ async def upload_file(
     db.commit()
 
     # Dispatch Celery task — batch is now visible to the worker
-    task = process_upload.delay(batch.id)
+    task = process_upload.delay(batch.id, force_replace=force_replace)
     batch.task_id = task.id
     db.commit()
 

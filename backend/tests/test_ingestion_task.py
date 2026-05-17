@@ -236,7 +236,7 @@ class TestProcessUploadIdempotency:
 
         status_at_call_time = []
 
-        def spy_ingestion(db, batch_id, file_content, progress_callback=None):
+        def spy_ingestion(db, batch_id, file_content, progress_callback=None, *, force_replace=False):
             """Spy that records batch status at the time run_ingestion is called."""
             b = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
             status_at_call_time.append(b.status)
@@ -301,7 +301,7 @@ class TestProcessUploadIdempotency:
         )
         test_db.commit()
 
-        def spy_ingestion(db, batch_id, file_content, progress_callback=None):
+        def spy_ingestion(db, batch_id, file_content, progress_callback=None, *, force_replace=False):
             db.add(
                 StagedRecord(
                     import_batch_id=batch_id,
@@ -517,7 +517,7 @@ def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
     test_db.commit()
     batch_id = new_batch.id
 
-    def spy_ingestion(db, bid, file_content, progress_callback=None):
+    def spy_ingestion(db, bid, file_content, progress_callback=None, *, force_replace=False):
         db.add(
             StagedRecord(
                 import_batch_id=bid,
