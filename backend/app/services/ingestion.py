@@ -20,6 +20,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
@@ -80,19 +81,15 @@ def _map_row(
     column_mapping: dict[str, str],
     valid_field_keys: set[str],
     field_defs_by_key: dict,
-    *,
-    identity_field_key: str | None = None,
 ) -> dict[str, str]:
     """Map a raw CSV row to a fields dict keyed by FieldDef.key.
 
-    Keys not in valid_field_keys are silently skipped, EXCEPT the identity_field_key
-    which is always included when present in column_mapping (it may be a business code
-    not declared as a RecordType field).
+    Keys not in valid_field_keys are silently skipped.
     """
     fields: dict[str, str] = {}
     for field_key, csv_col in column_mapping.items():
-        if field_key not in valid_field_keys and field_key != identity_field_key:
-            continue  # silently ignore stale mappings (identity key is always kept)
+        if field_key not in valid_field_keys:
+            continue
         value = _clean_ingested_value(row.get(csv_col))
         if value is None:
             continue
@@ -101,6 +98,88 @@ def _map_row(
             value = "".join(str(value).split()).upper()
         fields[field_key] = value
     return fields
+
+
+def compute_diff_for_source(
+    db: Session,
+    *,
+    source: DataSource,
+    rows: list[dict],
+    lock: bool = True,
+) -> "tuple[DiffPlan, dict[str, dict], dict[str, StagedRecord]]":
+    """Build incoming + prior maps and return (plan, incoming_raw_by_key, prior_record_by_key).
+
+    Shared by run_ingestion (default mode) and the preview endpoint (lock=False).
+    Does NOT apply the plan and does NOT short-circuit on empty rows — callers handle that.
+
+    Raises ValueError if identity_field_key is absent from column_mapping.
+    """
+    rt = get_record_type(source.type)
+    column_mapping: dict[str, str] = source.column_mapping or {}
+    valid_field_keys = set(rt.field_keys)
+    identity_field_key: str = source.identity_field_key
+    field_defs_by_key = {f.key: f for f in rt.fields}
+
+    if identity_field_key not in column_mapping:
+        raise ValueError(
+            f"DataSource {source.id!r}: identity_field_key {identity_field_key!r} "
+            f"is not present in column_mapping — cannot diff on re-upload."
+        )
+
+    # Always extract the identity key even if it is not a declared RecordType field
+    # (e.g. a vendor code used as a business key but not as a matching signal).
+    extract_keys = valid_field_keys | {identity_field_key}
+
+    # Build incoming maps (last-wins on duplicate identity key)
+    incoming_by_key: dict[str, dict] = {}
+    incoming_raw_by_key: dict[str, dict] = {}
+    for row in rows:
+        mapped = _map_row(row, column_mapping, extract_keys, field_defs_by_key)
+        id_val = mapped.get(identity_field_key)
+        if not id_val:
+            continue  # skip rows with no identity value
+        incoming_by_key[id_val] = mapped
+        incoming_raw_by_key[id_val] = dict(row)
+
+    # Load prior records (ACTIVE + RETIRED)
+    base_filter = [
+        StagedRecord.data_source_id == source.id,
+        StagedRecord.status.in_([RecordStatus.ACTIVE, RecordStatus.RETIRED]),
+    ]
+    if lock:
+        try:
+            prior_records = db.query(StagedRecord).filter(*base_filter).with_for_update(nowait=True).all()
+        except OperationalError:
+            db.rollback()
+            if "sqlite" not in str(db.bind.url):
+                raise
+            prior_records = db.query(StagedRecord).filter(*base_filter).all()
+    else:
+        prior_records = db.query(StagedRecord).filter(*base_filter).all()
+
+    # Build prior lookup maps; warn on duplicate identity values
+    prior_by_key: dict[str, dict] = {}
+    prior_record_by_key: dict[str, StagedRecord] = {}
+    seen_counts: dict[str, int] = {}
+    for rec in prior_records:
+        id_val = (rec.fields or {}).get(identity_field_key)
+        if not id_val:
+            continue
+        seen_counts[id_val] = seen_counts.get(id_val, 0) + 1
+        prior_by_key[id_val] = rec.fields
+        prior_record_by_key[id_val] = rec
+    for id_val, count in seen_counts.items():
+        if count > 1:
+            logger.warning(
+                "DataSource %r has %d prior records with identity key %r = %r; last one wins in diff.",
+                source.id,
+                count,
+                identity_field_key,
+                id_val,
+            )
+
+    plan = diff_snapshot(prior_by_key=prior_by_key, incoming_by_key=incoming_by_key)
+    return plan, incoming_raw_by_key, prior_record_by_key
 
 
 def run_ingestion(
@@ -120,20 +199,7 @@ def run_ingestion(
     batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).one()
     source = db.query(DataSource).filter(DataSource.id == batch.data_source_id).one()
     rt = get_record_type(source.type)
-    column_mapping: dict[str, str] = source.column_mapping or {}
-    valid_field_keys = set(rt.field_keys)
-    identity_field_key: str = source.identity_field_key
-
-    # Defensive: identity key must be in column_mapping so we can extract it.
-    # (Pydantic on the router side guarantees this, but fail loudly if misconfigured.)
-    if identity_field_key not in column_mapping:
-        raise ValueError(
-            f"DataSource {source.id!r}: identity_field_key {identity_field_key!r} "
-            f"is not present in column_mapping — cannot diff on re-upload."
-        )
-
     name_field_key = rt.name_field.key
-    field_defs_by_key = {f.key: f for f in rt.fields}
 
     try:
         # 1. PARSE
@@ -143,6 +209,22 @@ def run_ingestion(
         rows = parse_file(file_content, batch.filename, delimiter=source.delimiter)
 
         if not rows:
+            # For force_replace with an empty file, supersede all prior records first.
+            if force_replace:
+                prior_records = (
+                    db.query(StagedRecord)
+                    .filter(
+                        StagedRecord.data_source_id == source.id,
+                        StagedRecord.status.in_([RecordStatus.ACTIVE, RecordStatus.RETIRED]),
+                    )
+                    .all()
+                )
+                superseded_ids = [r.id for r in prior_records]
+                if superseded_ids:
+                    db.query(StagedRecord).filter(StagedRecord.id.in_(superseded_ids)).update(
+                        {"status": RecordStatus.SUPERSEDED}, synchronize_session="fetch"
+                    )
+
             batch.row_count = 0
             batch.status = BatchStatus.COMPLETED
             batch.ingest_stats = {
@@ -156,44 +238,40 @@ def run_ingestion(
                 progress_callback("complete", 100)
             return 0
 
-        # 2. BUILD incoming maps (last-wins on duplicate identity key)
-        incoming_by_key: dict[str, dict] = {}
-        incoming_raw_by_key: dict[str, dict] = {}
-        for row in rows:
-            mapped = _map_row(
-                row,
-                column_mapping,
-                valid_field_keys,
-                field_defs_by_key,
-                identity_field_key=identity_field_key,
-            )
-            id_val = mapped.get(identity_field_key)
-            if not id_val:
-                continue  # skip rows with no identity value
-            incoming_by_key[id_val] = mapped
-            incoming_raw_by_key[id_val] = dict(row)
-
-        # 3. LOAD prior records (ACTIVE + RETIRED) and build lookup maps
-        prior_records = (
-            db.query(StagedRecord)
-            .filter(
-                StagedRecord.data_source_id == source.id,
-                StagedRecord.status.in_([RecordStatus.ACTIVE, RecordStatus.RETIRED]),
-            )
-            .all()
-        )
-        prior_by_key: dict[str, dict] = {}
-        prior_record_by_key: dict[str, StagedRecord] = {}
-        for rec in prior_records:
-            id_val = (rec.fields or {}).get(identity_field_key)
-            if not id_val:
-                continue
-            prior_by_key[id_val] = rec.fields
-            prior_record_by_key[id_val] = rec
-
-        # 4. COMPUTE DIFF PLAN
         if force_replace:
             # Legacy behavior: supersede everything and insert all incoming rows.
+            # Build incoming maps directly (no need for the shared diff helper).
+            column_mapping: dict[str, str] = source.column_mapping or {}
+            valid_field_keys = set(rt.field_keys)
+            identity_field_key: str = source.identity_field_key
+            field_defs_by_key = {f.key: f for f in rt.fields}
+
+            if identity_field_key not in column_mapping:
+                raise ValueError(
+                    f"DataSource {source.id!r}: identity_field_key {identity_field_key!r} "
+                    f"is not present in column_mapping — cannot diff on re-upload."
+                )
+
+            # Always include identity key even if not a declared RecordType field
+            extract_keys = valid_field_keys | {identity_field_key}
+            incoming_by_key: dict[str, dict] = {}
+            incoming_raw_by_key: dict[str, dict] = {}
+            for row in rows:
+                mapped = _map_row(row, column_mapping, extract_keys, field_defs_by_key)
+                id_val = mapped.get(identity_field_key)
+                if not id_val:
+                    continue
+                incoming_by_key[id_val] = mapped
+                incoming_raw_by_key[id_val] = dict(row)
+
+            prior_records = (
+                db.query(StagedRecord)
+                .filter(
+                    StagedRecord.data_source_id == source.id,
+                    StagedRecord.status.in_([RecordStatus.ACTIVE, RecordStatus.RETIRED]),
+                )
+                .all()
+            )
             superseded_ids = [r.id for r in prior_records]
             if superseded_ids:
                 db.query(StagedRecord).filter(StagedRecord.id.in_(superseded_ids)).update(
@@ -205,8 +283,13 @@ def run_ingestion(
                 retires=set(),
                 unchanged=set(),
             )
+            prior_record_by_key: dict[str, StagedRecord] = {}
         else:
-            plan = diff_snapshot(prior_by_key=prior_by_key, incoming_by_key=incoming_by_key)
+            # 2-4. BUILD incoming maps, load prior records, compute diff
+            plan, incoming_raw_by_key, prior_record_by_key = compute_diff_for_source(
+                db, source=source, rows=rows, lock=True
+            )
+            identity_field_key = source.identity_field_key
 
         if progress_callback:
             progress_callback("normalizing", 33)

@@ -11,6 +11,59 @@ from app.models.staging import StagedRecord
 
 
 @patch("app.services.ingestion.compute_embeddings")
+def test_force_replace_with_empty_file_supersedes_prior(mock_embed, test_db):
+    """force_replace=True with an empty CSV must supersede all prior records."""
+    mock_embed.return_value = np.zeros((10, 384), dtype=np.float32)
+    from app.services.ingestion import run_ingestion
+
+    src = DataSource(
+        name="src-empty",
+        type="supplier",
+        delimiter=";",
+        column_mapping={"supplier_code": "Code", "supplier_name": "Name"},
+        identity_field_key="supplier_code",
+    )
+    test_db.add(src)
+    test_db.flush()
+
+    # Seed with two rows
+    v1 = b"Code;Name\nA;Acme\nB;Beta\n"
+    b1 = ImportBatch(
+        data_source_id=src.id,
+        filename="u1.csv",
+        original_filename="u1.csv",
+        file_extension=".csv",
+        uploaded_by="x",
+        status=BatchStatus.PENDING,
+    )
+    test_db.add(b1)
+    test_db.flush()
+    run_ingestion(test_db, b1.id, v1)
+
+    # Re-upload with an empty file and force_replace=True
+    b2 = ImportBatch(
+        data_source_id=src.id,
+        filename="u2.csv",
+        original_filename="u2.csv",
+        file_extension=".csv",
+        uploaded_by="x",
+        status=BatchStatus.PENDING,
+    )
+    test_db.add(b2)
+    test_db.flush()
+    row_count = run_ingestion(test_db, b2.id, b"Code;Name\n", force_replace=True)
+
+    assert row_count == 0
+    assert b2.ingest_stats["inserted"] == 0
+    assert b2.ingest_stats["force_replace"] is True
+
+    rows = test_db.query(StagedRecord).filter(StagedRecord.data_source_id == src.id).all()
+    statuses = {r.fields["supplier_code"]: r.status for r in rows}
+    assert statuses["A"] == RecordStatus.SUPERSEDED
+    assert statuses["B"] == RecordStatus.SUPERSEDED
+
+
+@patch("app.services.ingestion.compute_embeddings")
 def test_force_replace_supersedes_all_prior(mock_embed, test_db):
     mock_embed.return_value = np.zeros((10, 384), dtype=np.float32)
     from app.services.ingestion import run_ingestion
