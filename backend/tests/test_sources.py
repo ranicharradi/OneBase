@@ -32,6 +32,7 @@ VALID_SOURCE = {
         "short_name": "ShortName",
         "currency": "Currency",
     },
+    "identity_field_key": "supplier_name",
 }
 
 
@@ -65,6 +66,9 @@ class TestCreateSource:
         source = VALID_SOURCE | {
             "name": "Missing Supplier Name",
             "column_mapping": {"short_name": "ShortName"},
+            # identity_field_key must be in the mapping to pass Pydantic validation,
+            # so the service layer's required-field check can return 400.
+            "identity_field_key": "short_name",
         }
         response = authenticated_client.post("/api/sources", json=source)
         assert response.status_code == 400
@@ -266,6 +270,31 @@ class TestDetectHeaders:
         )
         assert response.status_code == 400
         assert "utf-8" in response.json()["detail"].lower()
+
+
+class TestIdentityFieldKeyValidation:
+    def test_create_source_requires_identity_field_key(self, authenticated_client, test_db):
+        """POST /api/sources rejects payload missing identity_field_key (422)."""
+        payload = {**VALID_SOURCE}
+        payload.pop("identity_field_key", None)
+        response = authenticated_client.post("/api/sources", json=payload)
+        assert response.status_code == 422
+
+    def test_create_source_rejects_identity_field_key_not_in_mapping(self, authenticated_client, test_db):
+        """identity_field_key must reference a key present in column_mapping."""
+        payload = {
+            **VALID_SOURCE,
+            "identity_field_key": "not_a_mapped_field",
+        }
+        response = authenticated_client.post("/api/sources", json=payload)
+        assert response.status_code == 422
+
+    def test_create_source_with_valid_identity_field_key(self, authenticated_client, test_db):
+        """Happy path: identity_field_key matches a mapped field."""
+        payload = {**VALID_SOURCE, "identity_field_key": "supplier_name"}
+        response = authenticated_client.post("/api/sources", json=payload)
+        assert response.status_code == 201
+        assert response.json()["identity_field_key"] == "supplier_name"
 
 
 def test_data_source_has_identity_field_key_column():

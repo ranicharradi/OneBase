@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas import APIResponse
 
@@ -21,6 +21,13 @@ class DataSourceCreate(BaseModel):
     description: str | None = None
     delimiter: str = ";"
     column_mapping: dict[str, str]
+    identity_field_key: str = Field(min_length=1, max_length=64)
+
+    @model_validator(mode="after")
+    def _identity_field_key_in_mapping(self) -> "DataSourceCreate":
+        if self.identity_field_key not in self.column_mapping:
+            raise ValueError(f"identity_field_key {self.identity_field_key!r} must be a key in column_mapping")
+        return self
 
 
 class DataSourceResponse(APIResponse):
@@ -32,6 +39,7 @@ class DataSourceResponse(APIResponse):
     description: str | None
     delimiter: str
     column_mapping: dict[str, Any]
+    identity_field_key: str
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

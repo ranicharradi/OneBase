@@ -48,6 +48,7 @@ def create_source(db: Session, data: DataSourceCreate) -> DataSource:
         description=data.description,
         delimiter=data.delimiter,
         column_mapping=data.column_mapping,
+        identity_field_key=data.identity_field_key,
     )
     db.add(source)
     try:
