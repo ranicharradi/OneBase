@@ -288,6 +288,11 @@ class TestIdentityFieldKeyValidation:
         }
         response = authenticated_client.post("/api/sources", json=payload)
         assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert any(
+            "identity_field_key" in str(err.get("loc", ())) or "identity_field_key" in err.get("msg", "")
+            for err in detail
+        )
 
     def test_create_source_with_valid_identity_field_key(self, authenticated_client, test_db):
         """Happy path: identity_field_key matches a mapped field."""
