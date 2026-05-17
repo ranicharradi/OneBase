@@ -206,25 +206,3 @@ class TestReuploadSupersession:
         # Confirmed match should be preserved
         test_db.refresh(match)
         assert match.status == CandidateStatus.CONFIRMED
-
-
-def test_mark_stale_for_source_flips_completed_runs_when_reuploading(test_db):
-    from app.services.match import mark_stale_for_source
-
-    src = DataSource(name="src-r", type="supplier", column_mapping={"name": "x"})
-    test_db.add(src)
-    test_db.flush()
-    batch = ImportBatch(data_source_id=src.id, filename="v1.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
-    test_db.add(batch)
-    test_db.flush()
-
-    run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="completed", created_by="u")
-    run.batches = [batch]
-    test_db.add(run)
-    test_db.commit()
-
-    n = mark_stale_for_source(test_db, src.id)
-    test_db.commit()
-    test_db.refresh(run)
-    assert n == 1
-    assert run.status == "stale"

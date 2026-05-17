@@ -7,7 +7,6 @@ the service stays transport-agnostic; the router translates each to a status cod
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
-from app.models.match import MatchCandidate
 from app.models.match_run import MatchRun
 from app.models.unified import UnifiedRecord
 from app.record_types import get as get_record_type
@@ -78,27 +77,3 @@ def create_run(
     db.add(run)
     db.flush()
     return run
-
-
-def mark_stale_for_source(db: Session, data_source_id: int) -> int:
-    """Mark every non-stale run that references batches of this source as stale.
-
-    Returns number of runs marked.
-    """
-    runs = (
-        db.query(MatchRun)
-        .join(MatchRun.batches)
-        .filter(ImportBatch.data_source_id == data_source_id)
-        .filter(MatchRun.status.in_(["pending", "running", "completed"]))
-        .distinct()
-        .all()
-    )
-    n = 0
-    for run in runs:
-        run.status = "stale"
-        db.query(MatchCandidate).filter(
-            MatchCandidate.match_run_id == run.id,
-            MatchCandidate.status == "pending",
-        ).update({"status": "invalidated"}, synchronize_session=False)
-        n += 1
-    return n

@@ -8,7 +8,6 @@ from app.services.match import (
     MatchConflictError,
     MatchValidationError,
     create_run,
-    mark_stale_for_source,
 )
 
 
@@ -60,17 +59,3 @@ def test_create_run_happy_path_returns_pending(test_db):
     assert run.status == "pending"
     assert run.mode == "FILE_VS_FILE"
     assert {b.id for b in run.batches} == {b1.id, b2.id}
-
-
-def test_mark_stale_for_source_marks_referencing_runs(test_db):
-    b = _batch(test_db, name="a")
-    other = _batch(test_db, name="b")
-    run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="completed", created_by="u")
-    run.batches = [b, other]
-    test_db.add(run)
-    test_db.commit()
-    n = mark_stale_for_source(test_db, b.data_source_id)
-    test_db.commit()
-    test_db.refresh(run)
-    assert n == 1
-    assert run.status == "stale"
