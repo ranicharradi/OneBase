@@ -3,6 +3,7 @@
 ## Prerequisites
 
 - Python 3.12
+- uv
 - Node.js 22
 - Docker (for Postgres + Redis)
 
@@ -15,17 +16,18 @@ See the [README](./README.md) for detailed setup instructions. Quick start:
 docker-compose up -d postgres redis
 
 # Backend (from backend/)
-python3 -m venv .venv
-source .venv/bin/activate
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements-dev.txt
-alembic upgrade head
-uvicorn app.main:app --reload
+cd backend
+uv sync --locked
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
 
 # Frontend (from frontend/)
+cd ../frontend
 npm install
 npm run dev
 ```
+
+Local backend dependencies live in `backend/.venv` and are managed by `uv`. The project pins CPU-only PyTorch in `backend/pyproject.toml`, so contributors should not install `torch` manually before syncing.
 
 ## Branch Naming
 
@@ -52,13 +54,10 @@ chore: upgrade vitest to v4
 
 ```bash
 # Backend
-cd backend && source .venv/bin/activate
-python3 -m pytest                    # all tests
-python3 -m pytest tests/test_auth.py # single file
-
-# Optional parallel execution with pytest-xdist
-pip install pytest-xdist
-python3 -m pytest -n auto
+cd backend
+uv run pytest                    # all tests
+uv run pytest tests/test_auth.py # single file
+uv run pytest -n auto            # explicit parallel execution
 
 # Frontend
 cd frontend
@@ -71,7 +70,7 @@ npm run test:coverage # with coverage
 
 - **Backend:** [Ruff](https://docs.astral.sh/ruff/) for linting and formatting
   ```bash
-  cd backend && ruff check app/ && ruff format --check app/
+  cd backend && uv run ruff check app/ && uv run ruff format --check app/
   ```
 - **Frontend:** [ESLint](https://eslint.org/) with TypeScript and React plugins
   ```bash

@@ -36,17 +36,18 @@ docker-compose up -d
 # 1. Start databases only (dev overlay exposes ports 5432 and 6379 to the host)
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
 
-# 2. Backend (from backend/)
-python3 -m venv .venv && source .venv/bin/activate
-cd backend
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements-dev.txt
-alembic upgrade head
-uvicorn app.main:app --reload    # API on :8000
+# One-time if uv is not installed:
+# curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 3. Celery worker (second terminal, venv activated)
-cd backend && source .venv/bin/activate
-celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+# 2. Backend (from backend/)
+cd backend
+uv sync --locked
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload    # API on :8000
+
+# 3. Celery worker (second terminal)
+cd backend
+uv run celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
 
 # 4. Frontend (from frontend/)
 cd frontend
@@ -57,6 +58,8 @@ npm run dev    # Vite on :5173, proxies /api → :8000
 ```
 
 > The Celery worker is only needed for uploads and matching. The UI loads without it.
+>
+> Backend dependencies are managed by `uv` in `backend/.venv`. CPU-only PyTorch is pinned in `backend/pyproject.toml` via the explicit PyTorch CPU index, so do not manually preinstall `torch` or let `sentence-transformers` pull the default PyPI build.
 
 ## API Usage
 
@@ -180,7 +183,7 @@ Beyond the core dedup pipeline, the API exposes:
 The backend loads a single repo-root `.env` file. Native local development defaults to `localhost` for Postgres and Redis; Docker Compose injects container service hostnames for the `api` and `worker` containers.
 
 ```bash
-uvicorn app.main:app --reload                                           # local native dev, reads .env
+uv run uvicorn app.main:app --reload                                    # local native dev, reads .env
 docker-compose up -d                                                    # Docker hostnames injected by Compose
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # dev: also exposes Postgres/Redis to host
 ```
@@ -203,18 +206,18 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # dev: al
 ## Testing
 
 ```bash
-cd backend && source .venv/bin/activate
+cd backend
 
-python3 -m pytest                                # full suite (SQLite, parallel via pytest-xdist -n auto by default)
-python3 -m pytest -m "not slow"                  # skip ML/embedding tests (fast dev loop)
-python3 -m pytest tests/test_auth.py -v          # single file
-python3 -m pytest tests/test_auth.py::test_login_success -v  # single test
+uv run pytest                                # full suite (SQLite, parallel via pytest-xdist -n auto by default)
+uv run pytest -m "not slow"                  # skip ML/embedding tests (fast dev loop)
+uv run pytest tests/test_auth.py -v          # single file
+uv run pytest tests/test_auth.py::test_login_success -v  # single test
 
 # Integration test against PostgreSQL — must run serially (autouse create_all/drop_all races on a shared DB)
-TEST_DATABASE_URL=postgresql://user:pass@localhost/testdb python3 -m pytest -n 0
+TEST_DATABASE_URL=postgresql://user:pass@localhost/testdb uv run pytest -n 0
 
 # New migration after model changes
-alembic revision --autogenerate -m "description"
+uv run alembic revision --autogenerate -m "description"
 ```
 
 ## Frontend
