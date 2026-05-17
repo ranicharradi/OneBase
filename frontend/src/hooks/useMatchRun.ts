@@ -13,7 +13,7 @@ export function useMatchRun(selectedType: string) {
 
   const { data: allRuns } = useQuery({
     queryKey: ['match-runs', selectedType],
-    queryFn: () => api.get<MatchRunResponse[]>(`/api/matches/?type=${selectedType}`),
+    queryFn: () => api.get<MatchRunResponse[]>(`/api/matches?type=${selectedType}`),
     refetchInterval: (q) => {
       const data = q.state.data as MatchRunResponse[] | undefined;
       return data?.some(r => r.status === 'pending' || r.status === 'running') ? 1000 : false;

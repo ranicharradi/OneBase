@@ -140,7 +140,7 @@ export default function History() {
   const navigate = useNavigate();
   const { data: runs, isLoading } = useQuery({
     queryKey: ['comparison-runs'],
-    queryFn: () => api.get<MatchRunResponse[]>('/api/matches/'),
+    queryFn: () => api.get<MatchRunResponse[]>('/api/matches'),
   });
 
   const historyRuns = (runs ?? []).filter(r => r.status !== 'pending' && r.status !== 'running');

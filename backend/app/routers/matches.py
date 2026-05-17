@@ -99,7 +99,7 @@ def post_runs(
     return MatchRunDispatchResponse(runs=[_to_response(r) for r in runs])
 
 
-@router.get("/", response_model=list[MatchRunResponse])
+@router.get("", response_model=list[MatchRunResponse])
 def list_runs(
     type: str | None = Query(None),
     mode: str | None = Query(None),

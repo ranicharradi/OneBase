@@ -418,7 +418,7 @@ export default function Match() {
 
   const { data: allRuns } = useQuery({
     queryKey: ["comparison-runs"],
-    queryFn: () => api.get<MatchRunResponse[]>("/api/matches/"),
+    queryFn: () => api.get<MatchRunResponse[]>("/api/matches"),
     refetchInterval: (q) => {
       const data = q.state.data as MatchRunResponse[] | undefined;
       return data?.some((r) => r.status === "pending" || r.status === "running")

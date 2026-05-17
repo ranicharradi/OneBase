@@ -162,7 +162,7 @@ function setupFetch(queueOverride?: Partial<typeof mockQueue>) {
         }),
       )
     }
-    if (urlStr.includes('/api/matches/')) {
+    if (urlStr.includes('/api/matches')) {
       return Promise.resolve(
         new Response(JSON.stringify(mockRuns), {
           status: 200,
@@ -232,7 +232,7 @@ describe('ReviewQueue page', () => {
           }),
         )
       }
-      if (urlStr.includes('/api/matches/')) {
+      if (urlStr.includes('/api/matches')) {
         return Promise.resolve(
           new Response(JSON.stringify(mockRuns), {
             status: 200,

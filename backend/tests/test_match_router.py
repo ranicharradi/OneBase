@@ -236,7 +236,7 @@ def test_post_returns_409_when_run_already_active(authenticated_client, test_db,
 
 
 def test_list_runs_returns_empty_initially(authenticated_client, test_db):
-    resp = authenticated_client.get("/api/matches/")
+    resp = authenticated_client.get("/api/matches")
     assert resp.status_code == 200
     assert resp.json() == []
 
