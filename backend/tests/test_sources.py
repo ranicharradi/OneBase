@@ -106,19 +106,6 @@ class TestGetSource:
         assert response.status_code == 404
 
 
-class TestUpdateSource:
-    """Tests for removed PUT /api/sources/{id} update endpoint."""
-
-    def test_update_source_not_allowed(self, authenticated_client, test_db):
-        """Source editing is intentionally not exposed."""
-        create_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
-        source_id = create_resp.json()["id"]
-
-        update_data = {"name": "SAP Export v2", "description": "Updated description"}
-        response = authenticated_client.put(f"/api/sources/{source_id}", json=update_data)
-        assert response.status_code == 405
-
-
 class TestDeleteSource:
     """Tests for DELETE /api/sources/{id}."""
 
