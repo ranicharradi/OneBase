@@ -3,8 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ComparisonMode = Literal["FILE_VS_FILE", "FILE_VS_GOLDEN", "MULTI_FILE"]
-ComparisonStatus = Literal["pending", "running", "completed", "failed", "stale"]
+MatchMode = Literal["FILE_VS_FILE", "FILE_VS_GOLDEN", "MULTI_FILE"]
+MatchStatus = Literal["pending", "running", "completed", "failed", "stale"]
 
 
 class BatchSummary(BaseModel):
@@ -12,18 +12,18 @@ class BatchSummary(BaseModel):
     filename: str
 
 
-class ComparisonRunCreate(BaseModel):
+class MatchRunCreate(BaseModel):
     type: str
-    mode: ComparisonMode
+    mode: MatchMode
     batch_ids: list[int] = Field(..., min_length=1)
     name: str | None = None
 
 
-class ComparisonRunResponse(BaseModel):
+class MatchRunResponse(BaseModel):
     id: int
     type: str
-    mode: ComparisonMode
-    status: ComparisonStatus
+    mode: MatchMode
+    status: MatchStatus
     name: str | None
     created_by: str
     created_at: datetime
@@ -36,11 +36,11 @@ class ComparisonRunResponse(BaseModel):
     error_message: str | None = None
 
 
-class ComparisonRunDetail(ComparisonRunResponse):
+class MatchRunDetail(MatchRunResponse):
     candidate_counts: dict[str, int]  # {pending: N, confirmed: N, rejected: N, merged: N}
 
 
-class ComparisonRunStatus(BaseModel):
+class MatchRunStatus(BaseModel):
     task_id: str | None
     state: str
     stage: str | None
