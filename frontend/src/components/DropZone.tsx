@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { formatFileSize } from '../utils/filesize';
+import { ALLOWED_UPLOAD_ACCEPT, isAllowedUpload } from '../utils/fileFormat';
 
 interface DropZoneProps {
   onFileSelected: (file: File) => void;
@@ -32,12 +33,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
   }, []);
 
   const processFile = useCallback((file: File) => {
-    const lower = file.name.toLowerCase();
-    const accepted =
-      lower.endsWith('.csv') ||
-      lower.endsWith('.xlsx') ||
-      file.type === 'text/csv';
-    if (accepted) {
+    if (isAllowedUpload(file.name)) {
       setSelectedFile(file);
       setError('');
       onFileSelected(file);
@@ -211,7 +207,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
       <input
         ref={fileInputRef}
         type="file"
-        accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept={ALLOWED_UPLOAD_ACCEPT}
         onChange={handleFileInput}
         style={{ display: 'none' }}
         disabled={disabled}
