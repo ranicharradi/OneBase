@@ -1,4 +1,4 @@
-"""Celery task for running a ComparisonRun end-to-end."""
+"""Celery task for running a MatchRun end-to-end."""
 
 import logging
 from contextlib import suppress
@@ -15,20 +15,20 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(
     bind=True,
-    name="run_comparison",
+    name="run_match",
     max_retries=2,
     autoretry_for=(OperationalError, ConnectionError),
     retry_backoff=True,
     retry_backoff_max=120,
     retry_jitter=True,
 )
-def run_comparison(self, comparison_run_id: int):
+def run_match(self, match_run_id: int):
     with get_task_session() as db:
-        from app.models.comparison import ComparisonRun
+        from app.models.match_run import MatchRun
         from app.services.matching import run_matching_pipeline
         from app.services.record_set import RecordSet
 
-        run = db.query(ComparisonRun).filter(ComparisonRun.id == comparison_run_id).one()
+        run = db.query(MatchRun).filter(MatchRun.id == match_run_id).one()
 
         if run.status not in ("pending",):
             logger.info("run %d already in status %s; skipping", run.id, run.status)
@@ -71,7 +71,7 @@ def run_comparison(self, comparison_run_id: int):
                 from app.services.notifications import publish_notification
 
                 publish_notification(
-                    "comparison_complete",
+                    "match_complete",
                     {"run_id": run.id, "type": run.type, "stats": stats},
                 )
             except Exception as e:
