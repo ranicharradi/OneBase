@@ -448,6 +448,117 @@ class TestFileCleanupOnFailure:
             os.unlink(test_filepath)
 
 
+def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
+    """After Track B: ingestion never dispatches matching."""
+    from unittest.mock import MagicMock, patch
+
+    from app.models.batch import ImportBatch
+    from app.models.comparison import ComparisonRun  # still named pre-Track-C
+    from app.models.enums import BatchStatus
+    from app.models.source import DataSource
+
+    # Arrange: two sources with an existing completed batch so auto-match would normally fire
+    source_a = DataSource(
+        name="Source A",
+        type="supplier",
+        file_format="csv",
+        delimiter=";",
+        column_mapping={"supplier_name": "Name1"},
+    )
+    test_db.add(source_a)
+    test_db.flush()
+
+    existing_batch = ImportBatch(
+        data_source_id=source_a.id,
+        filename="existing.csv",
+        uploaded_by="testuser",
+        status=BatchStatus.COMPLETED,
+    )
+    test_db.add(existing_batch)
+    test_db.flush()
+
+    from app.models.staging import StagedRecord
+
+    test_db.add(
+        StagedRecord(
+            import_batch_id=existing_batch.id,
+            data_source_id=source_a.id,
+            type="supplier",
+            name="Acme",
+            fields={"supplier_name": "Acme"},
+            raw_data={"Name1": "Acme"},
+            status="active",
+        )
+    )
+    test_db.commit()
+
+    source_b = DataSource(
+        name="Source B",
+        type="supplier",
+        file_format="csv",
+        delimiter=";",
+        column_mapping={"supplier_name": "Name1"},
+    )
+    test_db.add(source_b)
+    test_db.flush()
+
+    new_batch = ImportBatch(
+        data_source_id=source_b.id,
+        filename="new.csv",
+        uploaded_by="testuser",
+        status=BatchStatus.PENDING,
+    )
+    test_db.add(new_batch)
+    test_db.commit()
+    batch_id = new_batch.id
+
+    def spy_ingestion(db, bid, file_content, progress_callback=None):
+        db.add(
+            StagedRecord(
+                import_batch_id=bid,
+                data_source_id=source_b.id,
+                type="supplier",
+                name="Acme Ltd",
+                fields={"supplier_name": "Acme Ltd"},
+                raw_data={"Name1": "Acme Ltd"},
+                status="active",
+            )
+        )
+        b = db.query(ImportBatch).filter(ImportBatch.id == bid).one()
+        b.status = BatchStatus.COMPLETED
+        db.flush()
+        return 1
+
+    with (
+        patch(
+            "app.tasks.ingestion.get_task_session",
+            side_effect=_mock_task_session(test_db),
+        ),
+        patch(
+            "app.tasks.ingestion.open",
+            MagicMock(
+                return_value=MagicMock(
+                    __enter__=MagicMock(return_value=MagicMock(read=MagicMock(return_value=SAMPLE_CSV))),
+                    __exit__=MagicMock(return_value=False),
+                )
+            ),
+        ),
+        patch("app.services.ingestion.run_ingestion", side_effect=spy_ingestion),
+        patch("app.services.notifications.publish_notification", lambda *a, **k: None),
+    ):
+        from app.tasks.ingestion import process_upload
+
+        process_upload(batch_id)
+
+    # Assert: batch completed
+    test_db.expire_all()
+    batch = test_db.query(ImportBatch).get(batch_id)
+    assert batch.status == BatchStatus.COMPLETED
+
+    # Assert: NO ComparisonRun was created
+    assert test_db.query(ComparisonRun).count() == 0
+
+
 class TestRunIngestionXlsx:
     """Integration test for xlsx ingestion through run_ingestion."""
 
