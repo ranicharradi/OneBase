@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
+from app.models.match_run import MatchRun
 from app.models.ml_model import MLModelVersion
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
@@ -36,7 +36,7 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
     db.add_all([b1, b2])
     db.flush()
 
-    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+    run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
     db.add(run)
     db.flush()
 
@@ -102,7 +102,7 @@ def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
 
         mc = MatchCandidate(
             type="supplier",
-            comparison_run_id=run.id,
+            match_run_id=run.id,
             record_a_id=rec_a.id,
             record_b_id=rec_b.id,
             confidence=sum(signals.values()) / 6,
@@ -164,12 +164,12 @@ class TestExtractTrainingData:
         )
         test_db.add_all([sa_, sb_])
         test_db.flush()
-        pending_run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        pending_run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
         test_db.add(pending_run)
         test_db.flush()
         mc = MatchCandidate(
             type="supplier",
-            comparison_run_id=pending_run.id,
+            match_run_id=pending_run.id,
             record_a_id=sa_.id,
             record_b_id=sb_.id,
             confidence=0.5,

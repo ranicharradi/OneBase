@@ -203,6 +203,6 @@ class TestMatchingTaskNotifications:
 
     def test_comparison_task_is_importable(self):
         """Comparison task module can be imported."""
-        from app.tasks.comparison import run_comparison
+        from app.tasks.match import run_match
 
-        assert callable(run_comparison)
+        assert callable(run_match)

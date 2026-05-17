@@ -6,9 +6,9 @@ import pytest
 
 from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
+from app.models.match_run import MatchRun
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.models.unified import UnifiedRecord
@@ -220,12 +220,12 @@ class TestSingletonPromotion:
         _sup_c = _seed_staged(test_db, s1, b1, "SINGLETON C", "FE003")
 
         # Create a match candidate for A and B
-        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
         test_db.add(run)
         test_db.flush()
         mc = MatchCandidate(
             type="supplier",
-            comparison_run_id=run.id,
+            match_run_id=run.id,
             record_a_id=sup_a.id,
             record_b_id=sup_b.id,
             confidence=0.85,
@@ -364,12 +364,12 @@ class TestDashboard:
         sup_a = _seed_staged(test_db, s1, b1, "DASH A")
         sup_b = _seed_staged(test_db, s2, _seed_batch(test_db, s2), "DASH B")
 
-        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
         test_db.add(run)
         test_db.flush()
         mc = MatchCandidate(
             type="supplier",
-            comparison_run_id=run.id,
+            match_run_id=run.id,
             record_a_id=sup_a.id,
             record_b_id=sup_b.id,
             confidence=0.80,

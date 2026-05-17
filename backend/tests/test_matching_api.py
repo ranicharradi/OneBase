@@ -3,9 +3,9 @@
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, RecordStatus
 from app.models.match import MatchCandidate, MatchGroup
+from app.models.match_run import MatchRun
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 
@@ -62,11 +62,11 @@ def _make_group_with_candidates(db: Session, count: int, status: str = "pending"
     batch1 = _make_batch(db, src1)
     batch2 = _make_batch(db, src2)
 
-    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+    run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
     db.add(run)
     db.flush()
 
-    group = MatchGroup(type="supplier", comparison_run_id=run.id)
+    group = MatchGroup(type="supplier", match_run_id=run.id)
     db.add(group)
     db.flush()
 
@@ -76,7 +76,7 @@ def _make_group_with_candidates(db: Session, count: int, status: str = "pending"
         sb = _make_record(db, batch2, src2, f"Supplier B{i}-{status}")
         c = MatchCandidate(
             type="supplier",
-            comparison_run_id=run.id,
+            match_run_id=run.id,
             record_a_id=sa.id,
             record_b_id=sb.id,
             confidence=0.80 + (i * 0.01),
@@ -170,12 +170,12 @@ class TestMatchGroupsAPI:
 
     def test_groups_empty(self, authenticated_client, test_db):
         """GET /groups returns empty list for a run with no groups."""
-        from app.models.comparison import ComparisonRun
+        from app.models.match_run import MatchRun
 
-        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
         test_db.add(run)
         test_db.commit()
-        resp = authenticated_client.get(f"/api/matching/groups?comparison_run_id={run.id}")
+        resp = authenticated_client.get(f"/api/matching/groups?match_run_id={run.id}")
         assert resp.status_code == 200
         assert resp.json() == []
 
@@ -184,7 +184,7 @@ class TestMatchGroupsAPI:
         group, candidates = _make_group_with_candidates(test_db, 3)
         test_db.commit()
 
-        resp = authenticated_client.get(f"/api/matching/groups?comparison_run_id={group.comparison_run_id}")
+        resp = authenticated_client.get(f"/api/matching/groups?match_run_id={group.match_run_id}")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) >= 1
@@ -195,7 +195,7 @@ class TestMatchGroupsAPI:
 
     def test_groups_requires_auth(self, test_client, test_db):
         """GET /groups returns 401 without auth."""
-        resp = test_client.get("/api/matching/groups?comparison_run_id=1")
+        resp = test_client.get("/api/matching/groups?match_run_id=1")
         assert resp.status_code == 401
 
 
@@ -208,7 +208,7 @@ class TestMatchCandidatesAPI:
         test_db.commit()
 
         resp = authenticated_client.get(
-            f"/api/matching/candidates?comparison_run_id={group.comparison_run_id}&group_id={group.id}"
+            f"/api/matching/candidates?match_run_id={group.match_run_id}&group_id={group.id}"
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -219,9 +219,7 @@ class TestMatchCandidatesAPI:
         group_p, _ = _make_group_with_candidates(test_db, 2, status="pending")
         test_db.commit()
 
-        resp = authenticated_client.get(
-            f"/api/matching/candidates?comparison_run_id={group_p.comparison_run_id}&status=pending"
-        )
+        resp = authenticated_client.get(f"/api/matching/candidates?match_run_id={group_p.match_run_id}&status=pending")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 2
@@ -233,7 +231,7 @@ class TestMatchCandidatesAPI:
         test_db.commit()
 
         resp = authenticated_client.get(
-            f"/api/matching/candidates?comparison_run_id={group.comparison_run_id}&group_id={group.id}"
+            f"/api/matching/candidates?match_run_id={group.match_run_id}&group_id={group.id}"
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -247,7 +245,7 @@ class TestMatchCandidatesAPI:
         test_db.commit()
 
         resp = authenticated_client.get(
-            f"/api/matching/candidates?comparison_run_id={group.comparison_run_id}&group_id={group.id}"
+            f"/api/matching/candidates?match_run_id={group.match_run_id}&group_id={group.id}"
         )
         data = resp.json()
         signals = data[0]["match_signals"]
@@ -257,17 +255,17 @@ class TestMatchCandidatesAPI:
 
     def test_candidates_requires_auth(self, test_client, test_db):
         """GET /candidates returns 401 without auth."""
-        resp = test_client.get("/api/matching/candidates?comparison_run_id=1")
+        resp = test_client.get("/api/matching/candidates?match_run_id=1")
         assert resp.status_code == 401
 
-    def test_candidates_requires_comparison_run_id(self, authenticated_client, test_db):
-        """GET /candidates without comparison_run_id returns 422."""
+    def test_candidates_requires_match_run_id(self, authenticated_client, test_db):
+        """GET /candidates without match_run_id returns 422."""
         resp = authenticated_client.get("/api/matching/candidates")
         assert resp.status_code == 422
 
 
-def test_groups_requires_comparison_run_id(authenticated_client, test_db):
-    """GET /groups without comparison_run_id returns 422."""
+def test_groups_requires_match_run_id(authenticated_client, test_db):
+    """GET /groups without match_run_id returns 422."""
     resp = authenticated_client.get("/api/matching/groups")
     assert resp.status_code == 422
 

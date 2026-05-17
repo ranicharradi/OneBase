@@ -6,9 +6,9 @@ from unittest.mock import patch
 import pytest
 
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
+from app.models.match_run import MatchRun
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 
@@ -30,7 +30,7 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
     db.add_all([b1, b2])
     db.flush()
 
-    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+    run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
     db.add(run)
     db.flush()
 
@@ -73,7 +73,7 @@ def _seed_reviewed(db, count=60, confirm_ratio=0.5):
         }
         mc = MatchCandidate(
             type="supplier",
-            comparison_run_id=run.id,
+            match_run_id=run.id,
             record_a_id=sa.id,
             record_b_id=sb.id,
             confidence=0.7 if status == CandidateStatus.CONFIRMED else 0.3,
@@ -143,7 +143,7 @@ class TestActiveLearningSort:
         db.add_all([b1, b2])
         db.flush()
 
-        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
         db.add(run)
         db.flush()
 
@@ -173,7 +173,7 @@ class TestActiveLearningSort:
             db.flush()
             mc = MatchCandidate(
                 type="supplier",
-                comparison_run_id=run.id,
+                match_run_id=run.id,
                 record_a_id=sa.id,
                 record_b_id=sb.id,
                 confidence=conf,

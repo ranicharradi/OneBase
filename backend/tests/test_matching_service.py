@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate, MatchGroup
+from app.models.match_run import MatchRun
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.services.record_set import RecordRef, RecordSet
@@ -62,9 +62,9 @@ def _make_record(
     return s
 
 
-def _make_run(db: Session, mode: str = "FILE_VS_FILE") -> ComparisonRun:
-    """Helper to create a ComparisonRun."""
-    run = ComparisonRun(type="supplier", mode=mode, status="running", created_by="u")
+def _make_run(db: Session, mode: str = "FILE_VS_FILE") -> MatchRun:
+    """Helper to create a MatchRun."""
+    run = MatchRun(type="supplier", mode=mode, status="running", created_by="u")
     db.add(run)
     db.flush()
     return run
@@ -527,7 +527,7 @@ def test_run_matching_pipeline_file_vs_file_writes_candidates_to_run(test_db):
     _make_record(test_db, b2, src2, "ACME LIMITED")
     test_db.commit()
 
-    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", created_by="u", status="running")
+    run = MatchRun(type="supplier", mode="FILE_VS_FILE", created_by="u", status="running")
     test_db.add(run)
     test_db.commit()
 
@@ -539,10 +539,10 @@ def test_run_matching_pipeline_file_vs_file_writes_candidates_to_run(test_db):
     stats = run_matching_pipeline(test_db, run.id, side_a, side_b)
     test_db.commit()
 
-    cands = test_db.query(MatchCandidate).filter(MatchCandidate.comparison_run_id == run.id).all()
+    cands = test_db.query(MatchCandidate).filter(MatchCandidate.match_run_id == run.id).all()
     assert stats["candidate_count"] == len(cands)
     assert all(c.side_a_kind == "staged" and c.side_b_kind == "staged" for c in cands)
-    assert all(c.comparison_run_id == run.id for c in cands)
+    assert all(c.match_run_id == run.id for c in cands)
 
 
 def test_run_matching_pipeline_file_vs_golden_emits_unified_side(test_db):
@@ -563,7 +563,7 @@ def test_run_matching_pipeline_file_vs_golden_emits_unified_side(test_db):
     test_db.add(u)
     test_db.commit()
 
-    run = ComparisonRun(type="supplier", mode="FILE_VS_GOLDEN", created_by="u", status="running")
+    run = MatchRun(type="supplier", mode="FILE_VS_GOLDEN", created_by="u", status="running")
     test_db.add(run)
     test_db.commit()
     side_a = RecordSet.from_batch(test_db, batch.id)
@@ -574,7 +574,7 @@ def test_run_matching_pipeline_file_vs_golden_emits_unified_side(test_db):
     run_matching_pipeline(test_db, run.id, side_a, side_b)
     test_db.commit()
 
-    cand = test_db.query(MatchCandidate).filter(MatchCandidate.comparison_run_id == run.id).first()
+    cand = test_db.query(MatchCandidate).filter(MatchCandidate.match_run_id == run.id).first()
     if cand is not None:
         assert cand.side_b_kind == "unified"
         assert cand.side_a_kind == "staged"
@@ -590,9 +590,9 @@ def test_pipeline_uses_per_type_confidence_threshold(mock_score_pair, mock_text_
 
     from app.config import settings
     from app.models.batch import ImportBatch
-    from app.models.comparison import ComparisonRun
     from app.models.enums import BatchStatus, RecordStatus
     from app.models.match import MatchCandidate
+    from app.models.match_run import MatchRun
     from app.models.source import DataSource
     from app.models.staging import StagedRecord
     from app.record_types import _testing_clear_registry, register
@@ -647,7 +647,7 @@ def test_pipeline_uses_per_type_confidence_threshold(mock_score_pair, mock_text_
         mock_embedding_block.return_value = set()
         mock_score_pair.return_value = {"confidence": 0.60, "signals": {"jaro_winkler:n": 0.60}}
 
-        run = ComparisonRun(name="r", type="t_threshold", mode="FILE_VS_FILE", status="pending", created_by="u")
+        run = MatchRun(name="r", type="t_threshold", mode="FILE_VS_FILE", status="pending", created_by="u")
         test_db.add(run)
         test_db.flush()
 
@@ -657,7 +657,7 @@ def test_pipeline_uses_per_type_confidence_threshold(mock_score_pair, mock_text_
             result = run_matching_pipeline(test_db, run.id, side_a, side_b=None)
 
         assert result["candidate_count"] == 1, "candidate should pass per-type 0.50 even though global is 0.80"
-        cand = test_db.query(MatchCandidate).filter(MatchCandidate.comparison_run_id == run.id).one()
+        cand = test_db.query(MatchCandidate).filter(MatchCandidate.match_run_id == run.id).one()
         assert abs(cand.confidence - 0.60) < 1e-6
     finally:
         _testing_clear_registry()

@@ -1,8 +1,8 @@
-from app.models.comparison import ComparisonRun
+from app.models.match_run import MatchRun
 
 
-def test_create_comparison_run(test_db):
-    run = ComparisonRun(
+def test_create_match_run(test_db):
+    run = MatchRun(
         type="supplier",
         mode="FILE_VS_FILE",
         status="pending",

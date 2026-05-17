@@ -422,8 +422,8 @@ def test_list_batches_reports_unified_when_referenced_by_completed_run(authentic
     import datetime
 
     from app.models.batch import ImportBatch
-    from app.models.comparison import ComparisonRun
     from app.models.enums import BatchStatus
+    from app.models.match_run import MatchRun
     from app.models.source import DataSource
 
     src = DataSource(name="uni-src", type="supplier", column_mapping={"name": "x"})
@@ -432,7 +432,7 @@ def test_list_batches_reports_unified_when_referenced_by_completed_run(authentic
     b = ImportBatch(data_source_id=src.id, filename="f.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
     test_db.add(b)
     test_db.flush()
-    run = ComparisonRun(
+    run = MatchRun(
         type="supplier",
         mode="FILE_VS_FILE",
         status="completed",

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from app.models.comparison import ComparisonRun
+from app.models.match_run import MatchRun
 from app.models.unified import UnifiedRecord
 
 
@@ -32,7 +32,7 @@ def test_postgres_create_all_uses_jsonb_for_json_payload_columns():
 
     assert UnifiedRecord.__table__.c.source_record_ids.type.compile(dialect=dialect) == "JSONB"
     assert UnifiedRecord.__table__.c.fields.type.compile(dialect=dialect) == "JSONB"
-    assert ComparisonRun.__table__.c.stats.type.compile(dialect=dialect) == "JSONB"
+    assert MatchRun.__table__.c.stats.type.compile(dialect=dialect) == "JSONB"
 
     @patch("app.database.SessionLocal")
     def test_closes_session_on_exception(self, mock_session_local):

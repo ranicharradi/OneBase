@@ -260,7 +260,7 @@ class TestProcessUploadIdempotency:
     @patch("app.tasks.ingestion.get_task_session")
     def test_does_not_enqueue_matching_run_when_two_active_batches_exist(self, mock_get_session, test_db):
         """After Track B: ingestion does NOT auto-dispatch matching even with two active batches."""
-        from app.models.comparison import ComparisonRun
+        from app.models.match_run import MatchRun
         from app.models.staging import StagedRecord
 
         mock_get_session.side_effect = _mock_task_session(test_db)
@@ -328,8 +328,8 @@ class TestProcessUploadIdempotency:
 
             process_upload(new_batch.id)
 
-        # Assert: NO ComparisonRun was auto-created
-        assert test_db.query(ComparisonRun).count() == 0
+        # Assert: NO MatchRun was auto-created
+        assert test_db.query(MatchRun).count() == 0
 
     def test_retry_configuration(self):
         """process_upload has correct retry configuration."""
@@ -444,8 +444,8 @@ def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
     from unittest.mock import MagicMock, patch
 
     from app.models.batch import ImportBatch
-    from app.models.comparison import ComparisonRun  # still named pre-Track-C
     from app.models.enums import BatchStatus
+    from app.models.match_run import MatchRun  # still named pre-Track-C
     from app.models.source import DataSource
 
     # Arrange: two sources with an existing completed batch so auto-match would normally fire
@@ -546,8 +546,8 @@ def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
     batch = test_db.query(ImportBatch).get(batch_id)
     assert batch.status == BatchStatus.COMPLETED
 
-    # Assert: NO ComparisonRun was created
-    assert test_db.query(ComparisonRun).count() == 0
+    # Assert: NO MatchRun was created
+    assert test_db.query(MatchRun).count() == 0
 
 
 class TestRunIngestionXlsx:

@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.models.audit import AuditLog
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
+from app.models.match_run import MatchRun
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.models.unified import UnifiedRecord
@@ -67,8 +67,8 @@ def _make_record(
     return s
 
 
-def _make_run(db: Session) -> ComparisonRun:
-    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+def _make_run(db: Session) -> MatchRun:
+    run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
     db.add(run)
     db.flush()
     return run
@@ -78,7 +78,7 @@ def _make_candidate(db: Session, rec_a: StagedRecord, rec_b: StagedRecord, confi
     run = _make_run(db)
     c = MatchCandidate(
         type="supplier",
-        comparison_run_id=run.id,
+        match_run_id=run.id,
         record_a_id=rec_a.id,
         record_b_id=rec_b.id,
         confidence=confidence,
@@ -596,13 +596,13 @@ def test_execute_merge_file_vs_golden_updates_existing_unified(test_db):
     db.add_all([staged, unified])
     db.flush()
 
-    run = ComparisonRun(type="supplier", mode="FILE_VS_GOLDEN", status="completed", created_by="u")
+    run = MatchRun(type="supplier", mode="FILE_VS_GOLDEN", status="completed", created_by="u")
     db.add(run)
     db.flush()
 
     cand = MatchCandidate(
         type="supplier",
-        comparison_run_id=run.id,
+        match_run_id=run.id,
         record_a_id=staged.id,
         record_b_id=unified.id,
         side_a_kind="staged",
@@ -678,13 +678,13 @@ def test_execute_merge_file_vs_golden_adds_a_only_field(test_db):
     db.add_all([staged, unified])
     db.flush()
 
-    run = ComparisonRun(type="supplier", mode="FILE_VS_GOLDEN", status="completed", created_by="u")
+    run = MatchRun(type="supplier", mode="FILE_VS_GOLDEN", status="completed", created_by="u")
     db.add(run)
     db.flush()
 
     cand = MatchCandidate(
         type="supplier",
-        comparison_run_id=run.id,
+        match_run_id=run.id,
         record_a_id=staged.id,
         record_b_id=unified.id,
         side_a_kind="staged",
@@ -743,13 +743,13 @@ def test_execute_merge_file_vs_golden_stringifies_extra_a_only_field(test_db):
     db.add_all([staged, unified])
     db.flush()
 
-    run = ComparisonRun(type="supplier", mode="FILE_VS_GOLDEN", status="completed", created_by="u")
+    run = MatchRun(type="supplier", mode="FILE_VS_GOLDEN", status="completed", created_by="u")
     db.add(run)
     db.flush()
 
     cand = MatchCandidate(
         type="supplier",
-        comparison_run_id=run.id,
+        match_run_id=run.id,
         record_a_id=staged.id,
         record_b_id=unified.id,
         side_a_kind="staged",
@@ -794,7 +794,7 @@ def test_review_queue_hides_candidates_with_superseded_records(authenticated_cli
     run = _make_run(test_db)
     cand = MatchCandidate(
         type=a.type,
-        comparison_run_id=run.id,
+        match_run_id=run.id,
         record_a_id=a.id,
         record_b_id=b.id,
         side_a_kind="staged",
@@ -869,13 +869,13 @@ def test_execute_merge_file_vs_golden_keeps_b_only_field(test_db):
     db.add_all([staged, unified])
     db.flush()
 
-    run = ComparisonRun(type="supplier", mode="FILE_VS_GOLDEN", status="completed", created_by="u")
+    run = MatchRun(type="supplier", mode="FILE_VS_GOLDEN", status="completed", created_by="u")
     db.add(run)
     db.flush()
 
     cand = MatchCandidate(
         type="supplier",
-        comparison_run_id=run.id,
+        match_run_id=run.id,
         record_a_id=staged.id,
         record_b_id=unified.id,
         side_a_kind="staged",

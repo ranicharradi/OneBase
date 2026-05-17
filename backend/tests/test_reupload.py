@@ -5,9 +5,9 @@ from unittest.mock import patch
 import numpy as np
 
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
 from app.models.match import MatchCandidate
+from app.models.match_run import MatchRun
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 
@@ -126,12 +126,12 @@ class TestReuploadSupersession:
 
         # Create a pending match candidate between the two staged records
         records = test_db.query(StagedRecord).filter(StagedRecord.import_batch_id == batch1.id).all()
-        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
         test_db.add(run)
         test_db.flush()
         match = MatchCandidate(
             type="supplier",
-            comparison_run_id=run.id,
+            match_run_id=run.id,
             record_a_id=records[0].id,
             record_b_id=records[1].id,
             confidence=0.85,
@@ -176,12 +176,12 @@ class TestReuploadSupersession:
 
         # Create a confirmed match candidate
         records = test_db.query(StagedRecord).filter(StagedRecord.import_batch_id == batch1.id).all()
-        run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
+        run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
         test_db.add(run)
         test_db.flush()
         match = MatchCandidate(
             type="supplier",
-            comparison_run_id=run.id,
+            match_run_id=run.id,
             record_a_id=records[0].id,
             record_b_id=records[1].id,
             confidence=0.95,
@@ -210,7 +210,7 @@ class TestReuploadSupersession:
 
 
 def test_mark_stale_for_source_flips_completed_runs_when_reuploading(test_db):
-    from app.services.comparison import mark_stale_for_source
+    from app.services.match import mark_stale_for_source
 
     src = DataSource(name="src-r", type="supplier", column_mapping={"name": "x"})
     test_db.add(src)
@@ -219,7 +219,7 @@ def test_mark_stale_for_source_flips_completed_runs_when_reuploading(test_db):
     test_db.add(batch)
     test_db.flush()
 
-    run = ComparisonRun(type="supplier", mode="FILE_VS_FILE", status="completed", created_by="u")
+    run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="completed", created_by="u")
     run.batches = [batch]
     test_db.add(run)
     test_db.commit()

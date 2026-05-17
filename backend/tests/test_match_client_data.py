@@ -12,9 +12,9 @@ from unittest.mock import patch
 import numpy as np
 
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, RecordStatus
 from app.models.match import MatchCandidate
+from app.models.match_run import MatchRun
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.services.record_set import RecordSet
@@ -108,7 +108,7 @@ def test_client_pipeline_produces_cross_source_candidates(test_db):
     assert len(elemaster_ids) == 2
     assert len(valeo_ids) == 2
 
-    run = ComparisonRun(
+    run = MatchRun(
         name="client smoke",
         type="client",
         mode="FILE_VS_FILE",
@@ -123,7 +123,7 @@ def test_client_pipeline_produces_cross_source_candidates(test_db):
 
     assert result["candidate_count"] >= 2, f"expected ≥2 candidates, got {result}"
 
-    candidates = test_db.query(MatchCandidate).filter(MatchCandidate.comparison_run_id == run.id).all()
+    candidates = test_db.query(MatchCandidate).filter(MatchCandidate.match_run_id == run.id).all()
     pairs = [{c.record_a_id, c.record_b_id} for c in candidates]
     assert elemaster_ids in pairs, f"ELEMASTER cross-source dup not surfaced; pairs={pairs}"
     assert valeo_ids in pairs, f"Valeo cross-source dup not surfaced; pairs={pairs}"

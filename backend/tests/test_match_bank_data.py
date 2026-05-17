@@ -6,8 +6,8 @@ from unittest.mock import patch
 import numpy as np
 
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun
 from app.models.enums import BatchStatus, RecordStatus
+from app.models.match_run import MatchRun
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.services.record_set import RecordSet
@@ -110,7 +110,7 @@ def test_bank_pipeline_produces_cross_source_candidate(test_db):
     assert all(r.fields["bic"] == "ATBKTNTT" for r in atb_rows)
 
     # Run matching across both batches.
-    run = ComparisonRun(
+    run = MatchRun(
         name="bank smoke",
         type="bank",
         mode="FILE_VS_FILE",
@@ -129,7 +129,7 @@ def test_bank_pipeline_produces_cross_source_candidate(test_db):
     from app.models.match import MatchCandidate
 
     atb_ids = {r.id for r in atb_rows}
-    candidates = test_db.query(MatchCandidate).filter(MatchCandidate.comparison_run_id == run.id).all()
+    candidates = test_db.query(MatchCandidate).filter(MatchCandidate.match_run_id == run.id).all()
     atb_pair = [c for c in candidates if {c.record_a_id, c.record_b_id} == atb_ids]
     assert atb_pair, f"no candidate found for ATB pair; got {[(c.record_a_id, c.record_b_id) for c in candidates]}"
     assert atb_pair[0].confidence >= 0.75, f"ATB candidate confidence too low: {atb_pair[0].confidence}"
