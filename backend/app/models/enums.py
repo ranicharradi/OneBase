@@ -39,6 +39,7 @@ class FileCheckSeverity(StrEnum):
 class RecordStatus(StrEnum):
     ACTIVE = "active"
     SUPERSEDED = "superseded"
+    RETIRED = "retired"
 
 
 class CandidateStatus(StrEnum):

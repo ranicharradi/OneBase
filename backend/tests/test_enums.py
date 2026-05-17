@@ -21,6 +21,10 @@ class TestRecordStatus:
         assert RecordStatus.ACTIVE == "active"
         assert RecordStatus.SUPERSEDED == "superseded"
 
+    def test_record_status_retired_exists(self):
+        """RETIRED status is available for rows absent from latest re-upload."""
+        assert RecordStatus.RETIRED.value == "retired"
+
 
 class TestCandidateStatus:
     def test_values(self):
