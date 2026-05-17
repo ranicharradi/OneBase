@@ -821,6 +821,36 @@ def test_review_queue_hides_candidates_with_superseded_records(authenticated_cli
     assert not any(c["id"] == cand.id for c in body["items"])
 
 
+def test_review_stats_excludes_superseded_candidates(authenticated_client, test_db):
+    """The badge count (total_pending) must match the queue's hidden-superseded filter."""
+    a, b = _make_two_staged_records(test_db)
+    run = _make_run(test_db)
+    cand = MatchCandidate(
+        type=a.type,
+        match_run_id=run.id,
+        record_a_id=a.id,
+        record_b_id=b.id,
+        side_a_kind="staged",
+        side_b_kind="staged",
+        confidence=0.9,
+        match_signals={},
+        status=CandidateStatus.PENDING,
+    )
+    test_db.add(cand)
+    test_db.commit()
+
+    # Sanity: stats counts the pending candidate
+    r = authenticated_client.get("/api/review/stats")
+    assert r.json()["total_pending"] == 1
+
+    # Supersede record A — both queue and stats must hide it
+    a.status = RecordStatus.SUPERSEDED
+    test_db.commit()
+
+    r = authenticated_client.get("/api/review/stats")
+    assert r.json()["total_pending"] == 0
+
+
 def test_execute_merge_file_vs_golden_keeps_b_only_field(test_db):
     """Golden has a field (contract_type) absent from staged — it must be kept unchanged."""
     db = test_db

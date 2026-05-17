@@ -55,6 +55,25 @@ def _load_record_detail(db: Session, record_id: int) -> tuple[StagedRecord, Data
     return record, source
 
 
+def _exclude_superseded_sides(query):
+    """Drop candidates whose staged side references a non-ACTIVE record.
+
+    Unified sides have no status and pass through unchanged. Mirrors the filter
+    used by both the queue and the stats endpoint so the badge count matches
+    what the user actually sees in the queue.
+    """
+    SA = aliased(StagedRecord)
+    SB = aliased(StagedRecord)
+    return (
+        query.outerjoin(SA, (MatchCandidate.side_a_kind == "staged") & (MatchCandidate.record_a_id == SA.id))
+        .outerjoin(SB, (MatchCandidate.side_b_kind == "staged") & (MatchCandidate.record_b_id == SB.id))
+        .filter(
+            ((MatchCandidate.side_a_kind != "staged") | (SA.status == RecordStatus.ACTIVE)),
+            ((MatchCandidate.side_b_kind != "staged") | (SB.status == RecordStatus.ACTIVE)),
+        )
+    )
+
+
 # ── Review queue ──
 
 
@@ -88,16 +107,7 @@ def get_review_queue(
     if max_confidence is not None:
         query = query.filter(MatchCandidate.confidence <= max_confidence)
 
-    SA = aliased(StagedRecord)
-    SB = aliased(StagedRecord)
-    query = (
-        query.outerjoin(SA, (MatchCandidate.side_a_kind == "staged") & (MatchCandidate.record_a_id == SA.id))
-        .outerjoin(SB, (MatchCandidate.side_b_kind == "staged") & (MatchCandidate.record_b_id == SB.id))
-        .filter(
-            ((MatchCandidate.side_a_kind != "staged") | (SA.status == RecordStatus.ACTIVE)),
-            ((MatchCandidate.side_b_kind != "staged") | (SB.status == RecordStatus.ACTIVE)),
-        )
-    )
+    query = _exclude_superseded_sides(query)
 
     if source_a_id is not None or source_b_id is not None:
         RecA = db.query(StagedRecord.id, StagedRecord.data_source_id).subquery("rec_a")
@@ -351,6 +361,7 @@ def get_review_stats(
         cand_query = cand_query.filter(MatchCandidate.type == type)
     if match_run_id is not None:
         cand_query = cand_query.filter(MatchCandidate.match_run_id == match_run_id)
+    cand_query = _exclude_superseded_sides(cand_query)
 
     counts = cand_query.with_entities(
         func.count(case((MatchCandidate.status == CandidateStatus.PENDING, 1))).label("pending"),
