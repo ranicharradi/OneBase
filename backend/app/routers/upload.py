@@ -55,7 +55,7 @@ async def preview_diff(
     rows = parse_file(content, file.filename or "", delimiter=source.delimiter)
 
     # lock=False: preview is read-only and must not block concurrent uploads
-    plan, _raw, _prior = compute_diff_for_source(db, source=source, rows=rows, lock=False)
+    plan, *_ = compute_diff_for_source(db, source=source, rows=rows, lock=False)
     return {
         "inserted": len(plan.inserts),
         "updated": len(plan.updates),
