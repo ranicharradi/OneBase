@@ -461,3 +461,37 @@ def test_list_batches_reports_unified_false_when_never_compared(authenticated_cl
     row = next(r for r in resp.json() if r["id"] == b.id)
     assert row["unified"] is False
     assert row["last_compared_at"] is None
+
+
+def test_upload_persists_original_filename_and_extension(authenticated_client, test_db, monkeypatch):
+    """ImportBatch row stores the original filename and extension."""
+    from app.models.batch import ImportBatch
+    from app.models.source import DataSource
+
+    src = DataSource(
+        name="src",
+        type="supplier",
+        delimiter=";",
+        column_mapping={"supplier_code": "Code", "supplier_name": "Name"},
+        identity_field_key="supplier_code",
+    )
+    test_db.add(src)
+    test_db.commit()
+
+    # Avoid actually dispatching to Celery
+    monkeypatch.setattr(
+        "app.routers.upload.process_upload.delay",
+        lambda *a, **kw: type("T", (), {"id": "fake-task"})(),
+    )
+
+    files = {"file": ("My Suppliers v2.csv", b"Code;Name\nA;Acme\n", "text/csv")}
+    data = {"data_source_id": str(src.id)}
+    response = authenticated_client.post("/api/import/upload", files=files, data=data)
+    assert response.status_code in (200, 201)
+
+    batch = test_db.query(ImportBatch).filter(ImportBatch.data_source_id == src.id).first()
+    assert batch is not None
+    assert batch.original_filename == "My Suppliers v2.csv"
+    assert batch.file_extension == ".csv"
+    # Storage key still UUID-prefixed
+    assert "_My Suppliers v2.csv" in batch.filename

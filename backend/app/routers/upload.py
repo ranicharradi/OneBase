@@ -127,9 +127,13 @@ async def upload_file(
 
     # Create import batch and commit before dispatching Celery task,
     # so the worker's separate DB session can find the batch row.
+    file_extension = os.path.splitext(original_filename)[1].lower() if original_filename else ""
+
     batch = ImportBatch(
         data_source_id=data_source_id,
         filename=stored_filename,
+        original_filename=original_filename or stored_filename,
+        file_extension=file_extension,
         uploaded_by=current_user.username,
         status=BatchStatus.PENDING,
     )
