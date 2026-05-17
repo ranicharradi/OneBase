@@ -36,6 +36,7 @@ const source: DataSource = {
   description: 'ERP export',
   delimiter: ';',
   column_mapping: { supplier_name: 'Vendor Name' },
+  identity_field_key: 'supplier_name',
   created_at: '2026-05-01T12:00:00Z',
   updated_at: '2026-05-01T12:00:00Z',
 }

@@ -50,6 +50,7 @@ export interface DataSource {
   description: string | null;
   delimiter: string;
   column_mapping: Record<string, unknown>;
+  identity_field_key: string;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -60,6 +61,7 @@ export interface DataSourceCreate {
   description?: string | null;
   delimiter?: string;
   column_mapping: ColumnMapping;
+  identity_field_key: string;
 }
 
 export interface UserCreate {

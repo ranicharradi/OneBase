@@ -345,6 +345,7 @@ describe('record API type contracts', () => {
       description: null,
       delimiter: ',',
       column_mapping: { name: 'Supplier Name', required: true, maxLength: 120 },
+      identity_field_key: 'name',
       created_at: null,
       updated_at: null,
     }
@@ -353,6 +354,7 @@ describe('record API type contracts', () => {
       type: dataSource.type,
       description: null,
       column_mapping: { name: 'Supplier Name' },
+      identity_field_key: 'name',
     }
     const matchDetail: MatchDetailResponse = {
       id: 10,

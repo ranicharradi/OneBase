@@ -62,6 +62,7 @@ export default function ColumnMapper({
 
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [autoMapped, setAutoMapped] = useState<Set<string>>(new Set());
+  const [identityFieldKey, setIdentityFieldKey] = useState<string>('');
 
   // Seed user-untouched fields with autoMap suggestions whenever the source
   // columns or record-type fields change. Synchronously calling setState
@@ -94,6 +95,10 @@ export default function ColumnMapper({
       else delete next[field];
       return next;
     });
+    // If the identity field is being un-mapped, reset the selection
+    if (!csvColumn && field === identityFieldKey) {
+      setIdentityFieldKey('');
+    }
     if (errors[field]) {
       setErrors(prev => {
         const next = { ...prev };
@@ -126,6 +131,8 @@ export default function ColumnMapper({
         newErrors[f.key] = `${f.label} mapping is required`;
       }
     }
+    if (!identityFieldKey) newErrors.identityFieldKey = 'Pick an identity column';
+    else if (!mapping[identityFieldKey]) newErrors.identityFieldKey = 'Identity column must be mapped';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -145,6 +152,7 @@ export default function ColumnMapper({
       description: description.trim() || undefined,
       delimiter: detectedDelimiter || ',',
       column_mapping: columnMapping as unknown as ColumnMapping,
+      identity_field_key: identityFieldKey,
     });
   };
 
@@ -419,6 +427,65 @@ export default function ColumnMapper({
             })}
           </tbody>
         </table>
+
+        {/* Identity column picker */}
+        <div
+          style={{
+            margin: '0 14px 10px',
+            padding: '10px 12px',
+            background: 'var(--bg-1)',
+            border: '1px solid var(--border-0)',
+            borderRadius: 6,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 500 }}>
+                Identity column
+                <span style={{ color: 'var(--danger)', marginLeft: 4 }}>*</span>
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--fg-2)', marginTop: 2 }}>
+                Used to recognize the same row across re-uploads
+              </div>
+            </div>
+            <select
+              value={identityFieldKey}
+              onChange={(e) => {
+                setIdentityFieldKey(e.target.value);
+                if (errors.identityFieldKey) {
+                  setErrors((prev) => {
+                    const n = { ...prev };
+                    delete n.identityFieldKey;
+                    return n;
+                  });
+                }
+              }}
+              className="input mono"
+              style={{
+                height: 24,
+                fontSize: 11,
+                padding: '0 8px',
+                minWidth: 220,
+                borderColor: errors.identityFieldKey ? 'var(--danger)' : undefined,
+              }}
+              disabled={Object.keys(mapping).filter((k) => mapping[k]).length === 0}
+            >
+              <option value="">— pick the column that uniquely identifies a row —</option>
+              {Object.keys(mapping)
+                .filter((k) => mapping[k])
+                .map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+            </select>
+          </div>
+          {errors.identityFieldKey && (
+            <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 6 }}>
+              {errors.identityFieldKey}
+            </div>
+          )}
+        </div>
 
         {/* Footer */}
         <div
