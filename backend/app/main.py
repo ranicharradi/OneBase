@@ -13,10 +13,10 @@ from app.rate_limit import limiter
 from app.routers import (
     ask,
     auth,
-    comparisons,
     dashboard,
     file_checks,
     insights,
+    matches,
     matching,
     record_types,
     review,
@@ -119,7 +119,7 @@ app.include_router(review.unified_singletons_router)
 app.include_router(unified.router)
 app.include_router(dashboard.router)
 app.include_router(insights.router)
-app.include_router(comparisons.router)
+app.include_router(matches.router)
 app.include_router(ws.router)
 
 

@@ -1,32 +1,32 @@
-"""ComparisonRun API."""
+"""MatchRun API."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import Pagination, get_current_user, get_db, get_pagination, require_role
-from app.models.comparison import ComparisonRun
 from app.models.enums import UserRole
 from app.models.match import MatchCandidate
+from app.models.match_run import MatchRun
 from app.models.user import User
-from app.schemas.comparison import (
+from app.schemas.match import (
     BatchSummary,
-    ComparisonRunCreate,
-    ComparisonRunDetail,
-    ComparisonRunResponse,
+    MatchRunCreate,
+    MatchRunDetail,
+    MatchRunResponse,
 )
-from app.services.comparison import (
-    ComparisonConflictError,
-    ComparisonNotFoundError,
-    ComparisonValidationError,
+from app.services.match import (
+    MatchConflictError,
+    MatchNotFoundError,
+    MatchValidationError,
     create_run,
 )
-from app.tasks.comparison import run_comparison
+from app.tasks.match import run_match
 
-router = APIRouter(prefix="/api/comparisons", tags=["comparisons"])
+router = APIRouter(prefix="/api/matches", tags=["matches"])
 
 
-def _to_response(run: ComparisonRun) -> ComparisonRunResponse:
-    return ComparisonRunResponse(
+def _to_response(run: MatchRun) -> MatchRunResponse:
+    return MatchRunResponse(
         id=run.id,
         type=run.type,
         mode=run.mode,
@@ -44,9 +44,9 @@ def _to_response(run: ComparisonRun) -> ComparisonRunResponse:
     )
 
 
-@router.post("/", response_model=ComparisonRunResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=MatchRunResponse, status_code=status.HTTP_201_CREATED)
 def post_run(
-    payload: ComparisonRunCreate,
+    payload: MatchRunCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
@@ -59,24 +59,24 @@ def post_run(
             name=payload.name,
             username=current_user.username,
         )
-    except ComparisonNotFoundError as e:
+    except MatchNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except ComparisonConflictError as e:
+    except MatchConflictError as e:
         raise HTTPException(
             status_code=409,
             detail=str(e),
             headers={"X-Conflict-Run-Id": str(e.run_id)},
         ) from e
-    except ComparisonValidationError as e:
+    except MatchValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     db.commit()
-    task = run_comparison.delay(run.id)
+    task = run_match.delay(run.id)
     run.task_id = task.id
     db.commit()
     return _to_response(run)
 
 
-@router.get("/", response_model=list[ComparisonRunResponse])
+@router.get("/", response_model=list[MatchRunResponse])
 def list_runs(
     type: str | None = Query(None),
     mode: str | None = Query(None),
@@ -85,32 +85,32 @@ def list_runs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = db.query(ComparisonRun)
+    q = db.query(MatchRun)
     if type is not None:
-        q = q.filter(ComparisonRun.type == type)
+        q = q.filter(MatchRun.type == type)
     if mode is not None:
-        q = q.filter(ComparisonRun.mode == mode)
+        q = q.filter(MatchRun.mode == mode)
     if run_status is not None:
-        q = q.filter(ComparisonRun.status == run_status)
-    runs = q.order_by(ComparisonRun.created_at.desc()).offset(pagination.offset).limit(pagination.limit).all()
+        q = q.filter(MatchRun.status == run_status)
+    runs = q.order_by(MatchRun.created_at.desc()).offset(pagination.offset).limit(pagination.limit).all()
     return [_to_response(r) for r in runs]
 
 
-@router.get("/{run_id}", response_model=ComparisonRunDetail)
+@router.get("/{run_id}", response_model=MatchRunDetail)
 def get_run(
     run_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    run = db.query(ComparisonRun).filter(ComparisonRun.id == run_id).first()
+    run = db.query(MatchRun).filter(MatchRun.id == run_id).first()
     if run is None:
         raise HTTPException(404, "Run not found")
-    rows = db.query(MatchCandidate.status, MatchCandidate.id).filter(MatchCandidate.comparison_run_id == run_id).all()
+    rows = db.query(MatchCandidate.status, MatchCandidate.id).filter(MatchCandidate.match_run_id == run_id).all()
     counts: dict[str, int] = {}
     for s, _ in rows:
         counts[s] = counts.get(s, 0) + 1
     base = _to_response(run).model_dump()
-    return ComparisonRunDetail(**base, candidate_counts=counts)
+    return MatchRunDetail(**base, candidate_counts=counts)
 
 
 @router.get("/{run_id}/status")
@@ -119,7 +119,7 @@ def get_run_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    run = db.query(ComparisonRun).filter(ComparisonRun.id == run_id).first()
+    run = db.query(MatchRun).filter(MatchRun.id == run_id).first()
     if run is None:
         raise HTTPException(404, "Run not found")
     if not run.task_id:
@@ -148,11 +148,11 @@ def delete_run(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    run = db.query(ComparisonRun).filter(ComparisonRun.id == run_id).first()
+    run = db.query(MatchRun).filter(MatchRun.id == run_id).first()
     if run is None:
         raise HTTPException(404, "Run not found")
     if run.status not in ("pending", "failed", "stale"):
         raise HTTPException(409, f"Cannot delete run in status {run.status!r}")
-    db.query(MatchCandidate).filter(MatchCandidate.comparison_run_id == run_id).delete()
+    db.query(MatchCandidate).filter(MatchCandidate.match_run_id == run_id).delete()
     db.delete(run)
     db.commit()
