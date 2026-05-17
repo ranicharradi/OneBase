@@ -1,5 +1,26 @@
 """Tests for data source CRUD endpoints."""
 
+from app.models.user import User
+from app.services.auth import create_token, hash_password
+
+
+def _auth_header(username: str) -> dict:
+    return {"Authorization": f"Bearer {create_token(username)}"}
+
+
+def _create_user_with_role(db, username: str, role: str) -> User:
+    user = User(
+        username=username,
+        password_hash=hash_password("testpass123"),
+        is_active=True,
+        role=role,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 VALID_SOURCE = {
     "name": "SAP Export",
     "description": "SAP supplier export",
@@ -38,6 +59,18 @@ class TestCreateSource:
         """Returns 401 without auth token."""
         response = test_client.post("/api/sources", json=VALID_SOURCE)
         assert response.status_code == 401
+
+    def test_create_source_requires_required_field_mapping(self, authenticated_client, test_db):
+        """Rejects mappings that omit required fields for the selected record type."""
+        source = VALID_SOURCE | {
+            "name": "Missing Supplier Name",
+            "column_mapping": {"short_name": "ShortName"},
+        }
+        response = authenticated_client.post("/api/sources", json=source)
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert "required" in detail.lower()
+        assert "supplier_name" in detail
 
 
 class TestListSources:
@@ -92,6 +125,20 @@ class TestUpdateSource:
         """Returns 404 for non-existent source."""
         response = authenticated_client.put("/api/sources/999", json={"name": "New Name"})
         assert response.status_code == 404
+
+    def test_update_source_requires_required_field_mapping(self, authenticated_client, test_db):
+        """Rejects replacement mappings that omit required fields."""
+        create_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
+        source_id = create_resp.json()["id"]
+
+        response = authenticated_client.put(
+            f"/api/sources/{source_id}",
+            json={"column_mapping": {"short_name": "ShortName"}},
+        )
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert "required" in detail.lower()
+        assert "supplier_name" in detail
 
 
 class TestDeleteSource:
@@ -236,3 +283,20 @@ class TestDetectHeaders:
             files={"file": ("vendors.csv", b"code;name\n001;Acme\n", "text/csv")},
         )
         assert response.status_code == 401
+
+    def test_detect_headers_requires_admin(self, test_client, test_db):
+        _create_user_with_role(test_db, "source-viewer", "viewer")
+        response = test_client.post(
+            "/api/sources/detect-headers",
+            files={"file": ("vendors.csv", b"code;name\n001;Acme\n", "text/csv")},
+            headers=_auth_header("source-viewer"),
+        )
+        assert response.status_code == 403
+
+    def test_detect_headers_rejects_non_utf8_csv(self, authenticated_client, test_db):
+        response = authenticated_client.post(
+            "/api/sources/detect-headers",
+            files={"file": ("vendors.csv", b"code;name\n001;Caf\xe9 Corp\n", "text/csv")},
+        )
+        assert response.status_code == 400
+        assert "utf-8" in response.json()["detail"].lower()

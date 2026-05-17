@@ -36,8 +36,6 @@ def test_seed_bank_mapping_complete(test_db):
     src = test_db.query(DataSource).filter(DataSource.name == "banks_eot").one()
     assert src.type == "bank"
     assert src.file_format == "xlsx"
-    # Every bank-type FieldDef key (except phone/website if you want to
-    # keep mapping minimal) should be present.
     expected_keys = {
         "bank_name",
         "short_name",
@@ -45,8 +43,6 @@ def test_seed_bank_mapping_complete(test_db):
         "iban",
         "city",
         "country",
-        "phone",
-        "website",
     }
     assert set(src.column_mapping.keys()) == expected_keys
     assert src.column_mapping["bank_name"] == "DES_0"

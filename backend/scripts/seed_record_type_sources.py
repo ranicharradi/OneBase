@@ -20,8 +20,6 @@ BANK_COLUMN_MAPPING = {
     "iban": "IBACOD_0",
     "city": "CTY_0",
     "country": "CRY_0",
-    "phone": "TEL_0",
-    "website": "WEB_0",
 }
 
 CLIENT_COLUMN_MAPPING = {

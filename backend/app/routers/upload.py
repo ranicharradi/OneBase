@@ -19,6 +19,7 @@ from app.services.audit import log_action
 from app.tasks.celery_app import celery_app
 from app.tasks.ingestion import process_upload
 from app.utils.paths import safe_upload_path
+from app.utils.uploads import read_limited_upload
 
 router = APIRouter(prefix="/api/import", tags=["import"])
 
@@ -76,15 +77,8 @@ async def upload_file(
                 detail="Data source not found",
             )
 
-        # Save file to disk
-        file_content = await file.read()
-
-        # Validate file size
-        if len(file_content) > MAX_UPLOAD_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail=f"File exceeds maximum size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
-            )
+        # Read with a hard cap before writing to disk.
+        file_content = await read_limited_upload(file, MAX_UPLOAD_SIZE)
 
         # Validate UTF-8 encoding (CSV only — xlsx is a binary zip container)
         if not is_xlsx:

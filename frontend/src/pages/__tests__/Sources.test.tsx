@@ -15,6 +15,20 @@ const recordType = {
   signals: [],
 }
 
+const bankRecordType = {
+  key: 'bank',
+  label: 'Bank',
+  fields: [
+    { key: 'bank_name', label: 'Bank Name', role: 'name', required: true },
+    { key: 'short_name', label: 'Short Name', role: 'extra', required: false },
+    { key: 'bic', label: 'BIC / SWIFT', role: 'code', required: false },
+    { key: 'iban', label: 'IBAN', role: 'code', required: false },
+    { key: 'city', label: 'City', role: 'extra', required: false },
+    { key: 'country', label: 'Country', role: 'enum', required: false },
+  ],
+  signals: [],
+}
+
 const source: DataSource = {
   id: 1,
   name: 'SAP Vendors',
@@ -66,6 +80,9 @@ describe('Sources page record types', () => {
       }
       if (url.endsWith('/api/record-types/supplier')) {
         return new Response(JSON.stringify(recordType), { headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.endsWith('/api/record-types/bank')) {
+        return new Response(JSON.stringify(bankRecordType), { headers: { 'Content-Type': 'application/json' } })
       }
       if (url.endsWith('/api/import/batches')) {
         return new Response(JSON.stringify([]), { headers: { 'Content-Type': 'application/json' } })
@@ -156,6 +173,45 @@ describe('Sources page record types', () => {
         description: null,
         filename_pattern: null,
       })
+    })
+  })
+
+  it('drops stale mapping keys that are not in the current record type when updating', async () => {
+    mockTypes = [
+      { key: 'supplier', label: 'Supplier', field_count: 2 },
+      { key: 'bank', label: 'Bank', field_count: 6 },
+    ]
+    mockSources = [{
+      ...source,
+      name: 'Banks EOT',
+      type: 'bank',
+      column_mapping: {
+        bank_name: 'DES_0',
+        iban: 'IBACOD_0',
+        phone: 'TEL_0',
+        website: 'WEB_0',
+      },
+    }]
+    const user = userEvent.setup()
+    render(<Sources />)
+
+    await screen.findByText('Banks EOT')
+    await waitFor(() => {
+      expect(screen.getByText('2 / 6')).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /edit banks eot/i }))
+    await user.click(screen.getByRole('button', { name: /update source/i }))
+
+    await waitFor(() => {
+      const put = requests.find(req => req.url.endsWith('/api/sources/1') && req.method === 'PUT')
+      expect(put?.body).toMatchObject({
+        column_mapping: {
+          bank_name: 'DES_0',
+          iban: 'IBACOD_0',
+        },
+      })
+      expect((put?.body as { column_mapping?: Record<string, string> }).column_mapping).not.toHaveProperty('phone')
+      expect((put?.body as { column_mapping?: Record<string, string> }).column_mapping).not.toHaveProperty('website')
     })
   })
 

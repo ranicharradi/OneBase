@@ -27,6 +27,7 @@ from app.services.source import (
     update_source,
 )
 from app.utils.tabular_parser import detect_headers
+from app.utils.uploads import read_limited_upload
 
 UPLOAD_DIR = settings.upload_dir
 
@@ -187,7 +188,7 @@ def get_upload_stats(
 @router.post("/detect-headers", response_model=DetectHeadersResponse)
 async def detect_source_headers(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Return column headers + detected delimiter + format for a CSV or XLSX file."""
     filename = file.filename or ""
@@ -198,12 +199,7 @@ async def detect_source_headers(
             detail="Only .csv and .xlsx files are accepted",
         )
 
-    file_content = await file.read()
-    if len(file_content) > MAX_DETECT_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail=f"File exceeds maximum size of {MAX_DETECT_SIZE // (1024 * 1024)} MB",
-        )
+    file_content = await read_limited_upload(file, MAX_DETECT_SIZE)
 
     try:
         columns, delimiter = detect_headers(file_content, filename)
@@ -211,6 +207,8 @@ async def detect_source_headers(
         message = str(exc)
         if "Could not read Excel" in message:
             detail = "Could not read Excel file (corrupted or wrong format)"
+        elif "UTF-8" in message:
+            detail = "File is not valid UTF-8. Please re-save as UTF-8 and try again."
         else:
             detail = "Only .csv and .xlsx files are accepted"
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from exc

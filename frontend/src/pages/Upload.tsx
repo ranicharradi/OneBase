@@ -32,6 +32,7 @@ type UploadState =
       columns: string[];
       suggestedName: string;
       detectedDelimiter: string;
+      detectedFormat: "csv" | "xlsx";
       type: string;
     }
   | { step: "PROCESSING"; taskId: string };
@@ -258,6 +259,7 @@ export default function Upload() {
           columns: parsed.columns,
           suggestedName,
           detectedDelimiter: parsed.delimiter ?? ";",
+          detectedFormat: parsed.format,
           type,
         });
       } catch (err) {
@@ -505,6 +507,7 @@ export default function Upload() {
               }
               initialSourceName={uploadState.suggestedName}
               detectedDelimiter={uploadState.detectedDelimiter}
+              detectedFormat={uploadState.detectedFormat}
               recordTypeKey={uploadState.type}
             />
             <div style={{ marginTop: 12, textAlign: "center" }}>

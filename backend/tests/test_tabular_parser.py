@@ -34,11 +34,10 @@ class TestParseCsv:
         assert rows[0]["name"] == "Acme Corp"
         assert rows[0]["city"] == "Paris"
 
-    def test_parse_csv_windows_1252_fallback(self, test_db):
+    def test_parse_csv_rejects_non_utf8(self, test_db):
         content = b"code;name;city\n001;Caf\xe9 Corp;Paris\n"
-        rows = parse_csv(content)
-        assert len(rows) == 1
-        assert rows[0]["name"] == "Café Corp"
+        with pytest.raises(ValueError, match="UTF-8"):
+            parse_csv(content)
 
     def test_parse_csv_empty_file(self, test_db):
         rows = parse_csv(b"")
@@ -73,6 +72,10 @@ class TestDetectColumnsCsv:
     def test_detect_columns_empty_file(self, test_db):
         columns = detect_columns_csv(b"")
         assert columns == []
+
+    def test_detect_columns_rejects_non_utf8(self, test_db):
+        with pytest.raises(ValueError, match="UTF-8"):
+            detect_columns_csv(b"code;name\n001;Caf\xe9 Corp\n")
 
 
 def _make_xlsx(rows: list[list], sheet_name: str = "Sheet1") -> bytes:
@@ -303,6 +306,12 @@ class TestDetectHeadersDispatch:
         columns, delimiter = detect_headers(b"code|name|city\n", "vendors.csv")
         assert columns == ["code", "name", "city"]
         assert delimiter == "|"
+
+    def test_detect_headers_csv_rejects_non_utf8(self, test_db):
+        from app.utils.tabular_parser import detect_headers
+
+        with pytest.raises(ValueError, match="UTF-8"):
+            detect_headers(b"code;name\n001;Caf\xe9 Corp\n", "vendors.csv")
 
     def test_detect_headers_xlsx_delimiter_is_none(self, test_db):
         from app.utils.tabular_parser import detect_headers

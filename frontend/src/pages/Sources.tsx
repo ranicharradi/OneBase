@@ -56,6 +56,11 @@ function toColumnMapping(mapping: DataSource['column_mapping'] | ColumnMapping |
   );
 }
 
+function filterMappingForFields(mapping: ColumnMapping, fields: FieldDef[]): ColumnMapping {
+  const validKeys = new Set(fields.map(field => field.key));
+  return Object.fromEntries(Object.entries(mapping).filter(([key]) => validKeys.has(key)));
+}
+
 function ColumnMappingEditor({
   value,
   onChange,
@@ -152,9 +157,13 @@ function SourceModal({
   const [mapping, setMapping] = useState<ColumnMapping>(() => {
     return source ? toColumnMapping(source.column_mapping) : {};
   });
+  const filteredMapping = useMemo(
+    () => filterMappingForFields(mapping, fields),
+    [fields, mapping],
+  );
   const effectiveMapping = useMemo(
-    () => (isEditing ? mapping : { ...emptyMapping(fields), ...mapping }),
-    [fields, isEditing, mapping],
+    () => (isEditing ? filteredMapping : { ...emptyMapping(fields), ...filteredMapping }),
+    [fields, filteredMapping, isEditing],
   );
   const [formError, setFormError] = useState('');
 
@@ -421,12 +430,13 @@ function SourceRow({
 }) {
   const { data: recordType } = useRecordType(src.type);
   const mapping = toColumnMapping(src.column_mapping);
-  const mappedCount = Object.values(mapping).filter(Boolean).length;
   const fields = recordType?.fields ?? [];
   const totalFields = fields.length || fieldCount;
+  const validMapping = fields.length > 0 ? filterMappingForFields(mapping, fields) : mapping;
+  const mappedCount = Object.values(validMapping).filter(Boolean).length;
   const requiredFields = fields.filter(field => field.required);
   const allRequiredMapped = fields.length > 0
-    ? requiredFields.every(field => Boolean(mapping[field.key]))
+    ? requiredFields.every(field => Boolean(validMapping[field.key]))
     : fieldCount === 0;
 
   return (

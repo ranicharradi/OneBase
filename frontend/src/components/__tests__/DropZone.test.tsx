@@ -4,6 +4,12 @@ import { render } from '../../test/test-utils'
 import DropZone from '../DropZone'
 
 describe('DropZone file validation', () => {
+  it('shows the backend upload size limit', () => {
+    render(<DropZone onFileSelected={vi.fn()} />)
+
+    expect(screen.getByText('up to 50 MB · UTF-8 preferred')).toBeInTheDocument()
+  })
+
   it('shows an error and does not select unsupported files', async () => {
     const onFileSelected = vi.fn()
     render(<DropZone onFileSelected={onFileSelected} />)

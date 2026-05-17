@@ -29,17 +29,25 @@ def _validate_record_type(record_type_key: str) -> None:
 
 
 def _validate_column_mapping(record_type_key: str, mapping: dict | None) -> None:
-    """Validate that mapping keys are all FieldDef.keys for the type.
+    """Validate that mapping keys are all FieldDef.keys and required fields are mapped.
 
     `mapping` is {field_key -> csv_column_name}.
     """
-    if not mapping:
-        return
     rt = get_record_type(record_type_key)
+    if not mapping:
+        required = sorted(f.key for f in rt.fields if f.required)
+        if required:
+            raise ValueError(f"missing required field mappings for type {record_type_key!r}: {required}")
+        return
+
     valid = set(rt.field_keys)
     bad = set(mapping.keys()) - valid
     if bad:
         raise ValueError(f"unknown field keys for type {record_type_key!r}: {sorted(bad)}")
+
+    missing_required = sorted(f.key for f in rt.fields if f.required and not str(mapping.get(f.key, "")).strip())
+    if missing_required:
+        raise ValueError(f"missing required field mappings for type {record_type_key!r}: {missing_required}")
 
 
 def create_source(db: Session, data: DataSourceCreate) -> DataSource:
@@ -84,18 +92,20 @@ def update_source(db: Session, source_id: int, data: DataSourceUpdate) -> DataSo
     if source is None:
         return None
 
-    if data.name is not None:
-        source.name = data.name
-    if data.description is not None:
-        source.description = data.description
-    if data.delimiter is not None:
-        source.delimiter = data.delimiter
-    if data.column_mapping is not None:
-        _validate_column_mapping(source.type, data.column_mapping)
-        source.column_mapping = data.column_mapping
-    if data.filename_pattern is not None:
-        _validate_filename_pattern(data.filename_pattern)
-        source.filename_pattern = data.filename_pattern
+    update_data = data.model_dump(exclude_unset=True)
+
+    if "name" in update_data:
+        source.name = update_data["name"]
+    if "description" in update_data:
+        source.description = update_data["description"]
+    if "delimiter" in update_data:
+        source.delimiter = update_data["delimiter"]
+    if "column_mapping" in update_data:
+        _validate_column_mapping(source.type, update_data["column_mapping"])
+        source.column_mapping = update_data["column_mapping"]
+    if "filename_pattern" in update_data:
+        _validate_filename_pattern(update_data["filename_pattern"])
+        source.filename_pattern = update_data["filename_pattern"]
 
     db.flush()
     return source

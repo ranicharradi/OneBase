@@ -169,7 +169,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
               {isDragOver ? 'Release to upload' : 'Drop CSV or Excel file here'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
-              up to 100 MB · UTF-8 preferred
+              up to 50 MB · UTF-8 preferred
             </div>
             {error && (
               <div

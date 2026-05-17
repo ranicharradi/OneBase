@@ -1,7 +1,7 @@
 """Tabular file parsing utilities — dispatches CSV and XLSX inputs to the right reader.
 
-CSV path keeps the existing semantics:
-- UTF-8 with BOM (utf-8-sig) preferred, Windows-1252 fallback.
+CSV path uses the same ingestion/upload contract:
+- UTF-8 with optional BOM (utf-8-sig) required.
 - Default delimiter ";" (overridable per data source).
 - All values are strings, trimmed of surrounding whitespace.
 """
@@ -16,12 +16,19 @@ import openpyxl
 from openpyxl.utils.exceptions import InvalidFileException
 
 
+def _decode_csv_text(file_content: bytes) -> str:
+    """Decode CSV bytes using the only accepted text encoding."""
+    try:
+        return file_content.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ValueError("CSV file is not valid UTF-8") from exc
+
+
 def parse_csv(file_content: bytes, delimiter: str = ";") -> list[dict[str, Any]]:
     """Parse CSV bytes into list of dicts with trimmed values.
 
     Handles:
-    - UTF-8 with BOM (utf-8-sig)
-    - Falls back to Windows-1252 on UnicodeDecodeError
+    - UTF-8 with optional BOM (utf-8-sig)
     - Semicolon delimiter by default
     - Whitespace trimming on all values
     - Quoted fields with internal delimiters
@@ -29,11 +36,7 @@ def parse_csv(file_content: bytes, delimiter: str = ";") -> list[dict[str, Any]]
     if not file_content:
         return []
 
-    try:
-        text = file_content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        text = file_content.decode("cp1252")
-
+    text = _decode_csv_text(file_content)
     reader = csv.DictReader(io.StringIO(text), delimiter=delimiter, quotechar='"')
     rows: list[dict[str, Any]] = []
     for row in reader:
@@ -47,11 +50,7 @@ def detect_columns_csv(file_content: bytes, delimiter: str = ";") -> list[str]:
     if not file_content:
         return []
 
-    try:
-        text = file_content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        text = file_content.decode("cp1252")
-
+    text = _decode_csv_text(file_content)
     reader = csv.reader(io.StringIO(text), delimiter=delimiter, quotechar='"')
     try:
         headers = next(reader)
@@ -175,10 +174,7 @@ def _sniff_csv_delimiter(file_content: bytes) -> str:
     """
     if not file_content:
         return ";"
-    try:
-        text = file_content[:65536].decode("utf-8-sig")
-    except UnicodeDecodeError:
-        text = file_content[:65536].decode("cp1252", errors="replace")
+    text = _decode_csv_text(file_content[:65536])
 
     first_line = next(
         (line for line in text.splitlines() if line.strip()),
@@ -202,7 +198,7 @@ def _sniff_csv_delimiter(file_content: bytes) -> str:
 
 
 def parse_file(file_content: bytes, filename: str, delimiter: str = ";") -> list[dict[str, Any]]:
-    """Parse a tabular file by extension. delimiter is used for CSV/TSV only."""
+    """Parse a tabular file by extension. delimiter is used for CSV only."""
     ext = _extension(filename)
     if ext in _CSV_EXTENSIONS:
         return parse_csv(file_content, delimiter=delimiter)
@@ -214,7 +210,7 @@ def parse_file(file_content: bytes, filename: str, delimiter: str = ";") -> list
 def detect_headers(file_content: bytes, filename: str) -> tuple[list[str], str | None]:
     """Return (columns, effective_delimiter) for a tabular file.
 
-    For CSV/TSV the delimiter is sniffed from `,;\\t|` (most-tokens wins).
+    For CSV the delimiter is sniffed from `,;\\t|` (most-tokens wins).
     For XLSX the second value is None.
     """
     ext = _extension(filename)
