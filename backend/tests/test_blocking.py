@@ -86,21 +86,10 @@ class TestTextBlock:
         _make_record(test_db, 2, 2, 2, "ACME INDUSTRIES")
         test_db.commit()
 
-        rs = _rs("supplier", 1, 2)
-        pairs = text_block(test_db, rs, None)
+        side_a = _rs("supplier", 1)
+        side_b = _rs("supplier", 2)
+        pairs = text_block(test_db, side_a, side_b)
         assert _has_pair(pairs, 1, 2)
-
-    def test_same_source_not_paired(self, test_db):
-        """Records from the SAME source are NOT paired (cross-entity only)."""
-        _make_source(test_db, 1, "Source A")
-        _make_batch(test_db, 1, 1)
-        _make_record(test_db, 1, 1, 1, "ACME CORP")
-        _make_record(test_db, 2, 1, 1, "ACME INDUSTRIES")
-        test_db.commit()
-
-        rs = _rs("supplier", 1, 2)
-        pairs = text_block(test_db, rs, None)
-        assert len(pairs) == 0
 
     def test_no_match_different_prefix_and_token(self, test_db):
         """Records with different prefix and first token are NOT paired."""
@@ -112,8 +101,9 @@ class TestTextBlock:
         _make_record(test_db, 2, 2, 2, "GAMMA LLC")
         test_db.commit()
 
-        rs = _rs("supplier", 1, 2)
-        pairs = text_block(test_db, rs, None)
+        side_a = _rs("supplier", 1)
+        side_b = _rs("supplier", 2)
+        pairs = text_block(test_db, side_a, side_b)
         assert len(pairs) == 0
 
     def test_first_token_match(self, test_db):
@@ -128,8 +118,9 @@ class TestTextBlock:
         _make_record(test_db, 2, 2, 2, "ACME SOLUTIONS")
         test_db.commit()
 
-        rs = _rs("supplier", 1, 2)
-        pairs = text_block(test_db, rs, None)
+        side_a = _rs("supplier", 1)
+        side_b = _rs("supplier", 2)
+        pairs = text_block(test_db, side_a, side_b)
         assert _has_pair(pairs, 1, 2)
 
     def test_pair_normalized_min_max(self, test_db):
@@ -142,8 +133,9 @@ class TestTextBlock:
         _make_record(test_db, 5, 2, 2, "ACME INDUSTRIES")
         test_db.commit()
 
-        rs = _rs("supplier", 10, 5)
-        pairs = text_block(test_db, rs, None)
+        side_a = _rs("supplier", 10)
+        side_b = _rs("supplier", 5)
+        pairs = text_block(test_db, side_a, side_b)
         for a, b in pairs:
             if a.kind == b.kind:
                 assert a.id <= b.id, f"Pair ({a}, {b}) not normalized within same kind"
@@ -158,8 +150,9 @@ class TestTextBlock:
         _make_record(test_db, 2, 2, 2, "AB CORP")
         test_db.commit()
 
-        rs = _rs("supplier", 1, 2)
-        pairs = text_block(test_db, rs, None)
+        side_a = _rs("supplier", 1)
+        side_b = _rs("supplier", 2)
+        pairs = text_block(test_db, side_a, side_b)
         # "AB" is too short for prefix dict (< 3 chars) but has first token "AB"
         # They should still match via first-token dict
         assert _has_pair(pairs, 1, 2)
@@ -174,9 +167,10 @@ class TestTextBlock:
         _make_record(test_db, 2, 2, 2, "ACME INDUSTRIES", status="superseded")
         test_db.commit()
 
-        # Only include the active record in the RecordSet (superseded excluded by caller)
-        rs = _rs("supplier", 1)
-        pairs = text_block(test_db, rs, None)
+        # Only include the active record in side_a; side_b is empty (superseded excluded by caller)
+        side_a = _rs("supplier", 1)
+        side_b = _rs("supplier")
+        pairs = text_block(test_db, side_a, side_b)
         assert len(pairs) == 0
 
 
@@ -198,8 +192,9 @@ class TestEmbeddingBlock:
         _make_record(test_db, 3, 1, 1, "BETA INC")
         test_db.commit()
 
-        rs = _rs("supplier", 1, 2, 3)
-        pairs = embedding_block(test_db, rs, None, k=5)
+        side_a = _rs("supplier", 1, 3)
+        side_b = _rs("supplier", 2)
+        pairs = embedding_block(test_db, side_a, side_b, k=5)
         # No embeddings in SQLite — should return empty set
         assert pairs == set()
 
@@ -294,40 +289,3 @@ def test_text_block_cross_side_only_emits_cross_side_pairs(test_db):
     for p in pairs:
         kinds = sorted([p[0].kind, p[1].kind])
         assert kinds == ["staged", "unified"]
-
-
-def test_text_block_self_join_falls_back_to_cross_source(test_db):
-    src1 = DataSource(name="s1", type="supplier", column_mapping={"name": "x"})
-    src2 = DataSource(name="s2", type="supplier", column_mapping={"name": "x"})
-    test_db.add_all([src1, src2])
-    test_db.flush()
-    b1 = ImportBatch(data_source_id=src1.id, filename="a", uploaded_by="u", status=BatchStatus.COMPLETED)
-    b2 = ImportBatch(data_source_id=src2.id, filename="b", uploaded_by="u", status=BatchStatus.COMPLETED)
-    test_db.add_all([b1, b2])
-    test_db.flush()
-    r1 = StagedRecord(
-        type="supplier",
-        import_batch_id=b1.id,
-        data_source_id=src1.id,
-        name="ACME",
-        normalized_name="ACME LTD",
-        status=RecordStatus.ACTIVE,
-        fields={},
-    )
-    r2 = StagedRecord(
-        type="supplier",
-        import_batch_id=b2.id,
-        data_source_id=src2.id,
-        name="ACME",
-        normalized_name="ACME LTD",
-        status=RecordStatus.ACTIVE,
-        fields={},
-    )
-    test_db.add_all([r1, r2])
-    test_db.flush()
-
-    rs = RecordSet(type_key="supplier", refs=[RecordRef(r1.id, "staged"), RecordRef(r2.id, "staged")])
-    pairs = text_block(test_db, rs, None)
-    # Cross-source pair should be emitted.
-    flat = {(min(p[0].id, p[1].id), max(p[0].id, p[1].id)) for p in pairs}
-    assert (min(r1.id, r2.id), max(r1.id, r2.id)) in flat

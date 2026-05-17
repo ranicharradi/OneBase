@@ -117,8 +117,9 @@ def test_client_pipeline_produces_cross_source_candidates(test_db):
     test_db.add(run)
     test_db.flush()
 
-    side_a = RecordSet.from_batches(test_db, [batch_a.id, batch_b.id])
-    result = run_matching_pipeline(test_db, run.id, side_a, side_b=None)
+    side_a = RecordSet.from_batch(test_db, batch_a.id)
+    side_b = RecordSet.from_batch(test_db, batch_b.id)
+    result = run_matching_pipeline(test_db, run.id, side_a, side_b)
 
     assert result["candidate_count"] >= 2, f"expected ≥2 candidates, got {result}"
 

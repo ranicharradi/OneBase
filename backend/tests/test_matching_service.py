@@ -292,7 +292,8 @@ def test_pipeline_zero_candidates(mock_text_block, mock_embedding_block, test_db
 
     run = _make_run(test_db)
     side_a = RecordSet(type_key="supplier", refs=[RecordRef(s1.id, "staged")])
-    stats = run_matching_pipeline(test_db, run.id, side_a, None)
+    side_b = RecordSet(type_key="supplier", refs=[])
+    stats = run_matching_pipeline(test_db, run.id, side_a, side_b)
 
     assert stats["candidate_count"] == 0
     assert stats["group_count"] == 0
@@ -357,18 +358,14 @@ def test_text_block_filters_to_representatives(test_db):
 
     # Without filter: both src1 rows pair with src2
     # (they share prefix "ACM" and first token "ACME" with s2)
-    all_refs = [
-        RecordRef(s1_rep.id, "staged"),
-        RecordRef(s1_dup.id, "staged"),
-        RecordRef(s2.id, "staged"),
-    ]
-    rs_all = RecordSet(type_key="supplier", refs=all_refs)
-    pairs_all = text_block(test_db, rs_all, None)
+    side_a = RecordSet(type_key="supplier", refs=[RecordRef(s1_rep.id, "staged"), RecordRef(s1_dup.id, "staged")])
+    side_b = RecordSet(type_key="supplier", refs=[RecordRef(s2.id, "staged")])
+    pairs_all = text_block(test_db, side_a, side_b)
     assert len(pairs_all) == 2  # s1_rep-s2 and s1_dup-s2
 
     # With filter: only representative pairs with src2
     rep_refs = {RecordRef(s1_rep.id, "staged"), RecordRef(s2.id, "staged")}
-    pairs_filtered = text_block(test_db, rs_all, None, representative_ids=rep_refs)
+    pairs_filtered = text_block(test_db, side_a, side_b, representative_ids=rep_refs)
     assert len(pairs_filtered) == 1
     pair = pairs_filtered.pop()
     pair_ids = {pair[0].id, pair[1].id}
@@ -612,16 +609,18 @@ def test_pipeline_uses_per_type_confidence_threshold(mock_score_pair, mock_text_
     register(SUPPLIER)
     register(test_rt)
     try:
-        # Two records of the test type.
-        src = DataSource(name="s", type="t_threshold", delimiter=",", column_mapping={"n": "N"})
-        test_db.add(src)
+        # Two records of the test type, each in its own source/batch.
+        src_a = DataSource(name="s_a", type="t_threshold", delimiter=",", column_mapping={"n": "N"})
+        src_b = DataSource(name="s_b", type="t_threshold", delimiter=",", column_mapping={"n": "N"})
+        test_db.add_all([src_a, src_b])
         test_db.flush()
-        batch = ImportBatch(data_source_id=src.id, filename="f", uploaded_by="u", status=BatchStatus.COMPLETED)
-        test_db.add(batch)
+        batch_a = ImportBatch(data_source_id=src_a.id, filename="fa", uploaded_by="u", status=BatchStatus.COMPLETED)
+        batch_b = ImportBatch(data_source_id=src_b.id, filename="fb", uploaded_by="u", status=BatchStatus.COMPLETED)
+        test_db.add_all([batch_a, batch_b])
         test_db.flush()
         ra = StagedRecord(
-            import_batch_id=batch.id,
-            data_source_id=src.id,
+            import_batch_id=batch_a.id,
+            data_source_id=src_a.id,
             type="t_threshold",
             name="A",
             normalized_name="A",
@@ -629,8 +628,8 @@ def test_pipeline_uses_per_type_confidence_threshold(mock_score_pair, mock_text_
             status=RecordStatus.ACTIVE,
         )
         rb = StagedRecord(
-            import_batch_id=batch.id,
-            data_source_id=src.id,
+            import_batch_id=batch_b.id,
+            data_source_id=src_b.id,
             type="t_threshold",
             name="B",
             normalized_name="B",
@@ -650,10 +649,11 @@ def test_pipeline_uses_per_type_confidence_threshold(mock_score_pair, mock_text_
         test_db.add(run)
         test_db.flush()
 
-        side_a = RecordSet.from_batches(test_db, [batch.id])
+        side_a = RecordSet.from_batch(test_db, batch_a.id)
+        side_b_rs = RecordSet.from_batch(test_db, batch_b.id)
         # Force global threshold to something higher than 0.60 so we know per-type wins.
         with _patch.object(settings, "matching_confidence_threshold", 0.80):
-            result = run_matching_pipeline(test_db, run.id, side_a, side_b=None)
+            result = run_matching_pipeline(test_db, run.id, side_a, side_b_rs)
 
         assert result["candidate_count"] == 1, "candidate should pass per-type 0.50 even though global is 0.80"
         cand = test_db.query(MatchCandidate).filter(MatchCandidate.match_run_id == run.id).one()

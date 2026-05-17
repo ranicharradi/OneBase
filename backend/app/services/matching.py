@@ -39,7 +39,7 @@ def run_matching_pipeline(
     db: Session,
     match_run_id: int,
     side_a: RecordSet,
-    side_b: RecordSet | None,
+    side_b: RecordSet,
     progress_callback: Callable[[str, int], None] | None = None,
 ) -> dict:
     def _report(stage: str, pct: int) -> None:
@@ -53,21 +53,13 @@ def run_matching_pipeline(
         rt.confidence_threshold if rt.confidence_threshold is not None else settings.matching_confidence_threshold
     )
 
-    if side_a.is_empty:
-        logger.info("run %d: side_a empty — skipping", run.id)
-        return {
-            "candidate_count": 0,
-            "group_count": 0,
-            "scope_size_a": 0,
-            "scope_size_b": (side_b.size if side_b else None),
-        }
-    if side_b is not None and side_b.is_empty:
-        logger.info("run %d: side_b empty — skipping", run.id)
+    if side_a.is_empty or side_b.is_empty:
+        logger.info("run %d: an input side is empty — skipping", run.id)
         return {
             "candidate_count": 0,
             "group_count": 0,
             "scope_size_a": side_a.size,
-            "scope_size_b": 0,
+            "scope_size_b": side_b.size,
         }
 
     scorer_bundle = load_active_model(db, "scorer", type_key)
@@ -89,7 +81,7 @@ def run_matching_pipeline(
             "candidate_count": 0,
             "group_count": 0,
             "scope_size_a": side_a.size,
-            "scope_size_b": (side_b.size if side_b else None),
+            "scope_size_b": side_b.size,
         }
 
     all_refs: set[RecordRef] = set()
@@ -107,7 +99,7 @@ def run_matching_pipeline(
                 "candidate_count": 0,
                 "group_count": 0,
                 "scope_size_a": side_a.size,
-                "scope_size_b": (side_b.size if side_b else None),
+                "scope_size_b": side_b.size,
             }
 
     _report("SCORING", 0)
@@ -138,7 +130,7 @@ def run_matching_pipeline(
             "candidate_count": 0,
             "group_count": 0,
             "scope_size_a": side_a.size,
-            "scope_size_b": (side_b.size if side_b else None),
+            "scope_size_b": side_b.size,
         }
 
     _report("CLUSTERING", 0)
@@ -179,5 +171,5 @@ def run_matching_pipeline(
         "candidate_count": candidate_count,
         "group_count": len(groups),
         "scope_size_a": side_a.size,
-        "scope_size_b": (side_b.size if side_b else None),
+        "scope_size_b": side_b.size,
     }

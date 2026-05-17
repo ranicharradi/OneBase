@@ -18,7 +18,7 @@ class MatchRun(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     type = Column(String(50), nullable=False)
-    mode = Column(String(20), nullable=False)  # FILE_VS_FILE | FILE_VS_GOLDEN (MULTI_FILE removed in Track D)
+    mode = Column(String(20), nullable=False)  # FILE_VS_FILE | FILE_VS_GOLDEN
     status = Column(String(20), nullable=False, default="pending")
     name = Column(String(255), nullable=True)
     created_by = Column(String(100), nullable=False)

@@ -54,9 +54,6 @@ def run_match(self, match_run_id: int):
             elif run.mode == "FILE_VS_GOLDEN":
                 side_a = RecordSet.from_batch(db, batch_ids[0])
                 side_b = RecordSet.from_unified(db, run.type)
-            elif run.mode == "MULTI_FILE":
-                side_a = RecordSet.from_batches(db, batch_ids)
-                side_b = None
             else:
                 raise ValueError(f"unknown mode {run.mode!r}")
 

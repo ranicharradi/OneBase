@@ -50,30 +50,6 @@ def test_from_batch_returns_active_staged_refs(test_db):
     assert all(r.kind == "staged" for r in rs.refs)
 
 
-def test_from_batches_unions_active_staged_refs(test_db):
-    batch_a, recs_a = _seed(test_db)
-    src2 = DataSource(name="src2", type="supplier", column_mapping={"name": "x"})
-    test_db.add(src2)
-    test_db.flush()
-    batch_b = ImportBatch(data_source_id=src2.id, filename="b.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
-    test_db.add(batch_b)
-    test_db.flush()
-    r3 = StagedRecord(
-        type="supplier",
-        import_batch_id=batch_b.id,
-        data_source_id=src2.id,
-        name="GLOBEX",
-        normalized_name="GLOBEX",
-        status=RecordStatus.ACTIVE,
-        fields={},
-    )
-    test_db.add(r3)
-    test_db.flush()
-
-    rs = RecordSet.from_batches(test_db, [batch_a.id, batch_b.id])
-    assert len(rs.refs) == 3
-
-
 def test_from_unified_returns_kind_unified(test_db):
     u = UnifiedRecord(
         type="supplier",

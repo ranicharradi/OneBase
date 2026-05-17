@@ -42,27 +42,6 @@ class RecordSet:
         return cls(type_key=type_key, refs=[RecordRef(id=r.id, kind="staged") for r in rows])
 
     @classmethod
-    def from_batches(cls, db: Session, batch_ids: list[int]) -> "RecordSet":
-        if not batch_ids:
-            raise ValueError("from_batches requires at least one batch id")
-        from app.models.batch import ImportBatch
-
-        batches = db.query(ImportBatch).filter(ImportBatch.id.in_(batch_ids)).all()
-        types = {b.data_source.type for b in batches}
-        if len(types) != 1:
-            raise ValueError(f"from_batches: batches span multiple record types: {types!r}")
-        type_key = next(iter(types))
-        rows = (
-            db.query(StagedRecord.id)
-            .filter(
-                StagedRecord.import_batch_id.in_(batch_ids),
-                StagedRecord.status == RecordStatus.ACTIVE,
-            )
-            .all()
-        )
-        return cls(type_key=type_key, refs=[RecordRef(id=r.id, kind="staged") for r in rows])
-
-    @classmethod
     def from_unified(cls, db: Session, type_key: str) -> "RecordSet":
         rows = db.query(UnifiedRecord.id).filter(UnifiedRecord.type == type_key).all()
         return cls(type_key=type_key, refs=[RecordRef(id=r.id, kind="unified") for r in rows])

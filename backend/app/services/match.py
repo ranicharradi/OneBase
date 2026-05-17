@@ -12,8 +12,8 @@ from app.models.match_run import MatchRun
 from app.models.unified import UnifiedRecord
 from app.record_types import get as get_record_type
 
-MIN_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1, "MULTI_FILE": 2}
-MAX_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1, "MULTI_FILE": None}
+MIN_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1}
+MAX_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1}
 
 
 class MatchValidationError(ValueError):

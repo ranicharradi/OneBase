@@ -79,44 +79,22 @@ def _bucket(rows: list[_BlockingRow]) -> tuple[dict, dict]:
 
 def _emit_pairs(
     bucket_rows: Iterable[_BlockingRow],
-    side_b_refs: set[RecordRef] | None,
+    side_b_refs: set[RecordRef],
     pairs: set[tuple[RecordRef, RecordRef]],
     rng: random.Random,
     max_bucket_pairs: int,
 ) -> None:
-    """For a single bucket, add all valid pairs.
-
-    - If side_b_refs is None: same-side, must be different data_source_id (cross-source).
-    - If side_b_refs is given: pair must have exactly one ref from each side.
-    """
+    """For a single bucket, add all valid pairs (one ref from each side)."""
     bucket_list = list(bucket_rows)
-    if side_b_refs is None:
-        by_source: dict[int, list[_BlockingRow]] = defaultdict(list)
-        for r in bucket_list:
-            if r.data_source_id is None:
-                continue  # unified rows never appear in single-side mode
-            by_source[r.data_source_id].append(r)
-        source_lists = list(by_source.values())
-        for i in range(len(source_lists)):
-            for j in range(i + 1, len(source_lists)):
-                a, b = source_lists[i], source_lists[j]
-                if len(a) * len(b) > max_bucket_pairs:
-                    k = max(1, math.isqrt(max_bucket_pairs))
-                    a = rng.sample(a, min(k, len(a)))
-                    b = rng.sample(b, min(k, len(b)))
-                for ra in a:
-                    for rb in b:
-                        pairs.add(_ordered(ra.ref, rb.ref))
-    else:
-        side_a_rows = [r for r in bucket_list if r.ref not in side_b_refs]
-        side_b_rows = [r for r in bucket_list if r.ref in side_b_refs]
-        if len(side_a_rows) * len(side_b_rows) > max_bucket_pairs:
-            k = max(1, math.isqrt(max_bucket_pairs))
-            side_a_rows = rng.sample(side_a_rows, min(k, len(side_a_rows)))
-            side_b_rows = rng.sample(side_b_rows, min(k, len(side_b_rows)))
-        for ra in side_a_rows:
-            for rb in side_b_rows:
-                pairs.add(_ordered(ra.ref, rb.ref))
+    side_a_rows = [r for r in bucket_list if r.ref not in side_b_refs]
+    side_b_rows = [r for r in bucket_list if r.ref in side_b_refs]
+    if len(side_a_rows) * len(side_b_rows) > max_bucket_pairs:
+        k = max(1, math.isqrt(max_bucket_pairs))
+        side_a_rows = rng.sample(side_a_rows, min(k, len(side_a_rows)))
+        side_b_rows = rng.sample(side_b_rows, min(k, len(side_b_rows)))
+    for ra in side_a_rows:
+        for rb in side_b_rows:
+            pairs.add(_ordered(ra.ref, rb.ref))
 
 
 def _ordered(a: RecordRef, b: RecordRef) -> tuple[RecordRef, RecordRef]:
@@ -129,17 +107,14 @@ def _ordered(a: RecordRef, b: RecordRef) -> tuple[RecordRef, RecordRef]:
 def text_block(
     db: Session,
     side_a: RecordSet,
-    side_b: RecordSet | None,
+    side_b: RecordSet,
     representative_ids: set[RecordRef] | None = None,
 ) -> set[tuple[RecordRef, RecordRef]]:
-    if side_b is not None and side_a.type_key != side_b.type_key:
+    if side_a.type_key != side_b.type_key:
         raise ValueError(f"type mismatch: {side_a.type_key!r} vs {side_b.type_key!r}")
 
-    combined = list(side_a.refs)
-    side_b_refs: set[RecordRef] | None = None
-    if side_b is not None:
-        combined.extend(side_b.refs)
-        side_b_refs = set(side_b.refs)
+    combined = list(side_a.refs) + list(side_b.refs)
+    side_b_refs: set[RecordRef] = set(side_b.refs)
 
     rs_combined = RecordSet(type_key=side_a.type_key, refs=combined)
     rows = _load_rows(db, rs_combined)
@@ -156,9 +131,8 @@ def text_block(
         _emit_pairs(bucket, side_b_refs, pairs, rng, max_bucket_pairs)
 
     logger.info(
-        "text_block(type=%s, mode=%s): %d pairs from %d rows",
+        "text_block(type=%s, mode=cross-side): %d pairs from %d rows",
         side_a.type_key,
-        "cross-side" if side_b is not None else "cross-source",
         len(pairs),
         len(rows),
     )
@@ -168,20 +142,17 @@ def text_block(
 def embedding_block(
     db: Session,
     side_a: RecordSet,
-    side_b: RecordSet | None,
+    side_b: RecordSet,
     k: int | None = None,
     representative_ids: set[RecordRef] | None = None,
 ) -> set[tuple[RecordRef, RecordRef]]:
     if k is None:
         k = settings.matching_blocking_k
-    if side_b is not None and side_a.type_key != side_b.type_key:
+    if side_a.type_key != side_b.type_key:
         raise ValueError(f"type mismatch: {side_a.type_key!r} vs {side_b.type_key!r}")
 
-    combined = list(side_a.refs)
-    side_b_refs: set[RecordRef] | None = None
-    if side_b is not None:
-        combined.extend(side_b.refs)
-        side_b_refs = set(side_b.refs)
+    combined = list(side_a.refs) + list(side_b.refs)
+    side_b_refs: set[RecordRef] = set(side_b.refs)
     rs_combined = RecordSet(type_key=side_a.type_key, refs=combined)
     rows = _load_rows(db, rs_combined)
     rows = _representative_filter(rows, representative_ids)
@@ -189,24 +160,13 @@ def embedding_block(
 
     pairs: set[tuple[RecordRef, RecordRef]] = set()
 
-    if side_b_refs is None:
-        by_source: dict[int, list[_BlockingRow]] = defaultdict(list)
-        for r in rows:
-            if r.data_source_id is not None:
-                by_source[r.data_source_id].append(r)
-        source_lists = list(by_source.values())
-        for i in range(len(source_lists)):
-            for j in range(i + 1, len(source_lists)):
-                _emit_embedding_pairs(source_lists[i], source_lists[j], pairs, k)
-    else:
-        side_a_rows = [r for r in rows if r.ref not in side_b_refs]
-        side_b_rows = [r for r in rows if r.ref in side_b_refs]
-        _emit_embedding_pairs(side_a_rows, side_b_rows, pairs, k)
+    side_a_rows = [r for r in rows if r.ref not in side_b_refs]
+    side_b_rows = [r for r in rows if r.ref in side_b_refs]
+    _emit_embedding_pairs(side_a_rows, side_b_rows, pairs, k)
 
     logger.info(
-        "embedding_block(type=%s, mode=%s): %d pairs from %d rows",
+        "embedding_block(type=%s, mode=cross-side): %d pairs from %d rows",
         side_a.type_key,
-        "cross-side" if side_b is not None else "cross-source",
         len(pairs),
         len(rows),
     )

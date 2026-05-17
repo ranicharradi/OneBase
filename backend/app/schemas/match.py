@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-MatchMode = Literal["FILE_VS_FILE", "FILE_VS_GOLDEN", "MULTI_FILE"]
+MatchMode = Literal["FILE_VS_FILE", "FILE_VS_GOLDEN"]
 MatchStatus = Literal["pending", "running", "completed", "failed", "stale"]
 
 
