@@ -24,6 +24,7 @@ from app.services.source import (
     get_source,
     get_sources,
 )
+from app.utils.file_format import extension_of, is_allowed_upload
 from app.utils.tabular_parser import detect_headers
 from app.utils.uploads import read_limited_upload
 
@@ -163,8 +164,7 @@ async def detect_source_headers(
 ):
     """Return column headers + detected delimiter + format for a CSV or XLSX file."""
     filename = file.filename or ""
-    filename_lower = filename.lower()
-    if not (filename_lower.endswith(".csv") or filename_lower.endswith(".xlsx")):
+    if not is_allowed_upload(filename):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only .csv and .xlsx files are accepted",
@@ -184,7 +184,7 @@ async def detect_source_headers(
             detail = "Only .csv and .xlsx files are accepted"
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from exc
 
-    file_format = "xlsx" if filename_lower.endswith(".xlsx") else "csv"
+    file_format = "xlsx" if extension_of(filename) == ".xlsx" else "csv"
     return DetectHeadersResponse(columns=columns, delimiter=delimiter, format=file_format)
 
 
