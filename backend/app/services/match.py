@@ -1,4 +1,4 @@
-"""Comparison run orchestration: validate, create, mark-stale.
+"""Match run orchestration: validate, create, mark-stale.
 
 Domain errors below intentionally subclass ValueError instead of HTTPException so
 the service stays transport-agnostic; the router translates each to a status code.
@@ -7,8 +7,8 @@ the service stays transport-agnostic; the router translates each to a status cod
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun
 from app.models.match import MatchCandidate
+from app.models.match_run import MatchRun
 from app.models.unified import UnifiedRecord
 from app.record_types import get as get_record_type
 
@@ -16,15 +16,15 @@ MIN_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1, "MULTI_FILE": 2}
 MAX_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1, "MULTI_FILE": None}
 
 
-class ComparisonValidationError(ValueError):
+class MatchValidationError(ValueError):
     pass
 
 
-class ComparisonNotFoundError(ValueError):
+class MatchNotFoundError(ValueError):
     pass
 
 
-class ComparisonConflictError(ValueError):
+class MatchConflictError(ValueError):
     def __init__(self, message: str, run_id: int) -> None:
         super().__init__(message)
         self.run_id = run_id
@@ -38,48 +38,42 @@ def create_run(
     batch_ids: list[int],
     name: str | None,
     username: str,
-) -> ComparisonRun:
+) -> MatchRun:
     try:
         get_record_type(type)
     except KeyError:
-        raise ComparisonNotFoundError(f"Unknown record type: {type!r}") from None
+        raise MatchNotFoundError(f"Unknown record type: {type!r}") from None
 
     if mode not in MIN_BATCHES_BY_MODE:
-        raise ComparisonValidationError(f"Unknown mode: {mode!r}")
+        raise MatchValidationError(f"Unknown mode: {mode!r}")
 
     min_n = MIN_BATCHES_BY_MODE[mode]
     max_n = MAX_BATCHES_BY_MODE[mode]
     if len(batch_ids) < min_n or (max_n is not None and len(batch_ids) > max_n):
         expected = f"{min_n}" if max_n == min_n else f"{min_n}+"
-        raise ComparisonValidationError(f"Mode {mode} requires {expected} batches; received {len(batch_ids)}")
+        raise MatchValidationError(f"Mode {mode} requires {expected} batches; received {len(batch_ids)}")
 
     batches = db.query(ImportBatch).filter(ImportBatch.id.in_(batch_ids)).all()
     if len(batches) != len(batch_ids):
-        raise ComparisonValidationError("One or more batch_ids not found")
+        raise MatchValidationError("One or more batch_ids not found")
 
     types = {b.data_source.type for b in batches}
     if types != {type}:
-        raise ComparisonValidationError(f"Batches must all be of type {type!r}; got {types!r}")
+        raise MatchValidationError(f"Batches must all be of type {type!r}; got {types!r}")
 
     if mode == "FILE_VS_GOLDEN":
         unified_count = db.query(UnifiedRecord).filter(UnifiedRecord.type == type).count()
         if unified_count == 0:
-            raise ComparisonValidationError(
-                "No golden records yet — run a FILE_VS_FILE comparison first to produce them."
-            )
+            raise MatchValidationError("No golden records yet — run a FILE_VS_FILE comparison first to produce them.")
 
-    conflict = (
-        db.query(ComparisonRun)
-        .filter(ComparisonRun.type == type, ComparisonRun.status.in_(["pending", "running"]))
-        .first()
-    )
+    conflict = db.query(MatchRun).filter(MatchRun.type == type, MatchRun.status.in_(["pending", "running"])).first()
     if conflict is not None:
-        raise ComparisonConflictError(
+        raise MatchConflictError(
             f"A run of type {type!r} is already in progress (run #{conflict.id})",
             run_id=conflict.id,
         )
 
-    run = ComparisonRun(type=type, mode=mode, status="pending", name=name, created_by=username)
+    run = MatchRun(type=type, mode=mode, status="pending", name=name, created_by=username)
     run.batches = batches
     db.add(run)
     db.flush()
@@ -92,10 +86,10 @@ def mark_stale_for_source(db: Session, data_source_id: int) -> int:
     Returns number of runs marked.
     """
     runs = (
-        db.query(ComparisonRun)
-        .join(ComparisonRun.batches)
+        db.query(MatchRun)
+        .join(MatchRun.batches)
         .filter(ImportBatch.data_source_id == data_source_id)
-        .filter(ComparisonRun.status.in_(["pending", "running", "completed"]))
+        .filter(MatchRun.status.in_(["pending", "running", "completed"]))
         .distinct()
         .all()
     )
@@ -103,7 +97,7 @@ def mark_stale_for_source(db: Session, data_source_id: int) -> int:
     for run in runs:
         run.status = "stale"
         db.query(MatchCandidate).filter(
-            MatchCandidate.comparison_run_id == run.id,
+            MatchCandidate.match_run_id == run.id,
             MatchCandidate.status == "pending",
         ).update({"status": "invalidated"}, synchronize_session=False)
         n += 1
