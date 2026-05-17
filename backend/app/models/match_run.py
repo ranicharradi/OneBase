@@ -3,22 +3,22 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base, json_type
 
-comparison_run_batches = Table(
-    "comparison_run_batches",
+match_run_batches = Table(
+    "match_run_batches",
     Base.metadata,
-    Column("comparison_run_id", Integer, ForeignKey("comparison_runs.id", ondelete="CASCADE"), primary_key=True),
+    Column("match_run_id", Integer, ForeignKey("match_runs.id", ondelete="CASCADE"), primary_key=True),
     Column("import_batch_id", Integer, ForeignKey("import_batches.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
-class ComparisonRun(Base):
-    """A user-initiated comparison job over batches/golden records of one type."""
+class MatchRun(Base):
+    """A user-initiated match job over files/golden records of one type."""
 
-    __tablename__ = "comparison_runs"
+    __tablename__ = "match_runs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     type = Column(String(50), nullable=False)
-    mode = Column(String(20), nullable=False)  # FILE_VS_FILE | FILE_VS_GOLDEN | MULTI_FILE
+    mode = Column(String(20), nullable=False)  # FILE_VS_FILE | FILE_VS_GOLDEN (MULTI_FILE removed in Track D)
     status = Column(String(20), nullable=False, default="pending")
     name = Column(String(255), nullable=True)
     created_by = Column(String(100), nullable=False)
@@ -31,6 +31,6 @@ class ComparisonRun(Base):
 
     batches = relationship(
         "ImportBatch",
-        secondary=comparison_run_batches,
-        backref="comparison_runs",
+        secondary=match_run_batches,
+        backref="match_runs",
     )

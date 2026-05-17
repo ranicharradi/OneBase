@@ -19,7 +19,7 @@ class MatchGroup(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     type = Column(String(50), nullable=False)
-    comparison_run_id = Column(Integer, ForeignKey("comparison_runs.id", ondelete="CASCADE"), nullable=False)
+    match_run_id = Column(Integer, ForeignKey("match_runs.id", ondelete="CASCADE"), nullable=False)
     status = Column(String(20), default="open")
     created_at = Column(DateTime, server_default=func.now())
 
@@ -31,7 +31,7 @@ class MatchCandidate(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     type = Column(String(50), nullable=False)
-    comparison_run_id = Column(Integer, ForeignKey("comparison_runs.id", ondelete="CASCADE"), nullable=False)
+    match_run_id = Column(Integer, ForeignKey("match_runs.id", ondelete="CASCADE"), nullable=False)
     record_a_id = Column(Integer, nullable=False)
     record_b_id = Column(Integer, nullable=False)
     side_a_kind = Column(String(10), nullable=False, default="staged")
@@ -48,7 +48,7 @@ class MatchCandidate(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "comparison_run_id",
+            "match_run_id",
             "record_a_id",
             "record_b_id",
             "side_a_kind",
