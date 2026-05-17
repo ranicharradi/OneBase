@@ -54,7 +54,7 @@ def create_source(db: Session, data: DataSourceCreate) -> DataSource:
         db.flush()
     except IntegrityError:
         db.rollback()
-        raise ValueError(f"Data source with name '{data.name}' already exists") from None
+        raise ValueError(f"Source with name '{data.name}' already exists") from None
     return source
 
 

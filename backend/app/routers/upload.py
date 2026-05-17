@@ -74,7 +74,7 @@ async def upload_file(
         if source is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Data source not found",
+                detail="Source not found",
             )
 
         # Read with a hard cap before writing to disk.
@@ -105,7 +105,7 @@ async def upload_file(
     if source is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Data source not found",
+            detail="Source not found",
         )
 
     # Block re-upload while a batch is still processing for this source
@@ -120,7 +120,7 @@ async def upload_file(
     if active_batch:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Source already has an in-progress upload (batch {active_batch.id}). "
+            detail=f"Source already has an in-progress upload (File #{active_batch.id}). "
             f"Wait for it to complete before re-uploading.",
         )
 

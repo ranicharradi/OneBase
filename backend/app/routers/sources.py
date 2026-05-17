@@ -84,7 +84,7 @@ def get_data_source(
     """Get a single data source by ID."""
     source = get_source(db, source_id)
     if source is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
     return source
 
 
@@ -97,7 +97,7 @@ def delete_data_source(
     """Delete a data source and all related data."""
     source = get_source(db, source_id)
     if source is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
     source_name = source.name
     source_type = source.type
     delete_source(db, source_id)
@@ -124,7 +124,7 @@ def get_upload_stats(
 
     source = get_source(db, source_id)
     if source is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
 
     staged_count = (
         db.query(func.count(StagedRecord.id))

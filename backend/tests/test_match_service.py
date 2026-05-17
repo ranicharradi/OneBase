@@ -24,7 +24,7 @@ def _batch(db, type_key="supplier", name="src"):
 
 def test_create_run_file_vs_file_requires_two_batches(test_db):
     b1 = _batch(test_db)
-    with pytest.raises(MatchValidationError, match="requires 2 batches"):
+    with pytest.raises(MatchValidationError, match="requires 2 files"):
         create_run(test_db, type="supplier", mode="FILE_VS_FILE", batch_ids=[b1.id], name=None, username="u")
 
 

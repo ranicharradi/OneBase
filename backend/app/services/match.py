@@ -51,15 +51,15 @@ def create_run(
     max_n = MAX_BATCHES_BY_MODE[mode]
     if len(batch_ids) < min_n or (max_n is not None and len(batch_ids) > max_n):
         expected = f"{min_n}" if max_n == min_n else f"{min_n}+"
-        raise MatchValidationError(f"Mode {mode} requires {expected} batches; received {len(batch_ids)}")
+        raise MatchValidationError(f"Mode {mode} requires {expected} files; received {len(batch_ids)}")
 
     batches = db.query(ImportBatch).filter(ImportBatch.id.in_(batch_ids)).all()
     if len(batches) != len(batch_ids):
-        raise MatchValidationError("One or more batch_ids not found")
+        raise MatchValidationError("One or more file IDs not found")
 
     types = {b.data_source.type for b in batches}
     if types != {type}:
-        raise MatchValidationError(f"Batches must all be of type {type!r}; got {types!r}")
+        raise MatchValidationError(f"Files must all be of type {type!r}; got {types!r}")
 
     if mode == "FILE_VS_GOLDEN":
         unified_count = db.query(UnifiedRecord).filter(UnifiedRecord.type == type).count()
