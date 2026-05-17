@@ -12,5 +12,6 @@ class DataSource(Base):
     description = Column(Text, nullable=True)
     delimiter = Column(String(5), default=";")
     column_mapping = Column(json_type(), nullable=False)
+    identity_field_key = Column(String(64), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

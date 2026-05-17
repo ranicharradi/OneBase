@@ -1,5 +1,6 @@
 """Tests for data source CRUD endpoints."""
 
+from app.models.source import DataSource
 from app.models.user import User
 from app.services.auth import create_token, hash_password
 
@@ -265,3 +266,9 @@ class TestDetectHeaders:
         )
         assert response.status_code == 400
         assert "utf-8" in response.json()["detail"].lower()
+
+
+def test_data_source_has_identity_field_key_column():
+    """DataSource model has identity_field_key column for diff ingestion."""
+    cols = {c.name for c in DataSource.__table__.columns}
+    assert "identity_field_key" in cols
