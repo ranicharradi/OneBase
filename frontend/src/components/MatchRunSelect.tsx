@@ -1,7 +1,7 @@
 import type { MatchRunResponse } from '../api/types';
 import { displayFilename } from '../utils/filename';
 import { relativeTime } from '../utils/time';
-import { MODE_LABEL } from '../utils/comparisons';
+import { MODE_LABEL } from '../utils/matchRuns';
 
 interface MatchRunSelectProps {
   validRuns: MatchRunResponse[];

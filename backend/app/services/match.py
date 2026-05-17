@@ -63,7 +63,7 @@ def create_run(
     if mode == "FILE_VS_GOLDEN":
         unified_count = db.query(UnifiedRecord).filter(UnifiedRecord.type == type).count()
         if unified_count == 0:
-            raise MatchValidationError("No golden records yet — run a FILE_VS_FILE comparison first to produce them.")
+            raise MatchValidationError("No golden records yet — run a FILE_VS_FILE match first to produce them.")
 
     conflict = db.query(MatchRun).filter(MatchRun.type == type, MatchRun.status == "running").first()
     if conflict is not None:

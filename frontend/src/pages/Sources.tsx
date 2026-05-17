@@ -337,7 +337,7 @@ function DeleteConfirm({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sources'] });
       queryClient.invalidateQueries({ queryKey: ['batches'] });
-      queryClient.invalidateQueries({ queryKey: ['comparison-runs'] });
+      queryClient.invalidateQueries({ queryKey: ['match-runs'] });
       queryClient.invalidateQueries({ queryKey: ['review-queue'] });
       queryClient.invalidateQueries({ queryKey: ['review-stats'] });
       onDeleted('Source deleted');

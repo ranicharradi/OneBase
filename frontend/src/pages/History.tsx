@@ -6,7 +6,7 @@ import type { MatchRunResponse } from '../api/types';
 import Panel from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
 import { displayFilename } from '../utils/filename';
-import { MODE_LABEL, MODE_GLYPH } from '../utils/comparisons';
+import { MODE_LABEL, MODE_GLYPH } from '../utils/matchRuns';
 import { relativeTime } from '../utils/time';
 
 // ── Helpers ───────────────────────────────────────────
@@ -139,7 +139,7 @@ function HistoryGroup({ type, runs, navigate }: { type: string; runs: MatchRunRe
 export default function History() {
   const navigate = useNavigate();
   const { data: runs, isLoading } = useQuery({
-    queryKey: ['comparison-runs'],
+    queryKey: ['match-runs'],
     queryFn: () => api.get<MatchRunResponse[]>('/api/matches'),
   });
 

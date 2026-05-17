@@ -18,7 +18,7 @@ import Pill from "../components/ui/Pill";
 import Hbar from "../components/ui/Hbar";
 import type { PillTone } from "../components/ui/Pill";
 import { stripUuidPrefix, displayFilename } from "../utils/filename";
-import { MODE_LABEL } from "../utils/comparisons";
+import { MODE_LABEL } from "../utils/matchRuns";
 import { relativeTime } from "../utils/time";
 import WorkflowStageRail from "../components/WorkflowStageRail";
 import HandoffBanner from "../components/HandoffBanner";
@@ -417,7 +417,7 @@ export default function Match() {
   });
 
   const { data: allRuns } = useQuery({
-    queryKey: ["comparison-runs"],
+    queryKey: ["match-runs"],
     queryFn: () => api.get<MatchRunResponse[]>("/api/matches"),
     refetchInterval: (q) => {
       const data = q.state.data as MatchRunResponse[] | undefined;
