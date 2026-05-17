@@ -15,6 +15,8 @@ from zipfile import BadZipFile
 import openpyxl
 from openpyxl.utils.exceptions import InvalidFileException
 
+from app.utils.file_format import extension_of as _extension
+
 
 def _decode_csv_text(file_content: bytes) -> str:
     """Decode CSV bytes using the only accepted text encoding."""
@@ -158,12 +160,6 @@ _CSV_DELIMITER_CANDIDATES = (",", ";", "\t", "|")
 
 _CSV_EXTENSIONS = {".csv"}
 _XLSX_EXTENSIONS = {".xlsx"}
-
-
-def _extension(filename: str) -> str:
-    """Return the lower-cased file extension including the dot, or '' if none."""
-    _, _, ext = filename.rpartition(".")
-    return f".{ext.lower()}" if ext and ext != filename else ""
 
 
 def _sniff_csv_delimiter(file_content: bytes) -> str:
