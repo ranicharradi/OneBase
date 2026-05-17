@@ -103,10 +103,10 @@ export function useMatchingNotifications(
 
           // Process matching notifications
           if (
-            parsed.type === 'matching_complete' ||
-            parsed.type === 'matching_failed' ||
-            parsed.type === 'matching_progress' ||
-            parsed.type === 'comparison_complete'
+            parsed.type === 'ingestion_complete' ||
+            parsed.type === 'ingestion_failed' ||
+            parsed.type === 'ingestion_progress' ||
+            parsed.type === 'match_complete'
           ) {
             onNotificationRef.current(parsed as MatchingNotification);
           }

@@ -1,15 +1,15 @@
-import type { ComparisonRunResponse } from '../api/types';
+import type { MatchRunResponse } from '../api/types';
 import { displayFilename } from '../utils/filename';
 import { relativeTime } from '../utils/time';
 import { MODE_LABEL } from '../utils/comparisons';
 
-interface ComparisonRunSelectProps {
-  validRuns: ComparisonRunResponse[];
+interface MatchRunSelectProps {
+  validRuns: MatchRunResponse[];
   runId: string | null;
   onChange: (runId: string | null) => void;
 }
 
-export default function ComparisonRunSelect({ validRuns, runId, onChange }: ComparisonRunSelectProps) {
+export default function MatchRunSelect({ validRuns, runId, onChange }: MatchRunSelectProps) {
   return (
     <select
       className="input"

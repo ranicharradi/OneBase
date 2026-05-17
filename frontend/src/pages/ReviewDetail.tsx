@@ -46,7 +46,7 @@ export default function ReviewDetail() {
   const isPending = detail?.status === 'pending';
 
   const queuePath = (candidateId?: number) => {
-    const runQuery = detail?.comparison_run_id ? `?comparison_run_id=${detail.comparison_run_id}` : '';
+    const runQuery = detail?.match_run_id ? `?match_run_id=${detail.match_run_id}` : '';
     return candidateId
       ? withRecordType(`/review/${candidateId}${runQuery}`)
       : withRecordType(`/review${runQuery}`);
@@ -64,9 +64,9 @@ export default function ReviewDetail() {
     params.set('status', 'pending');
     params.set('type', detail.type);
     params.set('limit', '1');
-    if (detail.comparison_run_id != null) params.set('comparison_run_id', String(detail.comparison_run_id));
+    if (detail.match_run_id != null) params.set('match_run_id', String(detail.match_run_id));
     const next = await queryClient.fetchQuery({
-      queryKey: ['review-next-pending', detail.type, detail.comparison_run_id ?? null],
+      queryKey: ['review-next-pending', detail.type, detail.match_run_id ?? null],
       queryFn: () => api.get<ReviewQueueResponse>(`/api/review/queue?${params.toString()}`),
     });
     navigate(queuePath(next.items[0]?.id), { replace: true });

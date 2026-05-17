@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
-import { useComparisonRunStatus } from "../hooks/useComparisonRun";
+import { useMatchRunStatus } from "../hooks/useMatchRun";
 import { useSelectedRecordType } from "../contexts/RecordTypeContext";
 import type {
   BatchResponse,
-  ComparisonMode,
-  ComparisonRunCreate,
-  ComparisonRunResponse,
-  ComparisonRunStatus,
+  MatchMode,
+  MatchRunCreate,
+  MatchRunResponse,
+  MatchRunStatus,
 } from "../api/types";
 import Panel, { PanelHead } from "../components/ui/Panel";
 import Spinner from "../components/ui/Spinner";
@@ -41,14 +41,14 @@ const COMP_STAGES = [
   { key: "INSERTING", label: "Writing" },
 ];
 
-function resolveMode(vsGolden: boolean, count: number): ComparisonMode {
+function resolveMode(vsGolden: boolean, count: number): MatchMode {
   if (vsGolden) return "FILE_VS_GOLDEN";
   return count >= 3 ? "MULTI_FILE" : "FILE_VS_FILE";
 }
 
 // ── Active run pipeline card ───────────────────────────
 
-function MatchingPipeline({ status }: { status?: ComparisonRunStatus }) {
+function MatchingPipeline({ status }: { status?: MatchRunStatus }) {
   const N = COMP_STAGES.length;
   const isComplete =
     status?.state === "COMPLETE" || status?.state === "SUCCESS";
@@ -264,10 +264,10 @@ function ActiveRunCard({
   run,
   onReview,
 }: {
-  run: ComparisonRunResponse;
+  run: MatchRunResponse;
   onReview: (id: number) => void;
 }) {
-  const { data: liveStatus } = useComparisonRunStatus(run.id);
+  const { data: liveStatus } = useMatchRunStatus(run.id);
   const isComplete =
     liveStatus?.state === "COMPLETE" || liveStatus?.state === "SUCCESS";
 
@@ -422,9 +422,9 @@ export default function Compare() {
 
   const { data: allRuns } = useQuery({
     queryKey: ["comparison-runs"],
-    queryFn: () => api.get<ComparisonRunResponse[]>("/api/comparisons/"),
+    queryFn: () => api.get<MatchRunResponse[]>("/api/matches/"),
     refetchInterval: (q) => {
-      const data = q.state.data as ComparisonRunResponse[] | undefined;
+      const data = q.state.data as MatchRunResponse[] | undefined;
       return data?.some((r) => r.status === "pending" || r.status === "running")
         ? 3000
         : false;
@@ -453,15 +453,15 @@ export default function Compare() {
 
   const launch = useMutation({
     mutationFn: async () => {
-      const payload: ComparisonRunCreate = {
+      const payload: MatchRunCreate = {
         type: selectedType,
         mode,
         batch_ids: effectiveSelection,
       };
-      return api.post<ComparisonRunResponse>("/api/comparisons/", payload);
+      return api.post<MatchRunResponse>("/api/matches/", payload);
     },
     onSuccess: (run) =>
-      navigate(withRecordType(`/review?comparison_run_id=${run.id}`)),
+      navigate(withRecordType(`/review?match_run_id=${run.id}`)),
   });
 
   const toggleRow = (id: number) => {
@@ -524,7 +524,7 @@ export default function Compare() {
             key={r.id}
             run={r}
             onReview={(id) =>
-              navigate(withRecordType(`/review?comparison_run_id=${id}`))
+              navigate(withRecordType(`/review?match_run_id=${id}`))
             }
           />
         ))}

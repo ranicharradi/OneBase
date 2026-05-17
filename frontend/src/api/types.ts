@@ -107,7 +107,7 @@ export interface TaskStatus {
 // ── Matching notification types (WebSocket) ──
 
 export interface MatchingNotification {
-  type: 'matching_complete' | 'matching_failed' | 'matching_progress' | 'comparison_complete';
+  type: 'ingestion_complete' | 'ingestion_failed' | 'ingestion_progress' | 'match_complete';
   data: {
     batch_id?: number;
     candidate_count?: number;
@@ -150,7 +150,7 @@ export interface FieldComparison {
 export interface MatchDetailResponse {
   id: number;
   type: string;
-  comparison_run_id: number;
+  match_run_id: number;
   confidence: number;
   match_signals: Record<string, number>;
   status: string;
@@ -470,14 +470,14 @@ export interface AskResponse {
   latency_ms: number;
 }
 
-// ── Comparison Run types ──
+// ── Match Run types ──
 
-export type ComparisonMode = 'FILE_VS_FILE' | 'FILE_VS_GOLDEN' | 'MULTI_FILE';
-export type ComparisonStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stale';
+export type MatchMode = 'FILE_VS_FILE' | 'FILE_VS_GOLDEN' | 'MULTI_FILE';
+export type MatchStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stale';
 
-export interface ComparisonRunCreate {
+export interface MatchRunCreate {
   type: string;
-  mode: ComparisonMode;
+  mode: MatchMode;
   batch_ids: number[];
   name?: string;
 }
@@ -487,11 +487,11 @@ export interface BatchSummary {
   filename: string;
 }
 
-export interface ComparisonRunResponse {
+export interface MatchRunResponse {
   id: number;
   type: string;
-  mode: ComparisonMode;
-  status: ComparisonStatus;
+  mode: MatchMode;
+  status: MatchStatus;
   name: string | null;
   created_by: string;
   created_at: string;
@@ -504,11 +504,11 @@ export interface ComparisonRunResponse {
   error_message: string | null;
 }
 
-export interface ComparisonRunDetail extends ComparisonRunResponse {
+export interface MatchRunDetail extends MatchRunResponse {
   candidate_counts: Record<string, number>;
 }
 
-export interface ComparisonRunStatus {
+export interface MatchRunStatus {
   task_id: string | null;
   state: string;
   stage: string | null;

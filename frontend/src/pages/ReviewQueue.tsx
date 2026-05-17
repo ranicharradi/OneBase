@@ -10,7 +10,7 @@ import {
 import { useNavigate } from "react-router";
 import { api } from "../api/client";
 import { useRecordType } from "../hooks/useRecordTypes";
-import { useComparisonRun } from "../hooks/useComparisonRun";
+import { useMatchRun } from "../hooks/useMatchRun";
 import { fieldSummary } from "../utils/recordDisplay";
 import { relativeTime } from "../utils/time";
 import { confidenceTone } from "../utils/confidence";
@@ -26,7 +26,7 @@ import { LoadingErrorEmpty } from "../components/ui/LoadingErrorEmpty";
 import Pagination from "../components/Pagination";
 import WorkflowStageRail from "../components/WorkflowStageRail";
 import HandoffBanner from "../components/HandoffBanner";
-import ComparisonRunSelect from "../components/ComparisonRunSelect";
+import MatchRunSelect from "../components/MatchRunSelect";
 import QueueBucketTabs from "../components/QueueBucketTabs";
 import Spinner from "../components/ui/Spinner";
 
@@ -167,7 +167,7 @@ export default function ReviewQueue() {
   const { query: searchQuery } = useSearch();
   const { selectedType, withRecordType } = useSelectedRecordType();
   const { runId, validRuns, selectedRun, setRunId } =
-    useComparisonRun(selectedType);
+    useMatchRun(selectedType);
   const { data: recordType } = useRecordType(selectedType);
   const summaryFieldKeys =
     recordType?.fields
@@ -199,7 +199,7 @@ export default function ReviewQueue() {
     p.set("status", bucket);
     if (minConfidence > 0)
       p.set("min_confidence", (minConfidence / 100).toFixed(2));
-    if (runId) p.set("comparison_run_id", runId);
+    if (runId) p.set("match_run_id", runId);
     p.set("limit", String(PAGE_SIZE));
     p.set("type", selectedType);
     p.set("offset", String(page * PAGE_SIZE));
@@ -225,7 +225,7 @@ export default function ReviewQueue() {
     queryKey: ["review-stats", selectedType, runId],
     queryFn: () =>
       api.get<ReviewStats>(
-        `/api/review/stats?type=${selectedType}${runId ? `&comparison_run_id=${runId}` : ""}`,
+        `/api/review/stats?type=${selectedType}${runId ? `&match_run_id=${runId}` : ""}`,
       ),
     enabled: !!runId && runReady,
     placeholderData: keepPreviousData,
@@ -297,7 +297,7 @@ export default function ReviewQueue() {
             onClick: () =>
               navigate(
                 withRecordType(
-                  runId ? `/merge?comparison_run_id=${runId}` : "/merge",
+                  runId ? `/merge?match_run_id=${runId}` : "/merge",
                 ),
               ),
             title: "Go to Merge queue",
@@ -365,7 +365,7 @@ export default function ReviewQueue() {
         {/* ── Filters ── */}
         <Panel className="fade">
           <PanelHead>
-            <ComparisonRunSelect
+            <MatchRunSelect
               validRuns={validRuns}
               runId={runId}
               onChange={(id) => {

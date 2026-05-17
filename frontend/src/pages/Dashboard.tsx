@@ -730,9 +730,9 @@ export default function Dashboard() {
   });
 
   useMatchingNotifications(useCallback((n: MatchingNotification) => {
-    if (n.type === 'matching_progress') {
+    if (n.type === 'ingestion_progress') {
       setMatchProgress({ stage: n.data.stage ?? 'Processing', progress: n.data.progress ?? 0 });
-    } else if (n.type === 'matching_complete' || n.type === 'matching_failed') {
+    } else if (n.type === 'ingestion_complete' || n.type === 'ingestion_failed') {
       setMatchProgress(null);
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router';
 import { api } from '../api/client';
-import type { ComparisonRunResponse } from '../api/types';
+import type { MatchRunResponse } from '../api/types';
 import Panel from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
 import { displayFilename } from '../utils/filename';
@@ -31,7 +31,7 @@ const STATUS_TONE: Record<string, 'ok' | 'warn' | 'danger' | 'neutral' | 'info'>
 
 // ── History group ─────────────────────────────────────
 
-function HistoryGroup({ type, runs, navigate }: { type: string; runs: ComparisonRunResponse[]; navigate: ReturnType<typeof useNavigate> }) {
+function HistoryGroup({ type, runs, navigate }: { type: string; runs: MatchRunResponse[]; navigate: ReturnType<typeof useNavigate> }) {
   const [open, setOpen] = useState(true);
 
   return (
@@ -69,11 +69,11 @@ function HistoryGroup({ type, runs, navigate }: { type: string; runs: Comparison
                 <tr
                   key={r.id}
                   style={{ opacity: stale ? 0.45 : 1, cursor: 'pointer' }}
-                  onClick={() => navigate(`/review?comparison_run_id=${r.id}`)}
+                  onClick={() => navigate(`/review?match_run_id=${r.id}`)}
                 >
                   <td>
                     <Link
-                      to={`/review?comparison_run_id=${r.id}`}
+                      to={`/review?match_run_id=${r.id}`}
                       className="mono"
                       style={{ fontSize: 12, color: 'var(--accent)' }}
                       onClick={e => e.stopPropagation()}
@@ -140,12 +140,12 @@ export default function History() {
   const navigate = useNavigate();
   const { data: runs, isLoading } = useQuery({
     queryKey: ['comparison-runs'],
-    queryFn: () => api.get<ComparisonRunResponse[]>('/api/comparisons/'),
+    queryFn: () => api.get<MatchRunResponse[]>('/api/matches/'),
   });
 
   const historyRuns = (runs ?? []).filter(r => r.status !== 'pending' && r.status !== 'running');
 
-  const grouped = historyRuns.reduce<Record<string, ComparisonRunResponse[]>>((acc, r) => {
+  const grouped = historyRuns.reduce<Record<string, MatchRunResponse[]>>((acc, r) => {
     (acc[r.type] ??= []).push(r);
     return acc;
   }, {});

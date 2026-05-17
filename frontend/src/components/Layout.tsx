@@ -67,7 +67,7 @@ function LayoutContent() {
   useMatchingNotifications(
     useCallback(
       (notification: MatchingNotification) => {
-        if (notification.type === "matching_complete") {
+        if (notification.type === "ingestion_complete") {
           const { candidate_count = 0, group_count = 0 } = notification.data;
           addToast({
             type: "success",
@@ -75,7 +75,7 @@ function LayoutContent() {
             detail: `${candidate_count} candidate pairs found in ${group_count} groups`,
             action: { label: "View results →", href: withRecordType("/review") },
           });
-        } else if (notification.type === "matching_failed") {
+        } else if (notification.type === "ingestion_failed") {
           addToast({
             type: "error",
             message: "Matching failed",
@@ -83,7 +83,7 @@ function LayoutContent() {
               notification.data.error ||
               "An unexpected error occurred during matching",
           });
-        } else if (notification.type === "comparison_complete") {
+        } else if (notification.type === "match_complete") {
           const runId = notification.data.run_id;
           const candidateCount =
             notification.data.stats?.candidate_count ??
@@ -95,7 +95,7 @@ function LayoutContent() {
             detail: `${candidateCount} candidates found`,
             action: {
               label: "Review →",
-              href: withRecordType(`/review?comparison_run_id=${runId}`),
+              href: withRecordType(`/review?match_run_id=${runId}`),
             },
           });
         }

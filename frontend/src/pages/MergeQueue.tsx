@@ -5,7 +5,7 @@ import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useSelectedRecordType } from "../contexts/RecordTypeContext";
-import { useComparisonRun } from "../hooks/useComparisonRun";
+import { useMatchRun } from "../hooks/useMatchRun";
 import { relativeTime } from "../utils/time";
 import { confidenceTone } from "../utils/confidence";
 import type {
@@ -21,7 +21,7 @@ import SourcePill from "../components/ui/SourcePill";
 import Pagination from "../components/Pagination";
 import WorkflowStageRail from "../components/WorkflowStageRail";
 import HandoffBanner from "../components/HandoffBanner";
-import ComparisonRunSelect from "../components/ComparisonRunSelect";
+import MatchRunSelect from "../components/MatchRunSelect";
 import QueueBucketTabs from "../components/QueueBucketTabs";
 
 const PAGE_SIZE = 50;
@@ -61,7 +61,7 @@ export default function MergeQueue() {
   const { query: searchQuery } = useSearch();
   const { selectedType, withRecordType } = useSelectedRecordType();
   const { runId, validRuns, selectedRun, setRunId } =
-    useComparisonRun(selectedType);
+    useMatchRun(selectedType);
 
   const [bucket, setBucket] = useState<BucketFilter>("confirmed");
   const [pageState, setPageState] = useState({ type: selectedType, page: 0 });
@@ -90,7 +90,7 @@ export default function MergeQueue() {
     p.set("limit", String(PAGE_SIZE));
     p.set("type", selectedType);
     p.set("offset", String(page * PAGE_SIZE));
-    if (runId) p.set("comparison_run_id", runId);
+    if (runId) p.set("match_run_id", runId);
     return p;
   }, [bucket, page, selectedType, runId]);
 
@@ -106,7 +106,7 @@ export default function MergeQueue() {
     queryKey: ["review-stats", selectedType, runId],
     queryFn: () =>
       api.get<ReviewStats>(
-        `/api/review/stats?type=${selectedType}${runId ? `&comparison_run_id=${runId}` : ""}`,
+        `/api/review/stats?type=${selectedType}${runId ? `&match_run_id=${runId}` : ""}`,
       ),
     refetchInterval: 30_000,
     enabled: !!runId,
@@ -151,7 +151,7 @@ export default function MergeQueue() {
             onClick: () =>
               navigate(
                 withRecordType(
-                  runId ? `/review?comparison_run_id=${runId}` : "/review",
+                  runId ? `/review?match_run_id=${runId}` : "/review",
                 ),
               ),
             title: "Go to Review queue",
@@ -247,12 +247,12 @@ export default function MergeQueue() {
                 e.preventDefault();
                 navigate(
                   withRecordType(
-                    runId ? `/review?comparison_run_id=${runId}` : "/review",
+                    runId ? `/review?match_run_id=${runId}` : "/review",
                   ),
                 );
               }}
               href={withRecordType(
-                runId ? `/review?comparison_run_id=${runId}` : "/review",
+                runId ? `/review?match_run_id=${runId}` : "/review",
               )}
               style={{
                 color: "var(--accent)",
@@ -270,7 +270,7 @@ export default function MergeQueue() {
         <div ref={tableRef}>
           <Panel className="fade">
             <PanelHead>
-              <ComparisonRunSelect
+              <MatchRunSelect
                 validRuns={validRuns}
                 runId={runId}
                 onChange={(id) => {
