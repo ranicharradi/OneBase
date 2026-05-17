@@ -17,13 +17,6 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-FIELD_KEYS = [
-    "supplier_name",
-    "short_name",
-    "currency",
-    "contact_name",
-]
-
 
 def upgrade() -> None:
     # pgvector extension
@@ -210,7 +203,8 @@ def upgrade() -> None:
         "ON unified_records USING hnsw (name_embedding vector_cosine_ops) "
         "WITH (m = 16, ef_construction = 64)"
     )
-    _create_ask_view()
+    # The v_unified_records_for_ask view is built dynamically on app startup
+    # from the live record_types registry (services/ask_view.py).
 
     # audit_log
     op.create_table(
@@ -276,9 +270,13 @@ def upgrade() -> None:
     )
     op.create_index("ix_file_check_issues_report_id", "file_check_issues", ["report_id"])
 
+    # NOTE: the ask view is created/refreshed by app.services.ask_view.refresh_ask_view()
+    # on FastAPI startup (see app/main.py lifespan). Migrations stay agnostic of which
+    # record types are registered.
+
 
 def downgrade() -> None:
-    _drop_ask_view()
+    op.execute("DROP VIEW IF EXISTS v_unified_records_for_ask")
     op.drop_table("file_check_issues")
     op.drop_table("file_check_reports")
     op.drop_table("ml_model_versions")
@@ -292,40 +290,3 @@ def downgrade() -> None:
     op.drop_table("import_batches")
     op.drop_table("data_sources")
     op.drop_table("users")
-
-
-def _create_ask_view() -> None:
-    bind = op.get_bind()
-    if bind.dialect.name != "postgresql":
-        return
-
-    json_cols = ",\n  ".join(f"(u.fields ->> '{key}') AS {key}" for key in FIELD_KEYS)
-    sql = f"""
-        CREATE OR REPLACE VIEW v_unified_records_for_ask AS
-        SELECT
-          u.id,
-          u.type AS record_type,
-          ds.name AS source_name,
-          u.created_at,
-          u.dq_completeness,
-          u.dq_validity,
-          u.dq_score,
-          {json_cols}
-        FROM unified_records u
-        LEFT JOIN LATERAL (
-          SELECT sr.data_source_id
-          FROM staged_records sr
-          WHERE sr.id::text = (u.source_record_ids->>0)
-          LIMIT 1
-        ) first_src ON TRUE
-        LEFT JOIN data_sources ds ON ds.id = first_src.data_source_id
-        """  # noqa: S608
-    op.execute(sql)
-
-
-def _drop_ask_view() -> None:
-    bind = op.get_bind()
-    if bind.dialect.name != "postgresql":
-        return
-
-    op.execute("DROP VIEW IF EXISTS v_unified_records_for_ask")

@@ -67,12 +67,14 @@ async def lifespan(app: FastAPI):
     # Fail fast if production secrets are insecure
     validate_production_secrets(settings)
 
-    # Startup: create initial admin user if configured
+    # Startup: create initial admin user if configured + refresh the dynamic ask view
     db = SessionLocal()
     try:
+        from app.services.ask_view import refresh_ask_view
         from app.services.auth import create_initial_user
 
         create_initial_user(db)
+        refresh_ask_view(db)
         db.commit()
     except Exception:
         db.rollback()
