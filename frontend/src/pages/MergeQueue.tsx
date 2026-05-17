@@ -137,7 +137,7 @@ export default function MergeQueue() {
         <WorkflowStageRail
           activeStage="merge"
           match={{
-            onClick: () => navigate("/compare"),
+            onClick: () => navigate("/match"),
             title: "Go to Match runs",
             count: {
               value:

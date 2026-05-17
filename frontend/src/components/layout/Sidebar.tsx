@@ -27,7 +27,7 @@ const NAV: NavSection[] = [
   {
     section: "Matching",
     items: [
-      { to: "/compare", icon: "compare_arrows", label: "Compare" },
+      { to: "/match", icon: "compare_arrows", label: "Match" },
       { to: "/review", icon: "swap_horiz", label: "Review queue" },
       { to: "/merge", icon: "merge", label: "Merge queue" },
       { to: "/unified", icon: "verified", label: "Unified" },

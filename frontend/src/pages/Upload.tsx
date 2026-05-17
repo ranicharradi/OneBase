@@ -545,7 +545,7 @@ export default function Upload() {
                     style={{ fontSize: 12, color: "var(--fg-1)" }}
                   >
                     Ingest complete ·{" "}
-                    <Link to="/compare" style={{ color: "var(--accent)" }}>
+                    <Link to="/match" style={{ color: "var(--accent)" }}>
                       Compare this file →
                     </Link>
                   </span>

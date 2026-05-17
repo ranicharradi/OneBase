@@ -58,7 +58,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       { section: "Navigate", label: "Go to Upload",        icon: "cloud_upload",   onSelect: () => navigate("/upload") },
       { section: "Navigate", label: "Go to Sources",       icon: "storage",        onSelect: () => navigate("/sources") },
       // Matching
-      { section: "Navigate", label: "Go to Compare",       icon: "compare_arrows", onSelect: () => navigate("/compare") },
+      { section: "Navigate", label: "Go to Match",          icon: "compare_arrows", onSelect: () => navigate("/match") },
       { section: "Navigate", label: "Go to Review queue",  icon: "swap_horiz",     onSelect: () => navigate(withRecordType("/review")) },
       { section: "Navigate", label: "Go to Merge queue",   icon: "merge",          onSelect: () => navigate(withRecordType("/merge")) },
       { section: "Navigate", label: "Go to Unified",       icon: "verified",       onSelect: () => navigate(withRecordType("/unified")) },

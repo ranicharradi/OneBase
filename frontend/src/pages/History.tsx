@@ -167,7 +167,7 @@ export default function History() {
           <div style={{ padding: 48, textAlign: 'center' }}>
             <div style={{ fontSize: 22, marginBottom: 10, color: 'var(--fg-3)', fontFamily: "'Apple Symbols', system-ui" }}>⊕</div>
             <div style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 12 }}>No completed runs yet</div>
-            <Link to="/compare" className="btn btn-sm btn-accent">Start a run ▸</Link>
+            <Link to="/match" className="btn btn-sm btn-accent">Start a run ▸</Link>
           </div>
         ) : (
           Object.entries(grouped).map(([type, groupRuns]) => (

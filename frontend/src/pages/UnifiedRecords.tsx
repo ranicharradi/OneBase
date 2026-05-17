@@ -284,7 +284,7 @@ export default function UnifiedRecords() {
       <div style={{ padding: 20 }}>
         <WorkflowStageRail
           activeStage="unified"
-          match={{ onClick: () => navigate("/compare"), title: "Go to Runs" }}
+          match={{ onClick: () => navigate("/match"), title: "Go to Runs" }}
           review={{
             onClick: () => navigate("/review"),
             title: "Go to Review queue",

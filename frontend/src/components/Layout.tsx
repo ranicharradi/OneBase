@@ -18,7 +18,7 @@ const BREADCRUMBS: Record<string, string[]> = {
   "/dashboard": ["Pipeline", "Overview"],
   "/insights": ["Utilities", "Insights"],
   "/upload": ["Pipeline", "Upload"],
-  "/compare": ["Matching", "Compare"],
+  "/match": ["Matching", "Match"],
   "/file-checker": ["Utilities", "File checker"],
   "/sources": ["Pipeline", "Sources"],
   "/history": ["Matching", "History"],

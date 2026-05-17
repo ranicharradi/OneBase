@@ -396,7 +396,7 @@ function FileCell({ name }: { name: string }) {
 
 // ── Page ──────────────────────────────────────────────
 
-export default function Compare() {
+export default function Match() {
   const navigate = useNavigate();
   const { selectedType, withRecordType } = useSelectedRecordType();
   const [selState, setSelState] = useState<{
