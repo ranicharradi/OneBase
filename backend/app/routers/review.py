@@ -62,7 +62,7 @@ def _load_record_detail(db: Session, record_id: int) -> tuple[StagedRecord, Data
 def get_review_queue(
     status_filter: str = Query("pending", alias="status"),
     type: str | None = Query(None, description="Filter by record type"),
-    comparison_run_id: int | None = Query(None, description="Scope to a specific comparison run"),
+    match_run_id: int | None = Query(None, description="Scope to a specific match run"),
     source_a_id: int | None = Query(None, description="Filter by record A source"),
     source_b_id: int | None = Query(None, description="Filter by record B source"),
     min_confidence: float | None = Query(None, ge=0.0, le=1.0),
@@ -79,8 +79,8 @@ def get_review_queue(
 
     if type is not None:
         query = query.filter(MatchCandidate.type == type)
-    if comparison_run_id is not None:
-        query = query.filter(MatchCandidate.comparison_run_id == comparison_run_id)
+    if match_run_id is not None:
+        query = query.filter(MatchCandidate.match_run_id == match_run_id)
     if status_filter:
         query = query.filter(MatchCandidate.status == status_filter)
     if min_confidence is not None:
@@ -188,7 +188,7 @@ def get_match_detail(
     return MatchDetailResponse(
         id=candidate.id,
         type=candidate.type,
-        comparison_run_id=candidate.comparison_run_id,
+        match_run_id=candidate.match_run_id,
         confidence=candidate.confidence,
         match_signals=candidate.match_signals,
         status=candidate.status,
@@ -341,7 +341,7 @@ def reject_match(
 @router.get("/stats", response_model=ReviewStatsResponse)
 def get_review_stats(
     type: str | None = Query(None, description="Optional filter by record type"),
-    comparison_run_id: int | None = Query(None, description="Scope to a specific comparison run"),
+    match_run_id: int | None = Query(None, description="Scope to a specific match run"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -349,8 +349,8 @@ def get_review_stats(
     cand_query = db.query(MatchCandidate)
     if type is not None:
         cand_query = cand_query.filter(MatchCandidate.type == type)
-    if comparison_run_id is not None:
-        cand_query = cand_query.filter(MatchCandidate.comparison_run_id == comparison_run_id)
+    if match_run_id is not None:
+        cand_query = cand_query.filter(MatchCandidate.match_run_id == match_run_id)
 
     counts = cand_query.with_entities(
         func.count(case((MatchCandidate.status == CandidateStatus.PENDING, 1))).label("pending"),

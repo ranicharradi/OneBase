@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
 from app.models.batch import ImportBatch
-from app.models.comparison import ComparisonRun, comparison_run_batches
 from app.models.enums import BatchStatus, UserRole
+from app.models.match_run import MatchRun, match_run_batches
 from app.models.source import DataSource
 from app.models.user import User
 from app.schemas.upload import BatchResponse, TaskStatusResponse, UploadResponse
@@ -171,12 +171,12 @@ def list_batches(
     # Subquery: latest finished_at among completed runs per batch
     last_compared_subq = (
         db.query(
-            comparison_run_batches.c.import_batch_id.label("batch_id"),
-            func.max(ComparisonRun.finished_at).label("last_compared_at"),
+            match_run_batches.c.import_batch_id.label("batch_id"),
+            func.max(MatchRun.finished_at).label("last_compared_at"),
         )
-        .join(ComparisonRun, ComparisonRun.id == comparison_run_batches.c.comparison_run_id)
-        .filter(ComparisonRun.status == "completed")
-        .group_by(comparison_run_batches.c.import_batch_id)
+        .join(MatchRun, MatchRun.id == match_run_batches.c.match_run_id)
+        .filter(MatchRun.status == "completed")
+        .group_by(match_run_batches.c.import_batch_id)
         .subquery()
     )
 

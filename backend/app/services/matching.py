@@ -6,9 +6,9 @@ from collections.abc import Callable
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.comparison import ComparisonRun
 from app.models.enums import CandidateStatus
 from app.models.match import MatchCandidate, MatchGroup
+from app.models.match_run import MatchRun
 from app.models.staging import StagedRecord
 from app.models.unified import UnifiedRecord
 from app.record_types import get as get_record_type
@@ -37,7 +37,7 @@ def _resolve(db: Session, refs: set[RecordRef]) -> dict[RecordRef, object]:
 
 def run_matching_pipeline(
     db: Session,
-    comparison_run_id: int,
+    match_run_id: int,
     side_a: RecordSet,
     side_b: RecordSet | None,
     progress_callback: Callable[[str, int], None] | None = None,
@@ -46,7 +46,7 @@ def run_matching_pipeline(
         if progress_callback:
             progress_callback(stage, pct)
 
-    run = db.query(ComparisonRun).filter(ComparisonRun.id == comparison_run_id).one()
+    run = db.query(MatchRun).filter(MatchRun.id == match_run_id).one()
     type_key = side_a.type_key
     rt = get_record_type(type_key)
     threshold = (
@@ -149,7 +149,7 @@ def run_matching_pipeline(
     _report("INSERTING", 0)
     group_map: dict[RecordRef, MatchGroup] = {}
     for members in groups:
-        mg = MatchGroup(type=type_key, comparison_run_id=run.id)
+        mg = MatchGroup(type=type_key, match_run_id=run.id)
         db.add(mg)
         db.flush()
         for m in members:
@@ -160,7 +160,7 @@ def run_matching_pipeline(
         mg = group_map.get(ref_a) or group_map.get(ref_b)
         cand = MatchCandidate(
             type=type_key,
-            comparison_run_id=run.id,
+            match_run_id=run.id,
             record_a_id=ref_a.id,
             record_b_id=ref_b.id,
             side_a_kind=ref_a.kind,
