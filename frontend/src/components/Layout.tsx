@@ -91,7 +91,7 @@ function LayoutContent() {
             0;
           addToast({
             type: "success",
-            message: `Comparison run #${runId} complete`,
+            message: `Match run #${runId} complete`,
             detail: `${candidateCount} candidates found`,
             action: {
               label: "Review →",

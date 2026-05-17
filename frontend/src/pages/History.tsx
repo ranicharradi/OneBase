@@ -157,7 +157,7 @@ export default function History() {
         <div className="fade" style={{ marginBottom: 14 }}>
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>History</h1>
           <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>
-            Archive of all comparison runs
+            Archive of all match runs
           </div>
         </div>
 
