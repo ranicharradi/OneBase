@@ -18,6 +18,7 @@ from app.schemas.upload import BatchResponse, TaskStatusResponse, UploadResponse
 from app.services.audit import log_action
 from app.tasks.celery_app import celery_app
 from app.tasks.ingestion import process_upload
+from app.utils.file_format import extension_of, is_allowed_upload
 from app.utils.paths import safe_upload_path
 from app.utils.uploads import read_limited_upload
 
@@ -60,14 +61,13 @@ async def upload_file(
         stored_filename = file_ref
         original_filename = file_ref.split("_", 1)[1] if "_" in file_ref else file_ref
     elif file is not None:
-        # Validate file extension
-        filename_lower = (file.filename or "").lower()
-        if not filename_lower or not (filename_lower.endswith(".csv") or filename_lower.endswith(".xlsx")):
+        # Validate file extension via centralized allow-list
+        if not is_allowed_upload(file.filename or ""):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Only .csv and .xlsx files are accepted",
             )
-        is_xlsx = filename_lower.endswith(".xlsx")
+        is_xlsx = extension_of(file.filename or "") == ".xlsx"
 
         # Validate data source exists
         source = db.query(DataSource).filter(DataSource.id == data_source_id).first()
