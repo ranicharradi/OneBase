@@ -43,9 +43,10 @@ def test_file_check_models_have_expected_tables(test_db):
     assert "issue_cap_reached" not in report_columns
 
 
-def test_file_check_migration_does_not_create_branch_head():
+def test_file_check_migration_does_not_create_branch_head(monkeypatch):
     """Migrations must form a single linear chain (no branches)."""
     backend_dir = Path(__file__).resolve().parents[1]
+    monkeypatch.chdir(backend_dir)
     alembic_config = Config(str(backend_dir / "alembic.ini"))
     script = ScriptDirectory.from_config(alembic_config)
 
