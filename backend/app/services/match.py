@@ -1,4 +1,4 @@
-"""Match run orchestration: validate, create, mark-stale.
+"""Match run orchestration: validate, create.
 
 Domain errors below intentionally subclass ValueError instead of HTTPException so
 the service stays transport-agnostic; the router translates each to a status code.
