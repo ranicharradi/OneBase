@@ -71,6 +71,13 @@ export interface UserCreate {
 
 // ── Upload / Ingestion types ──
 
+export interface DiffPreviewResponse {
+  inserted: number;
+  updated: number;
+  retired: number;
+  unchanged: number;
+}
+
 export interface UploadResponse {
   batch_id: number;
   task_id: string;

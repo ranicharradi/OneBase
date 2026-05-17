@@ -20,6 +20,7 @@ from app.tasks.celery_app import celery_app
 from app.tasks.ingestion import process_upload
 from app.utils.file_format import extension_of, is_allowed_upload
 from app.utils.paths import safe_upload_path
+from app.utils.tabular_parser import parse_file
 from app.utils.uploads import read_limited_upload
 
 router = APIRouter(prefix="/api/import", tags=["import"])
@@ -29,6 +30,68 @@ UPLOAD_DIR = settings.upload_dir
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
+
+@router.post("/preview")
+async def preview_diff(
+    file: UploadFile = File(...),
+    data_source_id: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Pre-flight diff: returns {inserted, updated, retired, unchanged} for an incoming re-upload."""
+    from app.models.enums import RecordStatus
+    from app.models.staging import StagedRecord
+    from app.record_types import get as get_record_type
+    from app.services.ingestion import DiffPlan, _map_row, diff_snapshot
+
+    source = db.query(DataSource).filter(DataSource.id == data_source_id).first()
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
+
+    if not is_allowed_upload(file.filename or ""):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only .csv and .xlsx files are accepted",
+        )
+
+    content = await read_limited_upload(file, MAX_UPLOAD_SIZE)
+    rows = parse_file(content, file.filename or "", delimiter=source.delimiter)
+
+    rt = get_record_type(source.type)
+    valid_field_keys = set(rt.field_keys)
+    field_defs_by_key = {f.key: f for f in rt.fields}
+    identity_key = source.identity_field_key
+    column_mapping = source.column_mapping or {}
+
+    incoming_by_key: dict[str, dict] = {}
+    for row in rows:
+        mapped = _map_row(row, column_mapping, valid_field_keys, field_defs_by_key, identity_field_key=identity_key)
+        k = mapped.get(identity_key)
+        if k:
+            incoming_by_key[k] = mapped
+
+    prior = (
+        db.query(StagedRecord)
+        .filter(
+            StagedRecord.data_source_id == source.id,
+            StagedRecord.status.in_([RecordStatus.ACTIVE, RecordStatus.RETIRED]),
+        )
+        .all()
+    )
+    prior_by_key: dict[str, dict] = {}
+    for r in prior:
+        k = (r.fields or {}).get(identity_key)
+        if k:
+            prior_by_key[k] = r.fields
+
+    plan: DiffPlan = diff_snapshot(prior_by_key=prior_by_key, incoming_by_key=incoming_by_key)
+    return {
+        "inserted": len(plan.inserts),
+        "updated": len(plan.updates),
+        "retired": len(plan.retires),
+        "unchanged": len(plan.unchanged),
+    }
 
 
 @router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)

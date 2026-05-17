@@ -8,8 +8,8 @@ import type {
   BatchResponse,
   DataSource,
   DataSourceCreate,
+  DiffPreviewResponse,
   UploadResponse,
-  UploadStatsResponse,
 } from "../api/types";
 import DropZone from "../components/DropZone";
 import ProgressTracker from "../components/ProgressTracker";
@@ -151,10 +151,13 @@ export default function Upload() {
   const [showReUpload, setShowReUpload] = useState(false);
   const [pendingSourceId, setPendingSourceId] = useState<number | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [reUploadStats, setReUploadStats] = useState<UploadStatsResponse>({
-    staged_count: 0,
-    pending_match_count: 0,
+  const [reUploadPreview, setReUploadPreview] = useState<DiffPreviewResponse>({
+    inserted: 0,
+    updated: 0,
+    retired: 0,
+    unchanged: 0,
   });
+  const [forceReplace, setForceReplace] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadComplete, setUploadComplete] = useState(false);
 
@@ -169,13 +172,16 @@ export default function Upload() {
     mutationFn: async ({
       file,
       dataSourceId,
+      forceReplace: fr,
     }: {
       file: File;
       dataSourceId: number;
+      forceReplace?: boolean;
     }) => {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("data_source_id", String(dataSourceId));
+      if (fr) formData.append("force_replace", "true");
       return api.upload<UploadResponse>("/api/import/upload", formData);
     },
     onSuccess: (data) => {
@@ -201,15 +207,17 @@ export default function Upload() {
         );
         if (batches && batches.length > 0) {
           try {
-            const stats = await api.get<UploadStatsResponse>(
-              `/api/sources/${sourceId}/upload-stats`,
-            );
-            setReUploadStats(stats);
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("data_source_id", String(sourceId));
+            const preview = await api.upload<DiffPreviewResponse>("/api/import/preview", fd);
+            setReUploadPreview(preview);
           } catch {
-            setReUploadStats({ staged_count: 0, pending_match_count: 0 });
+            setReUploadPreview({ inserted: 0, updated: 0, retired: 0, unchanged: 0 });
           }
           setPendingSourceId(sourceId);
           setPendingFile(file);
+          setForceReplace(false);
           setUploadState({ step: "DROP_FILE", sourceId });
           setShowReUpload(true);
           return;
@@ -277,6 +285,7 @@ export default function Upload() {
       uploadWithFileMutation.mutate({
         file: pendingFile,
         dataSourceId: pendingSourceId,
+        forceReplace,
       });
     }
   };
@@ -577,8 +586,9 @@ export default function Upload() {
       {showReUpload && (
         <ReUploadDialog
           sourceName={reUploadSourceName}
-          existingCount={reUploadStats.staged_count}
-          pendingMatchCount={reUploadStats.pending_match_count}
+          preview={reUploadPreview}
+          forceReplace={forceReplace}
+          onForceReplaceChange={setForceReplace}
           onConfirm={handleReUploadConfirm}
           onCancel={handleReUploadCancel}
         />

@@ -463,6 +463,54 @@ def test_list_batches_reports_unified_false_when_never_compared(authenticated_cl
     assert row["last_compared_at"] is None
 
 
+def test_preview_returns_diff_counts(authenticated_client, test_db):
+    from app.models.batch import ImportBatch
+    from app.models.enums import BatchStatus, RecordStatus
+    from app.models.source import DataSource
+    from app.models.staging import StagedRecord
+
+    src = DataSource(
+        name="src",
+        type="supplier",
+        delimiter=";",
+        column_mapping={"supplier_code": "Code", "supplier_name": "Name"},
+        identity_field_key="supplier_code",
+    )
+    test_db.add(src)
+    test_db.flush()
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="seed.csv",
+        original_filename="seed.csv",
+        file_extension=".csv",
+        uploaded_by="x",
+        status=BatchStatus.COMPLETED,
+    )
+    test_db.add(batch)
+    test_db.flush()
+    test_db.add(
+        StagedRecord(
+            import_batch_id=batch.id,
+            data_source_id=src.id,
+            type="supplier",
+            name="Acme",
+            normalized_name="ACME",
+            fields={"supplier_code": "A", "supplier_name": "Acme"},
+            raw_data={"Code": "A", "Name": "Acme"},
+            status=RecordStatus.ACTIVE,
+        )
+    )
+    test_db.commit()
+
+    csv = b"Code;Name\nA;Acme\nB;Beta\n"
+    files = {"file": ("v2.csv", csv, "text/csv")}
+    data = {"data_source_id": str(src.id)}
+    r = authenticated_client.post("/api/import/preview", files=files, data=data)
+    assert r.status_code == 200
+    body = r.json()
+    assert body == {"inserted": 1, "updated": 0, "retired": 0, "unchanged": 1}
+
+
 def test_upload_persists_original_filename_and_extension(authenticated_client, test_db, monkeypatch):
     """ImportBatch row stores the original filename and extension."""
     from app.models.batch import ImportBatch
