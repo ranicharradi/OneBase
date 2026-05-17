@@ -18,10 +18,12 @@ class MatchRunCreate(BaseModel):
     Server infers mode from `file_ids` length:
       - len == 1 → one FILE_VS_GOLDEN run (requires existing UnifiedRecords of this type)
       - len >= 2 → C(N, 2) FILE_VS_FILE runs, one per unordered pair, dispatched in parallel
+
+    file_ids must be between 1 and 20 inclusive to prevent worker-queue flooding.
     """
 
     type: str
-    file_ids: list[int] = Field(..., min_length=1)
+    file_ids: list[int] = Field(..., min_length=1, max_length=20)
 
 
 class MatchRunResponse(BaseModel):

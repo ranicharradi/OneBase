@@ -157,6 +157,13 @@ def test_post_matches_rejects_mixed_types(authenticated_client, test_db, monkeyp
     assert r.status_code == 400, r.text
 
 
+def test_post_matches_rejects_more_than_20_files(authenticated_client, test_db):
+    """POST with 21+ file_ids returns 422 (validation error)."""
+    file_ids = list(range(1, 22))
+    r = authenticated_client.post("/api/matches", json={"type": "supplier", "file_ids": file_ids})
+    assert r.status_code == 422, r.text
+
+
 def test_post_matches_dispatches_and_sets_task_id(authenticated_client, test_db, monkeypatch):
     """Verify task_id is set on returned runs."""
     a, b = _two_completed_batches(test_db, type_="supplier")
