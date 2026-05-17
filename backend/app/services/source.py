@@ -1,4 +1,4 @@
-"""Data source CRUD service."""
+"""Data source create/list/read/delete service."""
 
 import re
 
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.source import DataSource
 from app.record_types import get as get_record_type
-from app.schemas.source import DataSourceCreate, DataSourceUpdate
+from app.schemas.source import DataSourceCreate
 
 
 def _validate_filename_pattern(pattern: str | None) -> None:
@@ -81,34 +81,6 @@ def get_sources(db: Session) -> list[DataSource]:
 def get_source(db: Session, source_id: int) -> DataSource | None:
     """Get a single data source by ID."""
     return db.query(DataSource).filter(DataSource.id == source_id).first()
-
-
-def update_source(db: Session, source_id: int, data: DataSourceUpdate) -> DataSource | None:
-    """Update a data source. Returns None if not found.
-
-    `type` is locked at creation and cannot be changed via update.
-    """
-    source = get_source(db, source_id)
-    if source is None:
-        return None
-
-    update_data = data.model_dump(exclude_unset=True)
-
-    if "name" in update_data:
-        source.name = update_data["name"]
-    if "description" in update_data:
-        source.description = update_data["description"]
-    if "delimiter" in update_data:
-        source.delimiter = update_data["delimiter"]
-    if "column_mapping" in update_data:
-        _validate_column_mapping(source.type, update_data["column_mapping"])
-        source.column_mapping = update_data["column_mapping"]
-    if "filename_pattern" in update_data:
-        _validate_filename_pattern(update_data["filename_pattern"])
-        source.filename_pattern = update_data["filename_pattern"]
-
-    db.flush()
-    return source
 
 
 def delete_source(db: Session, source_id: int) -> bool:

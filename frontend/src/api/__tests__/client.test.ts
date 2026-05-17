@@ -5,7 +5,6 @@ import type {
   BulkPromoteResponse,
   DataSource,
   DataSourceCreate,
-  DataSourceUpdate,
   FieldSelection,
   MatchDetailResponse,
   PromoteResponse,
@@ -358,12 +357,6 @@ describe('record API type contracts', () => {
       column_mapping: { name: 'Supplier Name' },
       filename_pattern: null,
     }
-    const updateSource: DataSourceUpdate = {
-      description: null,
-      delimiter: null,
-      column_mapping: { email: 'Email' },
-      filename_pattern: null,
-    }
     const matchDetail: MatchDetailResponse = {
       id: 10,
       type: 'supplier',
@@ -507,7 +500,6 @@ describe('record API type contracts', () => {
     expect({
       recordTypes,
       createSource,
-      updateSource,
       queueItem,
       selection,
       actionResponse,

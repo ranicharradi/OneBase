@@ -108,37 +108,16 @@ class TestGetSource:
 
 
 class TestUpdateSource:
-    """Tests for PUT /api/sources/{id}."""
+    """Tests for removed PUT /api/sources/{id} update endpoint."""
 
-    def test_update_source(self, authenticated_client, test_db):
-        """Updates source name and description."""
+    def test_update_source_not_allowed(self, authenticated_client, test_db):
+        """Source editing is intentionally not exposed."""
         create_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
         source_id = create_resp.json()["id"]
 
         update_data = {"name": "SAP Export v2", "description": "Updated description"}
         response = authenticated_client.put(f"/api/sources/{source_id}", json=update_data)
-        assert response.status_code == 200
-        assert response.json()["name"] == "SAP Export v2"
-        assert response.json()["description"] == "Updated description"
-
-    def test_update_source_not_found(self, authenticated_client, test_db):
-        """Returns 404 for non-existent source."""
-        response = authenticated_client.put("/api/sources/999", json={"name": "New Name"})
-        assert response.status_code == 404
-
-    def test_update_source_requires_required_field_mapping(self, authenticated_client, test_db):
-        """Rejects replacement mappings that omit required fields."""
-        create_resp = authenticated_client.post("/api/sources", json=VALID_SOURCE)
-        source_id = create_resp.json()["id"]
-
-        response = authenticated_client.put(
-            f"/api/sources/{source_id}",
-            json={"column_mapping": {"short_name": "ShortName"}},
-        )
-        assert response.status_code == 400
-        detail = response.json()["detail"]
-        assert "required" in detail.lower()
-        assert "supplier_name" in detail
+        assert response.status_code == 405
 
 
 class TestDeleteSource:

@@ -1,4 +1,4 @@
-// ── Sources management — terminal aesthetic, full CRUD ──
+// ── Sources management — terminal aesthetic, create/list/delete ──
 
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,7 +7,6 @@ import type {
   BatchResponse,
   ColumnMapping,
   DataSource,
-  DataSourceUpdate,
   FieldDef,
   RecordTypeListResponse,
 } from '../api/types';
@@ -132,54 +131,40 @@ function ColumnMappingEditor({
 }
 
 function SourceModal({
-  source,
   onClose,
   onSaved,
   recordTypes,
 }: {
-  source?: DataSource;
   onClose: () => void;
   onSaved: (msg: string) => void;
   recordTypes: RecordTypeListResponse;
 }) {
   const queryClient = useQueryClient();
-  const isEditing = !!source;
 
-  const [name, setName] = useState(source?.name ?? '');
-  const [type, setType] = useState(source?.type ?? (recordTypes.types[0]?.key || ''));
-  const [description, setDescription] = useState(source?.description ?? '');
-  const [delimiter, setDelimiter] = useState(source?.delimiter ?? ';');
-  const [filenamePattern, setFilenamePattern] = useState(source?.filename_pattern ?? '');
+  const [name, setName] = useState('');
+  const [type, setType] = useState(recordTypes.types[0]?.key || '');
+  const [description, setDescription] = useState('');
+  const [delimiter, setDelimiter] = useState(';');
+  const [filenamePattern, setFilenamePattern] = useState('');
 
   const { data: recordType, isLoading: fieldsLoading, error: fieldsError } = useRecordType(type);
   const fields = useMemo(() => recordType?.fields ?? [], [recordType]);
 
   const [mapping, setMapping] = useState<ColumnMapping>(() => {
-    return source ? toColumnMapping(source.column_mapping) : {};
+    return {};
   });
   const filteredMapping = useMemo(
     () => filterMappingForFields(mapping, fields),
     [fields, mapping],
   );
   const effectiveMapping = useMemo(
-    () => (isEditing ? filteredMapping : { ...emptyMapping(fields), ...filteredMapping }),
-    [fields, filteredMapping, isEditing],
+    () => ({ ...emptyMapping(fields), ...filteredMapping }),
+    [fields, filteredMapping],
   );
   const [formError, setFormError] = useState('');
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (isEditing) {
-        const update: DataSourceUpdate = {
-          name,
-          description: description.trim() || null,
-          delimiter,
-          column_mapping: effectiveMapping,
-          filename_pattern: filenamePattern.trim() || null,
-        };
-        return api.put<DataSource>(`/api/sources/${source.id}`, update);
-      }
-
       return api.post<DataSource>('/api/sources', {
         name,
         type,
@@ -191,7 +176,7 @@ function SourceModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sources'] });
-      onSaved(isEditing ? 'Source updated' : 'Source created');
+      onSaved('Source created');
       onClose();
     },
     onError: (err: Error) => setFormError(err.message),
@@ -230,7 +215,7 @@ function SourceModal({
   return (
     <Modal
       onClose={onClose}
-      title={isEditing ? 'Edit data source' : 'New data source'}
+      title="New data source"
       size="lg" // lg gives column-mapper room
       panelStyle={{ maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
     >
@@ -264,23 +249,19 @@ function SourceModal({
             <label className="label">
               Type <span style={{ color: 'var(--danger)' }}>*</span>
             </label>
-            {!isEditing ? (
-              <select
-                className="input"
-                value={type}
-                onChange={(e) => {
-                  setType(e.target.value);
-                  setMapping({});
-                }}
-                required
-              >
-                {recordTypes.types.map(rt => (
-                  <option key={rt.key} value={rt.key}>{rt.label}</option>
-                ))}
-              </select>
-            ) : (
-              <input className="input" value={source.type} disabled />
-            )}
+            <select
+              className="input"
+              value={type}
+              onChange={(e) => {
+                setType(e.target.value);
+                setMapping({});
+              }}
+              required
+            >
+              {recordTypes.types.map(rt => (
+                <option key={rt.key} value={rt.key}>{rt.label}</option>
+              ))}
+            </select>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -345,7 +326,7 @@ function SourceModal({
           <button type="button" onClick={onClose} className="btn btn-sm">Cancel</button>
           <button type="submit" disabled={mutation.isPending} className="btn btn-sm btn-accent">
             {mutation.isPending && <Spinner size={10} color="#fff" />}
-            {isEditing ? 'Update source' : 'Create source'}
+            Create source
           </button>
         </div>
       </form>
@@ -419,13 +400,11 @@ function SourceRow({
   src,
   stats,
   fieldCount,
-  onEdit,
   onDelete,
 }: {
   src: DataSource;
   stats: SourceStats;
   fieldCount: number;
-  onEdit: (source: DataSource) => void;
   onDelete: (source: DataSource) => void;
 }) {
   const { data: recordType } = useRecordType(src.type);
@@ -475,14 +454,6 @@ function SourceRow({
       <td>
         <div className="row-actions" style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
           <button
-            onClick={() => onEdit(src)}
-            className="btn btn-ghost btn-sm"
-            style={{ padding: 4 }}
-            aria-label={`Edit ${src.name}`}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>edit</span>
-          </button>
-          <button
             onClick={() => onDelete(src)}
             className="btn btn-ghost btn-sm"
             style={{ padding: 4, color: 'var(--danger)' }}
@@ -499,7 +470,6 @@ function SourceRow({
 export default function Sources() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [editSource, setEditSource] = useState<DataSource | null>(null);
   const [deleteSource, setDeleteSource] = useState<DataSource | null>(null);
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -728,7 +698,6 @@ export default function Sources() {
                         src={src}
                         stats={stats}
                         fieldCount={typeSummary?.field_count ?? 0}
-                        onEdit={setEditSource}
                         onDelete={setDeleteSource}
                       />
                     );
@@ -744,14 +713,6 @@ export default function Sources() {
         <SourceModal
           recordTypes={recordTypes}
           onClose={() => setShowCreate(false)}
-          onSaved={(msg) => showToast(msg)}
-        />
-      )}
-      {editSource && recordTypes && (
-        <SourceModal
-          source={editSource}
-          recordTypes={recordTypes}
-          onClose={() => setEditSource(null)}
           onSaved={(msg) => showToast(msg)}
         />
       )}

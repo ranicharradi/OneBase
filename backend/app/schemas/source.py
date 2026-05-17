@@ -25,19 +25,6 @@ class DataSourceCreate(BaseModel):
     filename_pattern: str | None = None
 
 
-class DataSourceUpdate(BaseModel):
-    """Request schema for updating a data source.
-
-    `type` is intentionally absent: it is locked at creation per spec.
-    """
-
-    name: str | None = Field(default=None, min_length=1, max_length=100)
-    description: str | None = None
-    delimiter: str | None = None
-    column_mapping: dict[str, str] | None = None
-    filename_pattern: str | None = None
-
-
 class DataSourceResponse(APIResponse):
     """Response schema for a data source."""
 

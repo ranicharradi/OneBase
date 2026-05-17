@@ -68,11 +68,6 @@ describe('Sources page record types', () => {
           headers: { 'Content-Type': 'application/json' },
         })
       }
-      if (url.endsWith('/api/sources/1') && method === 'PUT') {
-        return new Response(JSON.stringify({ ...source, ...(requests.at(-1)?.body as object) }), {
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
       if (url.endsWith('/api/record-types')) {
         return new Response(JSON.stringify({ types: mockTypes }), {
           headers: { 'Content-Type': 'application/json' },
@@ -133,50 +128,15 @@ describe('Sources page record types', () => {
     })
   })
 
-  it('updates a source without sending the locked type', async () => {
-    const user = userEvent.setup()
+  it('does not show source edit controls', async () => {
     render(<Sources />)
 
     await screen.findByText('SAP Vendors')
-    await user.click(screen.getByRole('button', { name: /edit sap vendors/i }))
-    expect(screen.getByDisplayValue('supplier')).toBeDisabled()
 
-    await user.clear(screen.getByPlaceholderText(/sap vendor export/i))
-    await user.type(screen.getByPlaceholderText(/sap vendor export/i), 'SAP Supplier Export')
-    await user.click(screen.getByRole('button', { name: /update source/i }))
-
-    await waitFor(() => {
-      const put = requests.find(req => req.url.endsWith('/api/sources/1') && req.method === 'PUT')
-      expect(put?.body).toMatchObject({ name: 'SAP Supplier Export' })
-      expect(put?.body).not.toHaveProperty('type')
-    })
+    expect(screen.queryByRole('button', { name: /edit sap vendors/i })).not.toBeInTheDocument()
   })
 
-  it('sends null values when clearing editable optional fields', async () => {
-    mockSources = [{
-      ...source,
-      description: 'ERP export',
-      filename_pattern: '^sap',
-    }]
-    const user = userEvent.setup()
-    render(<Sources />)
-
-    await screen.findByText('SAP Vendors')
-    await user.click(screen.getByRole('button', { name: /edit sap vendors/i }))
-    await user.clear(screen.getByPlaceholderText(/optional description/i))
-    await user.clear(screen.getByPlaceholderText(/regex/i))
-    await user.click(screen.getByRole('button', { name: /update source/i }))
-
-    await waitFor(() => {
-      const put = requests.find(req => req.url.endsWith('/api/sources/1') && req.method === 'PUT')
-      expect(put?.body).toMatchObject({
-        description: null,
-        filename_pattern: null,
-      })
-    })
-  })
-
-  it('drops stale mapping keys that are not in the current record type when updating', async () => {
+  it('ignores stale mapping keys that are not in the current record type when displaying mapped count', async () => {
     mockTypes = [
       { key: 'supplier', label: 'Supplier', field_count: 2 },
       { key: 'bank', label: 'Bank', field_count: 6 },
@@ -192,26 +152,11 @@ describe('Sources page record types', () => {
         website: 'WEB_0',
       },
     }]
-    const user = userEvent.setup()
     render(<Sources />)
 
     await screen.findByText('Banks EOT')
     await waitFor(() => {
       expect(screen.getByText('2 / 6')).toBeInTheDocument()
-    })
-    await user.click(screen.getByRole('button', { name: /edit banks eot/i }))
-    await user.click(screen.getByRole('button', { name: /update source/i }))
-
-    await waitFor(() => {
-      const put = requests.find(req => req.url.endsWith('/api/sources/1') && req.method === 'PUT')
-      expect(put?.body).toMatchObject({
-        column_mapping: {
-          bank_name: 'DES_0',
-          iban: 'IBACOD_0',
-        },
-      })
-      expect((put?.body as { column_mapping?: Record<string, string> }).column_mapping).not.toHaveProperty('phone')
-      expect((put?.body as { column_mapping?: Record<string, string> }).column_mapping).not.toHaveProperty('website')
     })
   })
 

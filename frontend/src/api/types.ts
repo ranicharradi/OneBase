@@ -66,14 +66,6 @@ export interface DataSourceCreate {
   filename_pattern?: string | null;
 }
 
-export interface DataSourceUpdate {
-  name?: string;
-  description?: string | null;
-  delimiter?: string | null;
-  column_mapping?: ColumnMapping;
-  filename_pattern?: string | null;
-}
-
 export interface UserCreate {
   username: string;
   password: string;

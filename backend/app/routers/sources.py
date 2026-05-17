@@ -1,4 +1,4 @@
-"""Data source CRUD endpoints."""
+"""Data source create/list/read/delete endpoints."""
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy import func
@@ -13,7 +13,6 @@ from app.rate_limit import limiter
 from app.schemas.source import (
     DataSourceCreate,
     DataSourceResponse,
-    DataSourceUpdate,
     DetectHeadersResponse,
     SuggestMappingRequest,
     SuggestMappingResponse,
@@ -24,7 +23,6 @@ from app.services.source import (
     delete_source,
     get_source,
     get_sources,
-    update_source,
 )
 from app.utils.tabular_parser import detect_headers
 from app.utils.uploads import read_limited_upload
@@ -86,33 +84,6 @@ def get_data_source(
     source = get_source(db, source_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
-    return source
-
-
-@router.put("/{source_id}", response_model=DataSourceResponse)
-def update_data_source(
-    source_id: int,
-    data: DataSourceUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
-):
-    """Update a data source. The record type is locked at creation."""
-    try:
-        source = update_source(db, source_id, data)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    if source is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
-    log_action(
-        db,
-        user_id=current_user.id,
-        action="update_source",
-        entity_type="data_source",
-        entity_id=source.id,
-        details={"name": source.name, "type": source.type},
-    )
-    db.commit()
-    db.refresh(source)
     return source
 
 

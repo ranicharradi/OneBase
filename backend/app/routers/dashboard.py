@@ -57,8 +57,6 @@ def _activity_presentation(action: str, details: dict | None) -> tuple[str, str,
             return "upload", "warn", "Deleted upload batch", "/upload"
         case "create_source":
             return "source", "info", "Created data source", "/sources"
-        case "update_source":
-            return "source", "info", "Updated data source", "/sources"
         case "delete_source":
             return "source", "warn", "Deleted data source", "/sources"
         case "merge_confirmed":
