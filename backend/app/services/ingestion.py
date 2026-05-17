@@ -15,8 +15,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus, CandidateStatus, RecordStatus
-from app.models.match import MatchCandidate
+from app.models.enums import BatchStatus, RecordStatus
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
 from app.record_types import get as get_record_type
@@ -94,11 +93,6 @@ def run_ingestion(
             db.query(StagedRecord).filter(StagedRecord.id.in_(superseded_ids)).update(
                 {"status": RecordStatus.SUPERSEDED}, synchronize_session="fetch"
             )
-            if superseded_ids:
-                db.query(MatchCandidate).filter(
-                    MatchCandidate.status == CandidateStatus.PENDING,
-                    (MatchCandidate.record_a_id.in_(superseded_ids) | MatchCandidate.record_b_id.in_(superseded_ids)),
-                ).update({"status": CandidateStatus.INVALIDATED}, synchronize_session="fetch")
 
         # 3. MAP and STORE
         name_field_key = rt.name_field.key

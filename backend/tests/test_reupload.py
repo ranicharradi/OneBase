@@ -110,8 +110,11 @@ class TestReuploadSupersession:
         assert len(active) == 2
 
     @patch("app.services.ingestion.compute_embeddings")
-    def test_reupload_invalidates_pending_matches(self, mock_embed, test_db):
-        """Re-upload invalidates pending match candidates."""
+    def test_reupload_keeps_pending_candidates_intact(self, mock_embed, test_db):
+        """Re-upload supersedes old StagedRecords but leaves PENDING candidates alone.
+
+        The review queue is responsible for filtering stale candidates at query time (Task B3).
+        """
         mock_embed.return_value = np.zeros((2, 384), dtype=np.float32)
 
         source, batch1 = self._create_source_and_batch(test_db)
@@ -151,9 +154,13 @@ class TestReuploadSupersession:
         run_ingestion(test_db, batch2.id, SAMPLE_CSV_V2)
         test_db.commit()
 
-        # Pending match should be invalidated
+        # Old records superseded
+        test_db.refresh(records[0])
+        assert records[0].status == RecordStatus.SUPERSEDED
+
+        # PENDING candidate is UNCHANGED — review queue filters stale ones at read time
         test_db.refresh(match)
-        assert match.status == CandidateStatus.INVALIDATED
+        assert match.status == CandidateStatus.PENDING
 
     @patch("app.services.ingestion.compute_embeddings")
     def test_reupload_preserves_confirmed_matches(self, mock_embed, test_db):
