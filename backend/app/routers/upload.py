@@ -33,12 +33,11 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
-@router.post("/preview")
+@router.post("/preview", dependencies=[Depends(get_current_user)])
 async def preview_diff(
     file: UploadFile = File(...),
     data_source_id: int = Form(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """Pre-flight diff: returns {inserted, updated, retired, unchanged} for an incoming re-upload."""
     source = db.query(DataSource).filter(DataSource.id == data_source_id).first()
@@ -198,12 +197,11 @@ async def upload_file(
     )
 
 
-@router.get("/batches", response_model=list[BatchResponse])
+@router.get("/batches", response_model=list[BatchResponse], dependencies=[Depends(get_current_user)])
 def list_batches(
     data_source_id: int | None = None,
     type: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """List import batches, optionally filtered by data source or record type."""
     # Subquery: latest finished_at among completed runs per batch
@@ -286,11 +284,9 @@ def delete_batch(
     db.commit()
 
 
-@router.get("/batches/{task_id}/status", response_model=TaskStatusResponse)
+@router.get("/batches/{task_id}/status", response_model=TaskStatusResponse, dependencies=[Depends(get_current_user)])
 def get_task_status(
     task_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """Poll Celery task progress."""
     result = celery_app.AsyncResult(task_id)
