@@ -10,6 +10,7 @@ The NAME-role field's value is also written to the universal `name` column
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass, field
 
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -27,6 +28,39 @@ from app.utils.values import normalize_value
 logger = logging.getLogger(__name__)
 
 _NAME_MAX_LEN = 255  # matches StagedRecord.name column
+
+
+@dataclass(frozen=True)
+class DiffPlan:
+    """Result of comparing a prior source snapshot against an incoming re-upload.
+
+    Keys are values of the source's identity_field_key column.
+    """
+
+    inserts: dict[str, dict] = field(default_factory=dict)
+    updates: dict[str, dict] = field(default_factory=dict)
+    retires: set[str] = field(default_factory=set)
+    unchanged: set[str] = field(default_factory=set)
+
+
+def diff_snapshot(
+    *,
+    prior_by_key: dict[str, dict],
+    incoming_by_key: dict[str, dict],
+) -> DiffPlan:
+    """Pure three-way diff. No DB access; caller is responsible for applying the plan."""
+    inserts: dict[str, dict] = {}
+    updates: dict[str, dict] = {}
+    unchanged: set[str] = set()
+    for key, fields_in in incoming_by_key.items():
+        if key not in prior_by_key:
+            inserts[key] = fields_in
+        elif prior_by_key[key] == fields_in:
+            unchanged.add(key)
+        else:
+            updates[key] = fields_in
+    retires = set(prior_by_key.keys()) - set(incoming_by_key.keys())
+    return DiffPlan(inserts=inserts, updates=updates, retires=retires, unchanged=unchanged)
 
 
 def _clean_ingested_value(value: object) -> str | None:
