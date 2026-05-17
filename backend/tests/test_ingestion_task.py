@@ -259,7 +259,8 @@ class TestProcessUploadIdempotency:
 
     @patch("app.tasks.ingestion.get_task_session")
     def test_enqueues_matching_run_when_two_active_batches_exist(self, mock_get_session, test_db):
-        """process_upload creates and enqueues a comparison run after a second active batch is ingested."""
+        """After Track B: ingestion does NOT auto-dispatch matching even with two active batches."""
+        from app.models.comparison import ComparisonRun
         from app.models.staging import StagedRecord
 
         mock_get_session.side_effect = _mock_task_session(test_db)
@@ -311,9 +312,6 @@ class TestProcessUploadIdempotency:
             db.flush()
             return 1
 
-        fake_signature = MagicMock()
-        fake_signature.id = "comparison-task-id"
-
         with (
             patch(
                 "app.tasks.ingestion.open",
@@ -325,20 +323,13 @@ class TestProcessUploadIdempotency:
                 ),
             ),
             patch("app.services.ingestion.run_ingestion", side_effect=spy_ingestion),
-            patch("app.tasks.comparison.run_comparison.s", return_value=fake_signature) as signature_factory,
         ):
             from app.tasks.ingestion import process_upload
 
             process_upload(new_batch.id)
 
-        signature_factory.assert_called_once()
-        fake_signature.freeze.assert_called_once()
-        fake_signature.apply_async.assert_called_once()
-        from app.models.comparison import ComparisonRun
-
-        run = test_db.query(ComparisonRun).one()
-        assert run.task_id == "comparison-task-id"
-        assert sorted(batch.id for batch in run.batches) == sorted([existing_batch.id, new_batch.id])
+        # Assert: NO ComparisonRun was auto-created
+        assert test_db.query(ComparisonRun).count() == 0
 
     def test_retry_configuration(self):
         """process_upload has correct retry configuration."""
