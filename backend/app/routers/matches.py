@@ -1,5 +1,7 @@
 """MatchRun API."""
 
+from itertools import combinations
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,7 @@ from app.schemas.match import (
     BatchSummary,
     MatchRunCreate,
     MatchRunDetail,
+    MatchRunDispatchResponse,
     MatchRunResponse,
 )
 from app.services.match import (
@@ -44,21 +47,39 @@ def _to_response(run: MatchRun) -> MatchRunResponse:
     )
 
 
-@router.post("/", response_model=MatchRunResponse, status_code=status.HTTP_201_CREATED)
-def post_run(
+def _derive_run_name(db: Session, run: MatchRun) -> str:
+    filenames = {b.id: b.filename for b in run.batches}
+    if run.mode == "FILE_VS_GOLDEN":
+        return f"{filenames[run.batches[0].id]} × Golden"
+    a, b = sorted(run.batches, key=lambda x: x.id)
+    return f"{a.filename} × {b.filename}"
+
+
+@router.post("", response_model=MatchRunDispatchResponse, status_code=status.HTTP_201_CREATED)
+def post_runs(
     payload: MatchRunCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
+    file_ids = list(payload.file_ids)
+    if len(file_ids) == 1:
+        dispatch_plan = [("FILE_VS_GOLDEN", file_ids)]
+    else:
+        dispatch_plan = [("FILE_VS_FILE", list(pair)) for pair in combinations(sorted(file_ids), 2)]
+
+    runs = []
     try:
-        run = create_run(
-            db,
-            type=payload.type,
-            mode=payload.mode,
-            batch_ids=payload.batch_ids,
-            name=payload.name,
-            username=current_user.username,
-        )
+        for mode, batch_ids in dispatch_plan:
+            run = create_run(
+                db,
+                type=payload.type,
+                mode=mode,
+                batch_ids=batch_ids,
+                name=None,
+                username=current_user.username,
+            )
+            run.name = _derive_run_name(db, run)
+            runs.append(run)
     except MatchNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except MatchConflictError as e:
@@ -69,11 +90,13 @@ def post_run(
         ) from e
     except MatchValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
     db.commit()
-    task = run_match.delay(run.id)
-    run.task_id = task.id
+    for run in runs:
+        task = run_match.delay(run.id)
+        run.task_id = task.id
     db.commit()
-    return _to_response(run)
+    return MatchRunDispatchResponse(runs=[_to_response(r) for r in runs])
 
 
 @router.get("/", response_model=list[MatchRunResponse])

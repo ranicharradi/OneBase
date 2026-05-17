@@ -66,10 +66,10 @@ def create_run(
         if unified_count == 0:
             raise MatchValidationError("No golden records yet — run a FILE_VS_FILE comparison first to produce them.")
 
-    conflict = db.query(MatchRun).filter(MatchRun.type == type, MatchRun.status.in_(["pending", "running"])).first()
+    conflict = db.query(MatchRun).filter(MatchRun.type == type, MatchRun.status == "running").first()
     if conflict is not None:
         raise MatchConflictError(
-            f"A run of type {type!r} is already in progress (run #{conflict.id})",
+            f"A run of type {type!r} is already running (run #{conflict.id})",
             run_id=conflict.id,
         )
 

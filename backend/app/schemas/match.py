@@ -13,10 +13,15 @@ class BatchSummary(BaseModel):
 
 
 class MatchRunCreate(BaseModel):
+    """Body for POST /api/matches.
+
+    Server infers mode from `file_ids` length:
+      - len == 1 → one FILE_VS_GOLDEN run (requires existing UnifiedRecords of this type)
+      - len >= 2 → C(N, 2) FILE_VS_FILE runs, one per unordered pair, dispatched in parallel
+    """
+
     type: str
-    mode: MatchMode
-    batch_ids: list[int] = Field(..., min_length=1)
-    name: str | None = None
+    file_ids: list[int] = Field(..., min_length=1)
 
 
 class MatchRunResponse(BaseModel):
@@ -38,6 +43,10 @@ class MatchRunResponse(BaseModel):
 
 class MatchRunDetail(MatchRunResponse):
     candidate_counts: dict[str, int]  # {pending: N, confirmed: N, rejected: N, merged: N}
+
+
+class MatchRunDispatchResponse(BaseModel):
+    runs: list[MatchRunResponse]
 
 
 class MatchRunStatus(BaseModel):
