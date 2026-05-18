@@ -2,7 +2,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { AskRequest, AskResponse } from '../api/types';
-import Panel, { PanelHead } from '../components/ui/Panel';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
 import Spinner from '../components/ui/Spinner';
 
 export default function Ask() {
@@ -12,46 +13,54 @@ export default function Ask() {
   });
 
   return (
-    <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <Panel>
-        <PanelHead title="Ask your data" />
-        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="p-3 flex flex-col gap-3">
+      <Card>
+        <CardHeader>
+          <CardTitle>Ask your data</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
           <textarea
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="e.g. Which suppliers have a DQ score below 0.6?"
             maxLength={500}
             rows={3}
-            style={{ width: '100%' }}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
           />
-          <button
+          <Button
             type="button"
             onClick={() => askMutation.mutate({ question })}
             disabled={!question.trim() || askMutation.isPending}
           >
             {askMutation.isPending ? 'Running…' : 'Run'}
-          </button>
+          </Button>
           {askMutation.isError && (
-            <div style={{ color: 'var(--err)' }}>{(askMutation.error as Error).message}</div>
+            <div className="text-destructive">{(askMutation.error as Error).message}</div>
           )}
-        </div>
-      </Panel>
+        </CardContent>
+      </Card>
 
       {askMutation.isPending && <Spinner />}
 
       {askMutation.data && (
         <>
-          <Panel>
-            <PanelHead title="Generated SQL" />
-            <details style={{ padding: 12 }}>
-              <summary>Show SQL</summary>
-              <pre style={{ overflow: 'auto' }}>{askMutation.data.sql}</pre>
-            </details>
-          </Panel>
+          <Card>
+            <CardHeader>
+              <CardTitle>Generated SQL</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <details className="p-3">
+                <summary>Show SQL</summary>
+                <pre className="overflow-auto">{askMutation.data.sql}</pre>
+              </details>
+            </CardContent>
+          </Card>
 
-          <Panel>
-            <PanelHead title={`Results (${askMutation.data.rows.length})`} />
-            <div style={{ overflow: 'auto', padding: 12 }}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Results ({askMutation.data.rows.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-auto p-3">
               <table className="table">
                 <thead>
                   <tr>{askMutation.data.columns.map((c) => <th key={c}>{c}</th>)}</tr>
@@ -64,8 +73,8 @@ export default function Ask() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          </Panel>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>
