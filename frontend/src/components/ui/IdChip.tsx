@@ -1,5 +1,10 @@
-import type { ReactNode } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
-export default function IdChip({ children, style }: { children: ReactNode; style?: React.CSSProperties }) {
-  return <span className="id-chip" style={style}>{children}</span>;
+export default function IdChip({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <Badge variant="outline" className={cn('font-mono text-xs', className)}>
+      {children}
+    </Badge>
+  );
 }
