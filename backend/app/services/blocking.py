@@ -155,7 +155,7 @@ def embedding_block(
     rs_combined = RecordSet(type_key=side_a.type_key, refs=combined)
     rows = _load_rows(db, rs_combined)
     rows = _representative_filter(rows, representative_ids)
-    rows = [r for r in rows if r.embedding is not None]
+    rows = [r for r in rows if r.embedding is not None and not is_placeholder_name(r.normalized_name)]
 
     pairs: set[tuple[RecordRef, RecordRef]] = set()
 
