@@ -125,7 +125,7 @@ function CreateUserModal({
     onError: (err: Error) => setFormError(err.message),
   });
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setFormError('');
     if (!username.trim()) return setFormError('Username is required');
@@ -269,7 +269,7 @@ function EditUserModal({
     onError: (err: Error) => setFormError(err.message),
   });
 
-  const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setFormError('');
     if (!username.trim()) return setFormError('Username is required');
