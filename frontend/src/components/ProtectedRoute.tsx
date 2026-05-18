@@ -1,5 +1,3 @@
-// ── Protected route guard ──
-
 import type { ReactNode } from 'react';
 import { Navigate } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
@@ -18,7 +16,7 @@ function LoadingSkeleton() {
     >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
         <Spinner size={20} />
-        <span className="label">Loading</span>
+        <span className="text-xs font-medium text-muted-foreground">Loading</span>
       </div>
     </div>
   );

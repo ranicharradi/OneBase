@@ -113,7 +113,7 @@ export default function ReviewDetail() {
 
   if (isLoading) {
     return (
-      <div className="scroll" style={{ height: '100%' }}>
+      <div className="overflow-y-auto h-full">
         <div className="p-5 text-xs text-muted-foreground">Loading candidate…</div>
       </div>
     );
@@ -121,7 +121,7 @@ export default function ReviewDetail() {
 
   if (error || !detail) {
     return (
-      <div className="scroll" style={{ height: '100%' }}>
+      <div className="overflow-y-auto h-full">
         <div className="p-5">
           <Card>
             <CardContent className="pt-7 text-center">
@@ -145,11 +145,11 @@ export default function ReviewDetail() {
   const conflictCount = field_comparisons.filter(f => f.is_conflict).length;
 
   return (
-    <div className="scroll" style={{ height: '100%' }}>
+    <div className="overflow-y-auto h-full">
       <div className="p-5 pb-20">
 
         {/* Header */}
-        <div className="fade mb-3">
+        <div className="mb-3">
           <Button onClick={() => navigate(queuePath())} variant="ghost" size="sm" className="mb-2">
             <ArrowLeftIcon className="size-3" />
             Review queue
@@ -217,7 +217,7 @@ export default function ReviewDetail() {
 
         {/* Sticky verdict bar */}
         {isPending && (
-          <div className="fade sticky bottom-0 bg-card border border-border rounded-md p-3 flex items-center justify-between gap-3 shadow-md">
+          <div className="sticky bottom-0 bg-card border border-border rounded-md p-3 flex items-center justify-between gap-3 shadow-md">
             <div className="text-xs text-muted-foreground">
               {conflictCount > 0
                 ? <span><span className="font-mono tabular-nums text-amber-600 font-semibold">{conflictCount}</span> field conflict{conflictCount !== 1 ? 's' : ''} — will be reconciled in Merge step</span>
@@ -250,14 +250,14 @@ export default function ReviewDetail() {
 
         {/* Post-action banners */}
         {!isPending && detail.status === 'confirmed' && (
-          <div className="fade mt-2.5 p-3 bg-emerald-100 dark:bg-emerald-950 border border-emerald-600 rounded-md flex items-center gap-2 text-xs">
+          <div className="mt-2.5 p-3 bg-emerald-100 dark:bg-emerald-950 border border-emerald-600 rounded-md flex items-center gap-2 text-xs">
             <CheckCircle2Icon className="size-3.5 text-emerald-600" />
             <span className="text-emerald-600 font-semibold">Confirmed duplicate</span>
             <span className="text-muted-foreground">— routed to Merge queue for field reconciliation</span>
           </div>
         )}
         {!isPending && detail.status === 'rejected' && (
-          <div className="fade mt-2.5 p-3 bg-destructive/10 border border-destructive rounded-md flex items-center gap-2 text-xs">
+          <div className="mt-2.5 p-3 bg-destructive/10 border border-destructive rounded-md flex items-center gap-2 text-xs">
             <XCircleIcon className="size-3.5 text-destructive" />
             <span className="text-destructive font-semibold">Not a duplicate</span>
             {detail.reviewed_by && (

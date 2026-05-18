@@ -65,9 +65,9 @@ export default function Insights() {
         <CardContent className="flex flex-col gap-1.5">
           {data.distribution.map((b) => (
             <div key={b.bucket} className="flex items-center gap-2">
-              <span className="mono w-20 text-xs">{b.bucket}</span>
+              <span className="font-mono w-20 text-xs">{b.bucket}</span>
               <Hbar value={(b.count / maxBucket) * 100} fillClassName={toneToFillClass(dqTone(parseBucketMid(b.bucket)))} className="flex-1" />
-              <span className="mono w-10 text-right text-xs">{b.count}</span>
+              <span className="font-mono w-10 text-right text-xs">{b.count}</span>
             </div>
           ))}
         </CardContent>
@@ -83,7 +83,7 @@ export default function Insights() {
             <div key={s.source_id} className="flex items-center gap-2">
               <span className="w-40 overflow-hidden text-ellipsis whitespace-nowrap text-xs">{s.source_name}</span>
               <Hbar value={s.avg_dq * 100} fillClassName={toneToFillClass(dqTone(s.avg_dq))} className="flex-1" />
-              <span className="mono w-24 text-right text-xs">{pct(s.avg_dq)} ({s.count})</span>
+              <span className="font-mono w-24 text-right text-xs">{pct(s.avg_dq)} ({s.count})</span>
             </div>
           ))}
         </CardContent>
@@ -109,9 +109,9 @@ export default function Insights() {
               )}
               {data.worst.map((r) => (
                 <tr key={r.id}>
-                  <td className="mono">{r.id}</td>
+                  <td className="font-mono">{r.id}</td>
                   <td>{r.record_type}</td>
-                  <td className="mono">{pct(r.dq_score)}</td>
+                  <td className="font-mono">{pct(r.dq_score)}</td>
                   <td><Link to={`/unified/${r.id}`} className="text-accent hover:underline">View</Link></td>
                 </tr>
               ))}

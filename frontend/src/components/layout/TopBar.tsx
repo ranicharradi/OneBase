@@ -22,7 +22,7 @@ export default function TopBar({
   onLogout,
 }: TopBarProps) {
   return (
-    <div className="topbar">
+    <div className="flex items-center gap-3 h-12 px-4 border-b border-border bg-card">
       {breadcrumb.length > 0 && (
         <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
           {breadcrumb.map((b, i) => (
@@ -56,7 +56,7 @@ export default function TopBar({
         <span className="flex-1 text-left">
           Jump to, search, run…
         </span>
-        <span className="kbd">⌘</span>
+        <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground">⌘</span>
       </button>
 
       <Button

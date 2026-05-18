@@ -42,7 +42,7 @@ export default function ProgressTracker({ taskId, onComplete }: ProgressTrackerP
   const overallPct = isComplete ? 100 : isFailed ? 0 : progress ?? 0;
 
   return (
-    <Card className="fade">
+    <Card>
       <CardHeader>
         <div className="flex items-center gap-2.5 justify-between">
           <div className="flex items-center gap-2.5">

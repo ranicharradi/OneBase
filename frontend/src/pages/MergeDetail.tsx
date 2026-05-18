@@ -360,7 +360,7 @@ export default function MergeDetail() {
               >
                 <XIcon className="size-3" />
                 {actionInFlight === "reject" ? "Rejecting…" : "Reject"}
-                <span className="kbd">R</span>
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground">R</span>
               </Button>
               <Button
                 size="sm"
@@ -370,14 +370,7 @@ export default function MergeDetail() {
               >
                 <MergeIcon className="size-3" />
                 {actionInFlight === "merge" ? "Merging…" : "Confirm merge"}
-                <span
-                  className="kbd"
-                  style={{
-                    background: "rgba(255,255,255,0.18)",
-                    color: "#fff",
-                    borderColor: "rgba(255,255,255,0.25)",
-                  }}
-                >
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-white/25 bg-white/18 text-white">
                   ↵
                 </span>
               </Button>
