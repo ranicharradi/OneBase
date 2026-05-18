@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../test/test-utils'
 import ColumnMapper from '../ColumnMapper'
@@ -42,6 +42,7 @@ describe('ColumnMapper record type mapping', () => {
 
     await screen.findByText('Supplier Name')
     await user.selectOptions(screen.getAllByRole('combobox')[0], 'Vendor Name')
+    fireEvent.change(screen.getByDisplayValue('— pick the column that uniquely identifies a row —'), { target: { value: 'supplier_name' } })
     await user.click(screen.getByRole('button', { name: /create & upload/i }))
 
     await waitFor(() => {
@@ -51,6 +52,7 @@ describe('ColumnMapper record type mapping', () => {
         description: undefined,
         delimiter: ';',
         column_mapping: { supplier_name: 'Vendor Name' },
+        identity_field_key: 'supplier_name',
       })
     })
   })

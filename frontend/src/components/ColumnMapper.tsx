@@ -6,6 +6,7 @@ import type {
   ColumnMapping,
   DataSourceCreate,
   FieldDef,
+  RecordTypeListResponse,
   SuggestMappingRequest,
   SuggestMappingResponse,
 } from '../api/types';
@@ -35,6 +36,8 @@ function autoMap(cols: string[], fieldList: FieldDef[]): Record<string, string> 
 interface ColumnMapperProps {
   columns: string[];
   type: string;
+  onTypeChange?: (type: string) => void;
+  recordTypes?: RecordTypeListResponse;
   onSubmit: (sourceData: DataSourceCreate) => void;
   isSubmitting?: boolean;
   initialSourceName?: string;
@@ -46,6 +49,8 @@ interface ColumnMapperProps {
 export default function ColumnMapper({
   columns,
   type,
+  onTypeChange,
+  recordTypes,
   onSubmit,
   isSubmitting = false,
   initialSourceName,
@@ -86,6 +91,13 @@ export default function ColumnMapper({
     });
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [fields, columns]);
+
+  // Auto-select the identity field to the first mapped 'code'-role field (unique identifiers like BIC, IBAN).
+  useEffect(() => {
+    if (identityFieldKey || fields.length === 0) return;
+    const codeField = fields.find(f => f.role === 'code' && mapping[f.key]);
+    if (codeField) setIdentityFieldKey(codeField.key);
+  }, [identityFieldKey, fields, mapping]);
 
   const updateMapping = (field: string, csvColumn: string) => {
     setAutoMapped(prev => { const s = new Set(prev); s.delete(field); return s; });
@@ -185,80 +197,10 @@ export default function ColumnMapper({
   const requiredMapped = fields.filter(f => f.required && mapping[f.key]).length;
   const requiredTotal = fields.filter(f => f.required).length;
 
-  const step1Done = sourceName.trim().length > 0;
-  const step2Done = step1Done && requiredMapped === requiredTotal;
   const progress = totalFields > 0 ? (mappedCount / totalFields) * 100 : 0;
 
   return (
     <form onSubmit={handleSubmit}>
-      {/* Step indicator */}
-      <div
-        className="panel fade"
-        style={{
-          padding: '10px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          marginBottom: 12,
-        }}
-      >
-        {[
-          {
-            n: 1,
-            label: 'Identify',
-            sub: 'Name the source',
-            active: !step1Done,
-            done: step1Done,
-          },
-          {
-            n: 2,
-            label: 'Map',
-            sub: `${requiredMapped}/${requiredTotal} required mapped`,
-            active: step1Done && !step2Done,
-            done: step2Done,
-          },
-        ].map((s, i, arr) => (
-          <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: i < arr.length - 1 ? '1 1 0' : '0 0 auto' }}>
-            <div
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 4,
-                background: s.done ? 'var(--ok)' : s.active ? 'var(--accent)' : 'var(--bg-2)',
-                color: s.done || s.active ? '#fff' : 'var(--fg-2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 11,
-                fontWeight: 600,
-                fontFamily: 'IBM Plex Mono, monospace',
-                flexShrink: 0,
-              }}
-            >
-              {s.done ? <span className="material-symbols-outlined" style={{ fontSize: 12 }}>check</span> : s.n}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-              <span style={{ fontSize: 12, fontWeight: s.active ? 600 : 500, color: s.active ? 'var(--fg-0)' : s.done ? 'var(--fg-1)' : 'var(--fg-2)' }}>
-                {s.label}
-              </span>
-              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginTop: 2 }}>
-                {s.sub}
-              </span>
-            </div>
-            {i < arr.length - 1 && (
-              <div
-                style={{
-                  flex: 1,
-                  height: 1,
-                  background: s.done ? 'var(--ok)' : 'var(--border-0)',
-                  transition: 'background 0.3s ease',
-                }}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
       {/* Source identity panel */}
       <Panel className="fade" style={{ marginBottom: 12 }}>
         <PanelHead>
@@ -270,6 +212,23 @@ export default function ColumnMapper({
           )}
         </PanelHead>
         <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {recordTypes && recordTypes.types.length > 1 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label className="label">
+                Type <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <select
+                className="input"
+                value={type}
+                onChange={e => onTypeChange?.(e.target.value)}
+                required
+              >
+                {recordTypes.types.map(rt => (
+                  <option key={rt.key} value={rt.key}>{rt.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label className="label">
               Source name <span style={{ color: 'var(--danger)' }}>*</span>

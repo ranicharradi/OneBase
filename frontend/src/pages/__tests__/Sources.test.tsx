@@ -89,12 +89,12 @@ describe('Sources page record types', () => {
     vi.unstubAllGlobals()
   })
 
-  it('shows the source type in each source row', async () => {
+  it('shows the source type as a group header', async () => {
     render(<Sources />)
 
     await screen.findByText('SAP Vendors')
 
-    expect(screen.getByText('supplier')).toBeInTheDocument()
+    expect(screen.getByText('Supplier')).toBeInTheDocument()
   })
 
   it('frames empty sources as record unification setup', async () => {

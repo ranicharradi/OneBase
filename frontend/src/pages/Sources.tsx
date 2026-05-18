@@ -1,6 +1,6 @@
 // ── Sources management — terminal aesthetic, create/list/delete ──
 
-import { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type {
@@ -407,13 +407,10 @@ function SourceRow({
     : fieldCount === 0;
 
   return (
-    <tr>
+    <tr style={{ height: 48 }}>
       <td><SourcePill short={shortFor(src.name)} title={src.name} /></td>
       <td>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontWeight: 500 }}>{src.name}</div>
-          <Pill tone="neutral">{src.type}</Pill>
-        </div>
+        <div style={{ fontWeight: 500 }}>{src.name}</div>
         {src.description && (
           <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 2 }}>{src.description}</div>
         )}
@@ -423,9 +420,6 @@ function SourceRow({
       </td>
       <td className="num mono" style={{ color: allRequiredMapped ? 'var(--fg-0)' : 'var(--warn)' }}>
         {totalFields > 0 ? `${mappedCount} / ${totalFields}` : `${mappedCount}`}
-      </td>
-      <td className="num mono">
-        {stats.batches > 0 ? stats.batches : <span style={{ color: 'var(--fg-3)' }}>—</span>}
       </td>
       <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
         {relativeTime(stats.lastSync)}
@@ -453,6 +447,20 @@ function SourceRow({
       </td>
     </tr>
   );
+}
+
+// Groups sources by a chosen key — swap `groupBy` to scaffold a different grouping.
+const groupBy = (src: DataSource) => src.type;
+
+function groupSources(sources: DataSource[]): { key: string; items: DataSource[] }[] {
+  const order: string[] = [];
+  const map: Record<string, DataSource[]> = {};
+  for (const src of sources) {
+    const k = groupBy(src);
+    if (!(k in map)) { order.push(k); map[k] = []; }
+    map[k].push(src);
+  }
+  return order.map(k => ({ key: k, items: map[k] }));
 }
 
 export default function Sources() {
@@ -670,24 +678,35 @@ export default function Sources() {
                     <th>Name</th>
                     <th className="num" style={{ width: 90 }}>Rows</th>
                     <th className="num" style={{ width: 90 }}>Mapped</th>
-                    <th className="num" style={{ width: 80 }}>Files</th>
                     <th style={{ width: 110 }}>Last sync</th>
                     <th style={{ width: 100 }}>Status</th>
                     <th style={{ width: 80 }} />
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSources.map(src => {
-                    const stats = statsBySource.get(src.id) ?? { rows: 0, batches: 0, lastSync: null, status: 'new' as const };
-                    const typeSummary = recordTypes?.types.find(rt => rt.key === src.type);
+                  {groupSources(filteredSources).map(({ key: groupKey, items }) => {
+                    const typeLabel = recordTypes?.types.find(rt => rt.key === groupKey)?.label ?? groupKey;
                     return (
-                      <SourceRow
-                        key={src.id}
-                        src={src}
-                        stats={stats}
-                        fieldCount={typeSummary?.field_count ?? 0}
-                        onDelete={setDeleteSource}
-                      />
+                      <React.Fragment key={groupKey}>
+                        <tr style={{ background: 'var(--bg-1)', pointerEvents: 'none' }}>
+                          <td colSpan={7} style={{ padding: '5px 14px' }}>
+                            <Pill tone="ok">{typeLabel}</Pill>
+                          </td>
+                        </tr>
+                        {items.map(src => {
+                          const stats = statsBySource.get(src.id) ?? { rows: 0, batches: 0, lastSync: null, status: 'new' as const };
+                          const typeSummary = recordTypes?.types.find(rt => rt.key === src.type);
+                          return (
+                            <SourceRow
+                              key={src.id}
+                              src={src}
+                              stats={stats}
+                              fieldCount={typeSummary?.field_count ?? 0}
+                              onDelete={setDeleteSource}
+                            />
+                          );
+                        })}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

@@ -555,42 +555,13 @@ export default function Upload() {
         {/* MAP_COLUMNS */}
         {uploadState.step === "MAP_COLUMNS" && (
           <div className="fade">
-            {recordTypes && recordTypes.types.length > 0 && (
-              <Panel style={{ marginBottom: 12 }}>
-                <div
-                  style={{
-                    padding: 14,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 4,
-                  }}
-                >
-                  <label className="label">
-                    Type <span style={{ color: "var(--danger)" }}>*</span>
-                  </label>
-                  <select
-                    className="input"
-                    value={uploadState.type}
-                    onChange={(event) =>
-                      setUploadState({
-                        ...uploadState,
-                        type: event.target.value,
-                      })
-                    }
-                    required
-                  >
-                    {recordTypes.types.map((rt) => (
-                      <option key={rt.key} value={rt.key}>
-                        {rt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </Panel>
-            )}
             <ColumnMapper
               columns={uploadState.columns}
               type={uploadState.type}
+              onTypeChange={(t) =>
+                setUploadState({ ...uploadState, type: t })
+              }
+              recordTypes={recordTypes}
               onSubmit={handleColumnMapSubmit}
               isSubmitting={
                 createSourceMutation.isPending ||

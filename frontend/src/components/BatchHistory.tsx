@@ -100,6 +100,9 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
   const completed = sorted.filter(b => ['completed', 'complete'].includes(b.status.toLowerCase())).length;
   const failed = sorted.filter(b => ['failed', 'failure'].includes(b.status.toLowerCase())).length;
 
+  const ROW_HEIGHT = 40;
+  const VISIBLE_ROWS = 3;
+
   return (
     <Panel>
       <PanelHead>
@@ -108,56 +111,58 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
           {sorted.length} total · {completed} ok · {failed} failed
         </span>
       </PanelHead>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>File</th>
-            <th>Uploaded by</th>
-            <th className="num">Rows</th>
-            <th>Status</th>
-            <th>Date</th>
-            <th style={{ width: 30 }} />
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map(batch => {
-            const statusKey = batch.status.toLowerCase();
-            const tone = STATUS_TONES[statusKey] ?? 'neutral';
-            const canDelete = DELETABLE_STATUSES.has(statusKey);
-            return (
-              <tr key={batch.id}>
-                <td className="mono" style={{ fontSize: 11 }}>
-                  {datasourceFileLabel({ data_source_name: batch.data_source_name, file_extension: batch.file_extension })}
-                </td>
-                <td className="mono" style={{ fontSize: 11, color: 'var(--fg-1)' }}>
-                  {batch.uploaded_by}
-                </td>
-                <td className="num mono">{batch.row_count?.toLocaleString() ?? '—'}</td>
-                <td>
-                  <Pill tone={tone} dot>{batch.status}</Pill>
-                </td>
-                <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-                  {formatDate(batch.created_at)}
-                </td>
-                <td>
-                  {canDelete && (
-                    <button
-                      onClick={() => deleteMutation.mutate(batch.id)}
-                      disabled={deleteMutation.isPending}
-                      className="btn btn-ghost btn-sm"
-                      style={{ padding: 4, color: 'var(--danger)' }}
-                      title="Dismiss file"
-                      aria-label={`Dismiss file ${datasourceFileLabel({ data_source_name: batch.data_source_name, file_extension: batch.file_extension })}`}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
-                    </button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div style={{ overflowY: 'auto', maxHeight: VISIBLE_ROWS * ROW_HEIGHT + 33 }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Uploaded by</th>
+              <th className="num">Rows</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th style={{ width: 30 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(batch => {
+              const statusKey = batch.status.toLowerCase();
+              const tone = STATUS_TONES[statusKey] ?? 'neutral';
+              const canDelete = DELETABLE_STATUSES.has(statusKey);
+              return (
+                <tr key={batch.id} style={{ height: ROW_HEIGHT }}>
+                  <td className="mono" style={{ fontSize: 11 }}>
+                    {datasourceFileLabel({ data_source_name: batch.data_source_name, file_extension: batch.file_extension })}
+                  </td>
+                  <td className="mono" style={{ fontSize: 11, color: 'var(--fg-1)' }}>
+                    {batch.uploaded_by}
+                  </td>
+                  <td className="num mono">{batch.row_count?.toLocaleString() ?? '—'}</td>
+                  <td>
+                    <Pill tone={tone} dot>{batch.status}</Pill>
+                  </td>
+                  <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+                    {formatDate(batch.created_at)}
+                  </td>
+                  <td>
+                    {canDelete && (
+                      <button
+                        onClick={() => deleteMutation.mutate(batch.id)}
+                        disabled={deleteMutation.isPending}
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: 4, color: 'var(--danger)' }}
+                        title="Dismiss file"
+                        aria-label={`Dismiss file ${datasourceFileLabel({ data_source_name: batch.data_source_name, file_extension: batch.file_extension })}`}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </Panel>
   );
 }

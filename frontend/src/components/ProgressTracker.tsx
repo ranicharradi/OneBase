@@ -16,17 +16,12 @@ const STAGES = [
   { key: 'PARSING', label: 'Parsing CSV' },
   { key: 'NORMALIZING', label: 'Normalizing fields' },
   { key: 'EMBEDDING', label: 'Generating embeddings (384d)' },
-  { key: 'MATCHING_ENQUEUED', label: 'Matching enqueued' },
-  { key: 'MATCHING', label: 'Blocking, scoring, clustering' },
 ];
-
-const MATCHING_STAGES = new Set(['BLOCKING', 'SCORING', 'CLUSTERING', 'INSERTING', 'MATCHING']);
 
 function getActiveStageIndex(state: string, stage: string | null): number {
   if (state === 'COMPLETE') return STAGES.length;
   if (state === 'FAILURE') return -1;
   if (!stage) return 0;
-  if (MATCHING_STAGES.has(stage)) return 4;
   const idx = STAGES.findIndex(s => s.key === stage);
   return idx >= 0 ? idx : 0;
 }
