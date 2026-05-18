@@ -134,7 +134,7 @@ function EmptyRing({ pct }: { pct: number }) {
         cy="120"
         r={r}
         fill="none"
-        stroke="var(--bg-3)"
+        className="stroke-muted"
         strokeWidth={14}
         strokeDasharray={`${trackArc} ${c}`}
         strokeLinecap="round"
@@ -145,7 +145,7 @@ function EmptyRing({ pct }: { pct: number }) {
         cy="120"
         r={r}
         fill="none"
-        stroke="var(--accent)"
+        className="stroke-primary"
         strokeWidth={14}
         strokeDasharray={`${fillArc} ${c}`}
         strokeLinecap="round"
@@ -157,12 +157,10 @@ function EmptyRing({ pct }: { pct: number }) {
         y="116"
         textAnchor="middle"
         dominantBaseline="central"
+        className="fill-foreground font-mono tabular-nums"
         style={{
           fontSize: 56,
           fontWeight: 600,
-          fill: 'var(--fg-0)',
-          fontFamily: 'IBM Plex Mono, monospace',
-          fontVariantNumeric: 'tabular-nums',
           letterSpacing: '-0.04em',
         }}
       >
@@ -173,7 +171,8 @@ function EmptyRing({ pct }: { pct: number }) {
         y="148"
         textAnchor="middle"
         dominantBaseline="central"
-        style={{ fontSize: 11, fill: 'var(--fg-2)', letterSpacing: '0.16em', textTransform: 'uppercase' }}
+        className="fill-muted-foreground"
+        style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase' }}
       >
         unified
       </text>
@@ -528,11 +527,7 @@ function DashboardOverview({
                       return (
                         <div
                           key={a.id}
-                          className="grid gap-2.5 px-4 py-2.5 items-start"
-                          style={{
-                            gridTemplateColumns: '14px 1fr',
-                            borderBottom: i < arr.length - 1 ? '1px solid hsl(var(--border))' : 'none',
-                          }}
+                          className={`grid gap-2.5 px-4 py-2.5 items-start grid-cols-[14px_1fr]${i < arr.length - 1 ? ' border-b border-border' : ''}`}
                         >
                           <span
                             className={`w-1.5 h-1.5 rounded-full mt-1.5 ${activityDotClass(tone)}`}
