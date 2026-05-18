@@ -500,14 +500,6 @@ export interface MatchRunDispatchResponse {
   runs: MatchRunResponse[];
 }
 
-export interface BatchSummary {
-  id: number;
-  data_source_id: number;
-  data_source_name: string;
-  original_filename: string;
-  file_extension: string;
-}
-
 export interface SourceSummary {
   id: number;
   name: string;
@@ -525,8 +517,6 @@ export interface MatchRunResponse {
   finished_at: string | null;
   task_id: string | null;
   stats: Record<string, number> | null;
-  batch_ids: number[];
-  batches: BatchSummary[];
   sources: SourceSummary[];
   error_message: string | null;
 }

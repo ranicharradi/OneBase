@@ -105,11 +105,7 @@ const mockRuns = [
     finished_at: null,
     task_id: null,
     stats: {},
-    batch_ids: [1, 2],
-    batches: [
-      { id: 1, filename: 'sap.csv' },
-      { id: 2, filename: 'oracle.csv' },
-    ],
+    sources: [],
     error_message: null,
   },
 ]

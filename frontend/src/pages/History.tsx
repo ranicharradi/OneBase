@@ -5,7 +5,6 @@ import { api } from '../api/client';
 import type { MatchRunResponse } from '../api/types';
 import Panel from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
-import { MODE_LABEL, MODE_GLYPH } from '../utils/matchRuns';
 import { relativeTime } from '../utils/time';
 
 // ── Helpers ───────────────────────────────────────────
@@ -16,12 +15,6 @@ function duration(started: string | null, finished: string | null): string | nul
   if (ms < 1000) return '<1s';
   if (ms < 60000) return `${Math.round(ms / 1000)}s`;
   return `${Math.round(ms / 60000)}m`;
-}
-
-function runLabel(r: MatchRunResponse): string {
-  return r.sources && r.sources.length > 0
-    ? r.sources.map((s) => s.name).join(' × ')
-    : (r.batches ?? []).map((b) => (b as { original_filename?: string }).original_filename ?? '').join(' × ');
 }
 
 // ── Constants ─────────────────────────────────────────
@@ -58,8 +51,6 @@ function HistoryGroup({ type, runs, navigate }: { type: string; runs: MatchRunRe
           <thead>
             <tr>
               <th style={{ width: 64 }}>#</th>
-              <th>Files</th>
-              <th className="num" style={{ width: 72 }}>Files</th>
               <th className="num" style={{ width: 96 }}>Candidates</th>
               <th style={{ width: 80 }}>Status</th>
               <th style={{ width: 100 }}>Created</th>
@@ -88,21 +79,6 @@ function HistoryGroup({ type, runs, navigate }: { type: string; runs: MatchRunRe
                     {r.name && (
                       <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--fg-2)' }}>{r.name}</span>
                     )}
-                  </td>
-                  <td>
-                    {(r.sources?.length ?? 0) > 0 || (r.batches?.length ?? 0) > 0 ? (
-                      <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
-                        <span className="mono" style={{ fontSize: 11 }}>{runLabel(r)}</span>
-                      </span>
-                    ) : (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <span className="mono" style={{ fontSize: 12, color: 'var(--accent)', fontFamily: "'Apple Symbols', system-ui" }}>{MODE_GLYPH[r.mode]}</span>
-                        <span style={{ fontSize: 12 }}>{MODE_LABEL[r.mode]}</span>
-                      </span>
-                    )}
-                  </td>
-                  <td className="num">
-                    <span className="mono" style={{ fontSize: 12 }}>{r.batch_ids.length}</span>
                   </td>
                   <td className="num" style={{ textDecoration: stale ? 'line-through' : undefined }}>
                     <span className="mono tnum" style={{ fontSize: 12 }}>
