@@ -239,9 +239,9 @@ describe('ReviewQueue page', () => {
       return new Promise(() => {})
     })
     const { container } = render(<ReviewQueue />)
-    // LoadingErrorEmpty renders a <Spinner /> (no text) during loading
+    // LoadingErrorEmpty renders <Skeleton> elements during loading
     await vi.waitFor(() => {
-      expect(container.querySelector('.spin')).toBeInTheDocument()
+      expect(container.querySelector('[data-slot="skeleton"]')).toBeInTheDocument()
     })
   })
 
@@ -309,8 +309,9 @@ describe('ReviewQueue page', () => {
     setupFetch()
     render(<ReviewQueue />)
     await screen.findByText('Acme Corp')
-    expect(screen.getByText('pending')).toBeInTheDocument()
-    // 'Confirmed dupe' appears in both the bucket tab and the status pill
+    // 'Pending' bucket tab label is always visible
+    expect(screen.getByText('Pending')).toBeInTheDocument()
+    // 'Confirmed dupe' appears in both the bucket tab and the status badge
     expect(screen.getAllByText('Confirmed dupe').length).toBeGreaterThan(0)
   })
 
