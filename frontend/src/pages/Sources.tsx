@@ -185,7 +185,7 @@ function SourceModal({
     onError: (err: Error) => setFormError(err.message),
   });
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (mutation.isPending) return;
     setFormError('');
