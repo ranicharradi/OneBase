@@ -150,3 +150,41 @@ def test_loose_name_handles_empty_and_none():
     assert loose_name(None) == ""
     assert loose_name("") == ""
     assert loose_name("   ") == ""
+
+
+def test_normalize_name_converts_punctuation_to_space():
+    """HP-AUTOMATISME class: punctuation between tokens should split into words."""
+    assert normalize_name("HP-AUTOMATISME") == "HP AUTOMATISME"
+    assert normalize_name("HP.AUTOMATISME") == "HP AUTOMATISME"
+    assert normalize_name("HP_AUTOMATISME") == "HP AUTOMATISME"
+    assert normalize_name("HP/AUTOMATISME") == "HP AUTOMATISME"
+    assert normalize_name("HP&AUTOMATISME") == "HP AUTOMATISME"
+    assert normalize_name("HP,AUTOMATISME") == "HP AUTOMATISME"
+    assert normalize_name("L'OREAL") == "L OREAL"
+
+
+def test_loose_name_converts_punctuation_to_space():
+    from app.services.normalization import loose_name
+
+    assert loose_name("HP-AUTOMATISME") == "HP AUTOMATISME"
+    assert loose_name("HP.AUTOMATISME SARL") == "HP AUTOMATISME"
+
+
+def test_is_placeholder_name_catches_known_junk():
+    from app.services.normalization import is_placeholder_name
+
+    assert is_placeholder_name(None) is True
+    assert is_placeholder_name("") is True
+    assert is_placeholder_name("   ") is True
+    assert is_placeholder_name("X") is True
+    assert is_placeholder_name("123") is True
+    assert is_placeholder_name("SUP") is True
+    assert is_placeholder_name("sup") is True
+    assert is_placeholder_name(" DIVERS ") is True
+    assert is_placeholder_name("A SUPPRIMER") is True
+    assert is_placeholder_name("X+") is True
+    assert is_placeholder_name("XXX") is True
+    assert is_placeholder_name("N/A") is False  # post-normalize this becomes "N A" — guarded by `N A` token
+    # Real names pass through:
+    assert is_placeholder_name("Acme") is False
+    assert is_placeholder_name("HP AUTOMATISME") is False

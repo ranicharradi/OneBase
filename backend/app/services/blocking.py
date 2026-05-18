@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.staging import StagedRecord
 from app.models.unified import UnifiedRecord
+from app.services.normalization import is_placeholder_name
 from app.services.record_set import RecordRef, RecordSet
 
 logger = logging.getLogger(__name__)
@@ -64,11 +65,9 @@ def _bucket(rows: list[_BlockingRow]) -> tuple[dict, dict]:
     prefix_buckets: dict[str, list[_BlockingRow]] = defaultdict(list)
     token_buckets: dict[str, list[_BlockingRow]] = defaultdict(list)
     for r in rows:
-        if not r.normalized_name:
+        if is_placeholder_name(r.normalized_name):
             continue
         name = r.normalized_name.strip()
-        if not name:
-            continue
         if len(name) >= 3:
             prefix_buckets[name[:3]].append(r)
         toks = name.split()

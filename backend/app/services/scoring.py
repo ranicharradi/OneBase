@@ -30,6 +30,15 @@ def _resolve(record: Any, field: str) -> Any:
     return record.fields.get(field) if record.fields else None
 
 
+def _resolve_text_for_match(record: Any, field: str, *, is_name_field: bool) -> Any:
+    """For NAME-role text signals, use the already-normalized form so jaro_winkler
+    and token_jaccard see "HP AUTOMATISME" (punct→space, legal-suffix-stripped)
+    instead of the raw "HP-AUTOMATISME SARL"."""
+    if is_name_field:
+        return getattr(record, "normalized_name", None) or _resolve(record, field)
+    return _resolve(record, field)
+
+
 def _embedding_to_array(embedding: Any) -> np.ndarray | None:
     if embedding is None:
         return None
@@ -42,15 +51,15 @@ def _embedding_to_array(embedding: Any) -> np.ndarray | None:
     return None
 
 
-def _jaro_winkler(a: Any, b: Any, field: str) -> float:
-    av = _resolve(a, field)
-    bv = _resolve(b, field)
+def _jaro_winkler(a: Any, b: Any, field: str, *, is_name_field: bool = False) -> float:
+    av = _resolve_text_for_match(a, field, is_name_field=is_name_field)
+    bv = _resolve_text_for_match(b, field, is_name_field=is_name_field)
     return JaroWinkler.similarity(str(av), str(bv))
 
 
-def _token_jaccard(a: Any, b: Any, field: str) -> float:
-    av = _resolve(a, field)
-    bv = _resolve(b, field)
+def _token_jaccard(a: Any, b: Any, field: str, *, is_name_field: bool = False) -> float:
+    av = _resolve_text_for_match(a, field, is_name_field=is_name_field)
+    bv = _resolve_text_for_match(b, field, is_name_field=is_name_field)
     return fuzz.token_set_ratio(str(av), str(bv)) / 100.0
 
 
@@ -97,7 +106,7 @@ def _iban_prefix_ci(a: Any, b: Any, field: str) -> float | None:
     return 1.0 if pa == pb else 0.0
 
 
-SIGNAL_FNS: dict[str, Callable[[Any, Any, str], float | None]] = {
+SIGNAL_FNS: dict[str, Callable[..., float | None]] = {
     "jaro_winkler": _jaro_winkler,
     "token_jaccard": _token_jaccard,
     "embedding_cosine": _embedding_cosine,
@@ -106,8 +115,19 @@ SIGNAL_FNS: dict[str, Callable[[Any, Any, str], float | None]] = {
     "iban_prefix_ci": _iban_prefix_ci,
 }
 
+# Signal kinds whose underlying helper accepts is_name_field — used to route
+# NAME-role text signals to normalized_name without touching the others.
+_NAME_AWARE_KINDS: frozenset[str] = frozenset({"jaro_winkler", "token_jaccard"})
 
-def compute_signal(kind: str, record_a: Any, record_b: Any, field: str) -> float | None:
+
+def compute_signal(
+    kind: str,
+    record_a: Any,
+    record_b: Any,
+    field: str,
+    *,
+    is_name_field: bool = False,
+) -> float | None:
     """Compute one signal. Returns None if either side lacks the field."""
     try:
         fn = SIGNAL_FNS[kind]
@@ -117,6 +137,8 @@ def compute_signal(kind: str, record_a: Any, record_b: Any, field: str) -> float
     b_val = _resolve(record_b, field)
     if a_val is None or b_val is None:
         return None
+    if kind in _NAME_AWARE_KINDS:
+        return fn(record_a, record_b, field, is_name_field=is_name_field)
     return fn(record_a, record_b, field)
 
 
@@ -164,7 +186,13 @@ def score_pair(
     name_signal_fired = False
 
     for sig in rt.signals:
-        value = compute_signal(sig.kind, record_a, record_b, sig.field)
+        value = compute_signal(
+            sig.kind,
+            record_a,
+            record_b,
+            sig.field,
+            is_name_field=(sig.field == name_field_key),
+        )
         if value is None:
             continue
         signals[signal_key(sig.kind, sig.field)] = value

@@ -95,9 +95,55 @@ def loose_name(name: str | None) -> str:
         return ""
     result = result.upper()
     result = _strip_accents(result)
+    # Legal-suffix strip BEFORE punctuation→space so multi-word suffixes like
+    # "GMBH & CO KG" still match (the regex relies on the literal '&').
     result = LEGAL_PATTERN.sub("", result)
+    result = PUNCTUATION_PATTERN.sub(" ", result)
     result = re.sub(r"\s+", " ", result).strip()
     return result
+
+
+# Punctuation tokens that should be treated as word separators (so "HP-AUTOMATISME"
+# tokenizes as ["HP", "AUTOMATISME"] for both blocking and Jaro-Winkler).
+PUNCTUATION_PATTERN = re.compile(r"[-_./&'\\,]")
+
+
+# Placeholder strings that ERP exports use for "no value" / "to delete" / "miscellaneous".
+# Records whose normalized name matches one of these (or is too short to be discriminative)
+# are skipped from blocking — they would otherwise pollute fuzzy buckets and produce
+# noise candidates. Stored in their post-normalize_name form (uppercase, no punct).
+_PLACEHOLDER_TOKENS: frozenset[str] = frozenset(
+    {
+        "SUP",
+        "SUPP",
+        "DIVERS",
+        "A SUPPRIMER",
+        "TO DELETE",
+        "DELETE",
+        "TBD",
+        "X+",
+        "XX",
+        "XXX",
+        "NA",
+        "N A",
+        "NONE",
+        "NULL",
+        "TODO",
+        "UNKNOWN",
+    }
+)
+
+
+def is_placeholder_name(value: str | None) -> bool:
+    """True for empty / single-char / pure-digit / known-placeholder names."""
+    if not value:
+        return True
+    v = value.strip().upper()
+    if len(v) <= 1:
+        return True
+    if v.isdigit():
+        return True
+    return v in _PLACEHOLDER_TOKENS
 
 
 def normalize_name(name: str | None) -> str:
@@ -126,8 +172,12 @@ def normalize_name(name: str | None) -> str:
     # Strip accents
     result = _strip_accents(result)
 
-    # Remove legal suffixes
+    # Legal-suffix strip BEFORE punctuation→space so multi-word suffixes like
+    # "GMBH & CO KG" still match the regex (which contains the literal '&').
     result = LEGAL_PATTERN.sub("", result)
+
+    # Punctuation → space so "HP-AUTOMATISME" tokenizes the same as "HP AUTOMATISME"
+    result = PUNCTUATION_PATTERN.sub(" ", result)
 
     # Remove domain stopwords (token-level, preserves substrings like TUNISAIR)
     stopwords = DOMAIN_STOPWORDS | CURRENCY_STOPWORDS
