@@ -6,7 +6,7 @@ import type { BatchResponse } from '../api/types';
 import Panel, { PanelHead } from './ui/Panel';
 import Pill from './ui/Pill';
 import type { PillTone } from './ui/Pill';
-import { displayFilename } from '../utils/filename';
+import { datasourceFileLabel } from '../utils/filename';
 
 interface BatchHistoryProps {
   dataSourceId?: number;
@@ -127,7 +127,7 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
             return (
               <tr key={batch.id}>
                 <td className="mono" style={{ fontSize: 11 }}>
-                  {displayFilename(batch.filename)}
+                  {datasourceFileLabel({ data_source_name: batch.data_source_name, file_extension: batch.file_extension })}
                 </td>
                 <td className="mono" style={{ fontSize: 11, color: 'var(--fg-1)' }}>
                   {batch.uploaded_by}
@@ -147,7 +147,7 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
                       className="btn btn-ghost btn-sm"
                       style={{ padding: 4, color: 'var(--danger)' }}
                       title="Dismiss file"
-                      aria-label={`Dismiss file ${displayFilename(batch.filename)}`}
+                      aria-label={`Dismiss file ${datasourceFileLabel({ data_source_name: batch.data_source_name, file_extension: batch.file_extension })}`}
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
                     </button>

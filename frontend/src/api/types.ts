@@ -98,7 +98,10 @@ export interface UploadResponse {
 export interface BatchResponse {
   id: number;
   data_source_id: number;
-  filename: string;
+  data_source_name: string;
+  type: string;
+  original_filename: string;
+  file_extension: string;
   uploaded_by: string;
   row_count: number | null;
   status: string;
@@ -107,7 +110,7 @@ export interface BatchResponse {
   task_id: string | null;
   unified: boolean;
   last_compared_at: string | null;
-  type: string;
+  ingest_stats: Record<string, unknown> | null;
 }
 
 export interface TaskStatus {
@@ -501,7 +504,10 @@ export interface MatchRunDispatchResponse {
 
 export interface BatchSummary {
   id: number;
-  filename: string;
+  data_source_id: number;
+  data_source_name: string;
+  original_filename: string;
+  file_extension: string;
 }
 
 export interface SourceSummary {
