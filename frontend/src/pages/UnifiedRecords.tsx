@@ -29,6 +29,14 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import IdChip from "../components/ui/IdChip";
 import SourcePill from "../components/ui/SourcePill";
@@ -480,54 +488,54 @@ export default function UnifiedRecords() {
                   empty={filteredUnified.length === 0}
                   emptyMessage="No unified records yet — merge match candidates or promote singletons."
                 >
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 80 }}>ID</th>
-                        <th>Name</th>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead style={{ width: 80 }}>ID</TableHead>
+                        <TableHead>Name</TableHead>
                         {displayFields.map((f) => (
-                          <th key={f.key}>{f.label}</th>
+                          <TableHead key={f.key}>{f.label}</TableHead>
                         ))}
-                        <th className="num" style={{ width: 80 }}>
+                        <TableHead className="text-right" style={{ width: 80 }}>
                           Sources
-                        </th>
-                        <th>Origin</th>
-                        <th style={{ width: 60 }}>DQ</th>
-                        <th>Created</th>
-                        <th style={{ width: 30 }} />
-                      </tr>
-                    </thead>
-                    <tbody>
+                        </TableHead>
+                        <TableHead>Origin</TableHead>
+                        <TableHead style={{ width: 60 }}>DQ</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead style={{ width: 30 }} />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {filteredUnified.map((s) => (
-                        <tr
+                        <TableRow
                           key={s.id}
                           className="clickable"
                           onClick={() =>
                             navigate(withRecordType(`/unified/${s.id}`))
                           }
                         >
-                          <td>
+                          <TableCell>
                             <IdChip>{s.id}</IdChip>
-                          </td>
-                          <td>
+                          </TableCell>
+                          <TableCell>
                             <div className="flex items-center gap-1.5">
                               <span style={{ fontWeight: 500 }}>
                                 {s.name || "—"}
                               </span>
                             </div>
-                          </td>
+                          </TableCell>
                           {displayFields.map((field) => (
-                            <td key={field.key}>
+                            <TableCell key={field.key}>
                               {fieldValue(
                                 s.fields as Record<string, unknown>,
                                 field.key,
                               ) ?? (
                                 <span className="text-muted-foreground">-</span>
                               )}
-                            </td>
+                            </TableCell>
                           ))}
-                          <td className="num font-mono">{s.source_count}</td>
-                          <td>
+                          <TableCell className="text-right font-mono">{s.source_count}</TableCell>
+                          <TableCell>
                             {s.is_singleton ? (
                               <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
                                 singleton
@@ -537,8 +545,8 @@ export default function UnifiedRecords() {
                                 merged
                               </Badge>
                             )}
-                          </td>
-                          <td>
+                          </TableCell>
+                          <TableCell>
                             {(() => {
                               const tone = dqTone(s.dq_score);
                               const label =
@@ -563,19 +571,19 @@ export default function UnifiedRecords() {
                                 );
                               return <Badge variant="outline">{label}</Badge>;
                             })()}
-                          </td>
-                          <td className="font-mono text-[11px] text-muted-foreground">
+                          </TableCell>
+                          <TableCell className="font-mono text-[11px] text-muted-foreground">
                             {s.created_at
                               ? new Date(s.created_at).toLocaleDateString()
                               : "—"}
-                          </td>
-                          <td>
+                          </TableCell>
+                          <TableCell>
                             <ChevronRightIcon className="size-3 text-muted-foreground" />
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </LoadingErrorEmpty>
 
                 {unifiedTotal > 0 && (
@@ -613,10 +621,10 @@ export default function UnifiedRecords() {
                   empty={filteredSingletons.length === 0}
                   emptyMessage="All records matched or unified — no singleton candidates available for promotion."
                 >
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 34 }}>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead style={{ width: 34 }}>
                           <input
                             type="checkbox"
                             checked={
@@ -628,55 +636,55 @@ export default function UnifiedRecords() {
                             onChange={toggleAllSingletons}
                             aria-label="Select all singletons"
                           />
-                        </th>
-                        <th style={{ width: 80 }}>ID</th>
-                        <th>Name</th>
+                        </TableHead>
+                        <TableHead style={{ width: 80 }}>ID</TableHead>
+                        <TableHead>Name</TableHead>
                         {displayFields.map((f) => (
-                          <th key={f.key}>{f.label}</th>
+                          <TableHead key={f.key}>{f.label}</TableHead>
                         ))}
-                        <th style={{ width: 100 }}>Source</th>
-                        <th style={{ width: 110 }} />
-                      </tr>
-                    </thead>
-                    <tbody>
+                        <TableHead style={{ width: 100 }}>Source</TableHead>
+                        <TableHead style={{ width: 110 }} />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {filteredSingletons.map((s) => (
-                        <tr key={s.id}>
-                          <td onClick={(e) => e.stopPropagation()}>
+                        <TableRow key={s.id}>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
                               checked={selectedSingletons.has(s.id)}
                               onChange={() => toggleSingleton(s.id)}
                               aria-label={`Select singleton ${s.id}`}
                             />
-                          </td>
-                          <td>
+                          </TableCell>
+                          <TableCell>
                             <IdChip>{s.id}</IdChip>
-                          </td>
-                          <td>
+                          </TableCell>
+                          <TableCell>
                             <div className="flex items-center gap-1.5">
                               <span style={{ fontWeight: 500 }}>
                                 {s.name || "—"}
                               </span>
                             </div>
-                          </td>
+                          </TableCell>
                           {displayFields.map((field) => (
-                            <td key={field.key}>
+                            <TableCell key={field.key}>
                               {fieldValue(
                                 s.fields as Record<string, unknown>,
                                 field.key,
                               ) ?? (
                                 <span className="text-muted-foreground">-</span>
                               )}
-                            </td>
+                            </TableCell>
                           ))}
-                          <td>
+                          <TableCell>
                             {s.data_source_name ? (
                               <SourcePill short={s.data_source_name} />
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
-                          </td>
-                          <td>
+                          </TableCell>
+                          <TableCell>
                             <Button
                               variant="outline"
                               size="sm"
@@ -687,11 +695,11 @@ export default function UnifiedRecords() {
                               <ShieldCheckIcon className="size-3" />
                               Promote
                             </Button>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </LoadingErrorEmpty>
 
                 {singletonTotal > 0 && (

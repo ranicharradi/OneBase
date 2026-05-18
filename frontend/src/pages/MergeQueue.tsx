@@ -241,21 +241,14 @@ export default function MergeQueue() {
             </CardHeader>
             <CardContent className="p-0">
               <LoadingErrorEmpty
-                isLoading={isLoading && !queue}
-                isEmpty={!runId || filteredItems.length === 0}
+                loading={isLoading && !queue}
+                empty={!runId || filteredItems.length === 0}
                 emptyMessage={
-                  !runId ? (
-                    <div className="text-xs text-muted-foreground">
-                      <MergeIcon className="size-7 text-muted-foreground/60 block mx-auto mb-2" />
-                      Select a run above to load the merge queue.
-                    </div>
-                  ) : (
-                    <div className="text-xs text-muted-foreground">
-                      {bucket === "confirmed"
-                        ? "No items awaiting merge — review queue may still be empty."
-                        : `No ${BUCKETS.find((b) => b.id === bucket)?.label.toLowerCase()} items.`}
-                    </div>
-                  )
+                  !runId
+                    ? "Select a run above to load the merge queue."
+                    : bucket === "confirmed"
+                      ? "No items awaiting merge — review queue may still be empty."
+                      : `No ${BUCKETS.find((b) => b.id === bucket)?.label.toLowerCase()} items.`
                 }
               >
                 <Table>
