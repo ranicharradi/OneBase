@@ -3,6 +3,12 @@ import { NavLink } from "react-router";
 import { useSelectedRecordType } from "../../contexts/RecordTypeContext";
 import Icon from "../ui/Icon";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+const NAV_ITEM_BASE =
+  "flex items-center gap-2.5 h-9 rounded-md text-sm text-foreground/80 hover:bg-muted hover:text-foreground transition-colors cursor-pointer relative";
+const NAV_ITEM_ACTIVE = "bg-muted text-foreground";
 
 interface NavItem {
   to: string;
@@ -81,10 +87,9 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
         {collapsed ? (
           <button
             onClick={onToggleCollapse}
-            className="nav-item"
+            className={cn(NAV_ITEM_BASE, "justify-center w-full")}
             title="Expand sidebar"
             aria-label="Expand sidebar"
-            style={{ justifyContent: "center", padding: 0 }}
           >
             <span className="inline-flex text-muted-foreground">
               <Icon name="arrow_forward" size={20} />
@@ -132,17 +137,15 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
       >
         {collapsed ? (
           <div className="relative flex justify-center">
-            <button
-              type="button"
-              className="nav-item"
+            <div
+              className={cn(NAV_ITEM_BASE, "justify-center w-full pointer-events-none")}
               title={`Record type: ${selectedType}`}
               aria-label={`Record type: ${selectedType}`}
-              style={{ justifyContent: "center", padding: 0, pointerEvents: "none" }}
             >
               <span className="text-muted-foreground">
                 <Icon name="category" size={20} />
               </span>
-            </button>
+            </div>
             <select
               aria-label="Record type"
               value={selectedType}
@@ -157,14 +160,13 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
           </div>
         ) : (
           <label className="flex flex-col gap-1">
-            <span className="label text-muted-foreground" style={{ fontSize: 10 }}>Record Type</span>
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Record Type</span>
             <select
-              className="input"
               aria-label="Record type"
               value={selectedType}
               onChange={(event) => setSelectedType(event.target.value)}
               disabled={isLoading || recordTypes.length === 0}
-              style={{ height: 28, fontSize: 12, padding: "0 8px", width: "100%" }}
+              className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs"
             >
               {recordTypes.length === 0 ? (
                 <option value={selectedType}>{selectedType}</option>
@@ -178,7 +180,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
         )}
       </div>
 
-      <nav className="scroll flex-1 py-2">
+      <nav className="flex-1 overflow-y-auto py-2">
         {NAV.map((sec) => {
           const sectionOpen = openSections[sec.section] ?? true;
           return (
@@ -186,22 +188,9 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
               {!collapsed && (
                 <button
                   type="button"
-                  className="label text-muted-foreground"
                   aria-expanded={sectionOpen}
                   onClick={() => toggleSection(sec.section)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px 6px",
-                    fontSize: 11,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    background: "transparent",
-                    border: 0,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    textAlign: "left",
-                  }}
+                  className="w-full flex items-center justify-between px-3.5 pt-3 pb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground hover:text-foreground bg-transparent border-0 cursor-pointer font-[inherit] text-left"
                 >
                   <span>{sec.section}</span>
                   <Icon
@@ -218,44 +207,35 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
                       : item.to === "/merge"
                         ? mergeCount
                         : undefined;
-                  const badgeColor =
-                    item.to === "/review" ? "var(--warn)" : "var(--accent)";
+                  const badgeTone =
+                    item.to === "/review"
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                      : "bg-primary/10 text-primary";
+                  const dotTone = item.to === "/review" ? "bg-amber-500" : "bg-primary";
                   return (
                     <NavLink
                       key={item.to}
                       to={withRecordType(item.to)}
                       title={collapsed ? item.label : undefined}
                       className={({ isActive }) =>
-                        `nav-item${isActive ? " active" : ""}`
+                        cn(
+                          NAV_ITEM_BASE,
+                          collapsed ? "justify-center mx-1.5" : "mx-2 px-3",
+                          isActive && NAV_ITEM_ACTIVE,
+                        )
                       }
-                      style={{
-                        justifyContent: collapsed ? "center" : "flex-start",
-                        padding: collapsed ? 0 : "0 12px",
-                      }}
                     >
                       <Icon name={item.icon} size={collapsed ? 20 : 18} />
                       {!collapsed && (
                         <span className="flex-1">{item.label}</span>
                       )}
                       {!collapsed && badge !== undefined && badge > 0 && (
-                        <span
-                          className="nav-badge font-mono"
-                          style={{ background: badgeColor }}
-                        >
+                        <Badge variant="secondary" className={cn("font-mono px-1.5 h-4 text-[10px]", badgeTone)}>
                           {badge}
-                        </span>
+                        </Badge>
                       )}
                       {collapsed && badge !== undefined && badge > 0 && (
-                        <span
-                          className="absolute rounded-full"
-                          style={{
-                            top: 6,
-                            right: 6,
-                            width: 7,
-                            height: 7,
-                            background: badgeColor,
-                          }}
-                        />
+                        <span className={cn("absolute top-1.5 right-1.5 size-1.5 rounded-full", dotTone)} />
                       )}
                     </NavLink>
                   );
