@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import Pagination, get_current_user, get_db, get_pagination, require_role
-from app.models.enums import UserRole
+from app.models.batch import ImportBatch
+from app.models.enums import BatchStatus, UserRole
 from app.models.match import MatchCandidate
 from app.models.match_run import MatchRun
 from app.models.user import User
@@ -16,6 +17,7 @@ from app.schemas.match import (
     MatchRunDetail,
     MatchRunDispatchResponse,
     MatchRunResponse,
+    SourceSummary,
 )
 from app.services.match import (
     MatchConflictError,
@@ -28,7 +30,29 @@ from app.tasks.match import run_match
 router = APIRouter(prefix="/api/matches", tags=["matches"])
 
 
+def _resolve_source_to_current_batch(db: Session, source_id: int) -> ImportBatch:
+    batch = (
+        db.query(ImportBatch)
+        .filter(
+            ImportBatch.data_source_id == source_id,
+            ImportBatch.status == BatchStatus.COMPLETED,
+        )
+        .order_by(ImportBatch.created_at.desc())
+        .first()
+    )
+    if batch is None:
+        raise MatchNotFoundError(f"Source {source_id} has no completed batch yet")
+    return batch
+
+
 def _to_response(run: MatchRun) -> MatchRunResponse:
+    sources: list[SourceSummary] = []
+    seen: set[int] = set()
+    for b in run.batches:
+        if b.data_source_id in seen:
+            continue
+        seen.add(b.data_source_id)
+        sources.append(SourceSummary(id=b.data_source_id, name=b.data_source.name))
     return MatchRunResponse(
         id=run.id,
         type=run.type,
@@ -43,16 +67,22 @@ def _to_response(run: MatchRun) -> MatchRunResponse:
         stats=run.stats or {},
         batch_ids=[b.id for b in run.batches],
         batches=[BatchSummary(id=b.id, filename=b.filename) for b in run.batches],
+        sources=sources,
         error_message=run.error_message,
     )
 
 
 def _derive_run_name(db: Session, run: MatchRun) -> str:
-    filenames = {b.id: b.filename for b in run.batches}
+    names: list[str] = []
+    seen: set[int] = set()
+    for b in run.batches:
+        if b.data_source_id in seen:
+            continue
+        seen.add(b.data_source_id)
+        names.append(b.data_source.name)
     if run.mode == "FILE_VS_GOLDEN":
-        return f"{filenames[run.batches[0].id]} × Golden"
-    a, b = sorted(run.batches, key=lambda x: x.id)
-    return f"{a.filename} × {b.filename}"
+        return f"{names[0]} × Golden"
+    return " × ".join(names)
 
 
 @router.post("", response_model=MatchRunDispatchResponse, status_code=status.HTTP_201_CREATED)
@@ -61,7 +91,10 @@ def post_runs(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    file_ids = list(payload.file_ids)
+    if payload.source_ids:
+        file_ids = [_resolve_source_to_current_batch(db, sid).id for sid in payload.source_ids]
+    else:
+        file_ids = list(payload.file_ids)
     if len(file_ids) == 1:
         dispatch_plan = [("FILE_VS_GOLDEN", file_ids)]
     else:

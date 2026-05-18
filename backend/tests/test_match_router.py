@@ -10,14 +10,21 @@ from app.models.unified import UnifiedRecord
 
 
 def _make_source(db, name, type_="supplier"):
-    src = DataSource(name=name, type=type_, column_mapping={"name": "x"})
+    src = DataSource(name=name, type=type_, column_mapping={"name": "x"}, identity_field_key="name")
     db.add(src)
     db.flush()
     return src
 
 
 def _make_batch(db, source, filename):
-    b = ImportBatch(data_source_id=source.id, filename=filename, uploaded_by="u", status=BatchStatus.COMPLETED)
+    b = ImportBatch(
+        data_source_id=source.id,
+        filename=filename,
+        original_filename=filename,
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     db.add(b)
     db.flush()
     return b
@@ -276,3 +283,65 @@ def test_delete_run_returns_409_for_running(authenticated_client, test_db):
 
     resp = authenticated_client.delete(f"/api/matches/{run.id}")
     assert resp.status_code == 409
+
+
+def test_post_matches_accepts_source_ids(authenticated_client, test_db, monkeypatch):
+    """POST /api/matches accepts source_ids and resolves to each source's latest completed batch."""
+    from app.models.batch import ImportBatch
+    from app.models.enums import BatchStatus, RecordStatus
+    from app.models.source import DataSource
+    from app.models.staging import StagedRecord
+
+    def _seed(name):
+        src = DataSource(
+            name=name,
+            type="supplier",
+            delimiter=";",
+            column_mapping={"supplier_name": "Name"},
+            identity_field_key="supplier_name",
+        )
+        test_db.add(src)
+        test_db.flush()
+        batch = ImportBatch(
+            data_source_id=src.id,
+            filename=f"u_{name}.csv",
+            original_filename=f"{name}.csv",
+            file_extension=".csv",
+            uploaded_by="x",
+            status=BatchStatus.COMPLETED,
+        )
+        test_db.add(batch)
+        test_db.flush()
+        test_db.add(
+            StagedRecord(
+                import_batch_id=batch.id,
+                data_source_id=src.id,
+                type="supplier",
+                name="Acme",
+                normalized_name="ACME",
+                fields={"supplier_name": "Acme"},
+                raw_data={"Name": "Acme"},
+                status=RecordStatus.ACTIVE,
+            )
+        )
+        return src, batch
+
+    class _FakeTask:
+        id = "fake-task-id"
+
+    monkeypatch.setattr("app.routers.matches.run_match.delay", lambda run_id: _FakeTask())
+
+    s1, b1 = _seed("Industry A")
+    s2, b2 = _seed("Industry B")
+    test_db.commit()
+
+    r = authenticated_client.post(
+        "/api/matches",
+        json={"type": "supplier", "source_ids": [s1.id, s2.id]},
+    )
+    assert r.status_code == 201
+    runs = r.json()["runs"]
+    assert len(runs) == 1
+    assert sorted(runs[0]["batch_ids"]) == sorted([b1.id, b2.id])
+    source_names = sorted(s["name"] for s in runs[0]["sources"])
+    assert source_names == ["Industry A", "Industry B"]

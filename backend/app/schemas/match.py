@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 MatchMode = Literal["FILE_VS_FILE", "FILE_VS_GOLDEN"]
 MatchStatus = Literal["pending", "running", "completed", "failed", "stale"]
@@ -12,18 +12,28 @@ class BatchSummary(BaseModel):
     filename: str
 
 
+class SourceSummary(BaseModel):
+    id: int
+    name: str
+
+
 class MatchRunCreate(BaseModel):
     """Body for POST /api/matches.
 
-    Server infers mode from `file_ids` length:
-      - len == 1 → one FILE_VS_GOLDEN run (requires existing UnifiedRecords of this type)
-      - len >= 2 → C(N, 2) FILE_VS_FILE runs, one per unordered pair, dispatched in parallel
-
-    file_ids must be between 1 and 20 inclusive to prevent worker-queue flooding.
+    Provide `source_ids` (preferred) — the router resolves each to the source's
+    latest COMPLETED batch. `file_ids` is kept for the existing test surface;
+    exactly one of the two must be set.
     """
 
     type: str
-    file_ids: list[int] = Field(..., min_length=1, max_length=20)
+    source_ids: list[int] = Field(default_factory=list, max_length=20)
+    file_ids: list[int] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def _exactly_one_id_set(self):
+        if bool(self.source_ids) == bool(self.file_ids):
+            raise ValueError("provide exactly one of source_ids or file_ids")
+        return self
 
 
 class MatchRunResponse(BaseModel):
@@ -40,6 +50,7 @@ class MatchRunResponse(BaseModel):
     stats: dict
     batch_ids: list[int]
     batches: list[BatchSummary] = []
+    sources: list[SourceSummary] = []
     error_message: str | None = None
 
 
