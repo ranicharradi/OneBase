@@ -42,6 +42,8 @@ class DataSourceResponse(APIResponse):
     identity_field_key: str
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    active_row_count: int | None = None
+    last_uploaded_at: datetime | None = None
 
 
 class SuggestMappingRequest(BaseModel):

@@ -306,3 +306,50 @@ def test_data_source_has_identity_field_key_column():
     """DataSource model has identity_field_key column for diff ingestion."""
     cols = {c.name for c in DataSource.__table__.columns}
     assert "identity_field_key" in cols
+
+
+def test_list_sources_with_stats_returns_counts(authenticated_client, test_db):
+    from app.models.batch import ImportBatch
+    from app.models.enums import BatchStatus, RecordStatus
+    from app.models.source import DataSource
+    from app.models.staging import StagedRecord
+
+    src = DataSource(
+        name="src_stats",
+        type="supplier",
+        delimiter=";",
+        column_mapping={"supplier_name": "Name"},
+        identity_field_key="supplier_name",
+    )
+    test_db.add(src)
+    test_db.flush()
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="u.csv",
+        original_filename="u.csv",
+        file_extension=".csv",
+        uploaded_by="x",
+        status=BatchStatus.COMPLETED,
+    )
+    test_db.add(batch)
+    test_db.flush()
+    for n in ("A", "B"):
+        test_db.add(
+            StagedRecord(
+                import_batch_id=batch.id,
+                data_source_id=src.id,
+                type="supplier",
+                name=n,
+                normalized_name=n,
+                fields={"supplier_name": n},
+                raw_data={},
+                status=RecordStatus.ACTIVE,
+            )
+        )
+    test_db.commit()
+    r = authenticated_client.get("/api/sources?with_stats=true&type=supplier")
+    assert r.status_code == 200
+    body = r.json()
+    item = next(s for s in body if s["name"] == "src_stats")
+    assert item["active_row_count"] == 2
+    assert item["last_uploaded_at"] is not None

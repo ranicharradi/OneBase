@@ -5,7 +5,7 @@ import { api } from "../api/client";
 import { useMatchRunStatus } from "../hooks/useMatchRun";
 import { useSelectedRecordType } from "../contexts/RecordTypeContext";
 import type {
-  BatchResponse,
+  DataSource,
   MatchMode,
   MatchRunCreate,
   MatchRunDispatchResponse,
@@ -16,24 +16,12 @@ import Panel, { PanelHead } from "../components/ui/Panel";
 import Spinner from "../components/ui/Spinner";
 import Pill from "../components/ui/Pill";
 import Hbar from "../components/ui/Hbar";
-import type { PillTone } from "../components/ui/Pill";
-import { stripUuidPrefix, displayFilename } from "../utils/filename";
 import { MODE_LABEL } from "../utils/matchRuns";
 import { relativeTime } from "../utils/time";
 import WorkflowStageRail from "../components/WorkflowStageRail";
 import HandoffBanner from "../components/HandoffBanner";
 
 // ── Constants ─────────────────────────────────────────
-
-const BATCH_TONE: Record<string, PillTone> = {
-  done: "ok",
-  completed: "ok",
-  pending: "neutral",
-  running: "info",
-  failed: "danger",
-  error: "danger",
-  superseded: "warn",
-};
 
 const COMP_STAGES = [
   { key: "BLOCKING", label: "Blocking" },
@@ -333,63 +321,6 @@ function ActiveRunCard({
   );
 }
 
-// ── Batch filename cell ────────────────────────────────
-
-function FileCell({ name }: { name: string }) {
-  const clean = stripUuidPrefix(name);
-  const dot = clean.lastIndexOf(".");
-  const stem = dot > 0 ? clean.slice(0, dot) : clean;
-  const ext = dot > 0 ? clean.slice(dot) : "";
-  return (
-    <span
-      title={name}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        maxWidth: 260,
-        fontFamily: "var(--font-mono)",
-        fontSize: 12,
-      }}
-    >
-      <svg
-        width="13"
-        height="15"
-        viewBox="0 0 13 15"
-        fill="none"
-        style={{ flexShrink: 0, opacity: 0.45 }}
-      >
-        <path
-          d="M1 1h7.5L12 4.5V14H1V1z"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-          fill="none"
-        />
-        <path
-          d="M8.5 1v4H12"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-        />
-      </svg>
-      <span
-        style={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          minWidth: 0,
-        }}
-      >
-        {stem}
-      </span>
-      {ext && (
-        <span style={{ color: "var(--fg-3)", flexShrink: 0 }}>{ext}</span>
-      )}
-    </span>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────
 
 export default function Match() {
@@ -411,9 +342,12 @@ export default function Match() {
   );
   const vsGolden = selState.type === selectedType ? selState.vsGolden : false;
 
-  const { data: batches } = useQuery({
-    queryKey: ["batches"],
-    queryFn: () => api.get<BatchResponse[]>("/api/import/batches"),
+  const { data: sources } = useQuery({
+    queryKey: ["sources", "with-stats", selectedType],
+    queryFn: () =>
+      api.get<DataSource[]>(
+        `/api/sources?type=${selectedType}&with_stats=true`,
+      ),
   });
 
   const { data: allRuns } = useQuery({
@@ -431,10 +365,7 @@ export default function Match() {
     (r) => r.status === "pending" || r.status === "running",
   );
 
-  const typeBatches = useMemo(
-    () => (batches ?? []).filter((b) => b.type === selectedType),
-    [batches, selectedType],
-  );
+  const typeSources = useMemo(() => sources ?? [], [sources]);
 
   const selectedIds = useMemo(() => [...selected], [selected]);
   const effectiveSelection = vsGolden ? selectedIds.slice(0, 1) : selectedIds;
@@ -455,16 +386,16 @@ export default function Match() {
       ? (effectiveSelection.length * (effectiveSelection.length - 1)) / 2
       : 0;
 
-  const selectedBatches = useMemo(
-    () => typeBatches.filter((b) => effectiveSelection.includes(b.id)),
-    [typeBatches, effectiveSelection],
+  const selectedSources = useMemo(
+    () => typeSources.filter((s) => effectiveSelection.includes(s.id)),
+    [typeSources, effectiveSelection],
   );
 
   const launch = useMutation({
     mutationFn: async () => {
       const payload: MatchRunCreate = {
         type: selectedType,
-        file_ids: effectiveSelection,
+        source_ids: effectiveSelection,
       };
       return api.post<MatchRunDispatchResponse>("/api/matches", payload);
     },
@@ -489,6 +420,36 @@ export default function Match() {
   };
 
   const needMore = minFiles - effectiveSelection.length;
+
+  // ── Panel header buttons (shared between empty/non-empty states) ──────────
+  const panelHeaderButtons = (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      {effectiveSelection.length > 0 && !vsGolden && (
+        <span
+          className="mono"
+          style={{ fontSize: 11, color: "var(--accent)" }}
+        >
+          {MODE_LABEL[dispatchMode]}
+        </span>
+      )}
+      <button
+        className={`btn btn-sm${vsGolden ? " btn-accent" : ""}`}
+        onClick={() =>
+          setSelState({
+            type: selectedType,
+            ids: new Set(),
+            vsGolden: !vsGolden,
+          })
+        }
+        title="Match selected source against the unified golden set"
+      >
+        vs Golden
+      </button>
+      <Link to="/history" className="btn btn-sm">
+        History ▸
+      </Link>
+    </div>
+  );
 
   return (
     <div className="scroll" style={{ height: "100%" }}>
@@ -574,11 +535,11 @@ export default function Match() {
                 letterSpacing: "0.04em",
               }}
             >
-              FILE × GOLDEN
+              SOURCE × GOLDEN
             </span>
             <span style={{ fontSize: 11, color: "var(--fg-2)" }}>—</span>
             <span style={{ fontSize: 11, color: "var(--fg-2)" }}>
-              select one file to match against the unified golden set
+              select one source to match against the unified golden set
             </span>
             <button
               className="btn btn-ghost btn-sm"
@@ -592,37 +553,12 @@ export default function Match() {
           </div>
         )}
 
-        {/* Batches for selected type */}
-        {typeBatches.length === 0 ? (
+        {/* Sources panel */}
+        {typeSources.length === 0 ? (
           <Panel>
             <PanelHead>
-              <span className="panel-title">Files</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {effectiveSelection.length > 0 && !vsGolden && (
-                  <span
-                    className="mono"
-                    style={{ fontSize: 11, color: "var(--accent)" }}
-                  >
-                    {MODE_LABEL[dispatchMode]}
-                  </span>
-                )}
-                <button
-                  className={`btn btn-sm${vsGolden ? " btn-accent" : ""}`}
-                  onClick={() =>
-                    setSelState({
-                      type: selectedType,
-                      ids: new Set(),
-                      vsGolden: !vsGolden,
-                    })
-                  }
-                  title="Match selected file against the unified golden set"
-                >
-                  vs Golden
-                </button>
-                <Link to="/history" className="btn btn-sm">
-                  History ▸
-                </Link>
-              </div>
+              <span className="panel-title">Sources</span>
+              {panelHeaderButtons}
             </PanelHead>
             <div
               style={{
@@ -632,54 +568,28 @@ export default function Match() {
                 fontSize: 12,
               }}
             >
-              No files yet
+              No sources yet
             </div>
           </Panel>
         ) : (
           <Panel>
             <PanelHead>
-              <span className="panel-title">Files</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {effectiveSelection.length > 0 && !vsGolden && (
-                  <span
-                    className="mono"
-                    style={{ fontSize: 11, color: "var(--accent)" }}
-                  >
-                    {MODE_LABEL[dispatchMode]}
-                  </span>
-                )}
-                <button
-                  className={`btn btn-sm${vsGolden ? " btn-accent" : ""}`}
-                  onClick={() =>
-                    setSelState({
-                      type: selectedType,
-                      ids: new Set(),
-                      vsGolden: !vsGolden,
-                    })
-                  }
-                  title="Match selected file against the unified golden set"
-                >
-                  vs Golden
-                </button>
-                <Link to="/history" className="btn btn-sm">
-                  History ▸
-                </Link>
-              </div>
+              <span className="panel-title">Sources</span>
+              {panelHeaderButtons}
             </PanelHead>
             <table className="table">
               <thead>
                 <tr>
                   <th style={{ width: 36 }} />
-                  <th>Filename</th>
-                  <th>Uploaded</th>
-                  <th className="num">Rows</th>
-                  <th>Status</th>
+                  <th>Source</th>
+                  <th>Last uploaded</th>
+                  <th className="num">Active rows</th>
                 </tr>
               </thead>
               <tbody>
-                {typeBatches.map((b) => {
-                  const inEffective = effectiveSelection.includes(b.id);
-                  const isChecked = selected.has(b.id);
+                {typeSources.map((src) => {
+                  const inEffective = effectiveSelection.includes(src.id);
+                  const isChecked = selected.has(src.id);
                   const overCap = vsGolden && !inEffective && isChecked;
                   const dimmed =
                     vsGolden &&
@@ -688,8 +598,8 @@ export default function Match() {
                     effectiveSelection.length >= 1;
                   return (
                     <tr
-                      key={b.id}
-                      onClick={() => toggleRow(b.id)}
+                      key={src.id}
+                      onClick={() => toggleRow(src.id)}
                       className={inEffective ? "selected" : ""}
                       style={{
                         cursor: "pointer",
@@ -700,24 +610,30 @@ export default function Match() {
                         <input type="checkbox" checked={isChecked} readOnly />
                       </td>
                       <td>
-                        <FileCell name={b.filename} />
-                      </td>
-                      <td>
                         <span
-                          title={`${new Date(b.created_at).toLocaleString()} by ${b.uploaded_by}`}
                           className="mono"
-                          style={{ fontSize: 11, color: "var(--fg-2)" }}
+                          style={{ fontSize: 12 }}
+                          title={src.description ?? src.name}
                         >
-                          {relativeTime(b.created_at)}
+                          {src.name}
                         </span>
                       </td>
-                      <td className="num">
-                        {(b.row_count ?? 0).toLocaleString()}
-                      </td>
                       <td>
-                        <Pill tone={BATCH_TONE[b.status] ?? "neutral"} dot>
-                          {b.status}
-                        </Pill>
+                        {src.last_uploaded_at ? (
+                          <span
+                            className="mono"
+                            style={{ fontSize: 11, color: "var(--fg-2)" }}
+                          >
+                            {relativeTime(src.last_uploaded_at)}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: "var(--fg-3)" }}>
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="num">
+                        {(src.active_row_count ?? 0).toLocaleString()}
                       </td>
                     </tr>
                   );
@@ -757,20 +673,22 @@ export default function Match() {
                 style={{ fontSize: 11, color: "var(--fg-3)" }}
               >
                 {vsGolden
-                  ? "select 1 file to match against the golden set"
-                  : "select 2+ files to compare"}
+                  ? "select 1 source to match against the golden set"
+                  : "select 2+ sources to compare"}
               </span>
             ) : (
-              selectedBatches.map((b) => (
+              selectedSources.map((src) => (
                 <span
-                  key={b.id}
+                  key={src.id}
                   className="pill accent"
                   style={{ fontSize: 10, gap: 4, flexShrink: 0 }}
                 >
                   <span className="mono" style={{ opacity: 0.6, fontSize: 9 }}>
                     ▤
                   </span>
-                  {displayFilename(b.filename, 20)}
+                  {src.name.length > 20
+                    ? src.name.slice(0, 20) + "…"
+                    : src.name}
                 </span>
               ))
             )}
@@ -786,7 +704,7 @@ export default function Match() {
           >
             {noGoldenForSingle && (
               <span className="pill warn" style={{ fontSize: 10 }}>
-                No golden records yet — select at least 2 files
+                No golden records yet — select at least 2 sources
               </span>
             )}
             {!isValid && !noGoldenForSingle && effectiveSelection.length > 0 && (

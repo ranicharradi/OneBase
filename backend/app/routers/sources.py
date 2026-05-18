@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
+from app.models.batch import ImportBatch
 from app.models.enums import RecordStatus, UserRole
 from app.models.staging import StagedRecord
 from app.models.user import User
@@ -65,6 +66,7 @@ def create_data_source(
 @router.get("", response_model=list[DataSourceResponse])
 def list_data_sources(
     type: str | None = None,
+    with_stats: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -72,7 +74,37 @@ def list_data_sources(
     sources = get_sources(db)
     if type is not None:
         sources = [s for s in sources if s.type == type]
-    return sources
+    if not with_stats:
+        return sources
+
+    src_ids = [s.id for s in sources]
+    if not src_ids:
+        return sources
+
+    counts = dict(
+        db.query(StagedRecord.data_source_id, func.count(StagedRecord.id))
+        .filter(
+            StagedRecord.data_source_id.in_(src_ids),
+            StagedRecord.status == RecordStatus.ACTIVE,
+        )
+        .group_by(StagedRecord.data_source_id)
+        .all()
+    )
+    last_uploaded = dict(
+        db.query(ImportBatch.data_source_id, func.max(ImportBatch.created_at))
+        .filter(ImportBatch.data_source_id.in_(src_ids))
+        .group_by(ImportBatch.data_source_id)
+        .all()
+    )
+    return [
+        DataSourceResponse.model_validate(s).model_copy(
+            update={
+                "active_row_count": counts.get(s.id, 0),
+                "last_uploaded_at": last_uploaded.get(s.id),
+            }
+        )
+        for s in sources
+    ]
 
 
 @router.get("/{source_id}", response_model=DataSourceResponse)

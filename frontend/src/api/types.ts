@@ -53,6 +53,8 @@ export interface DataSource {
   identity_field_key: string;
   created_at: string | null;
   updated_at: string | null;
+  active_row_count?: number;
+  last_uploaded_at?: string | null;
 }
 
 export interface DataSourceCreate {
@@ -482,7 +484,8 @@ export type MatchStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stal
 
 export interface MatchRunCreate {
   type: string;
-  file_ids: number[];
+  source_ids?: number[];
+  file_ids?: number[];
 }
 
 export interface MatchRunDispatchResponse {
@@ -492,6 +495,11 @@ export interface MatchRunDispatchResponse {
 export interface BatchSummary {
   id: number;
   filename: string;
+}
+
+export interface SourceSummary {
+  id: number;
+  name: string;
 }
 
 export interface MatchRunResponse {
@@ -508,6 +516,7 @@ export interface MatchRunResponse {
   stats: Record<string, number> | null;
   batch_ids: number[];
   batches: BatchSummary[];
+  sources: SourceSummary[];
   error_message: string | null;
 }
 
