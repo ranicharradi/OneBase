@@ -137,3 +137,54 @@ def test_from_source_raises_when_source_missing(test_db):
 
     with pytest.raises(NoResultFound):
         RecordSet.from_source(test_db, 99999)
+
+
+def test_from_source_isolates_by_data_source(test_db):
+    from app.models.batch import ImportBatch
+    from app.models.enums import BatchStatus, RecordStatus
+    from app.models.source import DataSource
+    from app.models.staging import StagedRecord
+    from app.services.record_set import RecordSet
+
+    def _src_with_two_active(name):
+        src = DataSource(
+            name=name,
+            type="supplier",
+            delimiter=";",
+            column_mapping={"supplier_name": "Name"},
+            identity_field_key="supplier_name",
+        )
+        test_db.add(src)
+        test_db.flush()
+        b = ImportBatch(
+            data_source_id=src.id,
+            filename=f"{name}.csv",
+            original_filename=f"{name}.csv",
+            file_extension=".csv",
+            uploaded_by="u",
+            status=BatchStatus.COMPLETED,
+        )
+        test_db.add(b)
+        test_db.flush()
+        for _ in range(2):
+            test_db.add(
+                StagedRecord(
+                    import_batch_id=b.id,
+                    data_source_id=src.id,
+                    type="supplier",
+                    name="x",
+                    fields={},
+                    status=RecordStatus.ACTIVE,
+                )
+            )
+        return src
+
+    src1 = _src_with_two_active("s1")
+    src2 = _src_with_two_active("s2")
+    test_db.commit()
+
+    rs1 = RecordSet.from_source(test_db, src1.id)
+    rs2 = RecordSet.from_source(test_db, src2.id)
+    assert rs1.size == 2
+    assert rs2.size == 2
+    assert {ref.id for ref in rs1.refs}.isdisjoint({ref.id for ref in rs2.refs})

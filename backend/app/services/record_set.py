@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Literal
 
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 
 from app.models.enums import RecordStatus
@@ -52,7 +53,9 @@ class RecordSet:
         """
         from app.models.source import DataSource
 
-        src = db.query(DataSource).filter(DataSource.id == source_id).one()
+        type_key = db.query(DataSource.type).filter(DataSource.id == source_id).scalar()
+        if type_key is None:
+            raise NoResultFound(f"DataSource {source_id} not found")
         rows = (
             db.query(StagedRecord.id)
             .filter(
@@ -61,7 +64,7 @@ class RecordSet:
             )
             .all()
         )
-        return cls(type_key=src.type, refs=[RecordRef(id=r.id, kind="staged") for r in rows])
+        return cls(type_key=type_key, refs=[RecordRef(id=r.id, kind="staged") for r in rows])
 
     @classmethod
     def from_unified(cls, db: Session, type_key: str) -> "RecordSet":
