@@ -65,25 +65,16 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
 
   return (
     <aside
-      style={{
-        width: collapsed ? 56 : 240,
-        transition: "width 0.2s ease",
-        background: "var(--bg-1)",
-        borderRight: "1px solid var(--border-0)",
-        display: "flex",
-        flexDirection: "column",
-        flexShrink: 0,
-      }}
+      style={{ width: collapsed ? 56 : 240, transition: "width 0.2s ease" }}
+      className="bg-card border-r border-border flex flex-col flex-shrink-0"
     >
       <div
+        className="border-b border-border flex items-center"
         style={{
           height: 48,
           padding: collapsed ? 0 : "0 10px 0 14px",
-          display: "flex",
-          alignItems: "center",
           justifyContent: collapsed ? "center" : "flex-start",
           gap: 10,
-          borderBottom: "1px solid var(--border-0)",
         }}
       >
         {collapsed ? (
@@ -92,54 +83,40 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
             className="nav-item"
             title="Expand sidebar"
             aria-label="Expand sidebar"
-            style={{ justifyContent: "center", padding: 0, color: "var(--fg-2)" }}
+            style={{ justifyContent: "center", padding: 0 }}
           >
-            <span style={{ display: "inline-flex" }}>
+            <span className="inline-flex text-muted-foreground">
               <Icon name="arrow_forward" size={20} />
             </span>
           </button>
         ) : (
           <>
             <div
+              className="bg-foreground text-card flex items-center justify-center font-bold font-mono flex-shrink-0"
               style={{
                 width: 28,
                 height: 28,
-                background: "var(--fg-0)",
-                color: "var(--bg-1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
                 fontSize: 14,
                 fontFamily: "IBM Plex Mono, monospace",
                 borderRadius: 5,
-                flexShrink: 0,
               }}
             >
               1B
             </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                lineHeight: 1.1,
-                minWidth: 0,
-                flex: 1,
-              }}
-            >
+            <div className="flex flex-col min-w-0 flex-1" style={{ lineHeight: 1.1 }}>
               <span style={{ fontSize: 13, fontWeight: 600 }}>OneBase</span>
-              <span className="mono" style={{ fontSize: 9, color: "var(--fg-2)" }}>
+              <span className="font-mono text-muted-foreground" style={{ fontSize: 9 }}>
                 record unification
               </span>
             </div>
             <button
               onClick={onToggleCollapse}
-              className="btn btn-ghost btn-sm"
+              className="btn btn-ghost btn-sm text-muted-foreground flex-shrink-0"
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
-              style={{ padding: 4, color: "var(--fg-3)", flexShrink: 0 }}
+              style={{ padding: 4 }}
             >
-              <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
+              <span className="inline-flex" style={{ transform: "rotate(180deg)" }}>
                 <Icon name="arrow_forward" size={14} />
               </span>
             </button>
@@ -148,28 +125,28 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
       </div>
 
       <div
-        style={{
-          padding: collapsed ? "8px 6px" : "10px 12px",
-          borderBottom: "1px solid var(--border-0)",
-        }}
+        className="border-b border-border"
+        style={{ padding: collapsed ? "8px 6px" : "10px 12px" }}
       >
         {collapsed ? (
-          <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
+          <div className="relative flex justify-center">
             <button
               type="button"
               className="nav-item"
               title={`Record type: ${selectedType}`}
               aria-label={`Record type: ${selectedType}`}
-              style={{ justifyContent: "center", padding: 0, color: "var(--fg-2)", pointerEvents: "none" }}
+              style={{ justifyContent: "center", padding: 0, pointerEvents: "none" }}
             >
-              <Icon name="category" size={20} />
+              <span className="text-muted-foreground">
+                <Icon name="category" size={20} />
+              </span>
             </button>
             <select
               aria-label="Record type"
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
               disabled={isLoading || recordTypes.length === 0}
-              style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
             >
               {recordTypes.map((type) => (
                 <option key={type.key} value={type.key}>{type.label}</option>
@@ -177,8 +154,8 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
             </select>
           </div>
         ) : (
-          <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <span className="label" style={{ fontSize: 10 }}>Record Type</span>
+          <label className="flex flex-col gap-1">
+            <span className="label text-muted-foreground" style={{ fontSize: 10 }}>Record Type</span>
             <select
               className="input"
               aria-label="Record type"
@@ -199,7 +176,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
         )}
       </div>
 
-      <nav className="scroll" style={{ flex: 1, padding: "8px 0" }}>
+      <nav className="scroll flex-1 py-2">
         {NAV.map((sec) => {
           const sectionOpen = openSections[sec.section] ?? true;
           return (
@@ -207,7 +184,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
               {!collapsed && (
                 <button
                   type="button"
-                  className="label"
+                  className="label text-muted-foreground"
                   aria-expanded={sectionOpen}
                   onClick={() => toggleSection(sec.section)}
                   style={{
@@ -219,7 +196,6 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
                     justifyContent: "space-between",
                     background: "transparent",
                     border: 0,
-                    color: "var(--fg-2)",
                     cursor: "pointer",
                     fontFamily: "inherit",
                     textAlign: "left",
@@ -257,11 +233,11 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
                     >
                       <Icon name={item.icon} size={collapsed ? 20 : 18} />
                       {!collapsed && (
-                        <span style={{ flex: 1 }}>{item.label}</span>
+                        <span className="flex-1">{item.label}</span>
                       )}
                       {!collapsed && badge !== undefined && badge > 0 && (
                         <span
-                          className="nav-badge mono"
+                          className="nav-badge font-mono"
                           style={{ background: badgeColor }}
                         >
                           {badge}
@@ -269,13 +245,12 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
                       )}
                       {collapsed && badge !== undefined && badge > 0 && (
                         <span
+                          className="absolute rounded-full"
                           style={{
-                            position: "absolute",
                             top: 6,
                             right: 6,
                             width: 7,
                             height: 7,
-                            borderRadius: "50%",
                             background: badgeColor,
                           }}
                         />

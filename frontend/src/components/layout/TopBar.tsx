@@ -1,5 +1,7 @@
-import Icon from "../ui/Icon";
+import { SearchIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import AvatarMenu from "./AvatarMenu";
+import Icon from "../ui/Icon";
 
 interface TopBarProps {
   breadcrumb: string[];
@@ -23,27 +25,19 @@ export default function TopBar({
   return (
     <div className="topbar">
       {breadcrumb.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            color: "var(--fg-2)",
-            fontSize: 12,
-          }}
-        >
+        <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
           {breadcrumb.map((b, i) => (
             <span
               key={i}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+              className="inline-flex items-center gap-1.5"
             >
               {i > 0 && <Icon name="chevron_right" size={10} />}
               <span
-                style={{
-                  color:
-                    i === breadcrumb.length - 1 ? "var(--fg-0)" : "var(--fg-2)",
-                  fontWeight: i === breadcrumb.length - 1 ? 500 : 400,
-                }}
+                className={
+                  i === breadcrumb.length - 1
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground font-normal"
+                }
               >
                 {b}
               </span>
@@ -52,45 +46,30 @@ export default function TopBar({
         </div>
       )}
 
-      <div style={{ flex: 1 }} />
+      <div className="flex-1" />
 
       <button
         onClick={onOpenPalette}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "0 10px",
-          height: 26,
-          minWidth: 260,
-          background: "var(--bg-2)",
-          border: "1px solid var(--border-0)",
-          borderRadius: 4,
-          cursor: "pointer",
-          color: "var(--fg-2)",
-          fontFamily: "inherit",
-          fontSize: 12,
-        }}
+        className="flex items-center gap-2.5 px-2.5 h-[26px] min-w-[260px] bg-muted border border-border rounded cursor-pointer text-muted-foreground font-[inherit] text-xs"
         aria-label="Open command palette"
       >
-        <Icon name="search" size={13} />
-        <span style={{ flex: 1, textAlign: "left" }}>
+        <SearchIcon className="size-3 shrink-0" />
+        <span className="flex-1 text-left">
           Jump to, search, run…
         </span>
         <span className="kbd">⌘</span>
       </button>
 
-      <button
+      <Button
+        variant="ghost"
+        size="xs"
         onClick={onToggleTheme}
-        className="btn btn-ghost btn-sm"
-        style={{ padding: 4 }}
-        title={
-          theme === "light" ? "Switch to dark theme" : "Switch to light theme"
-        }
+        className="p-1"
+        title={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
         aria-label="Toggle theme"
       >
         <Icon name={theme === "light" ? "dark_mode" : "light_mode"} size={14} />
-      </button>
+      </Button>
 
       <AvatarMenu username={username} isAdmin={isAdmin} onLogout={onLogout} />
     </div>
