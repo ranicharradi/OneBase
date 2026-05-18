@@ -22,7 +22,6 @@ interface ReUploadDialogProps {
   forceReplace: boolean;
   onForceReplaceChange: (v: boolean) => void;
   onConfirm: () => void;
-  /** @deprecated Pass onOpenChange instead; kept for backward compat with Upload.tsx */
   onCancel?: () => void;
 }
 
