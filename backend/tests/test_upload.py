@@ -420,10 +420,17 @@ def test_list_batches_reports_unified_when_referenced_by_completed_run(authentic
     from app.models.match_run import MatchRun
     from app.models.source import DataSource
 
-    src = DataSource(name="uni-src", type="supplier", column_mapping={"name": "x"})
+    src = DataSource(name="uni-src", type="supplier", column_mapping={"name": "x"}, identity_field_key="name")
     test_db.add(src)
     test_db.flush()
-    b = ImportBatch(data_source_id=src.id, filename="f.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
+    b = ImportBatch(
+        data_source_id=src.id,
+        filename="f.csv",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     test_db.add(b)
     test_db.flush()
     run = MatchRun(
@@ -450,10 +457,17 @@ def test_list_batches_reports_unified_false_when_never_compared(authenticated_cl
     from app.models.enums import BatchStatus
     from app.models.source import DataSource
 
-    src = DataSource(name="notuni-src", type="supplier", column_mapping={"name": "x"})
+    src = DataSource(name="notuni-src", type="supplier", column_mapping={"name": "x"}, identity_field_key="name")
     test_db.add(src)
     test_db.flush()
-    b = ImportBatch(data_source_id=src.id, filename="f2.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
+    b = ImportBatch(
+        data_source_id=src.id,
+        filename="f2.csv",
+        original_filename="f2.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     test_db.add(b)
     test_db.commit()
 
@@ -543,6 +557,43 @@ def test_upload_persists_original_filename_and_extension(authenticated_client, t
     assert batch.file_extension == ".csv"
     # Storage key still UUID-prefixed
     assert "_My Suppliers v2.csv" in batch.filename
+
+
+def test_list_batches_includes_datasource_and_original_fields(authenticated_client, test_db):
+    from app.models.batch import ImportBatch
+    from app.models.enums import BatchStatus
+    from app.models.source import DataSource
+
+    src = DataSource(
+        name="Industry A Suppliers",
+        type="supplier",
+        delimiter=";",
+        column_mapping={"supplier_name": "Name"},
+        identity_field_key="supplier_name",
+    )
+    test_db.add(src)
+    test_db.flush()
+    b = ImportBatch(
+        data_source_id=src.id,
+        filename="abc-uuid_my-file.csv",
+        original_filename="my-file.csv",
+        file_extension=".csv",
+        uploaded_by="x",
+        row_count=42,
+        status=BatchStatus.COMPLETED,
+        ingest_stats={"inserted": 10, "updated": 30, "retired": 2, "unchanged": 0, "force_replace": False},
+    )
+    test_db.add(b)
+    test_db.commit()
+
+    r = authenticated_client.get(f"/api/import/batches?data_source_id={src.id}")
+    assert r.status_code == 200
+    item = r.json()[0]
+    assert item["original_filename"] == "my-file.csv"
+    assert item["file_extension"] == ".csv"
+    assert item["data_source_name"] == "Industry A Suppliers"
+    assert item["ingest_stats"]["inserted"] == 10
+    assert "filename" not in item or item["filename"] == "abc-uuid_my-file.csv"  # storage key OR omitted
 
 
 def test_overlap_probe_endpoint_surfaces_high_overlap_source(authenticated_client, test_db):

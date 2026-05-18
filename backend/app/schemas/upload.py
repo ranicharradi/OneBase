@@ -21,8 +21,10 @@ class BatchResponse(APIResponse):
 
     id: int
     data_source_id: int
-    type: str  # record-type of the batch's source
-    filename: str
+    data_source_name: str
+    type: str
+    original_filename: str
+    file_extension: str
     uploaded_by: str
     row_count: int | None
     status: str
@@ -31,6 +33,7 @@ class BatchResponse(APIResponse):
     task_id: str | None
     unified: bool = False
     last_compared_at: datetime | None = None
+    ingest_stats: dict | None = None
 
 
 class TaskStatusResponse(BaseModel):

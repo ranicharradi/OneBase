@@ -228,13 +228,14 @@ def list_batches(
     if type is not None:
         query = query.filter(DataSource.type == type)
     rows = query.order_by(ImportBatch.created_at.desc()).all()
-    # Materialize with type from the joined source.
     return [
         BatchResponse(
             id=b.id,
             data_source_id=b.data_source_id,
+            data_source_name=b.data_source.name,
             type=b.data_source.type,
-            filename=b.filename.split("_", 1)[1] if b.filename and "_" in b.filename else (b.filename or ""),
+            original_filename=b.original_filename,
+            file_extension=b.file_extension,
             uploaded_by=b.uploaded_by,
             row_count=b.row_count,
             status=b.status,
@@ -243,6 +244,7 @@ def list_batches(
             task_id=b.task_id,
             unified=lc is not None,
             last_compared_at=lc,
+            ingest_stats=b.ingest_stats,
         )
         for b, lc in rows
     ]
