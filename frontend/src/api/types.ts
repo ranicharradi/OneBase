@@ -492,8 +492,7 @@ export type MatchStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stal
 
 export interface MatchRunCreate {
   type: string;
-  source_ids?: number[];
-  file_ids?: number[];
+  source_ids: number[];
 }
 
 export interface MatchRunDispatchResponse {

@@ -100,10 +100,7 @@ def post_runs(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    if payload.source_ids:
-        file_ids = [_resolve_source_to_current_batch(db, sid).id for sid in payload.source_ids]
-    else:
-        file_ids = list(payload.file_ids)
+    file_ids = [_resolve_source_to_current_batch(db, sid).id for sid in payload.source_ids]
     if len(file_ids) == 1:
         dispatch_plan = [("FILE_VS_GOLDEN", file_ids)]
     else:

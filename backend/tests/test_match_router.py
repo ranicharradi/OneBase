@@ -31,33 +31,37 @@ def _make_batch(db, source, filename):
 
 
 def _seed_two_batches(db):
+    """Returns (src1, b1, src2, b2) so callers can use either source or batch ids."""
     src1 = _make_source(db, "s1")
     src2 = _make_source(db, "s2")
     b1 = _make_batch(db, src1, "a.csv")
     b2 = _make_batch(db, src2, "b.csv")
     db.commit()
-    return b1, b2
+    return src1, b1, src2, b2
 
 
-def _completed_batch_id(db, type_="supplier", name=None, filename=None):
+def _completed_batch(db, type_="supplier", name=None, filename=None):
+    """Returns (source_id, batch_id)."""
     n = name or f"src-{type_}-auto"
     fn = filename or f"{n}.csv"
     src = _make_source(db, n, type_=type_)
     b = _make_batch(db, src, fn)
     db.commit()
-    return b.id
+    return src.id, b.id
 
 
 def _two_completed_batches(db, type_="supplier"):
+    """Returns (src1_id, b1_id, src2_id, b2_id)."""
     src1 = _make_source(db, f"src-{type_}-1", type_=type_)
     src2 = _make_source(db, f"src-{type_}-2", type_=type_)
     b1 = _make_batch(db, src1, f"{type_}-a.csv")
     b2 = _make_batch(db, src2, f"{type_}-b.csv")
     db.commit()
-    return b1.id, b2.id
+    return src1.id, b1.id, src2.id, b2.id
 
 
 def _three_completed_batches(db, type_="supplier"):
+    """Returns (src1_id, b1_id, src2_id, b2_id, src3_id, b3_id)."""
     src1 = _make_source(db, f"src-{type_}-1", type_=type_)
     src2 = _make_source(db, f"src-{type_}-2", type_=type_)
     src3 = _make_source(db, f"src-{type_}-3", type_=type_)
@@ -65,7 +69,7 @@ def _three_completed_batches(db, type_="supplier"):
     b2 = _make_batch(db, src2, f"{type_}-b.csv")
     b3 = _make_batch(db, src3, f"{type_}-c.csv")
     db.commit()
-    return b1.id, b2.id, b3.id
+    return src1.id, b1.id, src2.id, b2.id, src3.id, b3.id
 
 
 def _seed_unified_record(db, type_="supplier"):
@@ -89,7 +93,7 @@ def _seed_unified_record(db, type_="supplier"):
 
 def test_post_matches_one_file_creates_vs_golden_run(authenticated_client, test_db, monkeypatch):
     """1 file + existing unified records => 1 FILE_VS_GOLDEN run."""
-    file_id = _completed_batch_id(test_db, type_="supplier", name="src-golden-1", filename="golden-1.csv")
+    src_id, batch_id = _completed_batch(test_db, type_="supplier", name="src-golden-1", filename="golden-1.csv")
     _seed_unified_record(test_db, type_="supplier")
 
     class _FakeTask:
@@ -97,16 +101,16 @@ def test_post_matches_one_file_creates_vs_golden_run(authenticated_client, test_
 
     monkeypatch.setattr("app.routers.matches.run_match.delay", lambda run_id: _FakeTask())
 
-    r = authenticated_client.post("/api/matches", json={"type": "supplier", "file_ids": [file_id]})
+    r = authenticated_client.post("/api/matches", json={"type": "supplier", "source_ids": [src_id]})
     assert r.status_code == 201, r.text
     runs = r.json()["runs"]
     assert len(runs) == 1
     assert runs[0]["mode"] == "FILE_VS_GOLDEN"
-    assert runs[0]["batch_ids"] == [file_id]
+    assert runs[0]["batch_ids"] == [batch_id]
 
 
 def test_post_matches_one_file_without_golden_returns_400(authenticated_client, test_db, monkeypatch):
-    file_id = _completed_batch_id(test_db, type_="supplier", name="src-nogolden", filename="nogolden.csv")
+    src_id, _batch_id = _completed_batch(test_db, type_="supplier", name="src-nogolden", filename="nogolden.csv")
     # no UnifiedRecord seeded
 
     class _FakeTask:
@@ -114,66 +118,66 @@ def test_post_matches_one_file_without_golden_returns_400(authenticated_client, 
 
     monkeypatch.setattr("app.routers.matches.run_match.delay", lambda run_id: _FakeTask())
 
-    r = authenticated_client.post("/api/matches", json={"type": "supplier", "file_ids": [file_id]})
+    r = authenticated_client.post("/api/matches", json={"type": "supplier", "source_ids": [src_id]})
     assert r.status_code == 400, r.text
 
 
 def test_post_matches_two_files_creates_one_pairwise_run(authenticated_client, test_db, monkeypatch):
-    a, b = _two_completed_batches(test_db, type_="supplier")
+    sa, ba, sb, bb = _two_completed_batches(test_db, type_="supplier")
 
     class _FakeTask:
         id = "fake-task-id"
 
     monkeypatch.setattr("app.routers.matches.run_match.delay", lambda run_id: _FakeTask())
 
-    r = authenticated_client.post("/api/matches", json={"type": "supplier", "file_ids": [a, b]})
+    r = authenticated_client.post("/api/matches", json={"type": "supplier", "source_ids": [sa, sb]})
     assert r.status_code == 201, r.text
     runs = r.json()["runs"]
     assert len(runs) == 1
     assert runs[0]["mode"] == "FILE_VS_FILE"
-    assert sorted(runs[0]["batch_ids"]) == sorted([a, b])
+    assert sorted(runs[0]["batch_ids"]) == sorted([ba, bb])
 
 
 def test_post_matches_three_files_creates_three_pairwise_runs(authenticated_client, test_db, monkeypatch):
-    a, b, c = _three_completed_batches(test_db, type_="supplier")
+    sa, ba, sb, bb, sc, bc = _three_completed_batches(test_db, type_="supplier")
 
     class _FakeTask:
         id = "fake-task-id"
 
     monkeypatch.setattr("app.routers.matches.run_match.delay", lambda run_id: _FakeTask())
 
-    r = authenticated_client.post("/api/matches", json={"type": "supplier", "file_ids": [a, b, c]})
+    r = authenticated_client.post("/api/matches", json={"type": "supplier", "source_ids": [sa, sb, sc]})
     assert r.status_code == 201, r.text
     runs = r.json()["runs"]
     assert len(runs) == 3
     pairs = sorted(tuple(sorted(run["batch_ids"])) for run in runs)
-    assert pairs == sorted([(a, b), (a, c), (b, c)])
+    assert pairs == sorted([(ba, bb), (ba, bc), (bb, bc)])
     assert all(run["mode"] == "FILE_VS_FILE" for run in runs)
 
 
 def test_post_matches_rejects_mixed_types(authenticated_client, test_db, monkeypatch):
-    a = _completed_batch_id(test_db, type_="supplier", name="src-mixed-s", filename="mixed-s.csv")
-    b = _completed_batch_id(test_db, type_="bank", name="src-mixed-b", filename="mixed-b.csv")
+    sa, _ba = _completed_batch(test_db, type_="supplier", name="src-mixed-s", filename="mixed-s.csv")
+    sb, _bb = _completed_batch(test_db, type_="bank", name="src-mixed-b", filename="mixed-b.csv")
 
     class _FakeTask:
         id = "fake-task-id"
 
     monkeypatch.setattr("app.routers.matches.run_match.delay", lambda run_id: _FakeTask())
 
-    r = authenticated_client.post("/api/matches", json={"type": "supplier", "file_ids": [a, b]})
+    r = authenticated_client.post("/api/matches", json={"type": "supplier", "source_ids": [sa, sb]})
     assert r.status_code == 400, r.text
 
 
 def test_post_matches_rejects_more_than_20_files(authenticated_client, test_db):
-    """POST with 21+ file_ids returns 422 (validation error)."""
-    file_ids = list(range(1, 22))
-    r = authenticated_client.post("/api/matches", json={"type": "supplier", "file_ids": file_ids})
+    """POST with 21+ source_ids returns 422 (validation error)."""
+    source_ids = list(range(1, 22))
+    r = authenticated_client.post("/api/matches", json={"type": "supplier", "source_ids": source_ids})
     assert r.status_code == 422, r.text
 
 
 def test_post_matches_dispatches_and_sets_task_id(authenticated_client, test_db, monkeypatch):
     """Verify task_id is set on returned runs."""
-    a, b = _two_completed_batches(test_db, type_="supplier")
+    sa, _ba, sb, _bb = _two_completed_batches(test_db, type_="supplier")
     captured = []
 
     class _FakeTask:
@@ -185,7 +189,7 @@ def test_post_matches_dispatches_and_sets_task_id(authenticated_client, test_db,
 
     monkeypatch.setattr("app.routers.matches.run_match.delay", fake_delay)
 
-    r = authenticated_client.post("/api/matches", json={"type": "supplier", "file_ids": [a, b]})
+    r = authenticated_client.post("/api/matches", json={"type": "supplier", "source_ids": [sa, sb]})
     assert r.status_code == 201, r.text
     runs = r.json()["runs"]
     assert runs[0]["task_id"] == "fake-task-abc"
@@ -198,7 +202,7 @@ def test_post_matches_dispatches_and_sets_task_id(authenticated_client, test_db,
 
 
 def test_post_creates_run_and_dispatches(authenticated_client, test_db, monkeypatch):
-    b1, b2 = _seed_two_batches(test_db)
+    src1, b1, src2, b2 = _seed_two_batches(test_db)
 
     captured = {}
 
@@ -213,7 +217,7 @@ def test_post_creates_run_and_dispatches(authenticated_client, test_db, monkeypa
 
     resp = authenticated_client.post(
         "/api/matches",
-        json={"type": "supplier", "file_ids": [b1.id, b2.id]},
+        json={"type": "supplier", "source_ids": [src1.id, src2.id]},
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
@@ -225,7 +229,7 @@ def test_post_creates_run_and_dispatches(authenticated_client, test_db, monkeypa
 
 
 def test_post_returns_409_when_run_already_active(authenticated_client, test_db, monkeypatch):
-    b1, b2 = _seed_two_batches(test_db)
+    src1, _b1, src2, _b2 = _seed_two_batches(test_db)
     existing = MatchRun(type="supplier", mode="FILE_VS_FILE", status="running", created_by="u")
     test_db.add(existing)
     test_db.commit()
@@ -237,7 +241,7 @@ def test_post_returns_409_when_run_already_active(authenticated_client, test_db,
 
     resp = authenticated_client.post(
         "/api/matches",
-        json={"type": "supplier", "file_ids": [b1.id, b2.id]},
+        json={"type": "supplier", "source_ids": [src1.id, src2.id]},
     )
     assert resp.status_code == 409
 
@@ -249,7 +253,7 @@ def test_list_runs_returns_empty_initially(authenticated_client, test_db):
 
 
 def test_get_run_returns_detail(authenticated_client, test_db):
-    b1, b2 = _seed_two_batches(test_db)
+    _src1, b1, _src2, b2 = _seed_two_batches(test_db)
     run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
     run.batches = [b1, b2]
     test_db.add(run)
