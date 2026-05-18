@@ -41,7 +41,6 @@ def _to_response(run: MatchRun) -> MatchRunResponse:
         finished_at=run.finished_at,
         task_id=run.task_id,
         stats=run.stats or {},
-        batch_ids=[],
         sources=[SourceSummary(id=s.id, name=s.name) for s in run.sources],
         error_message=run.error_message,
     )

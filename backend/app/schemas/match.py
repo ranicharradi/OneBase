@@ -7,14 +7,6 @@ MatchMode = Literal["FILE_VS_FILE", "FILE_VS_GOLDEN"]
 MatchStatus = Literal["pending", "running", "completed", "failed", "stale"]
 
 
-class BatchSummary(BaseModel):
-    id: int
-    data_source_id: int
-    data_source_name: str
-    original_filename: str
-    file_extension: str
-
-
 class SourceSummary(BaseModel):
     id: int
     name: str
@@ -23,7 +15,8 @@ class SourceSummary(BaseModel):
 class MatchRunCreate(BaseModel):
     """Body for POST /api/matches.
 
-    Provide `source_ids` — the router resolves each to the source's latest COMPLETED batch.
+    Provide `source_ids` — pairwise FILE_VS_FILE runs are dispatched when
+    multiple sources are supplied; a single source dispatches FILE_VS_GOLDEN.
     """
 
     type: str
@@ -42,8 +35,6 @@ class MatchRunResponse(BaseModel):
     finished_at: datetime | None
     task_id: str | None
     stats: dict
-    batch_ids: list[int]
-    batches: list[BatchSummary] = []
     sources: list[SourceSummary] = []
     error_message: str | None = None
 
