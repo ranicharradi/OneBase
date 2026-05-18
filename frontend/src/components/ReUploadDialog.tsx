@@ -1,19 +1,40 @@
 // ── Re-upload preview — shows diff counts before committing ──
 
 import { useMemo } from 'react';
-import Panel, { PanelHead } from './ui/Panel';
+import { AlertTriangleIcon, CloudUploadIcon } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 interface ReUploadDialogProps {
+  /** Controlled open state */
+  open: boolean;
+  /** Called when the dialog requests a close (overlay click, Escape, Cancel button) */
+  onOpenChange: (open: boolean) => void;
   sourceName: string;
   preview: { inserted: number; updated: number; retired: number; unchanged: number };
   forceReplace: boolean;
   onForceReplaceChange: (v: boolean) => void;
   onConfirm: () => void;
-  onCancel: () => void;
+  /** @deprecated Pass onOpenChange instead; kept for backward compat with Upload.tsx */
+  onCancel?: () => void;
 }
 
 export default function ReUploadDialog({
-  sourceName, preview, forceReplace, onForceReplaceChange, onConfirm, onCancel,
+  open,
+  onOpenChange,
+  sourceName,
+  preview,
+  forceReplace,
+  onForceReplaceChange,
+  onConfirm,
+  onCancel,
 }: ReUploadDialogProps) {
   const total = preview.inserted + preview.updated + preview.retired + preview.unchanged;
   const carryOverRatio = useMemo(
@@ -22,77 +43,63 @@ export default function ReUploadDialog({
   );
   const lowOverlap = total >= 20 && carryOverRatio < 0.2;
 
+  function handleClose() {
+    onOpenChange(false);
+    onCancel?.();
+  }
+
   return (
-    <div className="backdrop" onClick={onCancel} role="dialog" aria-modal="true">
-      <Panel
-        className="fade"
-        style={{ width: '100%', maxWidth: 480, boxShadow: 'var(--shadow-lg)' }}
-      >
-        <div onClick={(e) => e.stopPropagation()}>
-          <PanelHead>
-            <span className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--warn)' }}>
-                difference
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CloudUploadIcon className="size-4 text-muted-foreground" />
+            Re-upload preview
+          </DialogTitle>
+          <DialogDescription>
+            Re-uploading to <strong>{sourceName}</strong>. This is what will happen:
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-3">
+          {lowOverlap && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                Only {Math.round(carryOverRatio * 100)}% of these rows exist in{' '}
+                <strong>{sourceName}</strong>. Are you sure this is a re-upload, not a new source?
               </span>
-              Re-upload preview
-            </span>
-            <button onClick={onCancel} className="btn btn-ghost btn-sm" style={{ padding: 4 }} aria-label="Close">
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
-            </button>
-          </PanelHead>
+            </div>
+          )}
 
-          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ fontSize: 13, margin: 0, color: 'var(--fg-0)' }}>
-              Re-uploading to <b>{sourceName}</b>. This is what will happen:
-            </p>
+          <ul className="space-y-1 pl-4 text-xs leading-relaxed text-foreground marker:text-muted-foreground list-disc">
+            <li><strong>{preview.inserted}</strong> new rows will be added</li>
+            <li><strong>{preview.updated}</strong> rows will be updated in place</li>
+            <li><strong>{preview.retired}</strong> rows missing from the new file will be retired</li>
+            <li className="text-muted-foreground">{preview.unchanged} rows unchanged</li>
+          </ul>
 
-            {lowOverlap && (
-              <div
-                className="pill warn"
-                style={{ padding: '6px 10px', width: '100%', justifyContent: 'flex-start' }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>warning</span>
-                <span style={{ fontSize: 11 }}>
-                  Only {Math.round(carryOverRatio * 100)}% of these rows exist in <b>{sourceName}</b>.
-                  Are you sure this is a re-upload, not a new source?
-                </span>
-              </div>
-            )}
-
-            <ul style={{ fontSize: 12, paddingLeft: 16, margin: 0, lineHeight: 1.6 }}>
-              <li><b>{preview.inserted}</b> new rows will be added</li>
-              <li><b>{preview.updated}</b> rows will be updated in place</li>
-              <li><b>{preview.retired}</b> rows missing from the new file will be retired</li>
-              <li style={{ color: 'var(--fg-3)' }}>{preview.unchanged} rows unchanged</li>
-            </ul>
-
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: 'var(--fg-1)' }}>
-              <input
-                type="checkbox"
-                checked={forceReplace}
-                onChange={(e) => onForceReplaceChange(e.target.checked)}
-              />
-              Force full replace — discard the prior snapshot entirely (loses match decisions)
-            </label>
-          </div>
-
-          <div
-            style={{
-              padding: '10px 14px',
-              borderTop: '1px solid var(--border-0)',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 8,
-            }}
-          >
-            <button onClick={onCancel} className="btn btn-sm">Cancel</button>
-            <button onClick={onConfirm} className="btn btn-sm btn-accent">
-              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>cloud_upload</span>
-              Continue upload
-            </button>
-          </div>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              className="accent-primary"
+              checked={forceReplace}
+              onChange={(e) => onForceReplaceChange(e.target.checked)}
+            />
+            Force full replace — discard the prior snapshot entirely (loses match decisions)
+          </label>
         </div>
-      </Panel>
-    </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm}>
+            <CloudUploadIcon className="size-3.5" />
+            Continue upload
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
