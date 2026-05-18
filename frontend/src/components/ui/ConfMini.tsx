@@ -1,30 +1,23 @@
 import Hbar from './Hbar';
-import { confidenceTone } from '../../utils/confidence';
+import { cn } from '@/lib/utils';
 
 interface ConfMiniProps {
-  /** 0–1 confidence */
-  value: number;
-  width?: number;
+  value: number;       // 0–1 (fraction) or 0–100 (percent — autodetect)
+  className?: string;
 }
 
-export default function ConfMini({ value, width = 56 }: ConfMiniProps) {
-  const pct = Math.round(value * 100);
-  const tone = confidenceTone(value);
+function tone(pct: number): string {
+  if (pct >= 80) return 'bg-emerald-500';
+  if (pct >= 60) return 'bg-amber-500';
+  return 'bg-destructive';
+}
+
+export default function ConfMini({ value, className }: ConfMiniProps) {
+  const pct = value <= 1 ? Math.round(value * 100) : Math.round(value);
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <Hbar value={pct} tone={tone} width={width} height={4} />
-      <span
-        className="mono tnum"
-        style={{
-          fontSize: 11,
-          width: 30,
-          textAlign: 'right',
-          color: `var(--${tone})`,
-          fontWeight: 600,
-        }}
-      >
-        {value.toFixed(2)}
-      </span>
-    </span>
+    <div className={cn('flex items-center gap-2 w-24', className)}>
+      <Hbar value={pct} fillClassName={tone(pct)} className="flex-1" />
+      <span className="text-xs font-mono tabular-nums text-muted-foreground w-8 text-right">{pct}%</span>
+    </div>
   );
 }
