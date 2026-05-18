@@ -12,10 +12,22 @@ _batch_counter = 0
 def _batch(db):
     global _batch_counter
     _batch_counter += 1
-    src = DataSource(name=f"s{_batch_counter}", type="supplier", column_mapping={"name": "x"})
+    src = DataSource(
+        name=f"s{_batch_counter}",
+        type="supplier",
+        column_mapping={"name": "x"},
+        identity_field_key="name",
+    )
     db.add(src)
     db.flush()
-    b = ImportBatch(data_source_id=src.id, filename="f", uploaded_by="u", status=BatchStatus.COMPLETED)
+    b = ImportBatch(
+        data_source_id=src.id,
+        filename="f.csv",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     db.add(b)
     db.flush()
     return b

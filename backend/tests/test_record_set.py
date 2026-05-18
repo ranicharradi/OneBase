@@ -7,12 +7,14 @@ from app.services.record_set import RecordRef, RecordSet
 
 
 def _seed(test_db):
-    src = DataSource(name="src1", type="supplier", column_mapping={"name": "x"})
+    src = DataSource(name="src1", type="supplier", column_mapping={"name": "x"}, identity_field_key="name")
     test_db.add(src)
     test_db.flush()
     batch = ImportBatch(
         data_source_id=src.id,
         filename="a.csv",
+        original_filename="a.csv",
+        file_extension=".csv",
         uploaded_by="u",
         status=BatchStatus.COMPLETED,
     )

@@ -367,10 +367,17 @@ def test_score_pair_works_for_staged_vs_unified(test_db):
     from app.models.staging import StagedRecord
     from app.models.unified import UnifiedRecord
 
-    src = DataSource(name="s", type="supplier", column_mapping={"name": "x"})
+    src = DataSource(name="s", type="supplier", column_mapping={"name": "x"}, identity_field_key="name")
     test_db.add(src)
     test_db.flush()
-    batch = ImportBatch(data_source_id=src.id, filename="f", uploaded_by="u", status=BatchStatus.COMPLETED)
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="f.csv",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     test_db.add(batch)
     test_db.flush()
     staged = StagedRecord(

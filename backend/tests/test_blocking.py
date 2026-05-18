@@ -17,6 +17,7 @@ def _make_source(db, source_id, name):
         name=name,
         type="supplier",
         column_mapping={"name": "Supplier Name"},
+        identity_field_key="name",
     )
     db.add(source)
     db.flush()
@@ -29,6 +30,8 @@ def _make_batch(db, batch_id, source_id):
         id=batch_id,
         data_source_id=source_id,
         filename="test.csv",
+        original_filename="test.csv",
+        file_extension=".csv",
         uploaded_by="testuser",
         status=BatchStatus.COMPLETED,
     )
@@ -244,10 +247,17 @@ class TestCombineBlocks:
 
 
 def test_text_block_cross_side_only_emits_cross_side_pairs(test_db):
-    src = DataSource(name="s", type="supplier", column_mapping={"name": "x"})
+    src = DataSource(name="s", type="supplier", column_mapping={"name": "x"}, identity_field_key="name")
     test_db.add(src)
     test_db.flush()
-    batch = ImportBatch(data_source_id=src.id, filename="f", uploaded_by="u", status=BatchStatus.COMPLETED)
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="f",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     test_db.add(batch)
     test_db.flush()
     a1 = StagedRecord(

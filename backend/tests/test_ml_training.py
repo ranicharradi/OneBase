@@ -22,16 +22,32 @@ SUPPLIER_FEATURE_NAMES = scorer_feature_names("supplier")
 
 def _seed_reviewed_candidates(db, count=60, confirm_ratio=0.5):
     """Create reviewed match candidates with realistic signals."""
-    s1 = DataSource(name="SRC1", type="supplier", column_mapping={"supplier_name": "name"})
-    s2 = DataSource(name="SRC2", type="supplier", column_mapping={"supplier_name": "name"})
+    s1 = DataSource(
+        name="SRC1", type="supplier", column_mapping={"supplier_name": "name"}, identity_field_key="supplier_name"
+    )
+    s2 = DataSource(
+        name="SRC2", type="supplier", column_mapping={"supplier_name": "name"}, identity_field_key="supplier_name"
+    )
     db.add_all([s1, s2])
     db.flush()
 
     b1 = ImportBatch(
-        data_source_id=s1.id, filename="a.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=count
+        data_source_id=s1.id,
+        filename="a.csv",
+        original_filename="a.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+        row_count=count,
     )
     b2 = ImportBatch(
-        data_source_id=s2.id, filename="b.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=count
+        data_source_id=s2.id,
+        filename="b.csv",
+        original_filename="b.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+        row_count=count,
     )
     db.add_all([b1, b2])
     db.flush()
@@ -136,10 +152,20 @@ class TestExtractTrainingData:
         from app.services.ml.train import extract_training_data
 
         _seed_reviewed_candidates(test_db, count=60)
-        s = DataSource(name="X", type="supplier", column_mapping={"supplier_name": "n"})
+        s = DataSource(
+            name="X", type="supplier", column_mapping={"supplier_name": "n"}, identity_field_key="supplier_name"
+        )
         test_db.add(s)
         test_db.flush()
-        b = ImportBatch(data_source_id=s.id, filename="x.csv", uploaded_by="u", status="completed", row_count=1)
+        b = ImportBatch(
+            data_source_id=s.id,
+            filename="x.csv",
+            original_filename="x.csv",
+            file_extension=".csv",
+            uploaded_by="u",
+            status="completed",
+            row_count=1,
+        )
         test_db.add(b)
         test_db.flush()
         sa_ = StagedRecord(

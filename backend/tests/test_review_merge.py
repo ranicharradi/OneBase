@@ -17,7 +17,7 @@ from app.services.merge import compare_fields, execute_merge, reject_candidate
 
 
 def _make_source(db: Session, name: str) -> DataSource:
-    src = DataSource(name=name, type="supplier", column_mapping={"name": "N"})
+    src = DataSource(name=name, type="supplier", column_mapping={"name": "N"}, identity_field_key="name")
     db.add(src)
     db.flush()
     return src
@@ -27,6 +27,8 @@ def _make_batch(db: Session, source: DataSource) -> ImportBatch:
     batch = ImportBatch(
         data_source_id=source.id,
         filename="test.csv",
+        original_filename="test.csv",
+        file_extension=".csv",
         uploaded_by="testuser",
         status=BatchStatus.COMPLETED,
     )
@@ -136,7 +138,7 @@ class TestCompareFields:
         """Identical values across sources are flagged as identical."""
         rec_a, rec_b, _, _, _ = _setup_pair(test_db)
 
-        comparisons = compare_fields(rec_a, rec_b, "EOT", "TTEI")
+        comparisons = compare_fields(rec_a, rec_b)
         short_name = next(c for c in comparisons if c["field"] == "short_name")
 
         assert short_name["is_identical"] is True
@@ -148,7 +150,7 @@ class TestCompareFields:
         """Different values for same field are flagged as conflict."""
         rec_a, rec_b, _, _, _ = _setup_pair(test_db)
 
-        comparisons = compare_fields(rec_a, rec_b, "EOT", "TTEI")
+        comparisons = compare_fields(rec_a, rec_b)
         name_comp = next(c for c in comparisons if c["field"] == "supplier_name")
 
         assert name_comp["is_conflict"] is True
@@ -159,7 +161,7 @@ class TestCompareFields:
         """Value present in only one source is flagged as source-only."""
         rec_a, rec_b, _, _, _ = _setup_pair(test_db)
 
-        comparisons = compare_fields(rec_a, rec_b, "EOT", "TTEI")
+        comparisons = compare_fields(rec_a, rec_b)
         contact = next(c for c in comparisons if c["field"] == "contact_name")
 
         assert contact["is_a_only"] is True
@@ -170,7 +172,7 @@ class TestCompareFields:
         """Different currencies are flagged as conflict."""
         rec_a, rec_b, _, _, _ = _setup_pair(test_db)
 
-        comparisons = compare_fields(rec_a, rec_b, "EOT", "TTEI")
+        comparisons = compare_fields(rec_a, rec_b)
         currency = next(c for c in comparisons if c["field"] == "currency")
 
         assert currency["is_conflict"] is True
@@ -321,7 +323,7 @@ class TestReviewAPI:
         data = resp.json()
         assert data["record_a"]["name"] == "ACME CORP"
         assert data["record_b"]["name"] == "ACME CORPORATION"
-        assert len(data["field_comparisons"]) == 4  # all canonical fields
+        assert len(data["field_comparisons"]) == 5  # all canonical fields
 
         # Check conflict detection
         name_comp = next(c for c in data["field_comparisons"] if c["field"] == "supplier_name")
@@ -551,10 +553,17 @@ def test_execute_merge_sets_dq_score(test_db):
 
 def test_execute_merge_file_vs_golden_updates_existing_unified(test_db):
     db = test_db
-    src = DataSource(name="src-x", type="supplier", column_mapping={"name": "Supplier Name"})
+    src = DataSource(name="src-x", type="supplier", column_mapping={"name": "Supplier Name"}, identity_field_key="name")
     db.add(src)
     db.flush()
-    batch = ImportBatch(data_source_id=src.id, filename="f.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="f.csv",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     db.add(batch)
     db.flush()
 
@@ -641,10 +650,19 @@ def test_execute_merge_file_vs_golden_updates_existing_unified(test_db):
 def test_execute_merge_file_vs_golden_adds_a_only_field(test_db):
     """Staged record has a field (vat_id) absent from the golden — it must be added."""
     db = test_db
-    src = DataSource(name="src-vat", type="supplier", column_mapping={"name": "Supplier Name"})
+    src = DataSource(
+        name="src-vat", type="supplier", column_mapping={"name": "Supplier Name"}, identity_field_key="name"
+    )
     db.add(src)
     db.flush()
-    batch = ImportBatch(data_source_id=src.id, filename="f.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="f.csv",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     db.add(batch)
     db.flush()
 
@@ -715,10 +733,19 @@ def test_execute_merge_file_vs_golden_adds_a_only_field(test_db):
 def test_execute_merge_file_vs_golden_stringifies_extra_a_only_field(test_db):
     """Extra JSON fields keep the historical stringified merge semantics."""
     db = test_db
-    src = DataSource(name="src-extra", type="supplier", column_mapping={"name": "Supplier Name"})
+    src = DataSource(
+        name="src-extra", type="supplier", column_mapping={"name": "Supplier Name"}, identity_field_key="name"
+    )
     db.add(src)
     db.flush()
-    batch = ImportBatch(data_source_id=src.id, filename="f.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="f.csv",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     db.add(batch)
     db.flush()
 
@@ -854,10 +881,19 @@ def test_review_stats_excludes_superseded_candidates(authenticated_client, test_
 def test_execute_merge_file_vs_golden_keeps_b_only_field(test_db):
     """Golden has a field (contract_type) absent from staged — it must be kept unchanged."""
     db = test_db
-    src = DataSource(name="src-ct", type="supplier", column_mapping={"name": "Supplier Name"})
+    src = DataSource(
+        name="src-ct", type="supplier", column_mapping={"name": "Supplier Name"}, identity_field_key="name"
+    )
     db.add(src)
     db.flush()
-    batch = ImportBatch(data_source_id=src.id, filename="f.csv", uploaded_by="u", status=BatchStatus.COMPLETED)
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="f.csv",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     db.add(batch)
     db.flush()
 

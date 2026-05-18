@@ -33,7 +33,7 @@ def test_insights_dq_empty(authenticated_client):
 def test_insights_dq_with_records(authenticated_client, test_db):
     from app.models.source import DataSource
 
-    src = DataSource(name="SrcA", type="supplier", column_mapping={})
+    src = DataSource(name="SrcA", type="supplier", column_mapping={}, identity_field_key="supplier_name")
     test_db.add(src)
     test_db.commit()
     test_db.refresh(src)

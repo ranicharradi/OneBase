@@ -8,10 +8,17 @@ from app.services.record_lookup import load_enriched_records
 
 
 def _setup_record(db, *, name="Acme", source_name="src", type_key="supplier", fields=None):
-    src = DataSource(name=source_name, type=type_key, column_mapping={"name": "x"})
+    src = DataSource(name=source_name, type=type_key, column_mapping={"name": "x"}, identity_field_key="name")
     db.add(src)
     db.flush()
-    batch = ImportBatch(data_source_id=src.id, filename="f", uploaded_by="u", status=BatchStatus.COMPLETED)
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="f.csv",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     db.add(batch)
     db.flush()
     rec = StagedRecord(

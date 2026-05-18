@@ -15,6 +15,7 @@ def _make_source(db: Session, name: str) -> DataSource:
         name=name,
         type="supplier",
         column_mapping={"name": "Supplier Name"},
+        identity_field_key="name",
     )
     db.add(src)
     db.flush()
@@ -25,6 +26,8 @@ def _make_batch(db: Session, source: DataSource) -> ImportBatch:
     batch = ImportBatch(
         data_source_id=source.id,
         filename="test.csv",
+        original_filename="test.csv",
+        file_extension=".csv",
         uploaded_by="testuser",
         status=BatchStatus.COMPLETED,
     )

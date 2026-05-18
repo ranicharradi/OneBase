@@ -12,10 +12,17 @@ from app.services.match import (
 
 
 def _batch(db, type_key="supplier", name="src"):
-    src = DataSource(name=name, type=type_key, column_mapping={"name": "x"})
+    src = DataSource(name=name, type=type_key, column_mapping={"name": "x"}, identity_field_key="name")
     db.add(src)
     db.flush()
-    batch = ImportBatch(data_source_id=src.id, filename="f", uploaded_by="u", status=BatchStatus.COMPLETED)
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="f.csv",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
     db.add(batch)
     db.flush()
     return batch

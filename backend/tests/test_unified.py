@@ -29,12 +29,14 @@ def _seed_sources(db):
         type="supplier",
         description="EOT entity",
         column_mapping={"supplier_name": "BPSNAM"},
+        identity_field_key="supplier_name",
     )
     s2 = DataSource(
         name="TTEI",
         type="supplier",
         description="TTEI entity",
         column_mapping={"supplier_name": "BPSNAM"},
+        identity_field_key="supplier_name",
     )
     db.add_all([s1, s2])
     db.flush()
@@ -46,6 +48,8 @@ def _seed_batch(db, source):
     b = ImportBatch(
         data_source_id=source.id,
         filename="test.csv",
+        original_filename="test.csv",
+        file_extension=".csv",
         uploaded_by="testuser",
         status=BatchStatus.COMPLETED,
         row_count=10,

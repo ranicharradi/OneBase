@@ -17,15 +17,31 @@ pytestmark = pytest.mark.slow
 
 def _seed_reviewed(db, count=60, confirm_ratio=0.5):
     """Seed reviewed candidates for training."""
-    s1 = DataSource(name="S1", type="supplier", column_mapping={"supplier_name": "n"})
-    s2 = DataSource(name="S2", type="supplier", column_mapping={"supplier_name": "n"})
+    s1 = DataSource(
+        name="S1", type="supplier", column_mapping={"supplier_name": "n"}, identity_field_key="supplier_name"
+    )
+    s2 = DataSource(
+        name="S2", type="supplier", column_mapping={"supplier_name": "n"}, identity_field_key="supplier_name"
+    )
     db.add_all([s1, s2])
     db.flush()
     b1 = ImportBatch(
-        data_source_id=s1.id, filename="a.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=count
+        data_source_id=s1.id,
+        filename="a.csv",
+        original_filename="a.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+        row_count=count,
     )
     b2 = ImportBatch(
-        data_source_id=s2.id, filename="b.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=count
+        data_source_id=s2.id,
+        filename="b.csv",
+        original_filename="b.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+        row_count=count,
     )
     db.add_all([b1, b2])
     db.flush()
@@ -134,12 +150,32 @@ class TestTrainModelEndpoint:
 
 class TestActiveLearningSort:
     def _seed_queue(self, db):
-        s1 = DataSource(name="Q1", type="supplier", column_mapping={"supplier_name": "n"})
-        s2 = DataSource(name="Q2", type="supplier", column_mapping={"supplier_name": "n"})
+        s1 = DataSource(
+            name="Q1", type="supplier", column_mapping={"supplier_name": "n"}, identity_field_key="supplier_name"
+        )
+        s2 = DataSource(
+            name="Q2", type="supplier", column_mapping={"supplier_name": "n"}, identity_field_key="supplier_name"
+        )
         db.add_all([s1, s2])
         db.flush()
-        b1 = ImportBatch(data_source_id=s1.id, filename="a.csv", uploaded_by="u", status="completed", row_count=3)
-        b2 = ImportBatch(data_source_id=s2.id, filename="b.csv", uploaded_by="u", status="completed", row_count=3)
+        b1 = ImportBatch(
+            data_source_id=s1.id,
+            filename="a.csv",
+            original_filename="a.csv",
+            file_extension=".csv",
+            uploaded_by="u",
+            status="completed",
+            row_count=3,
+        )
+        b2 = ImportBatch(
+            data_source_id=s2.id,
+            filename="b.csv",
+            original_filename="b.csv",
+            file_extension=".csv",
+            uploaded_by="u",
+            status="completed",
+            row_count=3,
+        )
         db.add_all([b1, b2])
         db.flush()
 

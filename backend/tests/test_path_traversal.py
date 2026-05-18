@@ -15,6 +15,7 @@ VALID_SOURCE = {
     "column_mapping": {
         "supplier_name": "Name1",
     },
+    "identity_field_key": "supplier_name",
 }
 
 SAMPLE_CSV = b"\xef\xbb\xbfVendorCode;Name1;ShortName;Currency\nV001;Acme Corp SARL;ACME;EUR\nV002;Beta GmbH;BETA;USD\n"

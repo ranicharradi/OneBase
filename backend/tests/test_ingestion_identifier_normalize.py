@@ -58,6 +58,7 @@ def test_identifier_fields_are_canonicalized(mock_embed, test_db):
                 "bic": "BIC",
                 "iban": "IBAN",
             },
+            identity_field_key="bank_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -65,6 +66,8 @@ def test_identifier_fields_are_canonicalized(mock_embed, test_db):
         batch = ImportBatch(
             data_source_id=source.id,
             filename="banks.csv",
+            original_filename="banks.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )

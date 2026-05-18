@@ -97,6 +97,7 @@ class TestEndpointRoleGating:
                 "name": "Test",
                 "type": "supplier",
                 "column_mapping": {"supplier_name": "Name", "short_name": "Code"},
+                "identity_field_key": "supplier_name",
             },
             headers=_auth_header("admin1"),
         )

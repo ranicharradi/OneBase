@@ -10,6 +10,7 @@ VALID_SOURCE = {
     "column_mapping": {
         "supplier_name": "Name1",
     },
+    "identity_field_key": "supplier_name",
 }
 
 SAMPLE_CSV = (
@@ -218,6 +219,7 @@ class TestDeleteBatchEndpoint:
             type="supplier",
             delimiter=";",
             column_mapping={"supplier_name": "Name1"},
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -231,6 +233,8 @@ class TestDeleteBatchEndpoint:
         batch = ImportBatch(
             data_source_id=source.id,
             filename=test_filename,
+            original_filename=test_filename,
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.FAILED,
         )
@@ -252,6 +256,7 @@ class TestDeleteBatchEndpoint:
             type="supplier",
             delimiter=";",
             column_mapping={"supplier_name": "Name1"},
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -259,6 +264,8 @@ class TestDeleteBatchEndpoint:
         batch = ImportBatch(
             data_source_id=source.id,
             filename="nonexistent.csv",
+            original_filename="nonexistent.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )
@@ -283,6 +290,7 @@ class TestReuploadGuard:
             delimiter=";",
             type="supplier",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -290,6 +298,8 @@ class TestReuploadGuard:
         existing_batch = ImportBatch(
             data_source_id=source.id,
             filename="first.csv",
+            original_filename="first.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )
@@ -321,6 +331,7 @@ class TestReuploadGuard:
             delimiter=";",
             type="supplier",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -328,6 +339,8 @@ class TestReuploadGuard:
         existing_batch = ImportBatch(
             data_source_id=source.id,
             filename="first.csv",
+            original_filename="first.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PROCESSING,
         )
@@ -358,6 +371,7 @@ class TestReuploadGuard:
             delimiter=";",
             type="supplier",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -365,6 +379,8 @@ class TestReuploadGuard:
         existing_batch = ImportBatch(
             data_source_id=source.id,
             filename="first.csv",
+            original_filename="first.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.COMPLETED,
         )

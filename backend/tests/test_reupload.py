@@ -26,6 +26,7 @@ class TestReuploadSupersession:
             type="supplier",
             delimiter=";",
             column_mapping={"supplier_name": "Name1", "short_name": "VendorCode"},
+            identity_field_key="supplier_name",
         )
         test_db.add(source)
         test_db.flush()
@@ -33,6 +34,8 @@ class TestReuploadSupersession:
         batch = ImportBatch(
             data_source_id=source.id,
             filename="test.csv",
+            original_filename="test.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )
@@ -63,7 +66,7 @@ class TestReuploadSupersession:
 
     @patch("app.services.ingestion.compute_embeddings")
     def test_reupload_supersedes_old_records(self, mock_embed, test_db):
-        """Second upload marks old staged records as superseded."""
+        """Second upload retires old staged records absent from the new file."""
         mock_embed.return_value = np.zeros((2, 384), dtype=np.float32)
 
         source, batch1 = self._create_source_and_batch(test_db)
@@ -77,6 +80,8 @@ class TestReuploadSupersession:
         batch2 = ImportBatch(
             data_source_id=source.id,
             filename="test_v2.csv",
+            original_filename="test_v2.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )
@@ -86,16 +91,16 @@ class TestReuploadSupersession:
         run_ingestion(test_db, batch2.id, SAMPLE_CSV_V2)
         test_db.commit()
 
-        # Old records should be superseded
-        superseded = (
+        # Old records absent from the new upload should be retired
+        retired = (
             test_db.query(StagedRecord)
             .filter(
                 StagedRecord.import_batch_id == batch1.id,
-                StagedRecord.status == RecordStatus.SUPERSEDED,
+                StagedRecord.status == RecordStatus.RETIRED,
             )
             .all()
         )
-        assert len(superseded) == 2
+        assert len(retired) == 2
 
         # New records should be active
         active = (
@@ -110,7 +115,7 @@ class TestReuploadSupersession:
 
     @patch("app.services.ingestion.compute_embeddings")
     def test_reupload_keeps_pending_candidates_intact(self, mock_embed, test_db):
-        """Re-upload supersedes old StagedRecords but leaves PENDING candidates alone.
+        """Re-upload retires old StagedRecords but leaves PENDING candidates alone.
 
         The review queue is responsible for filtering stale candidates at query time (Task B3).
         """
@@ -144,6 +149,8 @@ class TestReuploadSupersession:
         batch2 = ImportBatch(
             data_source_id=source.id,
             filename="test_v2.csv",
+            original_filename="test_v2.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )
@@ -153,9 +160,9 @@ class TestReuploadSupersession:
         run_ingestion(test_db, batch2.id, SAMPLE_CSV_V2)
         test_db.commit()
 
-        # Old records superseded
+        # Old records retired (diff-based ingestion retires absent rows)
         test_db.refresh(records[0])
-        assert records[0].status == RecordStatus.SUPERSEDED
+        assert records[0].status == RecordStatus.RETIRED
 
         # PENDING candidate is UNCHANGED — review queue filters stale ones at read time
         test_db.refresh(match)
@@ -194,6 +201,8 @@ class TestReuploadSupersession:
         batch2 = ImportBatch(
             data_source_id=source.id,
             filename="test_v2.csv",
+            original_filename="test_v2.csv",
+            file_extension=".csv",
             uploaded_by="testuser",
             status=BatchStatus.PENDING,
         )

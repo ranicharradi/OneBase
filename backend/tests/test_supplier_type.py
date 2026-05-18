@@ -11,6 +11,7 @@ def test_supplier_type_is_registered():
 def test_supplier_field_keys():
     rt = get("supplier")
     assert rt.field_keys == (
+        "business_code",
         "supplier_name",
         "short_name",
         "currency",

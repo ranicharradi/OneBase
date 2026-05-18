@@ -32,12 +32,12 @@ CLIENT_COLUMN_MAPPING = {
 }
 
 SEEDS = [
-    ("banks_eot", "bank", BANK_COLUMN_MAPPING, "BANKs EOT*"),
-    ("banks_tc", "bank", BANK_COLUMN_MAPPING, "BANKs TC*"),
-    ("banks_ttei", "bank", BANK_COLUMN_MAPPING, "BANKs TTEI*"),
-    ("clients_eot", "client", CLIENT_COLUMN_MAPPING, "Clients EOT*"),
-    ("clients_tc", "client", CLIENT_COLUMN_MAPPING, "Clients TC*"),
-    ("clients_ttei", "client", CLIENT_COLUMN_MAPPING, "Clients TTEI*"),
+    ("banks_eot", "bank", BANK_COLUMN_MAPPING, "BANKs EOT*", "bank_name"),
+    ("banks_tc", "bank", BANK_COLUMN_MAPPING, "BANKs TC*", "bank_name"),
+    ("banks_ttei", "bank", BANK_COLUMN_MAPPING, "BANKs TTEI*", "bank_name"),
+    ("clients_eot", "client", CLIENT_COLUMN_MAPPING, "Clients EOT*", "customer_name"),
+    ("clients_tc", "client", CLIENT_COLUMN_MAPPING, "Clients TC*", "customer_name"),
+    ("clients_ttei", "client", CLIENT_COLUMN_MAPPING, "Clients TTEI*", "customer_name"),
 ]
 
 
@@ -45,7 +45,7 @@ def seed(db: Session) -> int:
     """Insert any missing default DataSource rows. Returns the number created."""
     existing = {n for (n,) in db.query(DataSource.name).all()}
     created = 0
-    for name, type_key, mapping, _pattern in SEEDS:
+    for name, type_key, mapping, _pattern, identity_key in SEEDS:
         if name in existing:
             continue
         db.add(
@@ -54,6 +54,7 @@ def seed(db: Session) -> int:
                 type=type_key,
                 delimiter=";",
                 column_mapping=dict(mapping),
+                identity_field_key=identity_key,
             )
         )
         created += 1

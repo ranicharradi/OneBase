@@ -39,10 +39,18 @@ def _make_record(db, source, batch, name, **kwargs):
 
 
 def _seed_pair(db):
-    s = DataSource(name="S", type="supplier", column_mapping={"supplier_name": "n"})
+    s = DataSource(name="S", type="supplier", column_mapping={"supplier_name": "n"}, identity_field_key="supplier_name")
     db.add(s)
     db.flush()
-    b = ImportBatch(data_source_id=s.id, filename="x.csv", uploaded_by="u", status=BatchStatus.COMPLETED, row_count=2)
+    b = ImportBatch(
+        data_source_id=s.id,
+        filename="x.csv",
+        original_filename="x.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+        row_count=2,
+    )
     db.add(b)
     db.flush()
     rec_a = _make_record(db, s, b, "ACME CORP")
@@ -115,10 +123,20 @@ class TestBlockerFilter:
     def test_filters_low_confidence_pairs(self, test_db):
         from app.services.ml.score import blocker_filter
 
-        s = DataSource(name="S", type="supplier", column_mapping={"supplier_name": "n"})
+        s = DataSource(
+            name="S", type="supplier", column_mapping={"supplier_name": "n"}, identity_field_key="supplier_name"
+        )
         test_db.add(s)
         test_db.flush()
-        b = ImportBatch(data_source_id=s.id, filename="x.csv", uploaded_by="u", status="completed", row_count=4)
+        b = ImportBatch(
+            data_source_id=s.id,
+            filename="x.csv",
+            original_filename="x.csv",
+            file_extension=".csv",
+            uploaded_by="u",
+            status="completed",
+            row_count=4,
+        )
         test_db.add(b)
         test_db.flush()
 

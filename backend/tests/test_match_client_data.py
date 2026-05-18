@@ -42,6 +42,7 @@ def _make_source(db, name, mapping):
         type="client",
         delimiter=";",
         column_mapping=mapping,
+        identity_field_key="customer_name",
     )
     db.add(src)
     db.flush()
@@ -52,6 +53,8 @@ def _make_batch(db, source_id, filename):
     batch = ImportBatch(
         data_source_id=source_id,
         filename=filename,
+        original_filename=filename,
+        file_extension=".csv",
         uploaded_by="testuser",
         status=BatchStatus.PENDING,
     )

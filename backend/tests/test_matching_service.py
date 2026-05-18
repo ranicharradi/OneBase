@@ -19,6 +19,7 @@ def _make_source(db: Session, name: str) -> DataSource:
         name=name,
         type="supplier",
         column_mapping={"name": "Supplier Name"},
+        identity_field_key="name",
     )
     db.add(src)
     db.flush()
@@ -30,6 +31,8 @@ def _make_batch(db: Session, source: DataSource) -> ImportBatch:
     batch = ImportBatch(
         data_source_id=source.id,
         filename="test.csv",
+        original_filename="test.csv",
+        file_extension=".csv",
         uploaded_by="testuser",
         status=BatchStatus.COMPLETED,
     )
@@ -610,12 +613,30 @@ def test_pipeline_uses_per_type_confidence_threshold(mock_score_pair, mock_text_
     register(test_rt)
     try:
         # Two records of the test type, each in its own source/batch.
-        src_a = DataSource(name="s_a", type="t_threshold", delimiter=",", column_mapping={"n": "N"})
-        src_b = DataSource(name="s_b", type="t_threshold", delimiter=",", column_mapping={"n": "N"})
+        src_a = DataSource(
+            name="s_a", type="t_threshold", delimiter=",", column_mapping={"n": "N"}, identity_field_key="n"
+        )
+        src_b = DataSource(
+            name="s_b", type="t_threshold", delimiter=",", column_mapping={"n": "N"}, identity_field_key="n"
+        )
         test_db.add_all([src_a, src_b])
         test_db.flush()
-        batch_a = ImportBatch(data_source_id=src_a.id, filename="fa", uploaded_by="u", status=BatchStatus.COMPLETED)
-        batch_b = ImportBatch(data_source_id=src_b.id, filename="fb", uploaded_by="u", status=BatchStatus.COMPLETED)
+        batch_a = ImportBatch(
+            data_source_id=src_a.id,
+            filename="fa",
+            original_filename="fa.csv",
+            file_extension=".csv",
+            uploaded_by="u",
+            status=BatchStatus.COMPLETED,
+        )
+        batch_b = ImportBatch(
+            data_source_id=src_b.id,
+            filename="fb",
+            original_filename="fb.csv",
+            file_extension=".csv",
+            uploaded_by="u",
+            status=BatchStatus.COMPLETED,
+        )
         test_db.add_all([batch_a, batch_b])
         test_db.flush()
         ra = StagedRecord(
