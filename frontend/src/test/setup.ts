@@ -13,4 +13,12 @@ if (typeof window !== 'undefined') {
   if (!window.Element.prototype.scrollIntoView) {
     window.Element.prototype.scrollIntoView = () => undefined
   }
+  // Polyfill ResizeObserver — used by Radix ScrollArea but absent in jsdom
+  if (typeof globalThis.ResizeObserver === 'undefined') {
+    globalThis.ResizeObserver = class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  }
 }
