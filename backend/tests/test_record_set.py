@@ -76,3 +76,64 @@ def test_record_ref_is_hashable():
     assert a == b
     assert hash(a) == hash(b)
     assert a != c
+
+
+def test_from_source_returns_only_active_staged_records(test_db):
+    from app.models.batch import ImportBatch
+    from app.models.enums import BatchStatus, RecordStatus
+    from app.models.source import DataSource
+    from app.models.staging import StagedRecord
+    from app.services.record_set import RecordSet
+
+    src = DataSource(
+        name="src1",
+        type="supplier",
+        delimiter=";",
+        column_mapping={"supplier_name": "Name"},
+        identity_field_key="supplier_name",
+    )
+    test_db.add(src)
+    test_db.flush()
+    b = ImportBatch(
+        data_source_id=src.id,
+        filename="f.csv",
+        original_filename="f.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
+    test_db.add(b)
+    test_db.flush()
+    # 2 ACTIVE, 1 RETIRED, 1 SUPERSEDED
+    for status, _ in [
+        (RecordStatus.ACTIVE, "a"),
+        (RecordStatus.ACTIVE, "b"),
+        (RecordStatus.RETIRED, "c"),
+        (RecordStatus.SUPERSEDED, "d"),
+    ]:
+        test_db.add(
+            StagedRecord(
+                import_batch_id=b.id,
+                data_source_id=src.id,
+                type="supplier",
+                name="x",
+                fields={},
+                status=status,
+            )
+        )
+    test_db.commit()
+
+    rs = RecordSet.from_source(test_db, src.id)
+    assert rs.type_key == "supplier"
+    assert rs.size == 2
+    assert all(ref.kind == "staged" for ref in rs.refs)
+
+
+def test_from_source_raises_when_source_missing(test_db):
+    import pytest
+    from sqlalchemy.exc import NoResultFound
+
+    from app.services.record_set import RecordSet
+
+    with pytest.raises(NoResultFound):
+        RecordSet.from_source(test_db, 99999)

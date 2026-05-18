@@ -42,6 +42,28 @@ class RecordSet:
         return cls(type_key=type_key, refs=[RecordRef(id=r.id, kind="staged") for r in rows])
 
     @classmethod
+    def from_source(cls, db: Session, source_id: int) -> "RecordSet":
+        """All ACTIVE staged records currently belonging to a DataSource.
+
+        Used by the matching pipeline so that a re-upload (which may produce
+        a batch with zero linked rows when nothing changed) never silently
+        empties the scope. The scope follows the source's live state, not a
+        specific upload event.
+        """
+        from app.models.source import DataSource
+
+        src = db.query(DataSource).filter(DataSource.id == source_id).one()
+        rows = (
+            db.query(StagedRecord.id)
+            .filter(
+                StagedRecord.data_source_id == source_id,
+                StagedRecord.status == RecordStatus.ACTIVE,
+            )
+            .all()
+        )
+        return cls(type_key=src.type, refs=[RecordRef(id=r.id, kind="staged") for r in rows])
+
+    @classmethod
     def from_unified(cls, db: Session, type_key: str) -> "RecordSet":
         rows = db.query(UnifiedRecord.id).filter(UnifiedRecord.type == type_key).all()
         return cls(type_key=type_key, refs=[RecordRef(id=r.id, kind="unified") for r in rows])
