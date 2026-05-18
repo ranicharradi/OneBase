@@ -76,9 +76,7 @@ function HistoryGroup({ type, runs, navigate }: { type: string; runs: MatchRunRe
                     >
                       #{r.id}
                     </Link>
-                    {r.name && (
-                      <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--fg-2)' }}>{r.name}</span>
-                    )}
+                    <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--fg-2)' }}>{r.name}</span>
                   </td>
                   <td className="num" style={{ textDecoration: stale ? 'line-through' : undefined }}>
                     <span className="mono tnum" style={{ fontSize: 12 }}>

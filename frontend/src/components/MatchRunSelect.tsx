@@ -1,6 +1,5 @@
 import type { MatchRunResponse } from '../api/types';
 import { relativeTime } from '../utils/time';
-import { MODE_LABEL } from '../utils/matchRuns';
 
 interface MatchRunSelectProps {
   validRuns: MatchRunResponse[];
@@ -19,7 +18,7 @@ export default function MatchRunSelect({ validRuns, runId, onChange }: MatchRunS
       <option value="" disabled>— pick a run —</option>
       {validRuns.map(r => (
         <option key={r.id} value={String(r.id)}>
-          #{r.id} · {r.name ?? (MODE_LABEL[r.mode] ?? r.mode)} · {relativeTime(r.created_at)}
+          #{r.id} · {r.name} · {relativeTime(r.created_at)}
         </option>
       ))}
     </select>

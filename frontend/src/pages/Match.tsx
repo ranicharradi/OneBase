@@ -288,11 +288,9 @@ function ActiveRunCard({
         <span className="mono" style={{ fontSize: 11, color: "var(--fg-2)" }}>
           {run.type}
         </span>
-        {run.name && (
-          <span style={{ fontSize: 11, color: "var(--fg-3)" }}>
-            {run.name}
-          </span>
-        )}
+        <span style={{ fontSize: 11, color: "var(--fg-3)" }}>
+          {run.name}
+        </span>
         <span style={{ fontSize: 11, color: "var(--fg-3)" }}>
           {relativeTime(run.created_at)}
         </span>
