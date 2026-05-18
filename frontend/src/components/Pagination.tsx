@@ -1,4 +1,7 @@
-// ── Pagination — terminal aesthetic ──
+// ── Pagination ──
+
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface PaginationProps {
   page: number;
@@ -33,59 +36,55 @@ export default function Pagination({ page, pageSize, totalItems, onPageChange }:
   return (
     <nav
       aria-label="Pagination"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '6px 4px',
-        fontSize: 11,
-        color: 'var(--fg-2)',
-      }}
+      className="flex items-center justify-between px-1 py-1.5 text-[11px] text-muted-foreground"
     >
-      <span className="mono">
-        Showing <span style={{ color: 'var(--fg-0)', fontWeight: 600 }}>{start}–{end}</span> of{' '}
-        <span style={{ color: 'var(--fg-0)', fontWeight: 600 }}>{totalItems.toLocaleString()}</span>
+      <span className="font-mono">
+        Showing <span className="text-foreground font-semibold">{start}–{end}</span> of{' '}
+        <span className="text-foreground font-semibold">{totalItems.toLocaleString()}</span>
       </span>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <button
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => onPageChange(page - 1)}
           disabled={page === 0}
           aria-label="Previous page"
-          className="btn btn-sm"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>chevron_left</span>
+          <ChevronLeftIcon className="size-3" />
           Prev
-        </button>
+        </Button>
 
         {getPageNumbers(page, totalPages).map((p, i) =>
           p === 'ellipsis' ? (
-            <span key={`e${i}`} className="mono" style={{ padding: '0 6px', color: 'var(--fg-3)' }}>
+            <span key={`e${i}`} className="font-mono px-1.5 text-muted-foreground/70">
               …
             </span>
           ) : (
-            <button
+            <Button
               key={p}
+              variant={p === page ? 'default' : 'outline'}
+              size="sm"
               onClick={() => onPageChange(p)}
               aria-label={`Page ${p + 1}`}
               aria-current={p === page ? 'page' : undefined}
-              className={p === page ? 'btn btn-sm btn-accent' : 'btn btn-sm'}
-              style={{ minWidth: 28, padding: '0 8px' }}
+              className="min-w-[28px] px-2"
             >
               {p + 1}
-            </button>
+            </Button>
           ),
         )}
 
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages - 1}
           aria-label="Next page"
-          className="btn btn-sm"
         >
           Next
-          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>chevron_right</span>
-        </button>
+          <ChevronRightIcon className="size-3" />
+        </Button>
       </div>
     </nav>
   );

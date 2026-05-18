@@ -1,4 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { XCircleIcon, RefreshCwIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface Props {
   children: ReactNode;
@@ -30,57 +32,32 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '60vh',
-            padding: 24,
-            background: 'var(--bg-0)',
-          }}
-        >
-          <section
-            className="panel fade"
-            style={{ width: '100%', maxWidth: 480, boxShadow: 'var(--shadow-md)' }}
-          >
-            <div className="panel-head">
-              <span className="panel-title" style={{ color: 'var(--danger)' }}>
+        <div className="flex items-center justify-center min-h-[60vh] p-6 bg-background">
+          <section className="w-full max-w-[480px] rounded-md border border-border shadow-md bg-card">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <span className="text-sm font-semibold text-destructive">
                 Something went wrong
               </span>
-              <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
+              <span className="font-mono text-[10px] text-muted-foreground">
                 client error
               </span>
             </div>
-            <div style={{ padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontSize: 18, color: 'var(--danger)' }}
-                >
-                  error
-                </span>
-                <div className="mono" style={{ fontSize: 12, color: 'var(--fg-1)', wordBreak: 'break-word' }}>
+            <div className="p-4">
+              <div className="flex items-start gap-2.5 mb-3">
+                <XCircleIcon className="size-4 text-destructive shrink-0 mt-0.5" />
+                <div className="font-mono text-xs text-foreground/80 break-words">
                   {this.state.error?.message || 'An unexpected error occurred'}
                 </div>
               </div>
             </div>
-            <div
-              style={{
-                padding: '10px 14px',
-                borderTop: '1px solid var(--border-0)',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 8,
-              }}
-            >
-              <button onClick={() => window.location.reload()} className="btn btn-sm">
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>refresh</span>
+            <div className="px-3.5 py-2.5 border-t border-border flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+                <RefreshCwIcon className="size-3" />
                 Reload page
-              </button>
-              <button onClick={this.handleRetry} className="btn btn-sm btn-accent">
+              </Button>
+              <Button size="sm" onClick={this.handleRetry}>
                 Try again
-              </button>
+              </Button>
             </div>
           </section>
         </div>

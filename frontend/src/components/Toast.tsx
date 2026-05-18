@@ -1,6 +1,10 @@
-// ── Toast notifications — terminal aesthetic ──
+// ── Toast notifications ──
 
 import { useCallback, useEffect, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { CheckCircle2Icon, XCircleIcon, InfoIcon, ArrowRightIcon, XIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export interface ToastData {
   id: string;
@@ -21,10 +25,22 @@ const TYPE_TONE: Record<ToastData['type'], 'ok' | 'danger' | 'info'> = {
   info: 'info',
 };
 
-const TYPE_ICON: Record<ToastData['type'], string> = {
-  success: 'check_circle',
-  error: 'error',
-  info: 'info',
+const TYPE_ICON: Record<ToastData['type'], LucideIcon> = {
+  success: CheckCircle2Icon,
+  error: XCircleIcon,
+  info: InfoIcon,
+};
+
+const TONE_BORDER: Record<'ok' | 'danger' | 'info', string> = {
+  ok: 'border-l-emerald-600',
+  danger: 'border-l-destructive',
+  info: 'border-l-sky-600',
+};
+
+const TONE_ICON: Record<'ok' | 'danger' | 'info', string> = {
+  ok: 'text-emerald-600',
+  danger: 'text-destructive',
+  info: 'text-sky-600',
 };
 
 function Toast({ id, type, message, detail, action, autoDismiss, onDismiss }: ToastProps) {
@@ -44,70 +60,46 @@ function Toast({ id, type, message, detail, action, autoDismiss, onDismiss }: To
   }, [autoDismiss, type, dismiss]);
 
   const tone = TYPE_TONE[type];
+  const IconCmp = TYPE_ICON[type];
 
   return (
     <div
       role="alert"
-      className={exiting ? '' : 'fade'}
-      style={{
-        width: 360,
-        maxWidth: 'calc(100vw - 32px)',
-        background: 'var(--bg-1)',
-        border: '1px solid var(--border-1)',
-        borderLeft: `3px solid var(--${tone})`,
-        borderRadius: 'var(--radius)',
-        boxShadow: 'var(--shadow-lg)',
-        padding: '10px 12px',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 10,
-        opacity: exiting ? 0 : 1,
-        transform: exiting ? 'translateY(8px)' : 'translateY(0)',
-        transition: 'all 0.2s ease',
-      }}
+      className={cn(
+        'w-[360px] max-w-[calc(100vw-32px)] bg-card border border-border border-l-[3px] rounded-md shadow-lg p-2.5 flex items-start gap-2.5 transition-all duration-200',
+        TONE_BORDER[tone],
+        exiting ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0',
+      )}
     >
-      <span
-        className="material-symbols-outlined"
-        style={{ fontSize: 16, color: `var(--${tone})`, flexShrink: 0, marginTop: 1 }}
-      >
-        {TYPE_ICON[type]}
-      </span>
+      <IconCmp className={cn('size-4 shrink-0 mt-0.5', TONE_ICON[tone])} />
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-0)' }}>{message}</div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-medium text-foreground">{message}</div>
         {detail && (
-          <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 2, lineHeight: 1.4 }}>
+          <div className="text-[11px] text-muted-foreground mt-0.5 leading-[1.4]">
             {detail}
           </div>
         )}
         {action && (
           <a
             href={action.href}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              marginTop: 6,
-              fontSize: 11,
-              color: 'var(--accent)',
-              fontWeight: 500,
-              textDecoration: 'none',
-            }}
+            className="inline-flex items-center gap-1 mt-1.5 text-[11px] text-primary font-medium no-underline"
           >
             {action.label}
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_forward</span>
+            <ArrowRightIcon className="size-3" />
           </a>
         )}
       </div>
 
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={dismiss}
-        className="btn btn-ghost btn-sm"
-        style={{ padding: 2, height: 18, flexShrink: 0 }}
+        className="size-5 p-0 shrink-0"
         aria-label="Dismiss notification"
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
-      </button>
+        <XIcon className="size-3" />
+      </Button>
     </div>
   );
 }
