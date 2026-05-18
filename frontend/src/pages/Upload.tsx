@@ -637,25 +637,23 @@ export default function Upload() {
         )}
       </div>
 
-      {showReUpload && (
-        <ReUploadDialog
-          sourceName={reUploadSourceName}
-          preview={reUploadPreview}
-          forceReplace={forceReplace}
-          onForceReplaceChange={setForceReplace}
-          onConfirm={handleReUploadConfirm}
-          onCancel={handleReUploadCancel}
-        />
-      )}
+      <ReUploadDialog
+        open={showReUpload}
+        onOpenChange={(o) => { if (!o) handleReUploadCancel(); }}
+        sourceName={reUploadSourceName}
+        preview={reUploadPreview}
+        forceReplace={forceReplace}
+        onForceReplaceChange={setForceReplace}
+        onConfirm={handleReUploadConfirm}
+      />
 
-      {overlapMatches.length > 0 && (
-        <SourceOverlapDialog
-          matches={overlapMatches}
-          onReuploadTo={handleOverlapReuploadTo}
-          onCreateAnyway={handleOverlapCreateAnyway}
-          onCancel={handleOverlapCancel}
-        />
-      )}
+      <SourceOverlapDialog
+        open={overlapMatches.length > 0}
+        onOpenChange={(o) => { if (!o) handleOverlapCancel(); }}
+        matches={overlapMatches}
+        onReuploadTo={handleOverlapReuploadTo}
+        onCreateAnyway={handleOverlapCreateAnyway}
+      />
     </div>
   );
 }
