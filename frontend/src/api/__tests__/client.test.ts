@@ -420,8 +420,6 @@ describe('record API type contracts', () => {
           label: 'Name',
           value_a: 'Acme',
           value_b: 'ACME Inc',
-          source_a: 'ERP export',
-          source_b: 'ERP export',
           is_conflict: true,
           is_identical: false,
           is_a_only: false,

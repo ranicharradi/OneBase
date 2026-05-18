@@ -31,8 +31,6 @@ const comparisons: FieldComparison[] = [
     label: 'Supplier Name',
     value_a: 'Acme',
     value_b: 'Acme Ltd',
-    source_a: 'SAP',
-    source_b: 'ERP',
     is_conflict: true,
     is_identical: false,
     is_a_only: false,

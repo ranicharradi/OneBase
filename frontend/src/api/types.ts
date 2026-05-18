@@ -157,8 +157,6 @@ export interface FieldComparison {
   label: string;
   value_a: string | null;
   value_b: string | null;
-  source_a: string | null;
-  source_b: string | null;
   is_conflict: boolean;
   is_identical: boolean;
   is_a_only: boolean;

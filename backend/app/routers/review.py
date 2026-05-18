@@ -193,7 +193,7 @@ def get_match_detail(
     source_a_name = source_a.name if source_a else "Unknown"
     source_b_name = source_b.name if source_b else "Unknown"
 
-    comparisons = compare_fields(record_a, record_b, source_a_name, source_b_name)
+    comparisons = compare_fields(record_a, record_b)
 
     return MatchDetailResponse(
         id=candidate.id,

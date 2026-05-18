@@ -38,8 +38,6 @@ def _field_value_from_mapping(fields: dict[str, Any], field_key: str) -> str | N
 def compare_fields(
     record_a: StagedRecord,
     record_b: StagedRecord | UnifiedRecord,
-    source_a_name: str,
-    source_b_name: str,
     record_type: RecordType | None = None,
 ) -> list[dict]:
     """Compare type-declared fields between two records."""
@@ -56,8 +54,6 @@ def compare_fields(
             "label": fdef.label,
             "value_a": val_a,
             "value_b": val_b,
-            "source_a": source_a_name,
-            "source_b": source_b_name,
             "is_conflict": False,
             "is_identical": False,
             "is_a_only": False,
@@ -113,7 +109,7 @@ def _update_existing_unified(
     extra_keys = (set(staged_fields.keys()) | set(unified_fields_src.keys())) - declared_keys
 
     # Process declared fields via compare_fields
-    comparisons = compare_fields(staged, unified, staged_source_name, "Golden", rt)
+    comparisons = compare_fields(staged, unified, rt)
 
     # Add extra-field comparisons manually
     for key in extra_keys:
@@ -236,7 +232,7 @@ def execute_merge(
     rt = get_record_type(candidate.type)
     now = datetime.now(UTC).isoformat()
     selection_map = {fs["field"]: fs["chosen_record_id"] for fs in field_selections}
-    comparisons = compare_fields(record_a, record_b, source_a_name, source_b_name, rt)
+    comparisons = compare_fields(record_a, record_b, rt)
 
     provenance: dict[str, dict] = {}
     merged_fields: dict[str, str | None] = {}

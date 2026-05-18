@@ -37,8 +37,6 @@ class FieldComparison(BaseModel):
     label: str
     value_a: str | None = None
     value_b: str | None = None
-    source_a: str | None = None  # data source name
-    source_b: str | None = None
     is_conflict: bool = False
     is_identical: bool = False
     is_a_only: bool = False
