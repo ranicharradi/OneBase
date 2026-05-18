@@ -144,6 +144,30 @@ def test_recordtype_rejects_non_positive_signal_weight():
         )
 
 
+def test_supplier_has_business_code_field():
+    from app.record_types import get
+
+    rt = get("supplier")
+    keys = {f.key for f in rt.fields}
+    assert "business_code" in keys
+    bc = next(f for f in rt.fields if f.key == "business_code")
+    from app.record_types.base import Role
+
+    assert bc.role == Role.CODE
+    assert bc.required is False
+    assert bc.normalize == "identifier"
+    assert "BPSNUM_0" in bc.synonyms
+
+
+def test_supplier_business_code_not_in_global_signals():
+    """business_code is a within-source tiebreaker only — never a global matching signal."""
+    from app.record_types import get
+
+    rt = get("supplier")
+    signal_fields = {s.field for s in rt.signals}
+    assert "business_code" not in signal_fields
+
+
 def test_all_types_returns_insertion_order():
     from app.record_types import _testing_clear_registry, all_types, register
 

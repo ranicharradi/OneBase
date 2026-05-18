@@ -81,6 +81,25 @@ def _strip_accents(text: str) -> str:
     return unicodedata.normalize("NFC", stripped)
 
 
+def loose_name(name: str | None) -> str:
+    """Conservative normalization: uppercase + accent-strip + legal-suffix-strip only.
+
+    Unlike normalize_name, does NOT strip domain/currency stopwords.
+    Used by intra-source grouping to catch "TTEI" + "TTEI SARL" without
+    over-collapsing currency variants like "TTEI USD" vs "TTEI".
+    """
+    if not name:
+        return ""
+    result = name.strip()
+    if not result:
+        return ""
+    result = result.upper()
+    result = _strip_accents(result)
+    result = LEGAL_PATTERN.sub("", result)
+    result = re.sub(r"\s+", " ", result).strip()
+    return result
+
+
 def normalize_name(name: str | None) -> str:
     """Normalize a record name for matching.
 

@@ -1,8 +1,13 @@
-"""Intra-source grouping service — collapses exact-name duplicates within each data source.
+"""Intra-source grouping service — collapses duplicate rows within each data source.
 
-Groups StagedRecord rows that share the same (data_source_id, normalized_name).
-Picks the richest row (most populated FieldDef-keyed values) as the group representative.
-Sets intra_source_group_id on all group members to the representative's ID.
+Records group together (within a single source) if any of these keys match:
+- normalized_name (aggressive: legal-suffix + stopword + currency stripping)
+- loose_name (conservative: legal-suffix stripping only)
+- business_code value (exact match on the CODE-role identifier, when populated)
+
+Sets intra_source_group_id on all group members to the representative's ID
+(the row with the most populated declared fields; lowest ID breaks ties).
+The business_code key is source-scoped and never crosses sources.
 """
 
 import logging
@@ -13,36 +18,26 @@ from sqlalchemy.orm import Session
 from app.models.enums import RecordStatus
 from app.models.staging import StagedRecord
 from app.record_types import get as get_record_type
+from app.services.normalization import loose_name
 
 logger = logging.getLogger(__name__)
 
+CODE_FIELD = "business_code"
+
 
 def _count_populated(record: StagedRecord, field_keys: tuple[str, ...]) -> int:
-    """Count non-empty type-declared fields on a record (reading from JSONB)."""
     fields = record.fields or {}
     return sum(1 for key in field_keys if (value := fields.get(key)) is not None and str(value).strip())
 
 
 def _pick_representative(members: list[StagedRecord], field_keys: tuple[str, ...]) -> StagedRecord:
-    """Pick the group representative: most populated fields, lowest ID tiebreak."""
     return max(members, key=lambda r: (_count_populated(r, field_keys), -r.id))
 
 
 def group_intra_source(db: Session, type_key: str, source_ids: list[int]) -> dict:
-    """Group exact-name duplicates within each source for one record type.
-
-    Args:
-        db: Database session.
-        type_key: RecordType key (e.g. "supplier"). Only records of this type are grouped.
-        source_ids: List of data source IDs to process.
-
-    Returns:
-        Dict with groups_formed, rows_grouped, representatives counts.
-    """
     rt = get_record_type(type_key)
     field_keys = rt.field_keys
 
-    # Idempotency: clear existing group assignments for these sources within this type
     db.query(StagedRecord).filter(
         StagedRecord.type == type_key,
         StagedRecord.data_source_id.in_(source_ids),
@@ -63,15 +58,47 @@ def group_intra_source(db: Session, type_key: str, source_ids: list[int]) -> dic
         .all()
     )
 
-    groups: dict[tuple[int, str], list[StagedRecord]] = defaultdict(list)
-    for r in records:
+    # Union-find over record indices. Each record can contribute up to three
+    # keys, all scoped by data_source_id so business_code never crosses sources.
+    parent = list(range(len(records)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i: int, j: int) -> None:
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[ri] = rj
+
+    buckets: dict[tuple, list[int]] = defaultdict(list)
+    for i, r in enumerate(records):
+        src = r.data_source_id
         if r.normalized_name:
-            groups[(r.data_source_id, r.normalized_name)].append(r)
+            buckets[("name", src, r.normalized_name)].append(i)
+        loose = loose_name(r.name) if r.name else ""
+        if loose:
+            buckets[("loose", src, loose)].append(i)
+        code_val = (r.fields or {}).get(CODE_FIELD)
+        if isinstance(code_val, str) and code_val.strip():
+            buckets[("code", src, code_val.strip())].append(i)
+
+    for indices in buckets.values():
+        if len(indices) < 2:
+            continue
+        head = indices[0]
+        for j in indices[1:]:
+            union(head, j)
+
+    final_groups: dict[int, list[StagedRecord]] = defaultdict(list)
+    for i, r in enumerate(records):
+        final_groups[find(i)].append(r)
 
     groups_formed = 0
     rows_grouped = 0
-
-    for _key, members in groups.items():
+    for members in final_groups.values():
         if len(members) < 2:
             continue
         rep = _pick_representative(members, field_keys)
@@ -82,17 +109,16 @@ def group_intra_source(db: Session, type_key: str, source_ids: list[int]) -> dic
 
     db.flush()
 
-    representatives = groups_formed
     logger.info(
-        "Intra-source grouping(type=%s): %d groups, %d rows grouped, %d representatives",
+        "Intra-source grouping(type=%s, sources=%s): %d groups, %d rows grouped",
         type_key,
+        source_ids,
         groups_formed,
         rows_grouped,
-        representatives,
     )
 
     return {
         "groups_formed": groups_formed,
         "rows_grouped": rows_grouped,
-        "representatives": representatives,
+        "representatives": groups_formed,
     }

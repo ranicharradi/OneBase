@@ -9,7 +9,13 @@ from app.models.staging import StagedRecord
 
 
 def _make_source(db: Session, name: str) -> DataSource:
-    src = DataSource(name=name, type="supplier", column_mapping={"name": "N"})
+    src = DataSource(
+        name=name,
+        type="supplier",
+        delimiter=";",
+        column_mapping={"supplier_name": "Name"},
+        identity_field_key="supplier_name",
+    )
     db.add(src)
     db.flush()
     return src
@@ -19,6 +25,8 @@ def _make_batch(db: Session, source: DataSource) -> ImportBatch:
     batch = ImportBatch(
         data_source_id=source.id,
         filename="test.csv",
+        original_filename="test.csv",
+        file_extension=".csv",
         uploaded_by="testuser",
         status=BatchStatus.COMPLETED,
     )
@@ -252,3 +260,72 @@ def test_idempotency(test_db):
 
     assert group_id_first == group_id_second
     assert stats1["groups_formed"] == stats2["groups_formed"]
+
+
+def test_group_intra_source_groups_by_loose_name(test_db):
+    """Records with same loose-name (legal-suffix-stripped) group together even if
+    their stored normalized_name differs (simulating stale or variant values)."""
+    from app.services.grouping import group_intra_source
+
+    src = _make_source(test_db, "ERP-LOOSE")
+    batch = _make_batch(test_db, src)
+    # Deliberately mismatched normalized_name so the old (normalized_name-only) path
+    # would not group them, but loose_name("TTEI SARL") == loose_name("TTEI") == "TTEI".
+    s1 = _make_record(test_db, batch, src, "TTEI SARL", normalized_name="ZZZ_UNRELATED")
+    s2 = _make_record(test_db, batch, src, "TTEI", normalized_name="QQQ_OTHER")
+    test_db.flush()
+
+    stats = group_intra_source(test_db, "supplier", [src.id])
+    test_db.flush()
+
+    assert stats["groups_formed"] == 1
+    test_db.refresh(s1)
+    test_db.refresh(s2)
+    assert s1.intra_source_group_id is not None
+    assert s1.intra_source_group_id == s2.intra_source_group_id
+
+
+def test_group_intra_source_groups_by_business_code(test_db):
+    """Within a source, rows with the same business_code value group regardless of name."""
+    from app.services.grouping import group_intra_source
+
+    src = _make_source(test_db, "ERP-CODE")
+    batch = _make_batch(test_db, src)
+    s1 = _make_record(test_db, batch, src, "Vendor Alpha", normalized_name="VENDOR ALPHA")
+    s2 = _make_record(test_db, batch, src, "Alpha Vendor SARL", normalized_name="ALPHA VENDOR")
+    # Give both the same business_code via fields JSONB
+    s1.fields = {"supplier_name": "Vendor Alpha", "business_code": "V123"}
+    s2.fields = {"supplier_name": "Alpha Vendor SARL", "business_code": "V123"}
+    test_db.flush()
+
+    group_intra_source(test_db, "supplier", [src.id])
+    test_db.flush()
+
+    test_db.refresh(s1)
+    test_db.refresh(s2)
+    assert s1.intra_source_group_id is not None
+    assert s1.intra_source_group_id == s2.intra_source_group_id
+
+
+def test_group_intra_source_business_code_never_crosses_sources(test_db):
+    """business_code is source-local: same code in two different sources does NOT group."""
+    from app.services.grouping import group_intra_source
+
+    src_a = _make_source(test_db, "ERP-A-CODE")
+    src_b = _make_source(test_db, "ERP-B-CODE")
+    batch_a = _make_batch(test_db, src_a)
+    batch_b = _make_batch(test_db, src_b)
+    sa = _make_record(test_db, batch_a, src_a, "Supplier A", normalized_name="SUPPLIER A")
+    sb = _make_record(test_db, batch_b, src_b, "Supplier B", normalized_name="SUPPLIER B")
+    sa.fields = {"supplier_name": "Supplier A", "business_code": "V123"}
+    sb.fields = {"supplier_name": "Supplier B", "business_code": "V123"}
+    test_db.flush()
+
+    group_intra_source(test_db, "supplier", [src_a.id, src_b.id])
+    test_db.flush()
+
+    test_db.refresh(sa)
+    test_db.refresh(sb)
+    # Same code in different sources must NOT produce the same group_id
+    assert sa.intra_source_group_id is None
+    assert sb.intra_source_group_id is None

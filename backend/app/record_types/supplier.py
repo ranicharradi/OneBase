@@ -13,6 +13,14 @@ SUPPLIER = RecordType(
     label="Supplier",
     fields=(
         FieldDef(
+            "business_code",
+            label="Business Code",
+            role=Role.CODE,
+            required=False,
+            synonyms=("BPSNUM_0", "vendor_code", "supplier_code", "code", "bpsnum"),
+            normalize="identifier",
+        ),
+        FieldDef(
             "supplier_name",
             label="Supplier Name",
             role=Role.NAME,

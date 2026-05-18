@@ -133,3 +133,20 @@ class TestNormalizeName:
     def test_el_preserves_substring(self, test_db):
         """EL only stripped as standalone token — ELSIL stays intact."""
         assert normalize_name("Elsil") == "ELSIL"
+
+
+def test_loose_name_strips_legal_suffix_but_preserves_currency_and_stopwords():
+    from app.services.normalization import loose_name
+
+    assert loose_name("TTEI SARL") == "TTEI"
+    assert loose_name("TTEI USD") == "TTEI USD"
+    assert loose_name("LA SOCIETE TUNISIE") == "LA SOCIETE TUNISIE"
+    assert loose_name("Foo Industries Sarl") == "FOO INDUSTRIES"
+
+
+def test_loose_name_handles_empty_and_none():
+    from app.services.normalization import loose_name
+
+    assert loose_name(None) == ""
+    assert loose_name("") == ""
+    assert loose_name("   ") == ""

@@ -35,6 +35,24 @@ def _resolve(db: Session, refs: set[RecordRef]) -> dict[RecordRef, object]:
     return out
 
 
+def _run_intra_source_grouping(db: Session, type_key: str, side_a: RecordSet, side_b: RecordSet) -> None:
+    """Collapse intra-source duplicates so they don't leak into cross-source matching."""
+    from app.services.grouping import group_intra_source
+
+    staged_ids: set[int] = set()
+    for s in (side_a, side_b):
+        for ref in s.refs:
+            if ref.kind == "staged":
+                staged_ids.add(ref.id)
+    if not staged_ids:
+        return
+    source_ids = [
+        sid for (sid,) in db.query(StagedRecord.data_source_id).filter(StagedRecord.id.in_(staged_ids)).distinct().all()
+    ]
+    if source_ids:
+        group_intra_source(db, type_key, source_ids)
+
+
 def run_matching_pipeline(
     db: Session,
     match_run_id: int,
@@ -61,6 +79,8 @@ def run_matching_pipeline(
             "scope_size_a": side_a.size,
             "scope_size_b": side_b.size,
         }
+
+    _run_intra_source_grouping(db, type_key, side_a, side_b)
 
     scorer_bundle = load_active_model(db, "scorer", type_key)
     blocker_bundle = load_active_model(db, "blocker", type_key)
