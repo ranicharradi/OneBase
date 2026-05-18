@@ -120,7 +120,6 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
                 width: 28,
                 height: 28,
                 fontSize: 14,
-                fontFamily: "IBM Plex Mono, monospace",
                 borderRadius: 5,
               }}
             >
