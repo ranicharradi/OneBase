@@ -1,4 +1,5 @@
-import Pill from './ui/Pill';
+import { Badge } from './ui/badge';
+import { CheckCircle2 } from 'lucide-react';
 
 interface UnifiedBadgeProps {
   unified: boolean;
@@ -11,11 +12,9 @@ export default function UnifiedBadge({ unified, lastComparedAt }: UnifiedBadgePr
     ? `last compared ${new Date(lastComparedAt).toLocaleString()}`
     : 'compared';
   return (
-    <Pill tone="ok" dot>
-      <span className="material-symbols-outlined" style={{ fontSize: 11 }} title={title}>
-        verified
-      </span>
-      <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>unified</span>
-    </Pill>
+    <Badge variant="secondary" className="gap-1">
+      <CheckCircle2 className="size-3" title={title} />
+      <span>unified</span>
+    </Badge>
   );
 }

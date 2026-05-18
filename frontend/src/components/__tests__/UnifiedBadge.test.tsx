@@ -5,7 +5,7 @@ import UnifiedBadge from '../UnifiedBadge';
 describe('UnifiedBadge', () => {
   it('renders when unified=true', () => {
     render(<UnifiedBadge unified={true} lastComparedAt="2026-04-22T10:00:00Z" />);
-    expect(screen.getByText(/unified/i)).toBeInTheDocument();
+    expect(screen.getByText('unified')).toBeInTheDocument();
   });
 
   it('renders nothing when unified=false', () => {
