@@ -90,7 +90,7 @@ function HistoryGroup({ type, runs, navigate }: { type: string; runs: MatchRunRe
                     )}
                   </td>
                   <td>
-                    {r.batches.length > 0 ? (
+                    {((r.sources?.length ?? 0) > 0 || (r.batches?.length ?? 0) > 0) ? (
                       <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
                         <span className="mono" style={{ fontSize: 11 }}>{runLabel(r)}</span>
                       </span>
