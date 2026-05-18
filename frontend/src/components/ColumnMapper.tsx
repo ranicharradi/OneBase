@@ -96,6 +96,7 @@ export default function ColumnMapper({
   useEffect(() => {
     if (identityFieldKey || fields.length === 0) return;
     const codeField = fields.find(f => f.role === 'code' && mapping[f.key]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (codeField) setIdentityFieldKey(codeField.key);
   }, [identityFieldKey, fields, mapping]);
 
