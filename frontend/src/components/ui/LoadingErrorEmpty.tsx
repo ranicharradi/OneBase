@@ -8,7 +8,7 @@ interface Props {
   loading?: boolean;
   error?: Error | string | null;
   empty?: boolean;
-  emptyMessage?: string;
+  emptyMessage?: ReactNode;
   children: ReactNode;
   className?: string;
 }
