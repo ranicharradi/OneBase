@@ -382,3 +382,10 @@ def test_match_run_response_has_sources(authenticated_client, test_db):
     ss = body["sources"][0]
     assert ss["id"] == src.id
     assert ss["name"] == "Industry A"
+
+
+def test_post_matches_rejects_duplicate_source_ids(authenticated_client, test_db):
+    """POST with repeated source_ids returns 400 before any DB lookup."""
+    r = authenticated_client.post("/api/matches", json={"type": "supplier", "source_ids": [7, 7, 7]})
+    assert r.status_code == 400, r.text
+    assert "Duplicate" in r.json()["detail"]

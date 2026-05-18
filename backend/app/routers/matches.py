@@ -59,7 +59,9 @@ def post_runs(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    source_ids = list(dict.fromkeys(payload.source_ids))
+    source_ids = payload.source_ids
+    if len(source_ids) != len(set(source_ids)):
+        raise HTTPException(status_code=400, detail="Duplicate source_ids are not allowed.")
     if len(source_ids) == 1:
         dispatch_plan = [("FILE_VS_GOLDEN", source_ids)]
     else:
