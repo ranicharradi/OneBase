@@ -557,7 +557,7 @@ def test_process_upload_does_not_auto_create_match_run(test_db, monkeypatch):
 
     # Assert: batch completed
     test_db.expire_all()
-    batch = test_db.query(ImportBatch).get(batch_id)
+    batch = test_db.get(ImportBatch, batch_id)
     assert batch.status == BatchStatus.COMPLETED
 
     # Assert: NO MatchRun was created
