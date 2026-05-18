@@ -69,6 +69,25 @@ def test_me_without_token(test_client):
     assert response.status_code == 401
 
 
+def test_me_with_inactive_user_token_returns_401(test_client, test_db):
+    """GET /api/auth/me rejects a valid token for an inactive user."""
+    from app.models.user import User
+    from app.services.auth import create_token, hash_password
+
+    user = User(
+        username="inactive_user",
+        password_hash=hash_password("secret123"),
+        is_active=False,
+    )
+    test_db.add(user)
+    test_db.commit()
+
+    token = create_token(user.username)
+    response = test_client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 401
+
+
 def test_create_user_success(authenticated_client, test_db):
     """POST /api/auth/users creates new user (requires auth)."""
     response = authenticated_client.post(
