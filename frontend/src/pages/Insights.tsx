@@ -2,16 +2,28 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api } from '../api/client';
 import type { InsightsDqResponse } from '../api/types';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import Hbar from '../components/ui/Hbar';
 import { dqTone } from '../utils/confidence';
 import Kpi from '../components/ui/Kpi';
-import Panel, { PanelHead } from '../components/ui/Panel';
 import Spinner from '../components/ui/Spinner';
 
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
 
+function toneToFillClass(tone: 'ok' | 'warn' | 'danger' | 'neutral'): string {
+  switch (tone) {
+    case 'ok':
+      return 'bg-emerald-500';
+    case 'warn':
+      return 'bg-amber-500';
+    case 'danger':
+      return 'bg-destructive';
+    default:
+      return 'bg-primary';
+  }
+}
 
 function parseBucketMid(label: string): number {
   if (label.startsWith('<')) return 0.1;
@@ -27,56 +39,62 @@ export default function Insights() {
   });
 
   if (isLoading) return <Spinner />;
-  if (error) return <div style={{ color: 'var(--danger)' }}>{(error as Error).message}</div>;
+  if (error) return <div className="text-destructive">{(error as Error).message}</div>;
   if (!data) return null;
 
   const maxBucket = Math.max(1, ...data.distribution.map((b) => b.count));
 
   return (
-    <div className="scroll" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 12, height: '100%', boxSizing: 'border-box' }}>
-      <Panel>
-        <PanelHead title="Average data quality" />
-        <div style={{ padding: 12 }}>
+    <div className="scroll flex flex-col gap-3 p-3 h-full overflow-y-auto">
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Average data quality</CardTitle>
+        </CardHeader>
+        <CardContent>
           <Kpi
             label="Avg DQ Score"
             value={pct(data.avg_dq)}
-            bar={Math.round(data.avg_dq * 100)}
-            tone={dqTone(data.avg_dq) as 'ok' | 'warn' | 'danger'}
           />
-        </div>
-      </Panel>
+        </CardContent>
+      </Card>
 
-      <Panel>
-        <PanelHead title="DQ distribution" />
-        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>DQ distribution</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1.5">
           {data.distribution.map((b) => (
-            <div key={b.bucket} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="mono" style={{ width: 80, fontSize: 12 }}>{b.bucket}</span>
-              <Hbar value={(b.count / maxBucket) * 100} tone={dqTone(parseBucketMid(b.bucket)) as 'ok' | 'warn' | 'danger'} style={{ flex: 1 }} />
-              <span className="mono" style={{ width: 40, textAlign: 'right', fontSize: 12 }}>{b.count}</span>
+            <div key={b.bucket} className="flex items-center gap-2">
+              <span className="mono w-20 text-xs">{b.bucket}</span>
+              <Hbar value={(b.count / maxBucket) * 100} fillClassName={toneToFillClass(dqTone(parseBucketMid(b.bucket)))} className="flex-1" />
+              <span className="mono w-10 text-right text-xs">{b.count}</span>
             </div>
           ))}
-        </div>
-      </Panel>
+        </CardContent>
+      </Card>
 
-      <Panel>
-        <PanelHead title="DQ by source (worst first)" />
-        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {data.per_source.length === 0 && <div style={{ color: 'var(--fg-2)', fontSize: 12 }}>No source data yet.</div>}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>DQ by source (worst first)</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1.5">
+          {data.per_source.length === 0 && <div className="text-muted-foreground text-xs">No source data yet.</div>}
           {data.per_source.map((s) => (
-            <div key={s.source_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{s.source_name}</span>
-              <Hbar value={s.avg_dq * 100} tone={dqTone(s.avg_dq) as 'ok' | 'warn' | 'danger'} style={{ flex: 1 }} />
-              <span className="mono" style={{ width: 96, textAlign: 'right', fontSize: 12 }}>{pct(s.avg_dq)} ({s.count})</span>
+            <div key={s.source_id} className="flex items-center gap-2">
+              <span className="w-40 overflow-hidden text-ellipsis whitespace-nowrap text-xs">{s.source_name}</span>
+              <Hbar value={s.avg_dq * 100} fillClassName={toneToFillClass(dqTone(s.avg_dq))} className="flex-1" />
+              <span className="mono w-24 text-right text-xs">{pct(s.avg_dq)} ({s.count})</span>
             </div>
           ))}
-        </div>
-      </Panel>
+        </CardContent>
+      </Card>
 
-      <Panel>
-        <PanelHead title="Worst-scoring records" />
-        <div style={{ padding: '0 12px 12px' }}>
-          <table className="table">
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Worst-scoring records</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <table className="table w-full text-sm">
             <thead>
               <tr>
                 <th>ID</th>
@@ -87,20 +105,20 @@ export default function Insights() {
             </thead>
             <tbody>
               {data.worst.length === 0 && (
-                <tr><td colSpan={4} style={{ color: 'var(--fg-2)' }}>No records yet.</td></tr>
+                <tr><td colSpan={4} className="text-muted-foreground">No records yet.</td></tr>
               )}
               {data.worst.map((r) => (
                 <tr key={r.id}>
                   <td className="mono">{r.id}</td>
                   <td>{r.record_type}</td>
                   <td className="mono">{pct(r.dq_score)}</td>
-                  <td><Link to={`/unified/${r.id}`} style={{ color: 'var(--accent)' }}>View</Link></td>
+                  <td><Link to={`/unified/${r.id}`} className="text-accent hover:underline">View</Link></td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      </Panel>
+        </CardContent>
+      </Card>
     </div>
   );
 }
