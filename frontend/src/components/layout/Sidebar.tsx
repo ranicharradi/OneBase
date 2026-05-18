@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { NavLink } from "react-router";
 import { useSelectedRecordType } from "../../contexts/RecordTypeContext";
 import Icon from "../ui/Icon";
+import { Button } from "@/components/ui/button";
 
 interface NavItem {
   to: string;
@@ -109,17 +110,18 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
                 record unification
               </span>
             </div>
-            <button
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={onToggleCollapse}
-              className="btn btn-ghost btn-sm text-muted-foreground flex-shrink-0"
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
-              style={{ padding: 4 }}
+              className="text-muted-foreground flex-shrink-0"
             >
-              <span className="inline-flex" style={{ transform: "rotate(180deg)" }}>
+              <span className="inline-flex rotate-180">
                 <Icon name="arrow_forward" size={14} />
               </span>
-            </button>
+            </Button>
           </>
         )}
       </div>
