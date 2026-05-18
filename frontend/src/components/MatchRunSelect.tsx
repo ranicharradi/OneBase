@@ -19,9 +19,7 @@ export default function MatchRunSelect({ validRuns, runId, onChange }: MatchRunS
       <option value="" disabled>— pick a run —</option>
       {validRuns.map(r => (
         <option key={r.id} value={String(r.id)}>
-          #{r.id} · {r.sources && r.sources.length > 0
-            ? r.sources.map(s => s.name).join(' × ')
-            : (MODE_LABEL[r.mode] ?? r.mode)} · {relativeTime(r.created_at)}
+          #{r.id} · {r.name ?? (MODE_LABEL[r.mode] ?? r.mode)} · {relativeTime(r.created_at)}
         </option>
       ))}
     </select>
