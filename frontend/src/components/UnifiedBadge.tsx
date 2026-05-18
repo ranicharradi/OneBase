@@ -12,8 +12,8 @@ export default function UnifiedBadge({ unified, lastComparedAt }: UnifiedBadgePr
     ? `last compared ${new Date(lastComparedAt).toLocaleString()}`
     : 'compared';
   return (
-    <Badge variant="secondary" className="gap-1">
-      <CheckCircle2 className="size-3" title={title} />
+    <Badge variant="secondary" className="gap-1" title={title}>
+      <CheckCircle2 className="size-3" aria-hidden />
       <span>unified</span>
     </Badge>
   );
