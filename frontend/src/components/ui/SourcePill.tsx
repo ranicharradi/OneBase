@@ -1,34 +1,36 @@
-import type { PillTone } from './Pill';
-
-const KNOWN_TONES: Record<string, PillTone> = {
-  SAP: 'info',
-  ORA: 'accent',
-  CPA: 'warn',
-  ARB: 'neutral',
-};
-
-const FALLBACK_TONES: PillTone[] = ['info', 'accent', 'warn', 'neutral', 'ok'];
-
-function toneFor(short: string): PillTone {
-  const upper = short.toUpperCase();
-  if (KNOWN_TONES[upper]) return KNOWN_TONES[upper];
-  // Stable hash → tone so the same short always gets the same color
-  let h = 0;
-  for (let i = 0; i < upper.length; i++) h = (h * 31 + upper.charCodeAt(i)) | 0;
-  return FALLBACK_TONES[Math.abs(h) % FALLBACK_TONES.length];
-}
+// frontend/src/components/ui/SourcePill.tsx
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface SourcePillProps {
-  short: string;
-  title?: string;
+  short: string;          // 2-4 char abbreviation
+  title?: string;         // full name (tooltip)
+  className?: string;
 }
 
-export default function SourcePill({ short, title }: SourcePillProps) {
-  const code = short.toUpperCase();
-  const tone = toneFor(code);
+// Deterministic hash → tone bucket
+const TONES = [
+  'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+  'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+  'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+];
+
+function toneFor(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return TONES[Math.abs(h) % TONES.length];
+}
+
+export default function SourcePill({ short, title, className }: SourcePillProps) {
   return (
-    <span className={`pill ${tone}`} style={{ padding: '1px 6px', fontSize: 10 }} title={title ?? short}>
-      <span className="mono" style={{ fontWeight: 600 }}>{code}</span>
-    </span>
+    <Badge
+      variant="secondary"
+      className={cn('font-mono tracking-tight', toneFor(short), className)}
+      title={title}
+    >
+      {short}
+    </Badge>
   );
 }
