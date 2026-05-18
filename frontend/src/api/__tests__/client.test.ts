@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { api, ApiError, setToken, clearToken } from '../client'
+import { api, ApiError, probeSourceOverlap, setToken, clearToken } from '../client'
 import type {
   BulkPromoteRequest,
   BulkPromoteResponse,
@@ -231,6 +231,36 @@ describe('api.upload', () => {
     const [, init] = fetchSpy.mock.calls[0]
     const headers = init?.headers as Headers
     expect(headers.get('Content-Type')).toBeNull()
+  })
+})
+
+// ── overlap probe ────────────────────────────────────────────────────────────
+
+describe('probeSourceOverlap', () => {
+  it('posts multipart probe data to the overlap endpoint', async () => {
+    const fetchSpy = vi
+      .spyOn(global, 'fetch')
+      .mockReturnValueOnce(makeResponse({ matches: [] }))
+    const file = new File(['name\nAcme'], 'suppliers.csv', { type: 'text/csv' })
+
+    await probeSourceOverlap({
+      file,
+      type: 'supplier',
+      name_column: 'Vendor Name',
+      delimiter: ';',
+    })
+
+    const [url, init] = fetchSpy.mock.calls[0]
+    const body = init?.body as FormData
+    const headers = init?.headers as Headers
+
+    expect(url).toBe('/api/import/overlap-probe')
+    expect(init?.method).toBe('POST')
+    expect(headers.get('Content-Type')).toBeNull()
+    expect(body.get('file')).toBe(file)
+    expect(body.get('type')).toBe('supplier')
+    expect(body.get('name_column')).toBe('Vendor Name')
+    expect(body.get('delimiter')).toBe(';')
   })
 })
 

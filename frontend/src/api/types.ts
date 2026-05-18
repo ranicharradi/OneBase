@@ -80,6 +80,14 @@ export interface DiffPreviewResponse {
   unchanged: number;
 }
 
+export interface OverlapMatch {
+  source_id: number;
+  source_name: string;
+  overlap_ratio: number;
+  matched_count: number;
+  total_count: number;
+}
+
 export interface UploadResponse {
   batch_id: number;
   task_id: string;

@@ -1,24 +1,26 @@
 // ── Upload — multi-step file ingestion with explicit source selection ──
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api/client";
+import { api, probeSourceOverlap } from "../api/client";
 import type {
   BatchResponse,
   DataSource,
   DataSourceCreate,
   DiffPreviewResponse,
+  OverlapMatch,
   UploadResponse,
 } from "../api/types";
 import DropZone from "../components/DropZone";
 import ProgressTracker from "../components/ProgressTracker";
 import ColumnMapper from "../components/ColumnMapper";
 import ReUploadDialog from "../components/ReUploadDialog";
+import SourceOverlapDialog from "../components/SourceOverlapDialog";
 import BatchHistory from "../components/BatchHistory";
 import Panel, { PanelHead } from "../components/ui/Panel";
 import Spinner from "../components/ui/Spinner";
-import { useRecordTypes } from "../hooks/useRecordTypes";
+import { useRecordType, useRecordTypes } from "../hooks/useRecordTypes";
 import { parseFileHeaders } from "../utils/fileHeaders";
 import { defaultType } from "../utils/recordDisplay";
 
@@ -160,6 +162,10 @@ export default function Upload() {
   const [forceReplace, setForceReplace] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadComplete, setUploadComplete] = useState(false);
+  const [overlapMatches, setOverlapMatches] = useState<OverlapMatch[]>([]);
+  const [pendingNewSource, setPendingNewSource] = useState<DataSourceCreate | null>(null);
+  const [isProbingOverlap, setIsProbingOverlap] = useState(false);
+  const isProbingOverlapRef = useRef(false);
 
   const { data: sources } = useQuery({
     queryKey: ["sources"],
@@ -167,6 +173,9 @@ export default function Upload() {
   });
 
   const { data: recordTypes } = useRecordTypes();
+  const { data: activeRecordType } = useRecordType(
+    uploadState.step === "MAP_COLUMNS" ? uploadState.type : null,
+  );
 
   const uploadWithFileMutation = useMutation({
     mutationFn: async ({
@@ -300,18 +309,87 @@ export default function Upload() {
     );
   };
 
-  const handleColumnMapSubmit = async (sourceData: DataSourceCreate) => {
-    if (uploadState.step !== "MAP_COLUMNS") return;
-    setError(null);
-    try {
+  const createSourceAndUpload = useCallback(
+    async (sourceData: DataSourceCreate, file: File) => {
       const newSource = await createSourceMutation.mutateAsync(sourceData);
       uploadWithFileMutation.mutate({
-        file: uploadState.file,
+        file,
         dataSourceId: newSource.id,
       });
+    },
+    [createSourceMutation, uploadWithFileMutation],
+  );
+
+  const handleColumnMapSubmit = async (sourceData: DataSourceCreate) => {
+    if (uploadState.step !== "MAP_COLUMNS") return;
+    if (isProbingOverlapRef.current) return;
+    isProbingOverlapRef.current = true;
+    setIsProbingOverlap(true);
+    setError(null);
+    try {
+      const nameField = activeRecordType?.fields.find((field) => field.role === "name");
+      const nameColumn = nameField
+        ? sourceData.column_mapping[nameField.key]
+        : undefined;
+
+      if (typeof nameColumn === "string" && nameColumn.length > 0) {
+        try {
+          const result = await probeSourceOverlap({
+            file: uploadState.file,
+            type: sourceData.type,
+            name_column: nameColumn,
+            delimiter: sourceData.delimiter ?? ",",
+          });
+          if (result.matches.length > 0) {
+            setPendingNewSource(sourceData);
+            setOverlapMatches(result.matches);
+            return;
+          }
+        } catch {
+          // Overlap probing is advisory; do not block source creation if it is unavailable.
+        }
+      }
+
+      await createSourceAndUpload(sourceData, uploadState.file);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create source");
+    } finally {
+      isProbingOverlapRef.current = false;
+      setIsProbingOverlap(false);
+    }
+  };
+
+  const handleOverlapCreateAnyway = async () => {
+    if (uploadState.step !== "MAP_COLUMNS" || !pendingNewSource) return;
+    const sourceData = pendingNewSource;
+    setOverlapMatches([]);
+    setPendingNewSource(null);
+    setError(null);
+    try {
+      await createSourceAndUpload(sourceData, uploadState.file);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create source");
     }
+  };
+
+  const handleOverlapReuploadTo = async (sourceId: number) => {
+    if (uploadState.step !== "MAP_COLUMNS") return;
+    const file = uploadState.file;
+    setOverlapMatches([]);
+    setPendingNewSource(null);
+    setError(null);
+    setUploadState({ step: "DETECTING", sourceId, file });
+    try {
+      await checkAndUpload(sourceId, file);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+      setUploadState({ step: "DROP_FILE", sourceId });
+    }
+  };
+
+  const handleOverlapCancel = () => {
+    setOverlapMatches([]);
+    setPendingNewSource(null);
   };
 
   const handleReset = () => {
@@ -320,6 +398,10 @@ export default function Upload() {
     setPendingFile(null);
     setError(null);
     setUploadComplete(false);
+    setOverlapMatches([]);
+    setPendingNewSource(null);
+    isProbingOverlapRef.current = false;
+    setIsProbingOverlap(false);
   };
 
   const reUploadSourceName = pendingSourceId
@@ -512,7 +594,8 @@ export default function Upload() {
               onSubmit={handleColumnMapSubmit}
               isSubmitting={
                 createSourceMutation.isPending ||
-                uploadWithFileMutation.isPending
+                uploadWithFileMutation.isPending ||
+                isProbingOverlap
               }
               initialSourceName={uploadState.suggestedName}
               detectedDelimiter={uploadState.detectedDelimiter}
@@ -591,6 +674,15 @@ export default function Upload() {
           onForceReplaceChange={setForceReplace}
           onConfirm={handleReUploadConfirm}
           onCancel={handleReUploadCancel}
+        />
+      )}
+
+      {overlapMatches.length > 0 && (
+        <SourceOverlapDialog
+          matches={overlapMatches}
+          onReuploadTo={handleOverlapReuploadTo}
+          onCreateAnyway={handleOverlapCreateAnyway}
+          onCancel={handleOverlapCancel}
         />
       )}
     </div>

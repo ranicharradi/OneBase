@@ -1,5 +1,7 @@
 // ── Typed API client with JWT auth ──
 
+import type { OverlapMatch } from './types';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const TOKEN_KEY = 'onebase_token';
 
@@ -107,3 +109,19 @@ export const api = {
       body: new URLSearchParams(params),
     }),
 };
+
+export type { OverlapMatch };
+
+export async function probeSourceOverlap(args: {
+  file: File;
+  type: string;
+  name_column: string;
+  delimiter: string;
+}): Promise<{ matches: OverlapMatch[] }> {
+  const fd = new FormData();
+  fd.append('file', args.file);
+  fd.append('type', args.type);
+  fd.append('name_column', args.name_column);
+  fd.append('delimiter', args.delimiter);
+  return request('/api/import/overlap-probe', { method: 'POST', body: fd });
+}
