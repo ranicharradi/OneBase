@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import { GitMergeIcon } from "lucide-react";
 import { api } from "../api/client";
 import { useSelectedRecordType } from "../contexts/RecordTypeContext";
 import { useMatchRun } from "../hooks/useMatchRun";
@@ -154,11 +155,11 @@ export default function MergeQueue() {
         />
 
         <HandoffBanner
-          icon="merge"
+          icon={GitMergeIcon}
           text={
             <>
               merged pairs produce a golden record in{" "}
-              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+              <span className="font-semibold text-foreground">
                 Unified records
               </span>
               .

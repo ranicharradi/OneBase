@@ -8,6 +8,7 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import { SplitIcon } from "lucide-react";
 import { api } from "../api/client";
 import { useRecordType } from "../hooks/useRecordTypes";
 import { useMatchRun } from "../hooks/useMatchRun";
@@ -297,11 +298,11 @@ export default function ReviewQueue() {
         />
 
         <HandoffBanner
-          icon="call_split"
+          icon={SplitIcon}
           text={
             <>
               items confirmed here move to the{" "}
-              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+              <span className="font-semibold text-foreground">
                 Merge queue
               </span>{" "}
               for field-level reconciliation by a data steward.

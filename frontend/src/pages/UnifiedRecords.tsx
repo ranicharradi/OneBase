@@ -8,6 +8,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import { BadgeCheckIcon } from "lucide-react";
 import { useRecordType } from "../hooks/useRecordTypes";
 import { fieldValue } from "../utils/recordDisplay";
 import { dqTone } from "../utils/confidence";
@@ -299,10 +300,9 @@ export default function UnifiedRecords() {
         />
 
         <HandoffBanner
-          icon="verified"
+          icon={BadgeCheckIcon}
           text="golden records are the pipeline output — export as CSV or push to downstream systems."
           note="no further stages · singletons promotable"
-          tone="ok"
         />
 
         {/* Header */}

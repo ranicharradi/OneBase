@@ -367,11 +367,11 @@ export default function Match() {
         />
 
         <HandoffBanner
-          icon="compare_arrows"
+          icon={ArrowRightLeftIcon}
           text={
             <>
               completed runs deliver matched pairs to the{" "}
-              <span className="text-primary font-semibold">
+              <span className="font-semibold text-foreground">
                 Review queue
               </span>{" "}
               for human triage.
