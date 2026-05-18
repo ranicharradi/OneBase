@@ -47,12 +47,12 @@ def run_match(self, match_run_id: int):
             self.update_state(state=stage.upper(), meta={"stage": stage, "progress": pct})
 
         try:
-            batch_ids = [b.id for b in run.batches]
+            source_ids = [s.id for s in run.sources]
             if run.mode == "FILE_VS_FILE":
-                side_a = RecordSet.from_batch(db, batch_ids[0])
-                side_b = RecordSet.from_batch(db, batch_ids[1])
+                side_a = RecordSet.from_source(db, source_ids[0])
+                side_b = RecordSet.from_source(db, source_ids[1])
             elif run.mode == "FILE_VS_GOLDEN":
-                side_a = RecordSet.from_batch(db, batch_ids[0])
+                side_a = RecordSet.from_source(db, source_ids[0])
                 side_b = RecordSet.from_unified(db, run.type)
             else:
                 raise ValueError(f"unknown mode {run.mode!r}")
