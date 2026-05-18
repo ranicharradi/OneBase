@@ -5,7 +5,6 @@ import { api } from '../api/client';
 import type { MatchRunResponse } from '../api/types';
 import Panel from '../components/ui/Panel';
 import Pill from '../components/ui/Pill';
-import { displayFilename } from '../utils/filename';
 import { MODE_LABEL, MODE_GLYPH } from '../utils/matchRuns';
 import { relativeTime } from '../utils/time';
 
@@ -17,6 +16,12 @@ function duration(started: string | null, finished: string | null): string | nul
   if (ms < 1000) return '<1s';
   if (ms < 60000) return `${Math.round(ms / 1000)}s`;
   return `${Math.round(ms / 60000)}m`;
+}
+
+function runLabel(r: MatchRunResponse): string {
+  return r.sources && r.sources.length > 0
+    ? r.sources.map((s) => s.name).join(' × ')
+    : (r.batches ?? []).map((b) => (b as { original_filename?: string }).original_filename ?? '').join(' × ');
 }
 
 // ── Constants ─────────────────────────────────────────
@@ -85,14 +90,9 @@ function HistoryGroup({ type, runs, navigate }: { type: string; runs: MatchRunRe
                     )}
                   </td>
                   <td>
-                    {r.batches.length > 0 ? (
+                    {(r.sources?.length ?? 0) > 0 || (r.batches?.length ?? 0) > 0 ? (
                       <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
-                        {r.batches.map((b, i) => (
-                          <span key={b.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                            {i > 0 && <span style={{ color: 'var(--fg-3)', fontSize: 10 }}>×</span>}
-                            <span className="mono" style={{ fontSize: 11 }}>{displayFilename(b.filename, 24)}</span>
-                          </span>
-                        ))}
+                        <span className="mono" style={{ fontSize: 11 }}>{runLabel(r)}</span>
                       </span>
                     ) : (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
