@@ -284,17 +284,17 @@ export default function UnifiedRecords() {
       <div style={{ padding: 20 }}>
         <WorkflowStageRail
           activeStage="unified"
-          match={{ onClick: () => navigate("/match"), title: "Go to Runs" }}
+          match={{
+            onClick: () => navigate(withRecordType("/match")),
+            title: "Go to Match runs",
+          }}
           review={{
-            onClick: () => navigate("/review"),
+            onClick: () => navigate(withRecordType("/review")),
             title: "Go to Review queue",
           }}
           merge={{
-            onClick: () => navigate("/merge"),
+            onClick: () => navigate(withRecordType("/merge")),
             title: "Go to Merge queue",
-          }}
-          unified={{
-            count: { value: unifiedTotal.toLocaleString(), unit: "records" },
           }}
         />
 

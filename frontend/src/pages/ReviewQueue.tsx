@@ -280,33 +280,19 @@ export default function ReviewQueue() {
         <WorkflowStageRail
           activeStage="review"
           match={{
-            onClick: () => navigate("/match"),
+            onClick: () => navigate(withRecordType("/match")),
             title: "Go to Match runs",
-            count: {
-              value:
-                (stats?.total_pending ?? 0) +
-                (stats?.total_confirmed ?? 0) +
-                (stats?.total_rejected ?? 0),
-              unit: "matched",
-            },
-          }}
-          review={{
-            count: { value: stats?.total_pending ?? "—", unit: "pending" },
           }}
           merge={{
             onClick: () =>
               navigate(
-                withRecordType(
-                  runId ? `/merge?match_run_id=${runId}` : "/merge",
-                ),
+                withRecordType(runId ? `/merge?match_run_id=${runId}` : "/merge"),
               ),
             title: "Go to Merge queue",
-            count: { value: stats?.total_confirmed ?? "—", unit: "queued" },
           }}
           unified={{
             onClick: () => navigate(withRecordType("/unified")),
             title: "Go to Unified records",
-            count: { value: stats?.total_unified ?? "—", unit: "records" },
           }}
         />
 

@@ -352,15 +352,6 @@ export default function Match() {
       <div className="p-5">
         <WorkflowStageRail
           activeStage="match"
-          match={{
-            count: {
-              value:
-                activeRuns.length > 0
-                  ? activeRuns.length
-                  : (allRuns?.length ?? "—"),
-              unit: activeRuns.length > 0 ? "running" : "runs",
-            },
-          }}
           review={{
             onClick: () => navigate(withRecordType("/review")),
             title: "Go to Review queue",

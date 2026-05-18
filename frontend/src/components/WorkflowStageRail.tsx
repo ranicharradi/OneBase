@@ -1,9 +1,8 @@
-import React from 'react';
+import { cn } from '@/lib/utils';
 
 type StageKey = 'match' | 'review' | 'merge' | 'unified';
 
 interface StageSlot {
-  count?: { value: number | string; unit: string };
   onClick?: () => void;
   title?: string;
 }
@@ -16,11 +15,11 @@ interface WorkflowStageRailProps {
   unified?: StageSlot;
 }
 
-const STAGE_META: Record<StageKey, { num: string; label: string; subtitle: string; color: string }> = {
-  match:   { num: '01', label: 'Match',   subtitle: 'Candidate pairs',  color: 'info'   },
-  review:  { num: '02', label: 'Review',  subtitle: 'Same record?',     color: 'warn'   },
-  merge:   { num: '03', label: 'Merge',   subtitle: 'Reconcile fields', color: 'accent' },
-  unified: { num: '04', label: 'Unified', subtitle: 'Unified records',  color: 'ok'     },
+const STAGE_META: Record<StageKey, { num: string; label: string; subtitle: string }> = {
+  match:   { num: '01', label: 'Match',   subtitle: 'Candidate pairs'  },
+  review:  { num: '02', label: 'Review',  subtitle: 'Same record?'     },
+  merge:   { num: '03', label: 'Merge',   subtitle: 'Reconcile fields' },
+  unified: { num: '04', label: 'Unified', subtitle: 'Unified records'  },
 };
 
 const STAGE_ORDER: StageKey[] = ['match', 'review', 'merge', 'unified'];
@@ -29,50 +28,70 @@ export default function WorkflowStageRail({ activeStage, match, review, merge, u
   const slots: Record<StageKey, StageSlot | undefined> = { match, review, merge, unified };
 
   return (
-    <div className="fade" style={{
-      display: 'flex', alignItems: 'stretch',
-      background: 'var(--bg-1)', border: '1px solid var(--border-0)', borderRadius: 6,
-      overflow: 'hidden', marginBottom: 12,
-    }}>
-      {STAGE_ORDER.map((key, i) => {
+    <div className="mb-3 flex items-stretch overflow-hidden rounded-lg border border-border bg-card">
+      {STAGE_ORDER.map((key) => {
         const meta = STAGE_META[key];
-        const slot = slots[key] ?? {};
+        const slot = slots[key];
         const isActive = key === activeStage;
-        const isLast = i === STAGE_ORDER.length - 1;
-        return (
-          <React.Fragment key={key}>
-            <div
-              onClick={slot.onClick}
-              title={slot.title}
-              style={{
-                padding: '10px 16px',
-                ...(isLast ? { flex: 1 } : { minWidth: 210 }),
-                background: isActive ? `var(--${meta.color}-soft)` : 'var(--bg-2)',
-                ...(!isLast ? { borderRight: '1px solid var(--border-0)' } : {}),
-                position: 'relative', overflow: 'hidden',
-                ...(slot.onClick ? { cursor: 'pointer', opacity: 0.5 } : {}),
-              }}
+        // Active cell ignores onClick even if passed — runtime guard.
+        const clickable = !isActive && !!slot?.onClick;
+        const commonClass = cn(
+          'relative flex-1 min-w-[180px] overflow-hidden px-4 py-3 text-left',
+          'border-l border-border first:border-l-0',
+          isActive && 'bg-primary',
+          clickable && 'cursor-pointer hover:bg-muted/50',
+        );
+        const labelClass = cn(
+          'relative text-[11px] font-semibold uppercase tracking-wider',
+          isActive ? 'text-primary-foreground' : 'text-muted-foreground',
+        );
+        const subtitleClass = cn(
+          'relative mt-0.5 text-[11px]',
+          isActive ? 'text-primary-foreground/70' : 'text-muted-foreground',
+        );
+        const numClass = cn(
+          'pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none',
+          'font-mono text-[52px] font-bold leading-none',
+          isActive ? 'text-primary-foreground opacity-[0.22]' : 'text-foreground opacity-[0.05]',
+        );
+
+        const body = (
+          <>
+            <span className={numClass} aria-hidden="true">{meta.num}</span>
+            <div className={labelClass}>{meta.label}</div>
+            <div className={subtitleClass}>{meta.subtitle}</div>
+            {isActive && (
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-0 bottom-0 h-0.5 bg-primary-foreground"
+              />
+            )}
+          </>
+        );
+
+        if (clickable) {
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={slot!.onClick}
+              title={slot!.title}
+              className={commonClass}
             >
-              <span className="mono" style={{
-                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                fontSize: 52, fontWeight: 700,
-                color: isActive ? `var(--${meta.color})` : 'var(--fg-0)',
-                opacity: isActive ? 0.08 : 0.05,
-                lineHeight: 1, pointerEvents: 'none', userSelect: 'none',
-              }}>{meta.num}</span>
-              <div className="label" style={{ color: isActive ? `var(--${meta.color})` : 'var(--fg-2)', fontWeight: 600, position: 'relative' }}>
-                {meta.label}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--fg-1)', marginTop: 2, position: 'relative' }}>
-                {meta.subtitle}
-              </div>
-              <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: isActive ? `var(--${meta.color})` : 'var(--fg-1)', marginTop: 4, position: 'relative' }}>
-                {slot.count?.value ?? '—'}{' '}
-                <span style={{ fontSize: 10, color: 'var(--fg-2)', fontWeight: 400 }}>{slot.count?.unit ?? ''}</span>
-              </div>
-            </div>
-            {!isLast && <div style={{ alignSelf: 'center', padding: '0 8px', color: 'var(--fg-3)', fontSize: 14 }}>→</div>}
-          </React.Fragment>
+              {body}
+            </button>
+          );
+        }
+
+        return (
+          <div
+            key={key}
+            title={slot?.title}
+            className={commonClass}
+            aria-current={isActive ? 'step' : undefined}
+          >
+            {body}
+          </div>
         );
       })}
     </div>
