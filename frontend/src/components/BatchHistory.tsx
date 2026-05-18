@@ -1,7 +1,7 @@
 // ── Batch history table — terminal aesthetic ──
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { XIcon } from 'lucide-react';
+import { XIcon, HistoryIcon } from 'lucide-react';
 import { api } from '../api/client';
 import type { BatchResponse } from '../api/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -115,9 +115,7 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
         </CardHeader>
         <CardContent className="text-center">
           <div className="py-7">
-            <span className="material-symbols-outlined text-2xl text-muted-foreground/50">
-              history
-            </span>
+            <HistoryIcon className="size-7 mx-auto text-muted-foreground/50" />
             <div className="text-sm mt-2">No uploads yet</div>
             <div className="text-xs text-muted-foreground mt-1">
               Upload a CSV file to see file history here.

@@ -55,7 +55,7 @@ export default function UnifiedRecordDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="scroll" style={{ height: '100%' }}>
+      <div className="h-full overflow-y-auto">
         <div className="text-muted-foreground" style={{ padding: 20, fontSize: 12 }}>Loading record…</div>
       </div>
     );
@@ -63,7 +63,7 @@ export default function UnifiedRecordDetailPage() {
 
   if (error || !record) {
     return (
-      <div className="scroll" style={{ height: '100%' }}>
+      <div className="h-full overflow-y-auto">
         <div style={{ padding: 20 }}>
           <Card>
             <CardContent className="flex flex-col items-center justify-center" style={{ padding: 28 }}>
@@ -86,7 +86,7 @@ export default function UnifiedRecordDetailPage() {
   const isSingleton = matchCandidateId === null;
 
   return (
-    <div className="scroll" style={{ height: '100%' }}>
+    <div className="h-full overflow-y-auto">
       <div style={{ padding: 20 }}>
         <Button
           onClick={() => navigate(withRecordType('/unified'))}
@@ -194,11 +194,7 @@ export default function UnifiedRecordDetailPage() {
                       record.source_records.map((sr, i) => (
                         <div
                           key={sr.id}
-                          style={{
-                            padding: '10px 0',
-                            borderBottom:
-                              i < record.source_records.length - 1 ? '1px solid var(--border)' : 'none',
-                          }}
+                          className={i < record.source_records.length - 1 ? 'py-2.5 border-b border-border' : 'py-2.5'}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             {sr.data_source_name && <SourcePill short={sr.data_source_name} />}
@@ -237,16 +233,7 @@ export default function UnifiedRecordDetailPage() {
                         return (
                           <div
                             key={entry.id}
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '90px 1fr',
-                              gap: 10,
-                              padding: '8px 0',
-                              alignItems: 'baseline',
-                              borderBottom:
-                                i < record.merge_history.length - 1 ? '1px solid var(--border)' : 'none',
-                              fontSize: 11,
-                            }}
+                            className={`grid grid-cols-[90px_1fr] gap-2.5 py-2 items-baseline text-[11px]${i < record.merge_history.length - 1 ? ' border-b border-border' : ''}`}
                           >
                             <span className="font-mono text-muted-foreground">
                               {entry.created_at ? new Date(entry.created_at).toLocaleDateString() : '—'}
@@ -305,7 +292,7 @@ export default function UnifiedRecordDetailPage() {
                       </li>
                     ) : (
                       lineage.data.events.map((e, i) => (
-                        <li key={i} style={{ borderLeft: '2px solid var(--border)', paddingLeft: 8 }}>
+                        <li key={i} className="border-l-2 border-border pl-2">
                           <div className="text-muted-foreground" style={{ fontSize: 11 }}>
                             {e.at} · <strong>{e.kind}</strong>{e.actor ? ` · ${e.actor}` : ''}
                           </div>

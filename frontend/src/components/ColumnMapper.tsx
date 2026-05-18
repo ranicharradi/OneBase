@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { AlertTriangleIcon, ArrowRightIcon, XCircleIcon } from 'lucide-react';
+import { AlertTriangleIcon, ArrowRightIcon, AsteriskIcon, TagIcon, XCircleIcon } from 'lucide-react';
 import type {
   ColumnMapping,
   DataSourceCreate,
@@ -339,15 +339,11 @@ export default function ColumnMapper({
               return (
                 <tr key={field.key} style={{ cursor: 'default' }}>
                   <td>
-                    <span
-                      className="material-symbols-outlined"
-                      style={{
-                        fontSize: 14,
-                        color: field.required ? 'var(--danger)' : 'var(--fg-2)',
-                      }}
-                    >
-                      {field.required ? 'label_important' : 'label'}
-                    </span>
+                    {field.required ? (
+                      <AsteriskIcon className="size-3.5 text-destructive" />
+                    ) : (
+                      <TagIcon className="size-3.5 text-muted-foreground" />
+                    )}
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

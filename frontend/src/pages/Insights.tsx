@@ -45,7 +45,7 @@ export default function Insights() {
   const maxBucket = Math.max(1, ...data.distribution.map((b) => b.count));
 
   return (
-    <div className="scroll flex flex-col gap-3 p-3 h-full overflow-y-auto">
+    <div className="flex flex-col gap-3 p-3 h-full overflow-y-auto">
       <Card size="sm">
         <CardHeader>
           <CardTitle>Average data quality</CardTitle>
