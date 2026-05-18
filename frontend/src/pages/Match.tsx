@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { ArrowRightLeftIcon, BadgeCheckIcon } from "lucide-react";
 import { api } from "../api/client";
 import { useMatchRunStatus } from "../hooks/useMatchRun";
 import { useSelectedRecordType } from "../contexts/RecordTypeContext";
@@ -12,10 +13,25 @@ import type {
   MatchRunResponse,
   MatchRunStatus,
 } from "../api/types";
-import Panel, { PanelHead } from "../components/ui/Panel";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardAction,
+  CardContent,
+} from "../components/ui/card";
 import Spinner from "../components/ui/Spinner";
-import Pill from "../components/ui/Pill";
+import { Badge } from "../components/ui/badge";
 import Hbar from "../components/ui/Hbar";
+import { Button } from "../components/ui/button";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "../components/ui/table";
 import { MODE_LABEL } from "../utils/matchRuns";
 import { relativeTime } from "../utils/time";
 import WorkflowStageRail from "../components/WorkflowStageRail";
@@ -49,159 +65,93 @@ function MatchingPipeline({ status }: { status?: MatchRunStatus }) {
     : (Math.max(0, activeIdx) / Math.max(1, N - 1)) * (100 - 2 * sidePct);
 
   return (
-    <div
-      style={{
-        padding: "12px 16px 14px",
-        borderTop: "1px solid var(--border-0)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          marginBottom: 14,
-        }}
-      >
+    <div className="px-4 pb-3.5 pt-3 border-t border-border">
+      <div className="flex items-center gap-2.5 mb-3.5">
         <Hbar
           value={pct}
-          tone={isComplete ? "ok" : isFailed ? "danger" : "accent"}
-          style={{ height: 3, flex: 1 }}
+          className="h-[3px] flex-1"
+          fillClassName={
+            isComplete
+              ? "bg-emerald-500"
+              : isFailed
+                ? "bg-destructive"
+                : "bg-primary"
+          }
         />
         <span
-          className="mono tnum"
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            width: 36,
-            textAlign: "right",
-            color: isComplete
-              ? "var(--ok)"
+          className={`font-mono tabular-nums text-[11px] font-semibold w-9 text-right ${
+            isComplete
+              ? "text-emerald-600"
               : isFailed
-                ? "var(--danger)"
-                : "var(--accent)",
-          }}
+                ? "text-destructive"
+                : "text-primary"
+          }`}
         >
           {Math.round(pct)}%
         </span>
       </div>
 
-      <div style={{ position: "relative" }}>
+      <div className="relative">
         <div
-          style={{
-            position: "absolute",
-            top: 10,
-            left: `${sidePct}%`,
-            right: `${sidePct}%`,
-            height: 1.5,
-            background: "var(--border-0)",
-            zIndex: 0,
-          }}
+          className="absolute top-2.5 h-[1.5px] bg-border z-0"
+          style={{ left: `${sidePct}%`, right: `${sidePct}%` }}
         />
         <div
+          className="absolute top-2.5 h-[1.5px] z-[1] transition-[width] duration-500 ease-out"
           style={{
-            position: "absolute",
-            top: 10,
             left: `${sidePct}%`,
             width: `${progressPct}%`,
-            height: 1.5,
-            background: isFailed ? "var(--danger)" : "var(--accent)",
-            transition: "width 0.5s ease",
-            zIndex: 1,
+            background: isFailed ? "hsl(var(--destructive))" : "hsl(var(--primary))",
           }}
         />
 
-        <div style={{ display: "flex", position: "relative", zIndex: 2 }}>
+        <div className="relative z-[2] flex">
           {COMP_STAGES.map((stage, i) => {
             const done = isComplete || (activeIdx >= 0 && i < activeIdx);
             const active = !isComplete && !isFailed && i === activeIdx;
             const failed = isFailed && i === activeIdx;
 
-            const bg = done
-              ? "var(--accent)"
-              : active
-                ? "var(--accent-soft)"
-                : failed
-                  ? "var(--danger-soft)"
-                  : "var(--bg-3)";
-            const border = done
-              ? "var(--accent)"
-              : active
-                ? "var(--accent)"
-                : failed
-                  ? "var(--danger)"
-                  : "var(--border-1)";
-
             return (
               <div
                 key={stage.key}
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 5,
-                }}
+                className="flex flex-1 flex-col items-center gap-1"
               >
                 <div
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: "50%",
-                    background: bg,
-                    border: `2px solid ${border}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "background 0.3s, border-color 0.3s",
-                  }}
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-[background,border-color] duration-300 ${
+                    done
+                      ? "bg-primary border-primary"
+                      : active
+                        ? "bg-primary/10 border-primary"
+                        : failed
+                          ? "bg-destructive/10 border-destructive"
+                          : "bg-secondary border-border"
+                  }`}
                 >
                   {done ? (
-                    <span
-                      style={{
-                        fontSize: 8,
-                        color: "var(--bg-0)",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <span className="text-[8px] text-primary-foreground font-bold">
                       ✓
                     </span>
                   ) : active ? (
-                    <Spinner size={8} color="var(--accent)" />
+                    <Spinner size={8} />
                   ) : failed ? (
-                    <span
-                      style={{
-                        fontSize: 8,
-                        color: "var(--danger)",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <span className="text-[8px] text-destructive font-bold">
                       ✕
                     </span>
                   ) : null}
                 </div>
                 <span
-                  className="label"
-                  style={{
-                    fontSize: 9,
-                    textAlign: "center",
-                    color: done || active ? "var(--fg-1)" : "var(--fg-3)",
-                  }}
+                  className={`text-[9px] text-center ${done || active ? "text-foreground/80" : "text-muted-foreground"}`}
                 >
                   {stage.label}
                 </span>
                 <span
-                  className="mono tnum"
-                  style={{
-                    fontSize: 9,
-                    textAlign: "center",
-                    minHeight: 12,
-                    color: done
-                      ? "var(--fg-3)"
+                  className={`font-mono tabular-nums text-[9px] text-center min-h-[12px] ${
+                    done
+                      ? "text-muted-foreground"
                       : active
-                        ? "var(--accent)"
-                        : "var(--fg-3)",
-                  }}
+                        ? "text-primary"
+                        : "text-muted-foreground"
+                  }`}
                 >
                   {done ? "done" : active ? `${Math.round(pct)}%` : "—"}
                 </span>
@@ -212,31 +162,12 @@ function MatchingPipeline({ status }: { status?: MatchRunStatus }) {
       </div>
 
       {queued ? (
-        <div
-          style={{
-            marginTop: 10,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 10,
-            color: "var(--fg-3)",
-          }}
-        >
-          <Spinner size={8} color="var(--fg-3)" />
+        <div className="mt-2.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <Spinner size={8} />
           queued, waiting for worker…
         </div>
       ) : status?.detail ? (
-        <div
-          className="mono"
-          style={{
-            marginTop: 10,
-            padding: "4px 8px",
-            background: "var(--bg-2)",
-            borderRadius: 3,
-            fontSize: 10,
-            color: "var(--fg-2)",
-          }}
-        >
+        <div className="mt-2.5 px-2 py-1 bg-muted rounded-[3px] text-[10px] text-muted-foreground font-mono">
           {status.detail}
         </div>
       ) : null}
@@ -256,64 +187,31 @@ function ActiveRunCard({
     liveStatus?.state === "COMPLETE" || liveStatus?.state === "SUCCESS";
 
   return (
-    <div
-      className="fade"
-      style={{
-        marginBottom: 10,
-        background: "var(--bg-1)",
-        border: "1px solid var(--accent-border)",
-        borderRadius: 6,
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          padding: "9px 14px",
-          background: "var(--accent-soft)",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexWrap: "wrap",
-        }}
-      >
-        <span
-          className="material-symbols-outlined"
-          style={{ fontSize: 14, color: "var(--accent)", flexShrink: 0 }}
-        >
-          compare_arrows
+    <div className="mb-2.5 bg-card border border-border rounded-md overflow-hidden">
+      <div className="px-3.5 py-2.5 bg-primary/5 flex items-center gap-2 flex-wrap">
+        <ArrowRightLeftIcon className="size-3.5 text-primary shrink-0" />
+        <span className="font-mono text-xs font-medium">
+          Run <span className="text-primary">#{run.id}</span>
         </span>
-        <span className="mono" style={{ fontSize: 12, fontWeight: 500 }}>
-          Run <span style={{ color: "var(--accent)" }}>#{run.id}</span>
-        </span>
-        <span className="mono" style={{ fontSize: 11, color: "var(--fg-2)" }}>
+        <span className="font-mono text-[11px] text-muted-foreground">
           {run.type}
         </span>
-        <span style={{ fontSize: 11, color: "var(--fg-3)" }}>
-          {run.name}
-        </span>
-        <span style={{ fontSize: 11, color: "var(--fg-3)" }}>
+        <span className="text-[11px] text-muted-foreground">{run.name}</span>
+        <span className="text-[11px] text-muted-foreground">
           {relativeTime(run.created_at)}
         </span>
-        <div
-          style={{
-            marginLeft: "auto",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
+        <div className="ml-auto flex items-center gap-2">
           {isComplete && (
-            <button
-              className="btn btn-sm btn-accent"
-              onClick={() => onReview(run.id)}
-              style={{ fontSize: 10 }}
-            >
+            <Button size="sm" onClick={() => onReview(run.id)}>
               Review results →
-            </button>
+            </Button>
           )}
-          <Pill tone="info" dot style={{ fontSize: 10 }}>
+          <Badge
+            variant="secondary"
+            className="bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 text-[10px]"
+          >
             {run.status}
-          </Pill>
+          </Badge>
         </div>
       </div>
       <MatchingPipeline status={liveStatus} />
@@ -423,17 +321,15 @@ export default function Match() {
 
   // ── Panel header buttons (shared between empty/non-empty states) ──────────
   const panelHeaderButtons = (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div className="flex items-center gap-2">
       {effectiveSelection.length > 0 && !vsGolden && (
-        <span
-          className="mono"
-          style={{ fontSize: 11, color: "var(--accent)" }}
-        >
+        <span className="font-mono text-[11px] text-primary">
           {MODE_LABEL[dispatchMode]}
         </span>
       )}
-      <button
-        className={`btn btn-sm${vsGolden ? " btn-accent" : ""}`}
+      <Button
+        variant={vsGolden ? "default" : "outline"}
+        size="sm"
         onClick={() =>
           setSelState({
             type: selectedType,
@@ -444,16 +340,16 @@ export default function Match() {
         title="Match selected source against the unified golden set"
       >
         vs Golden
-      </button>
-      <Link to="/history" className="btn btn-sm">
-        History ▸
-      </Link>
+      </Button>
+      <Button variant="outline" size="sm" asChild>
+        <Link to="/history">History ▸</Link>
+      </Button>
     </div>
   );
 
   return (
-    <div className="scroll" style={{ height: "100%" }}>
-      <div style={{ padding: 20 }}>
+    <div className="h-full overflow-y-auto">
+      <div className="p-5">
         <WorkflowStageRail
           activeStage="match"
           match={{
@@ -484,7 +380,7 @@ export default function Match() {
           text={
             <>
               completed runs deliver matched pairs to the{" "}
-              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+              <span className="text-primary font-semibold">
                 Review queue
               </span>{" "}
               for human triage.
@@ -506,235 +402,172 @@ export default function Match() {
 
         {/* vs Golden mode banner */}
         {vsGolden && (
-          <div
-            className="fade"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "8px 14px",
-              marginBottom: 12,
-              background: "color-mix(in srgb, var(--accent) 8%, transparent)",
-              border:
-                "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
-              borderRadius: 6,
-            }}
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 15, color: "var(--accent)", flexShrink: 0 }}
-            >
-              verified
-            </span>
-            <span
-              className="mono"
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: "var(--accent)",
-                letterSpacing: "0.04em",
-              }}
-            >
+          <div className="flex items-center gap-2.5 px-3.5 py-2 mb-3 bg-primary/8 border border-primary/30 rounded-md">
+            <BadgeCheckIcon className="size-3.5 text-primary shrink-0" />
+            <span className="font-mono text-[11px] font-semibold text-primary tracking-wide">
               SOURCE × GOLDEN
             </span>
-            <span style={{ fontSize: 11, color: "var(--fg-2)" }}>—</span>
-            <span style={{ fontSize: 11, color: "var(--fg-2)" }}>
+            <span className="text-[11px] text-muted-foreground">—</span>
+            <span className="text-[11px] text-muted-foreground">
               select one source to match against the unified golden set
             </span>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ marginLeft: "auto", fontSize: 10, padding: "2px 8px" }}
+            <Button
+              variant="ghost"
+              size="xs"
+              className="ml-auto"
               onClick={() =>
                 setSelState((s) => ({ ...s, ids: new Set(), vsGolden: false }))
               }
             >
               cancel
-            </button>
+            </Button>
           </div>
         )}
 
         {/* Sources panel */}
         {typeSources.length === 0 ? (
-          <Panel>
-            <PanelHead>
-              <span className="panel-title">Sources</span>
-              {panelHeaderButtons}
-            </PanelHead>
-            <div
-              style={{
-                padding: "28px 0",
-                textAlign: "center",
-                color: "var(--fg-3)",
-                fontSize: 12,
-              }}
-            >
+          <Card>
+            <CardHeader className="border-b">
+              <CardTitle>Sources</CardTitle>
+              <CardAction>{panelHeaderButtons}</CardAction>
+            </CardHeader>
+            <CardContent className="py-7 text-center text-muted-foreground text-xs">
               No sources yet
-            </div>
-          </Panel>
+            </CardContent>
+          </Card>
         ) : (
-          <Panel>
-            <PanelHead>
-              <span className="panel-title">Sources</span>
-              {panelHeaderButtons}
-            </PanelHead>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th style={{ width: 36 }} />
-                  <th>Source</th>
-                  <th>Last uploaded</th>
-                  <th className="num">Active rows</th>
-                </tr>
-              </thead>
-              <tbody>
-                {typeSources.map((src) => {
-                  const inEffective = effectiveSelection.includes(src.id);
-                  const isChecked = selected.has(src.id);
-                  const overCap = vsGolden && !inEffective && isChecked;
-                  const dimmed =
-                    vsGolden &&
-                    !inEffective &&
-                    !isChecked &&
-                    effectiveSelection.length >= 1;
-                  return (
-                    <tr
-                      key={src.id}
-                      onClick={() => toggleRow(src.id)}
-                      className={inEffective ? "selected" : ""}
-                      style={{
-                        cursor: "pointer",
-                        opacity: overCap || dimmed ? 0.35 : 1,
-                      }}
-                    >
-                      <td>
-                        <input type="checkbox" checked={isChecked} readOnly />
-                      </td>
-                      <td>
-                        <span
-                          className="mono"
-                          style={{ fontSize: 12 }}
-                          title={src.description ?? src.name}
-                        >
-                          {src.name}
-                        </span>
-                      </td>
-                      <td>
-                        {src.last_uploaded_at ? (
+          <Card>
+            <CardHeader className="border-b">
+              <CardTitle>Sources</CardTitle>
+              <CardAction>{panelHeaderButtons}</CardAction>
+            </CardHeader>
+            <CardContent className="px-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-9" />
+                    <TableHead>Source</TableHead>
+                    <TableHead>Last uploaded</TableHead>
+                    <TableHead className="text-right">Active rows</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {typeSources.map((src) => {
+                    const inEffective = effectiveSelection.includes(src.id);
+                    const isChecked = selected.has(src.id);
+                    const overCap = vsGolden && !inEffective && isChecked;
+                    const dimmed =
+                      vsGolden &&
+                      !inEffective &&
+                      !isChecked &&
+                      effectiveSelection.length >= 1;
+                    return (
+                      <TableRow
+                        key={src.id}
+                        onClick={() => toggleRow(src.id)}
+                        data-state={inEffective ? "selected" : undefined}
+                        className="cursor-pointer"
+                        style={{ opacity: overCap || dimmed ? 0.35 : 1 }}
+                      >
+                        <TableCell>
+                          <input type="checkbox" checked={isChecked} readOnly />
+                        </TableCell>
+                        <TableCell>
                           <span
-                            className="mono"
-                            style={{ fontSize: 11, color: "var(--fg-2)" }}
+                            className="font-mono text-xs"
+                            title={src.description ?? src.name}
                           >
-                            {relativeTime(src.last_uploaded_at)}
+                            {src.name}
                           </span>
-                        ) : (
-                          <span style={{ fontSize: 11, color: "var(--fg-3)" }}>
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td className="num">
-                        {(src.active_row_count ?? 0).toLocaleString()}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Panel>
+                        </TableCell>
+                        <TableCell>
+                          {src.last_uploaded_at ? (
+                            <span className="font-mono text-[11px] text-muted-foreground">
+                              {relativeTime(src.last_uploaded_at)}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">
+                              —
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(src.active_row_count ?? 0).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         )}
 
         {/* Sticky footer */}
-        <div
-          style={{
-            position: "sticky",
-            bottom: 0,
-            marginTop: 16,
-            background: "var(--bg-0)",
-            borderTop: "1px solid var(--border-0)",
-            padding: "8px 14px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              minWidth: 0,
-              flex: 1,
-            }}
-          >
+        <div className="sticky bottom-0 mt-4 bg-background border-t border-border px-3.5 py-2 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {effectiveSelection.length === 0 ? (
-              <span
-                className="mono"
-                style={{ fontSize: 11, color: "var(--fg-3)" }}
-              >
+              <span className="font-mono text-[11px] text-muted-foreground">
                 {vsGolden
                   ? "select 1 source to match against the golden set"
                   : "select 2+ sources to compare"}
               </span>
             ) : (
               selectedSources.map((src) => (
-                <span
+                <Badge
                   key={src.id}
-                  className="pill accent"
-                  style={{ fontSize: 10, gap: 4, flexShrink: 0 }}
+                  variant="secondary"
+                  className="text-[10px] gap-1 shrink-0"
                 >
-                  <span className="mono" style={{ opacity: 0.6, fontSize: 9 }}>
-                    ▤
-                  </span>
+                  <span className="font-mono opacity-60 text-[9px]">▤</span>
                   {src.name.length > 20
                     ? src.name.slice(0, 20) + "…"
                     : src.name}
-                </span>
+                </Badge>
               ))
             )}
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexShrink: 0,
-            }}
-          >
+          <div className="flex items-center gap-2 shrink-0">
             {noGoldenForSingle && (
-              <span className="pill warn" style={{ fontSize: 10 }}>
+              <Badge
+                variant="secondary"
+                className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 text-[10px]"
+              >
                 No golden records yet — select at least 2 sources
-              </span>
+              </Badge>
             )}
             {!isValid && !noGoldenForSingle && effectiveSelection.length > 0 && (
-              <span className="pill warn" style={{ fontSize: 10 }}>
+              <Badge
+                variant="secondary"
+                className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 text-[10px]"
+              >
                 need {needMore} more
-              </span>
+              </Badge>
             )}
             {pairwiseRunCount > 1 && (
-              <span
-                className="mono"
-                style={{ fontSize: 10, color: "var(--fg-3)" }}
-              >
+              <span className="font-mono text-[10px] text-muted-foreground">
                 Will dispatch {pairwiseRunCount} runs
               </span>
             )}
-            <button
-              className="btn btn-sm btn-accent"
+            <Button
+              size="sm"
               disabled={!isValid || launch.isPending}
               onClick={() => launch.mutate()}
             >
-              {launch.isPending ? <Spinner size={10} color="#fff" /> : null}
+              {launch.isPending ? <Spinner size={10} /> : null}
               Match ▸
-            </button>
+            </Button>
           </div>
         </div>
 
         {launch.isError && (
-          <div className="pill danger" style={{ marginTop: 12 }}>
+          <Badge
+            variant="destructive"
+            className="mt-3 text-xs"
+          >
             {(launch.error as Error).message}
-          </div>
+          </Badge>
         )}
       </div>
     </div>
