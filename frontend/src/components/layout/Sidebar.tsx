@@ -1,7 +1,24 @@
 import { useCallback, useState } from "react";
 import { NavLink } from "react-router";
+import type { LucideIcon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  TagIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  HomeIcon,
+  CloudUploadIcon,
+  DatabaseIcon,
+  ArrowRightLeftIcon,
+  SplitIcon,
+  GitMergeIcon,
+  BadgeCheckIcon,
+  HistoryIcon,
+  BarChart3Icon,
+  ListChecksIcon,
+  MessageSquareIcon,
+} from "lucide-react";
 import { useSelectedRecordType } from "../../contexts/RecordTypeContext";
-import Icon from "../ui/Icon";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -12,7 +29,7 @@ const NAV_ITEM_ACTIVE = "bg-muted text-foreground";
 
 interface NavItem {
   to: string;
-  icon: string;
+  icon: LucideIcon;
   label: string;
   badge?: number;
 }
@@ -26,27 +43,27 @@ const NAV: NavSection[] = [
   {
     section: "Pipeline",
     items: [
-      { to: "/dashboard", icon: "home", label: "Overview" },
-      { to: "/upload", icon: "cloud_upload", label: "Upload" },
-      { to: "/sources", icon: "storage", label: "Sources" },
+      { to: "/dashboard", icon: HomeIcon, label: "Overview" },
+      { to: "/upload", icon: CloudUploadIcon, label: "Upload" },
+      { to: "/sources", icon: DatabaseIcon, label: "Sources" },
     ],
   },
   {
     section: "Matching",
     items: [
-      { to: "/match", icon: "compare_arrows", label: "Match" },
-      { to: "/review", icon: "swap_horiz", label: "Review queue" },
-      { to: "/merge", icon: "merge", label: "Merge queue" },
-      { to: "/unified", icon: "verified", label: "Unified" },
-      { to: "/history", icon: "history", label: "History" },
+      { to: "/match", icon: ArrowRightLeftIcon, label: "Match" },
+      { to: "/review", icon: SplitIcon, label: "Review queue" },
+      { to: "/merge", icon: GitMergeIcon, label: "Merge queue" },
+      { to: "/unified", icon: BadgeCheckIcon, label: "Unified" },
+      { to: "/history", icon: HistoryIcon, label: "History" },
     ],
   },
   {
     section: "Utilities",
     items: [
-      { to: "/insights", icon: "insights", label: "Insights" },
-      { to: "/file-checker", icon: "rule", label: "File checker" },
-      { to: "/ask", icon: "forum", label: "Ask" },
+      { to: "/insights", icon: BarChart3Icon, label: "Insights" },
+      { to: "/file-checker", icon: ListChecksIcon, label: "File checker" },
+      { to: "/ask", icon: MessageSquareIcon, label: "Ask" },
     ],
   },
 ];
@@ -92,7 +109,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
             aria-label="Expand sidebar"
           >
             <span className="inline-flex text-muted-foreground">
-              <Icon name="arrow_forward" size={20} />
+              <ArrowRightIcon className="size-5" />
             </span>
           </button>
         ) : (
@@ -124,7 +141,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
               className="text-muted-foreground flex-shrink-0"
             >
               <span className="inline-flex rotate-180">
-                <Icon name="arrow_forward" size={14} />
+                <ArrowRightIcon className="size-3.5" />
               </span>
             </Button>
           </>
@@ -143,7 +160,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
               aria-label={`Record type: ${selectedType}`}
             >
               <span className="text-muted-foreground">
-                <Icon name="category" size={20} />
+                <TagIcon className="size-5" />
               </span>
             </div>
             <select
@@ -193,10 +210,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
                   className="w-full flex items-center justify-between px-3.5 pt-3 pb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground hover:text-foreground bg-transparent border-0 cursor-pointer font-[inherit] text-left"
                 >
                   <span>{sec.section}</span>
-                  <Icon
-                    name={sectionOpen ? "expand_less" : "expand_more"}
-                    size={14}
-                  />
+                  {sectionOpen ? <ChevronUpIcon className="size-3.5" /> : <ChevronDownIcon className="size-3.5" />}
                 </button>
               )}
               {(collapsed || sectionOpen) &&
@@ -212,6 +226,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
                       ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
                       : "bg-primary/10 text-primary";
                   const dotTone = item.to === "/review" ? "bg-amber-500" : "bg-primary";
+                  const IconCmp = item.icon;
                   return (
                     <NavLink
                       key={item.to}
@@ -225,7 +240,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
                         )
                       }
                     >
-                      <Icon name={item.icon} size={collapsed ? 20 : 18} />
+                      <IconCmp className={collapsed ? "size-5" : "size-[18px]"} />
                       {!collapsed && (
                         <span className="flex-1">{item.label}</span>
                       )}

@@ -1,7 +1,6 @@
-import { SearchIcon } from "lucide-react";
+import { SearchIcon, ChevronRightIcon, MoonIcon, SunIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AvatarMenu from "./AvatarMenu";
-import Icon from "../ui/Icon";
 
 interface TopBarProps {
   breadcrumb: string[];
@@ -31,7 +30,7 @@ export default function TopBar({
               key={i}
               className="inline-flex items-center gap-1.5"
             >
-              {i > 0 && <Icon name="chevron_right" size={10} />}
+              {i > 0 && <ChevronRightIcon className="size-2.5" />}
               <span
                 className={
                   i === breadcrumb.length - 1
@@ -68,7 +67,7 @@ export default function TopBar({
         title={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
         aria-label="Toggle theme"
       >
-        <Icon name={theme === "light" ? "dark_mode" : "light_mode"} size={14} />
+        {theme === "light" ? <MoonIcon className="size-3.5" /> : <SunIcon className="size-3.5" />}
       </Button>
 
       <AvatarMenu username={username} isAdmin={isAdmin} onLogout={onLogout} />
