@@ -345,3 +345,50 @@ def test_post_matches_accepts_source_ids(authenticated_client, test_db, monkeypa
     assert sorted(runs[0]["batch_ids"]) == sorted([b1.id, b2.id])
     source_names = sorted(s["name"] for s in runs[0]["sources"])
     assert source_names == ["Industry A", "Industry B"]
+
+
+def test_match_run_response_batchsummary_has_full_fields(authenticated_client, test_db):
+    """BatchSummary carries data_source_id, data_source_name, original_filename, file_extension."""
+    from app.models.batch import ImportBatch
+    from app.models.enums import BatchStatus
+    from app.models.match_run import MatchRun
+    from app.models.source import DataSource
+
+    src = DataSource(
+        name="Industry A",
+        type="supplier",
+        delimiter=";",
+        column_mapping={"supplier_name": "Name"},
+        identity_field_key="supplier_name",
+    )
+    test_db.add(src)
+    test_db.flush()
+    b = ImportBatch(
+        data_source_id=src.id,
+        filename="u_v1.csv",
+        original_filename="v1.csv",
+        file_extension=".csv",
+        uploaded_by="x",
+        status=BatchStatus.COMPLETED,
+    )
+    test_db.add(b)
+    test_db.flush()
+    run = MatchRun(
+        type="supplier",
+        mode="FILE_VS_GOLDEN",
+        status="completed",
+        name="Industry A × Golden",
+        created_by="x",
+    )
+    run.batches = [b]
+    test_db.add(run)
+    test_db.commit()
+
+    r = authenticated_client.get(f"/api/matches/{run.id}")
+    body = r.json()
+    assert len(body["batches"]) == 1
+    bs = body["batches"][0]
+    assert bs["data_source_id"] == src.id
+    assert bs["data_source_name"] == "Industry A"
+    assert bs["original_filename"] == "v1.csv"
+    assert bs["file_extension"] == ".csv"

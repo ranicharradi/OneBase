@@ -9,7 +9,10 @@ MatchStatus = Literal["pending", "running", "completed", "failed", "stale"]
 
 class BatchSummary(BaseModel):
     id: int
-    filename: str
+    data_source_id: int
+    data_source_name: str
+    original_filename: str
+    file_extension: str
 
 
 class SourceSummary(BaseModel):

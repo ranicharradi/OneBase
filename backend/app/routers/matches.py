@@ -66,7 +66,16 @@ def _to_response(run: MatchRun) -> MatchRunResponse:
         task_id=run.task_id,
         stats=run.stats or {},
         batch_ids=[b.id for b in run.batches],
-        batches=[BatchSummary(id=b.id, filename=b.filename) for b in run.batches],
+        batches=[
+            BatchSummary(
+                id=b.id,
+                data_source_id=b.data_source_id,
+                data_source_name=b.data_source.name,
+                original_filename=b.original_filename,
+                file_extension=b.file_extension,
+            )
+            for b in run.batches
+        ],
         sources=sources,
         error_message=run.error_message,
     )
