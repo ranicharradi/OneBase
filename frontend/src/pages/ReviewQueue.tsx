@@ -87,7 +87,7 @@ function ConfRing({ value }: { value: number }) {
           cy="20"
           r={r}
           fill="none"
-          stroke={`var(--${tone})`}
+          className={tone === 'ok' ? 'stroke-emerald-600' : tone === 'warn' ? 'stroke-amber-600' : 'stroke-destructive'}
           strokeWidth="3"
           strokeDasharray={`${dash} ${circ}`}
           strokeLinecap="round"
@@ -104,13 +104,7 @@ function ConfRing({ value }: { value: number }) {
         }}
       >
         <span
-          className="font-mono tabular-nums"
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: `var(--${tone})`,
-            lineHeight: 1,
-          }}
+          className={`font-mono tabular-nums text-[11px] font-semibold leading-none ${tone === 'ok' ? 'text-emerald-600' : tone === 'warn' ? 'text-amber-600' : 'text-destructive'}`}
         >
           {pct}
         </span>
@@ -388,26 +382,11 @@ export default function ReviewQueue() {
                   return (
                     <div
                       key={item.id}
-                      className="review-card bg-card rounded-md overflow-hidden border border-border transition-all duration-150"
+                      className={`review-card bg-card rounded-md overflow-hidden border border-border transition-all duration-150 hover:-translate-y-px hover:shadow-md border-l-[3px] ${statusTone === 'ok' ? 'border-l-emerald-600' : statusTone === 'danger' ? 'border-l-destructive' : 'border-l-transparent'}`}
                       style={{
-                        borderLeft: statusTone
-                          ? `3px solid var(--${statusTone})`
-                          : "3px solid transparent",
                         opacity: !isPending ? 0.75 : 1,
                         animation: "fadeIn 0.2s ease both",
                         animationDelay: `${i * 35}ms`,
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLDivElement).style.transform =
-                          "translateY(-1px)";
-                        (e.currentTarget as HTMLDivElement).style.boxShadow =
-                          "var(--shadow-md)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLDivElement).style.transform =
-                          "";
-                        (e.currentTarget as HTMLDivElement).style.boxShadow =
-                          "";
                       }}
                     >
                       <div
