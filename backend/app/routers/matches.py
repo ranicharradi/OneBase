@@ -6,13 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import Pagination, get_current_user, get_db, get_pagination, require_role
-from app.models.batch import ImportBatch
-from app.models.enums import BatchStatus, UserRole
+from app.models.enums import UserRole
 from app.models.match import MatchCandidate
 from app.models.match_run import MatchRun
 from app.models.user import User
 from app.schemas.match import (
-    BatchSummary,
     MatchRunCreate,
     MatchRunDetail,
     MatchRunDispatchResponse,
@@ -30,29 +28,7 @@ from app.tasks.match import run_match
 router = APIRouter(prefix="/api/matches", tags=["matches"])
 
 
-def _resolve_source_to_current_batch(db: Session, source_id: int) -> ImportBatch:
-    batch = (
-        db.query(ImportBatch)
-        .filter(
-            ImportBatch.data_source_id == source_id,
-            ImportBatch.status == BatchStatus.COMPLETED,
-        )
-        .order_by(ImportBatch.created_at.desc())
-        .first()
-    )
-    if batch is None:
-        raise MatchNotFoundError(f"Source {source_id} has no completed batch yet")
-    return batch
-
-
 def _to_response(run: MatchRun) -> MatchRunResponse:
-    sources: list[SourceSummary] = []
-    seen: set[int] = set()
-    for b in run.batches:
-        if b.data_source_id in seen:
-            continue
-        seen.add(b.data_source_id)
-        sources.append(SourceSummary(id=b.data_source_id, name=b.data_source.name))
     return MatchRunResponse(
         id=run.id,
         type=run.type,
@@ -65,30 +41,14 @@ def _to_response(run: MatchRun) -> MatchRunResponse:
         finished_at=run.finished_at,
         task_id=run.task_id,
         stats=run.stats or {},
-        batch_ids=[b.id for b in run.batches],
-        batches=[
-            BatchSummary(
-                id=b.id,
-                data_source_id=b.data_source_id,
-                data_source_name=b.data_source.name,
-                original_filename=b.original_filename,
-                file_extension=b.file_extension,
-            )
-            for b in run.batches
-        ],
-        sources=sources,
+        batch_ids=[],
+        sources=[SourceSummary(id=s.id, name=s.name) for s in run.sources],
         error_message=run.error_message,
     )
 
 
-def _derive_run_name(db: Session, run: MatchRun) -> str:
-    names: list[str] = []
-    seen: set[int] = set()
-    for b in run.batches:
-        if b.data_source_id in seen:
-            continue
-        seen.add(b.data_source_id)
-        names.append(b.data_source.name)
+def _derive_run_name(run: MatchRun) -> str:
+    names = [s.name for s in run.sources]
     if run.mode == "FILE_VS_GOLDEN":
         return f"{names[0]} × Golden"
     return " × ".join(names)
@@ -100,24 +60,24 @@ def post_runs(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    file_ids = [_resolve_source_to_current_batch(db, sid).id for sid in payload.source_ids]
-    if len(file_ids) == 1:
-        dispatch_plan = [("FILE_VS_GOLDEN", file_ids)]
+    source_ids = list(dict.fromkeys(payload.source_ids))
+    if len(source_ids) == 1:
+        dispatch_plan = [("FILE_VS_GOLDEN", source_ids)]
     else:
-        dispatch_plan = [("FILE_VS_FILE", list(pair)) for pair in combinations(sorted(file_ids), 2)]
+        dispatch_plan = [("FILE_VS_FILE", list(pair)) for pair in combinations(sorted(source_ids), 2)]
 
     runs = []
     try:
-        for mode, batch_ids in dispatch_plan:
+        for mode, sids in dispatch_plan:
             run = create_run(
                 db,
                 type=payload.type,
                 mode=mode,
-                batch_ids=batch_ids,
+                source_ids=sids,
                 name=None,
                 username=current_user.username,
             )
-            run.name = _derive_run_name(db, run)
+            run.name = _derive_run_name(run)
             runs.append(run)
     except MatchNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

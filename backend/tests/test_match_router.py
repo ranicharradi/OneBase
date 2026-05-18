@@ -106,7 +106,7 @@ def test_post_matches_one_file_creates_vs_golden_run(authenticated_client, test_
     runs = r.json()["runs"]
     assert len(runs) == 1
     assert runs[0]["mode"] == "FILE_VS_GOLDEN"
-    assert runs[0]["batch_ids"] == [batch_id]
+    assert runs[0]["sources"][0]["id"] == src_id
 
 
 def test_post_matches_one_file_without_golden_returns_400(authenticated_client, test_db, monkeypatch):
@@ -135,7 +135,7 @@ def test_post_matches_two_files_creates_one_pairwise_run(authenticated_client, t
     runs = r.json()["runs"]
     assert len(runs) == 1
     assert runs[0]["mode"] == "FILE_VS_FILE"
-    assert sorted(runs[0]["batch_ids"]) == sorted([ba, bb])
+    assert sorted(s["id"] for s in runs[0]["sources"]) == sorted([sa, sb])
 
 
 def test_post_matches_three_files_creates_three_pairwise_runs(authenticated_client, test_db, monkeypatch):
@@ -150,8 +150,8 @@ def test_post_matches_three_files_creates_three_pairwise_runs(authenticated_clie
     assert r.status_code == 201, r.text
     runs = r.json()["runs"]
     assert len(runs) == 3
-    pairs = sorted(tuple(sorted(run["batch_ids"])) for run in runs)
-    assert pairs == sorted([(ba, bb), (ba, bc), (bb, bc)])
+    pairs = sorted(tuple(sorted(s["id"] for s in run["sources"])) for run in runs)
+    assert pairs == sorted([(sa, sb), (sa, sc), (sb, sc)])
     assert all(run["mode"] == "FILE_VS_FILE" for run in runs)
 
 
@@ -253,9 +253,9 @@ def test_list_runs_returns_empty_initially(authenticated_client, test_db):
 
 
 def test_get_run_returns_detail(authenticated_client, test_db):
-    _src1, b1, _src2, b2 = _seed_two_batches(test_db)
+    src1, _b1, src2, _b2 = _seed_two_batches(test_db)
     run = MatchRun(type="supplier", mode="FILE_VS_FILE", status="pending", created_by="u")
-    run.batches = [b1, b2]
+    run.sources = [src1, src2]
     test_db.add(run)
     test_db.commit()
 
@@ -335,8 +335,8 @@ def test_post_matches_accepts_source_ids(authenticated_client, test_db, monkeypa
 
     monkeypatch.setattr("app.routers.matches.run_match.delay", lambda run_id: _FakeTask())
 
-    s1, b1 = _seed("Industry A")
-    s2, b2 = _seed("Industry B")
+    s1, _b1 = _seed("Industry A")
+    s2, _b2 = _seed("Industry B")
     test_db.commit()
 
     r = authenticated_client.post(
@@ -346,15 +346,13 @@ def test_post_matches_accepts_source_ids(authenticated_client, test_db, monkeypa
     assert r.status_code == 201
     runs = r.json()["runs"]
     assert len(runs) == 1
-    assert sorted(runs[0]["batch_ids"]) == sorted([b1.id, b2.id])
+    assert sorted(s["id"] for s in runs[0]["sources"]) == sorted([s1.id, s2.id])
     source_names = sorted(s["name"] for s in runs[0]["sources"])
     assert source_names == ["Industry A", "Industry B"]
 
 
-def test_match_run_response_batchsummary_has_full_fields(authenticated_client, test_db):
-    """BatchSummary carries data_source_id, data_source_name, original_filename, file_extension."""
-    from app.models.batch import ImportBatch
-    from app.models.enums import BatchStatus
+def test_match_run_response_has_sources(authenticated_client, test_db):
+    """MatchRunResponse carries sources with id and name."""
     from app.models.match_run import MatchRun
     from app.models.source import DataSource
 
@@ -367,16 +365,6 @@ def test_match_run_response_batchsummary_has_full_fields(authenticated_client, t
     )
     test_db.add(src)
     test_db.flush()
-    b = ImportBatch(
-        data_source_id=src.id,
-        filename="u_v1.csv",
-        original_filename="v1.csv",
-        file_extension=".csv",
-        uploaded_by="x",
-        status=BatchStatus.COMPLETED,
-    )
-    test_db.add(b)
-    test_db.flush()
     run = MatchRun(
         type="supplier",
         mode="FILE_VS_GOLDEN",
@@ -384,15 +372,13 @@ def test_match_run_response_batchsummary_has_full_fields(authenticated_client, t
         name="Industry A × Golden",
         created_by="x",
     )
-    run.batches = [b]
+    run.sources = [src]
     test_db.add(run)
     test_db.commit()
 
     r = authenticated_client.get(f"/api/matches/{run.id}")
     body = r.json()
-    assert len(body["batches"]) == 1
-    bs = body["batches"][0]
-    assert bs["data_source_id"] == src.id
-    assert bs["data_source_name"] == "Industry A"
-    assert bs["original_filename"] == "v1.csv"
-    assert bs["file_extension"] == ".csv"
+    assert len(body["sources"]) == 1
+    ss = body["sources"][0]
+    assert ss["id"] == src.id
+    assert ss["name"] == "Industry A"
