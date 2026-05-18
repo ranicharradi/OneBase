@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { GitMergeIcon } from "lucide-react";
+import { AlertTriangleIcon, ArrowRightIcon, GitMergeIcon, HistoryIcon, MergeIcon } from "lucide-react";
 import { api } from "../api/client";
 import { useSelectedRecordType } from "../contexts/RecordTypeContext";
 import { useMatchRun } from "../hooks/useMatchRun";
@@ -15,7 +15,16 @@ import type {
   ReviewStats,
 } from "../api/types";
 import { useSearch } from "../contexts/SearchContext";
-import Panel, { PanelHead } from "../components/ui/Panel";
+import { Card, CardHeader, CardContent, CardFooter } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "../components/ui/table";
 import { LoadingErrorEmpty } from "../components/ui/LoadingErrorEmpty";
 import IdChip from "../components/ui/IdChip";
 import SourcePill from "../components/ui/SourcePill";
@@ -133,8 +142,8 @@ export default function MergeQueue() {
   }, [queue, searchQuery]);
 
   return (
-    <div className="scroll" style={{ height: "100%" }}>
-      <div style={{ padding: 20 }}>
+    <div className="overflow-y-auto h-full">
+      <div className="p-5">
         <WorkflowStageRail
           activeStage="merge"
           match={{
@@ -169,26 +178,8 @@ export default function MergeQueue() {
         />
 
         {selectedRun?.status === "stale" && (
-          <div
-            style={{
-              padding: "6px 14px",
-              marginBottom: 8,
-              fontSize: 11,
-              color: "var(--warn)",
-              background: "var(--warn-soft)",
-              border: "1px solid var(--border-0)",
-              borderRadius: 6,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 12 }}
-            >
-              warning
-            </span>
+          <div className="flex items-center gap-1.5 px-3.5 py-1.5 mb-2 text-xs text-amber-600 bg-amber-100 border border-border rounded-md">
+            <AlertTriangleIcon className="size-3 shrink-0" />
             Source data has changed since this run — results may be outdated
           </div>
         )}
@@ -205,27 +196,8 @@ export default function MergeQueue() {
         />
 
         {/* ── Upstream hint ── */}
-        <div
-          className="fade"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "8px 14px",
-            marginBottom: 14,
-            background: "var(--bg-2)",
-            border: "1px solid var(--border-0)",
-            borderRadius: 6,
-            fontSize: 12,
-            color: "var(--fg-1)",
-          }}
-        >
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: 14, color: "var(--fg-2)" }}
-          >
-            history
-          </span>
+        <div className="flex items-center gap-2.5 px-3.5 py-2 mb-3.5 bg-muted border border-border rounded-md text-xs text-foreground/80">
+          <HistoryIcon className="size-3.5 shrink-0 text-muted-foreground" />
           <span>
             <b>Upstream:</b> these pairs were confirmed as the same record in
             the{" "}
@@ -241,11 +213,7 @@ export default function MergeQueue() {
               href={withRecordType(
                 runId ? `/review?match_run_id=${runId}` : "/review",
               )}
-              style={{
-                color: "var(--accent)",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
+              className="text-primary font-semibold cursor-pointer"
             >
               Review queue
             </a>
@@ -255,8 +223,8 @@ export default function MergeQueue() {
 
         {/* ── Table ── */}
         <div ref={tableRef}>
-          <Panel className="fade">
-            <PanelHead>
+          <Card>
+            <CardHeader className="flex-row items-center gap-3 border-b pb-3">
               <MatchRunSelect
                 validRuns={validRuns}
                 runId={runId}
@@ -265,199 +233,144 @@ export default function MergeQueue() {
                   setPage(0);
                 }}
               />
-              <span
-                className="mono"
-                style={{ fontSize: 11, color: "var(--fg-2)" }}
-              >
+              <span className="font-mono text-[11px] text-muted-foreground ml-auto">
                 {runId
                   ? `${queue?.total ?? 0} item${(queue?.total ?? 0) !== 1 ? "s" : ""}`
                   : ""}
               </span>
-            </PanelHead>
-            <LoadingErrorEmpty
-              isLoading={isLoading && !queue}
-              isEmpty={!runId || filteredItems.length === 0}
-              emptyMessage={
-                !runId ? (
-                  <div style={{ fontSize: 12, color: "var(--fg-2)" }}>
-                    <span
-                      className="material-symbols-outlined"
-                      style={{
-                        fontSize: 28,
-                        color: "var(--fg-3)",
-                        display: "block",
-                        marginBottom: 8,
-                      }}
-                    >
-                      merge
-                    </span>
-                    Select a run above to load the merge queue.
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 12, color: "var(--fg-2)" }}>
-                    {bucket === "confirmed"
-                      ? "No items awaiting merge — review queue may still be empty."
-                      : `No ${BUCKETS.find((b) => b.id === bucket)?.label.toLowerCase()} items.`}
-                  </div>
-                )
-              }
-            >
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 70 }}>Pair</th>
-                    <th>Record</th>
-                    <th style={{ width: 90 }} className="num">
-                      Confidence
-                    </th>
-                    <th style={{ width: 120 }}>Confirmed by</th>
-                    <th style={{ width: 90 }}>Age</th>
-                    <th style={{ width: 120 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item, i) => {
-                    const tone = confidenceTone(item.confidence);
-                    return (
-                      <tr
-                        key={item.id}
-                        onClick={() =>
-                          navigate(withRecordType(`/merge/${item.id}`))
-                        }
-                        style={{
-                          cursor: "pointer",
-                          animationDelay: `${i * 30}ms`,
-                        }}
-                      >
-                        <td>
-                          <IdChip>#{item.id}</IdChip>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 500, fontSize: 13 }}>
-                            {item.record_a_name || `#${item.record_a_id}`}{" "}
+            </CardHeader>
+            <CardContent className="p-0">
+              <LoadingErrorEmpty
+                isLoading={isLoading && !queue}
+                isEmpty={!runId || filteredItems.length === 0}
+                emptyMessage={
+                  !runId ? (
+                    <div className="text-xs text-muted-foreground">
+                      <MergeIcon className="size-7 text-muted-foreground/60 block mx-auto mb-2" />
+                      Select a run above to load the merge queue.
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      {bucket === "confirmed"
+                        ? "No items awaiting merge — review queue may still be empty."
+                        : `No ${BUCKETS.find((b) => b.id === bucket)?.label.toLowerCase()} items.`}
+                    </div>
+                  )
+                }
+              >
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead style={{ width: 70 }}>Pair</TableHead>
+                      <TableHead>Record</TableHead>
+                      <TableHead style={{ width: 90 }} className="text-right">
+                        Confidence
+                      </TableHead>
+                      <TableHead style={{ width: 120 }}>Confirmed by</TableHead>
+                      <TableHead style={{ width: 90 }}>Age</TableHead>
+                      <TableHead style={{ width: 120 }} />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredItems.map((item, i) => {
+                      const tone = confidenceTone(item.confidence);
+                      const toneClass =
+                        tone === "ok"
+                          ? "text-emerald-600"
+                          : tone === "warn"
+                            ? "text-amber-600"
+                            : tone === "danger"
+                              ? "text-destructive"
+                              : "text-foreground";
+                      return (
+                        <TableRow
+                          key={item.id}
+                          onClick={() =>
+                            navigate(withRecordType(`/merge/${item.id}`))
+                          }
+                          className="cursor-pointer"
+                          style={{ animationDelay: `${i * 30}ms` }}
+                        >
+                          <TableCell>
+                            <IdChip>#{item.id}</IdChip>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-[13px]">
+                              {item.record_a_name || `#${item.record_a_id}`}{" "}
+                              <span className="text-muted-foreground font-normal">
+                                ↔
+                              </span>{" "}
+                              {item.record_b_name || `#${item.record_b_id}`}
+                            </div>
+                            <div className="flex gap-2.5 text-[11px] text-muted-foreground mt-0.5">
+                              {item.record_a_source && (
+                                <span className="inline-flex items-center gap-1">
+                                  <SourcePill short={item.record_a_source} />
+                                </span>
+                              )}
+                              {item.record_b_source && (
+                                <span className="inline-flex items-center gap-1">
+                                  <SourcePill short={item.record_b_source} />
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
                             <span
-                              style={{ color: "var(--fg-3)", fontWeight: 400 }}
+                              className={`font-mono tabular-nums text-xs font-semibold ${toneClass}`}
                             >
-                              ↔
-                            </span>{" "}
-                            {item.record_b_name || `#${item.record_b_id}`}
-                          </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 10,
-                              fontSize: 11,
-                              color: "var(--fg-2)",
-                              marginTop: 2,
-                            }}
-                          >
-                            {item.record_a_source && (
-                              <span
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: 4,
-                                }}
-                              >
-                                <SourcePill short={item.record_a_source} />
+                              {item.confidence.toFixed(3)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {item.reviewed_by ? (
+                              <span className="font-mono text-[11px] text-primary">
+                                {item.reviewed_by}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground">
+                                —
                               </span>
                             )}
-                            {item.record_b_source && (
-                              <span
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: 4,
-                                }}
-                              >
-                                <SourcePill short={item.record_b_source} />
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="num">
-                          <span
-                            className="mono tnum"
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: `var(--${tone})`,
-                            }}
-                          >
-                            {item.confidence.toFixed(3)}
-                          </span>
-                        </td>
-                        <td>
-                          {item.reviewed_by ? (
-                            <span
-                              className="mono"
-                              style={{ fontSize: 11, color: "var(--accent)" }}
-                            >
-                              {item.reviewed_by}
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-mono text-[11px] text-muted-foreground">
+                              {relativeTime(item.reviewed_at ?? item.created_at)}
                             </span>
-                          ) : (
-                            <span
-                              style={{ fontSize: 11, color: "var(--fg-3)" }}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(withRecordType(`/merge/${item.id}`));
+                              }}
+                              className="gap-1 px-2.5"
                             >
-                              —
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          <span
-                            className="mono"
-                            style={{ fontSize: 11, color: "var(--fg-2)" }}
-                          >
-                            {relativeTime(item.reviewed_at ?? item.created_at)}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="btn btn-sm btn-accent"
-                            style={{ padding: "0 10px" }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(withRecordType(`/merge/${item.id}`));
-                            }}
-                          >
-                            <span
-                              className="material-symbols-outlined"
-                              style={{ fontSize: 11 }}
-                            >
-                              merge
-                            </span>
-                            Reconcile
-                            <span
-                              className="material-symbols-outlined"
-                              style={{ fontSize: 10 }}
-                            >
-                              arrow_forward
-                            </span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </LoadingErrorEmpty>
+                              <MergeIcon className="size-3" />
+                              Reconcile
+                              <ArrowRightIcon className="size-3" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </LoadingErrorEmpty>
+            </CardContent>
 
             {(queue?.total ?? 0) > PAGE_SIZE && (
-              <div
-                style={{
-                  padding: "8px 14px",
-                  borderTop: "1px solid var(--border-0)",
-                }}
-              >
+              <CardFooter className="px-3.5 py-2 border-t bg-transparent">
                 <Pagination
                   page={page}
                   pageSize={PAGE_SIZE}
                   totalItems={queue?.total ?? 0}
                   onPageChange={handlePageChange}
                 />
-              </div>
+              </CardFooter>
             )}
-          </Panel>
+          </Card>
         </div>
       </div>
     </div>
