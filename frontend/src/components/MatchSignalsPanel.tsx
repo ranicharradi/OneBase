@@ -1,5 +1,5 @@
 import { SIGNAL_CONFIG } from '../utils/signals';
-import Panel, { PanelHead } from './ui/Panel';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import Hbar from './ui/Hbar';
 
 interface MatchSignalsPanelProps {
@@ -8,33 +8,56 @@ interface MatchSignalsPanelProps {
   tone: 'ok' | 'warn' | 'danger';
 }
 
+const getToneColors = (tone: 'ok' | 'warn' | 'danger') => {
+  switch (tone) {
+    case 'ok':
+      return { text: 'text-emerald-600', fill: 'bg-emerald-500' };
+    case 'warn':
+      return { text: 'text-amber-600', fill: 'bg-amber-500' };
+    case 'danger':
+      return { text: 'text-destructive', fill: 'bg-destructive' };
+  }
+};
+
 export default function MatchSignalsPanel({ signals, confidence, tone }: MatchSignalsPanelProps) {
+  const { text: toneText, fill: toneFill } = getToneColors(tone);
+
   return (
-    <Panel className="fade" style={{ marginBottom: 12 }}>
-      <PanelHead title="Signals" />
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Object.keys(signals).length + 1}, 1fr)`, gap: 0 }}>
-        {Object.entries(signals).map(([k, v]) => {
-          const meta = SIGNAL_CONFIG[k] ?? { label: k, shortLabel: k, icon: '·' };
-          const pct = Math.round(v * 100);
-          const t = pct >= 85 ? 'ok' : pct >= 60 ? 'warn' : 'danger';
-          return (
-            <div key={k} style={{ padding: '10px 14px', borderRight: '1px solid var(--border-0)' }}>
-              <div className="label">{meta.label}</div>
-              <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, color: `var(--${t})`, marginTop: 4 }}>
-                {v.toFixed(2)}
+    <Card className="mb-3">
+      <CardHeader>
+        <CardTitle>Signals</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-0" style={{ gridTemplateColumns: `repeat(${Object.keys(signals).length + 1}, 1fr)` }}>
+          {Object.entries(signals).map(([k, v]) => {
+            const meta = SIGNAL_CONFIG[k] ?? { label: k, shortLabel: k, icon: '·' };
+            const pct = Math.round(v * 100);
+            const t = pct >= 85 ? 'ok' : pct >= 60 ? 'warn' : 'danger';
+            const { text: signalText, fill: signalFill } = getToneColors(t);
+
+            return (
+              <div key={k} className="border-r border-border px-3.5 py-2.5">
+                <div className="text-foreground/80">{meta.label}</div>
+                <div className={`font-mono tabular-nums text-lg font-semibold ${signalText} mt-1`}>
+                  {v.toFixed(2)}
+                </div>
+                <div className="mt-1.5">
+                  <Hbar value={pct} fillClassName={signalFill} />
+                </div>
               </div>
-              <Hbar value={pct} tone={t} style={{ marginTop: 6 }} />
+            );
+          })}
+          <div className="bg-muted px-3.5 py-2.5">
+            <div className="text-foreground/80">Overall</div>
+            <div className={`font-mono tabular-nums text-xl font-semibold ${toneText} mt-1`}>
+              {confidence.toFixed(3)}
             </div>
-          );
-        })}
-        <div style={{ padding: '10px 14px', background: 'var(--bg-2)' }}>
-          <div className="label">Overall</div>
-          <div className="mono tnum" style={{ fontSize: 20, fontWeight: 600, color: `var(--${tone})`, marginTop: 4 }}>
-            {confidence.toFixed(3)}
+            <div className="mt-1.5">
+              <Hbar value={Math.round(confidence * 100)} fillClassName={toneFill} />
+            </div>
           </div>
-          <Hbar value={Math.round(confidence * 100)} tone={tone} style={{ marginTop: 6 }} />
         </div>
-      </div>
-    </Panel>
+      </CardContent>
+    </Card>
   );
 }
