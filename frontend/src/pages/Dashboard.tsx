@@ -3,6 +3,23 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
+import {
+  RefreshCwIcon,
+  PlusIcon,
+  UploadCloudIcon,
+  NetworkIcon,
+  ClipboardCheckIcon,
+  BadgeCheckIcon,
+  ArrowRightIcon,
+  TrendingUpIcon,
+  AlertTriangleIcon,
+  SlidersHorizontalIcon,
+  SparklesIcon,
+  CloudOffIcon,
+  CheckCircle2Icon,
+  DownloadIcon,
+  XCircleIcon,
+} from 'lucide-react';
 import { api } from '../api/client';
 import type {
   DashboardResponse,
@@ -13,8 +30,10 @@ import type {
 import { useMatchingNotifications } from '../hooks/useMatchingNotifications';
 import { useAuth } from '../hooks/useAuth';
 import { useSelectedRecordType } from '../contexts/RecordTypeContext';
-import Panel, { PanelHead } from '../components/ui/Panel';
-import Pill from '../components/ui/Pill';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import Spinner from '../components/ui/Spinner';
 
 const REFRESH_MS = 30_000;
@@ -83,8 +102,8 @@ function Skeleton() {
       <div className="kpi-grid">
         {[0, 1, 2, 3].map(i => (
           <div key={i} className="kpi">
-            <div className="kpi-label">Loading…</div>
-            <div className="kpi-value mono" style={{ color: 'var(--fg-2)' }}>—</div>
+            <div className="text-xs text-muted-foreground">Loading…</div>
+            <div className="font-mono tabular-nums text-muted-foreground text-lg font-semibold">—</div>
           </div>
         ))}
       </div>
@@ -175,12 +194,39 @@ function toneForAction(action: string): 'ok' | 'warn' | 'accent' | 'fg-3' {
   return 'fg-3';
 }
 
-function activityToneColor(tone: string | null | undefined): string {
-  if (tone === 'ok') return 'var(--ok)';
-  if (tone === 'warn') return 'var(--warn)';
-  if (tone === 'danger') return 'var(--danger)';
-  if (tone === 'info' || tone === 'accent') return 'var(--accent)';
-  return 'var(--fg-3)';
+function activityDotClass(tone: string | null | undefined): string {
+  if (tone === 'ok') return 'bg-emerald-500';
+  if (tone === 'warn') return 'bg-amber-500';
+  if (tone === 'danger') return 'bg-destructive';
+  if (tone === 'info' || tone === 'accent') return 'bg-primary';
+  return 'bg-muted-foreground';
+}
+
+function actionToneBg(tone: 'danger' | 'warn' | 'info'): string {
+  if (tone === 'danger') return 'bg-destructive/10';
+  if (tone === 'warn') return 'bg-amber-100 dark:bg-amber-950/40';
+  return 'bg-sky-100 dark:bg-sky-950/40';
+}
+
+function actionToneText(tone: 'danger' | 'warn' | 'info'): string {
+  if (tone === 'danger') return 'text-destructive';
+  if (tone === 'warn') return 'text-amber-600 dark:text-amber-300';
+  return 'text-sky-600 dark:text-sky-300';
+}
+
+function ActionIcon({ tone }: { tone: 'danger' | 'warn' | 'info' }) {
+  const cls = `size-4 ${actionToneText(tone)}`;
+  if (tone === 'danger') return <XCircleIcon className={cls} aria-hidden />;
+  if (tone === 'warn') return <ClipboardCheckIcon className={cls} aria-hidden />;
+  return <DownloadIcon className={cls} aria-hidden />;
+}
+
+function StageIcon({ label }: { label: string }) {
+  const cls = 'size-3 text-primary shrink-0';
+  if (label === 'INGEST') return <UploadCloudIcon className={cls} aria-hidden />;
+  if (label === 'MATCH') return <NetworkIcon className={cls} aria-hidden />;
+  if (label === 'REVIEW') return <ClipboardCheckIcon className={cls} aria-hidden />;
+  return <BadgeCheckIcon className={cls} aria-hidden />;
 }
 
 function formatRelativeTime(iso: string | null): string {
@@ -287,78 +333,71 @@ function DashboardOverview({
   return (
     <div className="dashboard-overview-page">
       {/* Page header */}
-      <div
-        className="fade"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
-            <span style={{ color: 'var(--fg-2)', fontWeight: 400 }}>Modular Data Pipeline · </span>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold m-0">
+            <span className="text-muted-foreground font-normal">Modular Data Pipeline · </span>
             Overview
           </h1>
           {matchProgress ? (
-            <Pill tone="accent">
+            <Badge variant="secondary">
               <Spinner size={10} />
               {matchProgress.stage} · {matchProgress.progress}%
-            </Pill>
+            </Badge>
           ) : (
-            <Pill tone="accent" dot>
+            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
               <span className="live-dot">live</span>
-            </Pill>
+            </Badge>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={onRefresh} disabled={isRefreshing} className="btn btn-sm">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onRefresh} disabled={isRefreshing}>
             {isRefreshing ? (
               <Spinner size={12} />
             ) : (
-              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>refresh</span>
+              <RefreshCwIcon className="size-3" />
             )}
             {isRefreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
-          <Link to="/upload" className="btn btn-sm btn-primary" style={{ textDecoration: 'none' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
-            New batch
-          </Link>
+          </Button>
+          <Button asChild size="sm">
+            <Link to="/upload">
+              <PlusIcon className="size-3" />
+              New batch
+            </Link>
+          </Button>
         </div>
       </div>
 
       {/* 3-column layout: Unified% · Pipeline+NextSteps · Activity */}
-      <div className="empty-overview-wrap fade">
+      <div className="empty-overview-wrap">
         <div className="empty-overview-grid">
             {/* LEFT — Unified ring */}
-            <Panel className="eo-ring" style={{ display: 'flex', flexDirection: 'column' }}>
-              <PanelHead title="Unified %" />
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '24px 18px 28px',
-                  gap: 14,
-                }}
-              >
+            <Card className="eo-ring flex flex-col">
+              <CardHeader>
+                <CardTitle>Unified %</CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col items-center justify-center py-6 gap-3">
                 <EmptyRing pct={coverage} />
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 13, color: 'var(--fg-2)' }}>
+                <div className="text-center">
+                  <div className="text-sm text-muted-foreground">
                     {uploads.total_staged > 0
                       ? `${coverage}% coverage`
                       : 'awaiting data'}
                   </div>
-                  <div className="mono" style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 6 }}>
+                  <div className="font-mono text-xs text-muted-foreground/70 mt-1.5">
                     {unified.total_unified.toLocaleString()} / {uploads.total_staged.toLocaleString()} records
                   </div>
                 </div>
-              </div>
-            </Panel>
+              </CardContent>
+            </Card>
 
             {/* MIDDLE — Pipeline Health + Next Steps */}
-            <div className="eo-pipeline" style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-              <Panel>
-                <PanelHead title="Pipeline Health" />
-                <div style={{ padding: '18px 16px 18px' }}>
+            <div className="eo-pipeline flex flex-col gap-3.5 min-w-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pipeline Health</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <div className="eo-sysmap">
                     {stages.flatMap((s, i) => {
                       const isActive = s.label === activeStage;
@@ -368,16 +407,10 @@ function DashboardOverview({
                           className={`eo-node${isActive ? ' eo-node-active' : ''}`}
                         >
                           <div className="eo-node-title">
-                            <span
-                              className="material-symbols-outlined"
-                              style={{ fontSize: 12, color: 'var(--accent)' }}
-                              aria-hidden="true"
-                            >
-                              {s.icon}
-                            </span>
+                            <StageIcon label={s.label} />
                             {s.label}
                             {isActive && (
-                              <span style={{ marginLeft: 'auto' }}>
+                              <span className="ml-auto">
                                 <Spinner size={10} />
                               </span>
                             )}
@@ -394,7 +427,7 @@ function DashboardOverview({
                         node,
                         <div key={`${s.label}-q`} className="eo-connector" aria-hidden="true">
                           <span />
-                          <span className="material-symbols-outlined">arrow_forward</span>
+                          <ArrowRightIcon className="size-4" />
                           <span />
                         </div>,
                       ];
@@ -402,141 +435,91 @@ function DashboardOverview({
                   </div>
 
                   <div className="eo-sysmap-legend">
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 12 }} aria-hidden="true">
-                        auto_graph
-                      </span>
+                    <span className="inline-flex items-center gap-1">
+                      <TrendingUpIcon className="size-3" aria-hidden />
                       Avg confidence · {avgConf ? avgConf.toFixed(3) : '—'}
                     </span>
                     {modelStatus && (
-                      <span style={{ marginLeft: 'auto', color: 'var(--fg-2)' }}>
+                      <span className="ml-auto text-muted-foreground">
                         {modelStatus.review_count.toLocaleString()} review{modelStatus.review_count === 1 ? '' : 's'} ·{' '}
                         {modelStatus.ml_model_exists ? 'ML model trained' : 'no ML model'}
                       </span>
                     )}
                   </div>
-                </div>
-              </Panel>
+                </CardContent>
+              </Card>
 
-              <Panel>
-                <PanelHead title="Next steps" />
-                <div style={{ padding: '16px 18px 18px' }}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Next steps</CardTitle>
+                </CardHeader>
+                <CardContent>
                   {uploads.total_staged === 0 ? (
                     <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                        <div
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: '50%',
-                            background: 'var(--accent-soft)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <span
-                            className="material-symbols-outlined"
-                            style={{ fontSize: 18, color: 'var(--accent)' }}
-                            aria-hidden="true"
-                          >
-                            cloud_upload
-                          </span>
+                      <div className="flex items-center gap-3 mb-3.5">
+                        <div className="size-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <UploadCloudIcon className="size-[18px] text-primary" aria-hidden />
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-0)' }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-foreground">
                             Upload your first CSV
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 2 }}>
+                          <div className="text-xs text-muted-foreground mt-0.5">
                             We'll auto-detect schema, delimiter, and types
                           </div>
                         </div>
                       </div>
-                      <Link
-                        to="/upload"
-                        className="btn btn-lg"
-                        style={{
-                          width: '100%',
-                          justifyContent: 'center',
-                          background: 'var(--bg-2)',
-                          border: '1px solid var(--border-1)',
-                          color: 'var(--fg-0)',
-                          fontWeight: 500,
-                          textDecoration: 'none',
-                        }}
-                      >
-                        Upload
-                      </Link>
+                      <Button asChild variant="outline" className="w-full justify-center">
+                        <Link to="/upload">Upload</Link>
+                      </Button>
                     </>
                   ) : actions.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className="flex flex-col gap-2">
                       {actions.map(a => (
                         <Link
                           key={a.key}
                           to={a.to}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: 10,
-                            padding: 10,
-                            background: `var(--${a.tone}-soft)`,
-                            borderRadius: 4,
-                            textDecoration: 'none',
-                            color: 'var(--fg-0)',
-                          }}
+                          className={`flex items-start gap-2.5 p-2.5 rounded ${actionToneBg(a.tone)} no-underline text-foreground`}
                         >
-                          <span
-                            className="material-symbols-outlined"
-                            style={{ fontSize: 16, color: `var(--${a.tone})`, marginTop: 1 }}
-                            aria-hidden="true"
-                          >
-                            {a.icon}
-                          </span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--fg-0)' }}>{a.title}</div>
-                            <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 2 }}>{a.detail}</div>
+                          <ActionIcon tone={a.tone} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-foreground">{a.title}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">{a.detail}</div>
                           </div>
-                          <span
-                            className="material-symbols-outlined"
-                            style={{ fontSize: 14, color: `var(--${a.tone})`, marginTop: 1 }}
-                            aria-hidden="true"
-                          >
-                            arrow_forward
-                          </span>
+                          <ArrowRightIcon className={`size-3.5 mt-0.5 ${actionToneText(a.tone)}`} aria-hidden />
                         </Link>
                       ))}
                     </div>
                   ) : (
-                    <div style={{ textAlign: 'center', padding: '20px 12px' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--ok)' }}>
-                        check_circle
-                      </span>
-                      <div style={{ fontSize: 13, fontWeight: 500, marginTop: 8 }}>All caught up</div>
-                      <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
+                    <div className="text-center py-5 px-3">
+                      <CheckCircle2Icon className="size-7 text-emerald-500 mx-auto" />
+                      <div className="text-sm font-medium mt-2">All caught up</div>
+                      <div className="text-xs text-muted-foreground mt-1">
                         No failed uploads, reviews, or record exports need attention.
                       </div>
                     </div>
                   )}
-                </div>
-              </Panel>
+                </CardContent>
+              </Card>
             </div>
 
             {/* RIGHT — Recent Activity */}
-            <Panel className="eo-activity" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <PanelHead>
-                <span className="panel-title">Recent Activity</span>
-                <Pill tone="ok" dot>
-                  <span className="live-dot">streaming</span>
-                </Pill>
-              </PanelHead>
-              <div className="scroll" style={{ flex: 1, minHeight: 0 }}>
+            <Card className="eo-activity flex flex-col min-h-0">
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+                <div className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    <span className="live-dot">streaming</span>
+                  </Badge>
+                </div>
+              </CardHeader>
+              <ScrollArea className="flex-1 min-h-0">
                 {recentActivity.length === 0 ? (
-                  <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
+                  <div className="p-7 text-center text-xs text-muted-foreground">
                     No activity yet
                   </div>
                 ) : (
-                  <div style={{ padding: '6px 0' }}>
+                  <div className="py-1.5">
                     {recentActivity.slice(0, 20).map((a, i, arr) => {
                       const tone = a.tone ?? toneForAction(a.action);
                       const title = a.title ?? a.entity_name ?? a.action;
@@ -545,39 +528,30 @@ function DashboardOverview({
                       return (
                         <div
                           key={a.id}
+                          className="grid gap-2.5 px-4 py-2.5 items-start"
                           style={{
-                            display: 'grid',
                             gridTemplateColumns: '14px 1fr',
-                            gap: 10,
-                            padding: '10px 16px',
-                            borderBottom: i < arr.length - 1 ? '1px solid var(--border-0)' : 'none',
-                            alignItems: 'flex-start',
+                            borderBottom: i < arr.length - 1 ? '1px solid hsl(var(--border))' : 'none',
                           }}
                         >
                           <span
-                            style={{
-                              width: 7,
-                              height: 7,
-                              borderRadius: '50%',
-                              background: activityToneColor(tone),
-                              marginTop: 6,
-                            }}
+                            className={`w-1.5 h-1.5 rounded-full mt-1.5 ${activityDotClass(tone)}`}
                           />
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 12, color: 'var(--fg-1)', lineHeight: 1.45 }}>
-                              <span className="mono" style={{ color: 'var(--fg-3)', marginRight: 6 }}>
+                          <div className="min-w-0">
+                            <div className="text-xs text-foreground/80 leading-snug">
+                              <span className="font-mono text-muted-foreground/70 mr-1.5">
                                 {formatRelativeTime(a.created_at)}
                               </span>
-                              <span style={{ color: 'var(--fg-3)' }}>·</span>
-                              <span className="mono" style={{ color: 'var(--fg-2)', marginLeft: 6 }}>
+                              <span className="text-muted-foreground/70">·</span>
+                              <span className="font-mono text-muted-foreground ml-1.5">
                                 {actor}
                               </span>
                             </div>
-                            <div style={{ fontSize: 12, color: 'var(--fg-0)', lineHeight: 1.4 }}>
+                            <div className="text-xs text-foreground leading-snug">
                               {title}
                             </div>
                             {subtitle && (
-                              <div className="mono" style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>
+                              <div className="font-mono text-[10px] text-muted-foreground/70 mt-0.5">
                                 {subtitle}
                               </div>
                             )}
@@ -587,101 +561,98 @@ function DashboardOverview({
                     })}
                   </div>
                 )}
-              </div>
-            </Panel>
+              </ScrollArea>
+            </Card>
         </div>
       </div>
 
       {/* ML & matching */}
       {isAdmin && modelStatus && (
-        <Panel className="dashboard-overview-ml fade">
-          <PanelHead title="ML & matching" />
-          <div style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-            <div>
-              <div className="label">Reviews</div>
-              <div className="mono tnum" style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
-                {modelStatus.review_count}
+        <Card className="dashboard-overview-ml mt-4">
+          <CardHeader>
+            <CardTitle>ML &amp; matching</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 gap-3.5">
+              <div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">Reviews</div>
+                <div className="font-mono tabular-nums text-lg font-semibold mt-1">
+                  {modelStatus.review_count}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">ML model</div>
+                <div className="text-sm font-medium mt-1 text-muted-foreground">
+                  {modelStatus.ml_model_exists ? 'Trained' : 'None'}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">Last trained</div>
+                <div className="font-mono text-xs mt-1 text-muted-foreground">
+                  {modelStatus.last_trained ? new Date(modelStatus.last_trained).toLocaleDateString() : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">Signal weights</div>
+                <div className="font-mono text-[11px] mt-1 text-foreground/80">
+                  {Object.values(modelStatus.current_weights).map(w => w.toFixed(2)).join(' · ')}
+                </div>
               </div>
             </div>
-            <div>
-              <div className="label">ML model</div>
-              <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4, color: 'var(--fg-2)' }}>
-                {modelStatus.ml_model_exists ? 'Trained' : 'None'}
-              </div>
-            </div>
-            <div>
-              <div className="label">Last trained</div>
-              <div className="mono" style={{ fontSize: 12, marginTop: 4, color: 'var(--fg-2)' }}>
-                {modelStatus.last_trained ? new Date(modelStatus.last_trained).toLocaleDateString() : '—'}
-              </div>
-            </div>
-            <div>
-              <div className="label">Signal weights</div>
-              <div className="mono" style={{ fontSize: 11, marginTop: 4, color: 'var(--fg-1)' }}>
-                {Object.values(modelStatus.current_weights).map(w => w.toFixed(2)).join(' · ')}
-              </div>
-            </div>
-          </div>
-          <div
-            style={{
-              padding: '10px 14px',
-              borderTop: '1px solid var(--border-0)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
+          </CardContent>
+          <CardFooter className="justify-between gap-2.5">
             {confirmAction ? (
               <>
-                <span style={{ fontSize: 12, color: 'var(--warn)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>warning</span>
+                <span className="text-xs text-amber-600 dark:text-amber-300 flex items-center gap-1.5">
+                  <AlertTriangleIcon className="size-3.5" />
                   {confirmAction === 'retrain'
                     ? 'Recalculate signal weights from review decisions?'
                     : 'Train a new ML model from review decisions?'}
                 </span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
+                <div className="flex gap-1.5">
+                  <Button
+                    size="sm"
                     onClick={onConfirmMlAction}
-                    className="btn btn-sm btn-accent"
                     disabled={isRetraining || isTraining}
                   >
                     Confirm
-                  </button>
-                  <button onClick={onCancelMlAction} className="btn btn-sm">
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={onCancelMlAction}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </>
             ) : (
               <>
-                <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+                <span className="text-xs text-muted-foreground">
                   Retraining requires ≥20 reviews · ML training requires ≥50 reviews.
                 </span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
+                <div className="flex gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={onRequestRetrain}
                     disabled={modelStatus.review_count < 20 || isRetraining}
-                    className="btn btn-sm"
                     title={modelStatus.review_count < 20 ? 'Need at least 20 reviews' : ''}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>tune</span>
+                    <SlidersHorizontalIcon className="size-3" />
                     Retrain weights
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={onRequestTrain}
                     disabled={modelStatus.review_count < 50 || isTraining}
-                    className="btn btn-sm"
                     title={modelStatus.review_count < 50 ? 'Need at least 50 reviews' : ''}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>auto_awesome</span>
+                    <SparklesIcon className="size-3" />
                     Train ML model
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
-          </div>
-        </Panel>
+          </CardFooter>
+        </Card>
       )}
     </div>
   );
@@ -742,22 +713,20 @@ export default function Dashboard() {
 
   if (error || !data) {
     return (
-      <div className="scroll" style={{ height: '100%' }}>
-        <div style={{ padding: 20 }}>
-          <Panel>
-            <div style={{ padding: 28, textAlign: 'center' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--danger)' }}>
-                cloud_off
-              </span>
-              <p style={{ marginTop: 12, color: 'var(--danger)', fontWeight: 500 }}>
+      <div className="h-full overflow-auto">
+        <div className="p-5">
+          <Card>
+            <CardContent className="p-7 text-center">
+              <CloudOffIcon className="size-8 text-destructive mx-auto" />
+              <p className="mt-3 text-destructive font-medium">
                 {error instanceof Error ? error.message : 'Failed to load dashboard'}
               </p>
-              <button onClick={() => refetch()} className="btn btn-sm" style={{ marginTop: 12 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>refresh</span>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
+                <RefreshCwIcon className="size-3" />
                 Retry
-              </button>
-            </div>
-          </Panel>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
