@@ -282,7 +282,7 @@ export default function ReviewQueue() {
 
         {/* ── Stale warning ── */}
         {selectedRun?.status === "stale" && (
-          <div className="flex items-center gap-1.5 px-3.5 py-1.5 mb-2 text-xs text-amber-600 bg-amber-100 border border-border rounded-md">
+          <div className="flex items-center gap-1.5 px-3.5 py-1.5 mb-2 text-xs text-amber-600 bg-amber-100 dark:bg-amber-950 dark:text-amber-300 border border-border rounded-md">
             <AlertTriangleIcon className="size-3 shrink-0" />
             Source data has changed since this run — results may be outdated
           </div>
