@@ -17,6 +17,8 @@ from app.models.user import User
 from app.schemas.upload import BatchResponse, TaskStatusResponse, UploadResponse
 from app.services.audit import log_action
 from app.services.ingestion import compute_diff_for_source
+from app.services.normalization import normalize_name
+from app.services.source_overlap import probe_overlap
 from app.tasks.celery_app import celery_app
 from app.tasks.ingestion import process_upload
 from app.utils.file_format import extension_of, is_allowed_upload
@@ -282,6 +284,46 @@ def delete_batch(
         entity_id=batch_id,
     )
     db.commit()
+
+
+@router.post("/overlap-probe")
+async def overlap_probe(
+    file: UploadFile = File(...),
+    type: str = Form(...),
+    name_column: str = Form(...),
+    delimiter: str = Form(";"),
+    threshold: float = Form(0.5),
+    min_rows: int = Form(20),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Check how much an incoming file overlaps with existing sources of the same type.
+
+    Returns a ranked list of existing sources ordered by descending overlap ratio.
+    Use this pre-upload to detect likely duplicate sources before committing an import.
+    """
+    content = await file.read()
+    rows = parse_file(content, file.filename or "", delimiter=delimiter)
+    names = [normalize_name(row.get(name_column, "")) for row in rows]
+    matches = probe_overlap(
+        db,
+        type_key=type,
+        incoming_normalized_names=names,
+        threshold=threshold,
+        min_rows=min_rows,
+    )
+    return {
+        "matches": [
+            {
+                "source_id": m.source_id,
+                "source_name": m.source_name,
+                "overlap_ratio": m.overlap_ratio,
+                "matched_count": m.matched_count,
+                "total_count": m.total_count,
+            }
+            for m in matches
+        ],
+    }
 
 
 @router.get("/batches/{task_id}/status", response_model=TaskStatusResponse, dependencies=[Depends(get_current_user)])

@@ -543,3 +543,61 @@ def test_upload_persists_original_filename_and_extension(authenticated_client, t
     assert batch.file_extension == ".csv"
     # Storage key still UUID-prefixed
     assert "_My Suppliers v2.csv" in batch.filename
+
+
+def test_overlap_probe_endpoint_surfaces_high_overlap_source(authenticated_client, test_db):
+    from app.models.batch import ImportBatch
+    from app.models.enums import BatchStatus, RecordStatus
+    from app.models.source import DataSource
+    from app.models.staging import StagedRecord
+
+    src = DataSource(
+        name="Industry A Suppliers",
+        type="supplier",
+        delimiter=";",
+        column_mapping={"supplier_name": "Name"},
+        identity_field_key="supplier_name",
+    )
+    test_db.add(src)
+    test_db.flush()
+
+    batch = ImportBatch(
+        data_source_id=src.id,
+        filename="test.csv",
+        original_filename="test.csv",
+        file_extension=".csv",
+        uploaded_by="test",
+        status=BatchStatus.COMPLETED,
+    )
+    test_db.add(batch)
+    test_db.flush()
+
+    for n in ["Acme", "Beta", "Gamma", "Delta"]:
+        test_db.add(
+            StagedRecord(
+                import_batch_id=batch.id,
+                data_source_id=src.id,
+                type="supplier",
+                name=n,
+                normalized_name=n.upper(),
+                fields={"supplier_name": n},
+                raw_data={"Name": n},
+                status=RecordStatus.ACTIVE,
+            )
+        )
+    test_db.commit()
+
+    csv = b"Name\nAcme\nBeta\nGamma\nNew Co\n"  # 75% overlap
+    files = {"file": ("uploaded.csv", csv, "text/csv")}
+    data = {
+        "type": "supplier",
+        "name_column": "Name",
+        "delimiter": ";",
+        "threshold": "0.5",
+        "min_rows": "4",
+    }
+    r = authenticated_client.post("/api/import/overlap-probe", files=files, data=data)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["matches"][0]["source_name"] == "Industry A Suppliers"
+    assert 0.7 < body["matches"][0]["overlap_ratio"] < 0.8
