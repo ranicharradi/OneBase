@@ -189,6 +189,140 @@ describe('Upload source creation from file preflight', () => {
     expect(await screen.findByText(/Upload to/i)).toHaveTextContent('Industry A Suppliers')
   })
 
+  it('keeps the mapping step open when canceling the overlap dialog', async () => {
+    const user = userEvent.setup()
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? 'GET'
+      const body = init?.body instanceof FormData || init?.body == null
+        ? init?.body
+        : JSON.parse(String(init.body))
+      requests.push({ url, method, body })
+
+      if (url.endsWith('/api/sources') && method === 'GET') {
+        return json([])
+      }
+      if (url.endsWith('/api/record-types') && method === 'GET') {
+        return json(recordTypesResponse)
+      }
+      if (url.endsWith('/api/sources/detect-headers') && method === 'POST') {
+        return json({ columns: ['Vendor Name'], delimiter: ';', format: 'csv' })
+      }
+      if (url.endsWith('/api/record-types/supplier') && method === 'GET') {
+        return json(supplierType)
+      }
+      if (url.endsWith('/api/import/overlap-probe') && method === 'POST') {
+        return json({
+          matches: [{
+            source_id: 7,
+            source_name: 'Industry A Suppliers',
+            overlap_ratio: 0.88,
+            matched_count: 22,
+            total_count: 25,
+          }],
+        })
+      }
+      return new Response('not found', { status: 404 })
+    })
+
+    render(<Upload />)
+
+    fireEvent.drop(await screen.findByRole('button', { name: /drop a csv or excel file/i }), {
+      dataTransfer: {
+        files: [new File(['Vendor Name\nAcme'], 'vendors.csv', { type: 'text/csv' })],
+      },
+    })
+
+    await screen.findByText('Supplier Name')
+    pickIdentityField()
+    await user.click(screen.getByRole('button', { name: /create & upload/i }))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Industry A Suppliers')
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('Supplier Name')).toBeInTheDocument()
+    expect(requests.some(req => req.url.endsWith('/api/sources') && req.method === 'POST')).toBe(false)
+  })
+
+  it('creates the new source once when choosing create new anyway', async () => {
+    const user = userEvent.setup()
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? 'GET'
+      const body = init?.body instanceof FormData || init?.body == null
+        ? init?.body
+        : JSON.parse(String(init.body))
+      requests.push({ url, method, body })
+
+      if (url.endsWith('/api/sources') && method === 'GET') {
+        return json([])
+      }
+      if (url.endsWith('/api/record-types') && method === 'GET') {
+        return json(recordTypesResponse)
+      }
+      if (url.endsWith('/api/sources/detect-headers') && method === 'POST') {
+        return json({ columns: ['Vendor Name'], delimiter: ';', format: 'csv' })
+      }
+      if (url.endsWith('/api/record-types/supplier') && method === 'GET') {
+        return json(supplierType)
+      }
+      if (url.endsWith('/api/import/overlap-probe') && method === 'POST') {
+        return json({
+          matches: [{
+            source_id: 7,
+            source_name: 'Industry A Suppliers',
+            overlap_ratio: 0.88,
+            matched_count: 22,
+            total_count: 25,
+          }],
+        })
+      }
+      if (url.endsWith('/api/sources') && method === 'POST') {
+        return json({
+          id: 2,
+          name: 'Vendors',
+          type: 'supplier',
+          description: null,
+          delimiter: ';',
+          column_mapping: { supplier_name: 'Vendor Name' },
+          identity_field_key: 'supplier_name',
+          created_at: null,
+          updated_at: null,
+        })
+      }
+      if (url.endsWith('/api/import/upload') && method === 'POST') {
+        return json({ batch_id: 10, task_id: 'task-10', filename: 'vendors.csv', message: 'ok' })
+      }
+      if (url.endsWith('/api/import/batches/task-10/status') && method === 'GET') {
+        return json({ task_id: 'task-10', state: 'COMPLETE', row_count: 1 })
+      }
+      return new Response('not found', { status: 404 })
+    })
+
+    render(<Upload />)
+
+    fireEvent.drop(await screen.findByRole('button', { name: /drop a csv or excel file/i }), {
+      dataTransfer: {
+        files: [new File(['Vendor Name\nAcme'], 'vendors.csv', { type: 'text/csv' })],
+      },
+    })
+
+    await screen.findByText('Supplier Name')
+    pickIdentityField()
+    await user.click(screen.getByRole('button', { name: /create & upload/i }))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Industry A Suppliers')
+    await user.click(screen.getByRole('button', { name: /create new anyway/i }))
+
+    await waitFor(() => {
+      expect(requests.filter(req => req.url.endsWith('/api/sources') && req.method === 'POST')).toHaveLength(1)
+      expect(requests.filter(req => req.url.endsWith('/api/import/upload') && req.method === 'POST')).toHaveLength(1)
+    })
+  })
+
   it('does not submit a second overlap probe while the first probe is pending', async () => {
     const user = userEvent.setup()
     const probeResolvers: Array<(response: Response) => void> = []
