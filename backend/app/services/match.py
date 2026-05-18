@@ -6,13 +6,13 @@ the service stays transport-agnostic; the router translates each to a status cod
 
 from sqlalchemy.orm import Session
 
-from app.models.batch import ImportBatch
 from app.models.match_run import MatchRun
+from app.models.source import DataSource
 from app.models.unified import UnifiedRecord
 from app.record_types import get as get_record_type
 
-MIN_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1}
-MAX_BATCHES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1}
+MIN_SOURCES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1}
+MAX_SOURCES_BY_MODE = {"FILE_VS_FILE": 2, "FILE_VS_GOLDEN": 1}
 
 
 class MatchValidationError(ValueError):
@@ -34,7 +34,7 @@ def create_run(
     *,
     type: str,
     mode: str,
-    batch_ids: list[int],
+    source_ids: list[int],
     name: str | None,
     username: str,
 ) -> MatchRun:
@@ -43,22 +43,22 @@ def create_run(
     except KeyError:
         raise MatchNotFoundError(f"Unknown record type: {type!r}") from None
 
-    if mode not in MIN_BATCHES_BY_MODE:
+    if mode not in MIN_SOURCES_BY_MODE:
         raise MatchValidationError(f"Unknown mode: {mode!r}")
 
-    min_n = MIN_BATCHES_BY_MODE[mode]
-    max_n = MAX_BATCHES_BY_MODE[mode]
-    if len(batch_ids) < min_n or (max_n is not None and len(batch_ids) > max_n):
+    min_n = MIN_SOURCES_BY_MODE[mode]
+    max_n = MAX_SOURCES_BY_MODE[mode]
+    if len(source_ids) < min_n or (max_n is not None and len(source_ids) > max_n):
         expected = f"{min_n}" if max_n == min_n else f"{min_n}+"
-        raise MatchValidationError(f"Mode {mode} requires {expected} files; received {len(batch_ids)}")
+        raise MatchValidationError(f"Mode {mode} requires {expected} sources; received {len(source_ids)}")
 
-    batches = db.query(ImportBatch).filter(ImportBatch.id.in_(batch_ids)).all()
-    if len(batches) != len(batch_ids):
-        raise MatchValidationError("One or more file IDs not found")
+    sources = db.query(DataSource).filter(DataSource.id.in_(source_ids)).all()
+    if len(sources) != len(source_ids):
+        raise MatchValidationError("One or more source IDs not found")
 
-    types = {b.data_source.type for b in batches}
+    types = {s.type for s in sources}
     if types != {type}:
-        raise MatchValidationError(f"Files must all be of type {type!r}; got {types!r}")
+        raise MatchValidationError(f"Sources must all be of type {type!r}; got {types!r}")
 
     if mode == "FILE_VS_GOLDEN":
         unified_count = db.query(UnifiedRecord).filter(UnifiedRecord.type == type).count()
@@ -73,7 +73,7 @@ def create_run(
         )
 
     run = MatchRun(type=type, mode=mode, status="pending", name=name, created_by=username)
-    run.batches = batches
+    run.sources = sources
     db.add(run)
     db.flush()
     return run
