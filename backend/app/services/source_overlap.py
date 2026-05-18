@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.enums import RecordStatus
 from app.models.source import DataSource
 from app.models.staging import StagedRecord
+from app.services.normalization import is_placeholder_name
 
 
 @dataclass(frozen=True)
@@ -34,8 +35,6 @@ def probe_overlap(
     and denominator — they're inflators in a probe like this.
     Returns empty list if the non-placeholder name count is below `min_rows`.
     """
-    from app.services.normalization import is_placeholder_name
-
     real_names = [n for n in incoming_normalized_names if not is_placeholder_name(n)]
     total = len(real_names)
     if total < min_rows:
