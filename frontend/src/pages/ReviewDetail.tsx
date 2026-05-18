@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeftIcon, CheckIcon, XIcon, AlertTriangleIcon, CheckCircle2Icon, XCircleIcon } from 'lucide-react';
 import { api } from '../api/client';
 import type {
   MatchDetailResponse,
@@ -13,8 +14,9 @@ import { confidenceTone } from '../utils/confidence';
 import { useRecordType } from '../hooks/useRecordTypes';
 import { useSelectedRecordType } from '../contexts/RecordTypeContext';
 import { fieldValue } from '../utils/recordDisplay';
-import Panel from '../components/ui/Panel';
-import Pill from '../components/ui/Pill';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import IdChip from '../components/ui/IdChip';
 import SourcePill from '../components/ui/SourcePill';
 import MatchSignalsPanel from '../components/MatchSignalsPanel';
@@ -112,7 +114,7 @@ export default function ReviewDetail() {
   if (isLoading) {
     return (
       <div className="scroll" style={{ height: '100%' }}>
-        <div style={{ padding: 20, fontSize: 12, color: 'var(--fg-2)' }}>Loading candidate…</div>
+        <div className="p-5 text-xs text-muted-foreground">Loading candidate…</div>
       </div>
     );
   }
@@ -120,19 +122,19 @@ export default function ReviewDetail() {
   if (error || !detail) {
     return (
       <div className="scroll" style={{ height: '100%' }}>
-        <div style={{ padding: 20 }}>
-          <Panel>
-            <div style={{ padding: 28, textAlign: 'center' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--danger)' }}>error</span>
-              <div style={{ marginTop: 8, fontSize: 12 }}>
+        <div className="p-5">
+          <Card>
+            <CardContent className="pt-7 text-center">
+              <XCircleIcon className="size-7 text-destructive mx-auto" />
+              <div className="mt-2 text-xs">
                 {error instanceof Error ? error.message : 'Match candidate not found'}
               </div>
-              <button onClick={() => navigate(withRecordType('/review'))} className="btn btn-sm" style={{ marginTop: 12 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_back</span>
+              <Button onClick={() => navigate(withRecordType('/review'))} variant="outline" size="sm" className="mt-3">
+                <ArrowLeftIcon className="size-3" />
                 Back to queue
-              </button>
-            </div>
-          </Panel>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -144,53 +146,54 @@ export default function ReviewDetail() {
 
   return (
     <div className="scroll" style={{ height: '100%' }}>
-      <div style={{ padding: 20, paddingBottom: 80 }}>
+      <div className="p-5 pb-20">
 
         {/* Header */}
-        <div className="fade" style={{ marginBottom: 12 }}>
-          <button onClick={() => navigate(queuePath())} className="btn btn-sm btn-ghost" style={{ marginBottom: 8 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_back</span>
+        <div className="fade mb-3">
+          <Button onClick={() => navigate(queuePath())} variant="ghost" size="sm" className="mb-2">
+            <ArrowLeftIcon className="size-3" />
             Review queue
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <IdChip style={{ fontSize: 13, padding: '3px 8px' }}>#{detail.id}</IdChip>
-            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, minWidth: 0 }}>
+          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <IdChip className="text-xs">#{detail.id}</IdChip>
+            <h1 className="text-lg font-semibold m-0 min-w-0">
               {record_a.name || `Record #${record_a.id}`}{' '}
-              <span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>↔</span>{' '}
+              <span className="text-muted-foreground/60 font-normal">↔</span>{' '}
               {record_b.name || `Record #${record_b.id}`}
             </h1>
-            <Pill tone={tone} dot>
+            <Badge variant="secondary" className={tone === 'ok' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : tone === 'warn' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' : tone === 'danger' ? '' : 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'}>
               {detail.confidence.toFixed(3)} confidence
-            </Pill>
+            </Badge>
             {conflictCount > 0 && (
-              <Pill tone="warn" icon="warning">
+              <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                <AlertTriangleIcon className="size-2 fill-current mr-1" />
                 {conflictCount} conflict{conflictCount !== 1 ? 's' : ''}
-              </Pill>
+              </Badge>
             )}
             {!isPending && (
-              <Pill tone={detail.status === 'confirmed' ? 'ok' : detail.status === 'rejected' ? 'danger' : 'neutral'} dot>
+              <Badge variant={detail.status === 'confirmed' ? 'secondary' : detail.status === 'rejected' ? 'destructive' : 'outline'} className={detail.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : ''}>
                 {detail.status === 'confirmed' ? 'confirmed dupe' : detail.status}
                 {detail.reviewed_by && (
-                  <span className="mono" style={{ marginLeft: 4, opacity: 0.7 }}>· {detail.reviewed_by}</span>
+                  <span className="font-mono ml-1 opacity-70">· {detail.reviewed_by}</span>
                 )}
-              </Pill>
+              </Badge>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8, fontSize: 11, color: 'var(--fg-2)' }}>
+          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
             {(() => {
               const codeField = recordType?.fields.find(f => f.role === 'code');
               return (
                 <>
                   {record_a.data_source_name && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span className="inline-flex items-center gap-1.5">
                       <SourcePill short={record_a.data_source_name} />
-                      <span className="mono">{codeField ? fieldValue(record_a.fields, codeField.key) : `#${record_a.id}`}</span>
+                      <span className="font-mono">{codeField ? fieldValue(record_a.fields, codeField.key) : `#${record_a.id}`}</span>
                     </span>
                   )}
                   {record_b.data_source_name && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span className="inline-flex items-center gap-1.5">
                       <SourcePill short={record_b.data_source_name} />
-                      <span className="mono">{codeField ? fieldValue(record_b.fields, codeField.key) : `#${record_b.id}`}</span>
+                      <span className="font-mono">{codeField ? fieldValue(record_b.fields, codeField.key) : `#${record_b.id}`}</span>
                     </span>
                   )}
                 </>
@@ -214,74 +217,58 @@ export default function ReviewDetail() {
 
         {/* Sticky verdict bar */}
         {isPending && (
-          <div
-            className="fade"
-            style={{
-              position: 'sticky', bottom: 0,
-              background: 'var(--bg-1)', border: '1px solid var(--border-0)',
-              borderRadius: 6, padding: '10px 14px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-              boxShadow: 'var(--shadow-md)',
-            }}
-          >
-            <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+          <div className="fade sticky bottom-0 bg-card border border-border rounded-md p-3 flex items-center justify-between gap-3 shadow-md">
+            <div className="text-xs text-muted-foreground">
               {conflictCount > 0
-                ? <span><span className="mono tnum" style={{ color: 'var(--warn)', fontWeight: 600 }}>{conflictCount}</span> field conflict{conflictCount !== 1 ? 's' : ''} — will be reconciled in Merge step</span>
-                : <span style={{ color: 'var(--ok)' }}>No field conflicts</span>
+                ? <span><span className="font-mono tabular-nums text-amber-600 font-semibold">{conflictCount}</span> field conflict{conflictCount !== 1 ? 's' : ''} — will be reconciled in Merge step</span>
+                : <span className="text-emerald-600">No field conflicts</span>
               }
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                className="btn btn-sm btn-danger"
+            <div className="flex gap-1.5">
+              <Button
+                variant="destructive"
+                size="sm"
                 onClick={handleReject}
                 disabled={actionInFlight !== null}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
+                <XIcon className="size-3" />
                 {actionInFlight === 'reject' ? 'Rejecting…' : 'Not a duplicate'}
-                <span className="kbd">R</span>
-              </button>
-              <button
-                className="btn btn-sm btn-accent"
+                <kbd className="text-xs">R</kbd>
+              </Button>
+              <Button
+                size="sm"
                 onClick={handleConfirm}
                 disabled={actionInFlight !== null}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>check</span>
+                <CheckIcon className="size-3" />
                 {actionInFlight === 'confirm' ? 'Confirming…' : 'Confirm duplicate'}
-                <span className="kbd" style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', borderColor: 'rgba(255,255,255,0.25)' }}>↵</span>
-              </button>
+                <kbd className="text-xs">↵</kbd>
+              </Button>
             </div>
           </div>
         )}
 
         {/* Post-action banners */}
         {!isPending && detail.status === 'confirmed' && (
-          <div className="fade" style={{
-            marginTop: 10, padding: '10px 14px',
-            background: 'var(--ok-soft)', border: '1px solid var(--ok)',
-            borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12,
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--ok)' }}>check_circle</span>
-            <span style={{ color: 'var(--ok)', fontWeight: 600 }}>Confirmed duplicate</span>
-            <span style={{ color: 'var(--fg-2)' }}>— routed to Merge queue for field reconciliation</span>
+          <div className="fade mt-2.5 p-3 bg-emerald-100 dark:bg-emerald-950 border border-emerald-600 rounded-md flex items-center gap-2 text-xs">
+            <CheckCircle2Icon className="size-3.5 text-emerald-600" />
+            <span className="text-emerald-600 font-semibold">Confirmed duplicate</span>
+            <span className="text-muted-foreground">— routed to Merge queue for field reconciliation</span>
           </div>
         )}
         {!isPending && detail.status === 'rejected' && (
-          <div className="fade" style={{
-            marginTop: 10, padding: '10px 14px',
-            background: 'var(--danger-soft)', border: '1px solid var(--danger)',
-            borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12,
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--danger)' }}>cancel</span>
-            <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Not a duplicate</span>
+          <div className="fade mt-2.5 p-3 bg-destructive/10 border border-destructive rounded-md flex items-center gap-2 text-xs">
+            <XCircleIcon className="size-3.5 text-destructive" />
+            <span className="text-destructive font-semibold">Not a duplicate</span>
             {detail.reviewed_by && (
-              <span style={{ color: 'var(--fg-2)' }}>— reviewed by <span className="mono">{detail.reviewed_by}</span></span>
+              <span className="text-muted-foreground">— reviewed by <span className="font-mono">{detail.reviewed_by}</span></span>
             )}
           </div>
         )}
 
         {(confirmMutation.error || rejectMutation.error) && (
-          <div className="pill danger" style={{ marginTop: 10, padding: '6px 10px', width: '100%', justifyContent: 'flex-start' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
+          <div className="mt-2.5 p-1.5 bg-destructive/10 border border-destructive rounded-md flex items-center gap-2 text-xs w-full justify-start">
+            <XCircleIcon className="size-3 text-destructive" />
             {(confirmMutation.error as Error)?.message || (rejectMutation.error as Error)?.message}
           </div>
         )}
