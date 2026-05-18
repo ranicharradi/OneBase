@@ -439,7 +439,7 @@ def test_list_batches_reports_unified_when_referenced_by_completed_run(authentic
     src = DataSource(name="uni-src", type="supplier", column_mapping={"name": "x"}, identity_field_key="name")
     test_db.add(src)
     test_db.flush()
-    b = ImportBatch(
+    b1 = ImportBatch(
         data_source_id=src.id,
         filename="f.csv",
         original_filename="f.csv",
@@ -447,7 +447,15 @@ def test_list_batches_reports_unified_when_referenced_by_completed_run(authentic
         uploaded_by="u",
         status=BatchStatus.COMPLETED,
     )
-    test_db.add(b)
+    b2 = ImportBatch(
+        data_source_id=src.id,
+        filename="f2.csv",
+        original_filename="f2.csv",
+        file_extension=".csv",
+        uploaded_by="u",
+        status=BatchStatus.COMPLETED,
+    )
+    test_db.add_all([b1, b2])
     test_db.flush()
     run = MatchRun(
         type="supplier",
@@ -456,16 +464,20 @@ def test_list_batches_reports_unified_when_referenced_by_completed_run(authentic
         created_by="u",
         finished_at=datetime.datetime(2026, 5, 1, 12, 0, 0),
     )
-    run.batches = [b]
+    run.sources = [src]
     test_db.add(run)
     test_db.commit()
 
     resp = authenticated_client.get("/api/import/batches")
     assert resp.status_code == 200
     rows = resp.json()
-    row = next(r for r in rows if r["id"] == b.id)
-    assert row["unified"] is True
-    assert row["last_compared_at"] is not None
+    # Both batches of the same source should show unified=True (per-source semantics)
+    row1 = next(r for r in rows if r["id"] == b1.id)
+    row2 = next(r for r in rows if r["id"] == b2.id)
+    assert row1["unified"] is True
+    assert row1["last_compared_at"] is not None
+    assert row2["unified"] is True
+    assert row2["last_compared_at"] is not None
 
 
 def test_list_batches_reports_unified_false_when_never_compared(authenticated_client, test_db):

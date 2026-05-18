@@ -11,7 +11,7 @@ from app.config import settings
 from app.dependencies import get_current_user, get_db, require_role
 from app.models.batch import ImportBatch
 from app.models.enums import BatchStatus, UserRole
-from app.models.match_run import MatchRun, match_run_batches
+from app.models.match_run import MatchRun, match_run_sources
 from app.models.source import DataSource
 from app.models.user import User
 from app.schemas.upload import BatchResponse, TaskStatusResponse, UploadResponse
@@ -209,19 +209,19 @@ def list_batches(
     # Subquery: latest finished_at among completed runs per batch
     last_compared_subq = (
         db.query(
-            match_run_batches.c.import_batch_id.label("batch_id"),
+            match_run_sources.c.data_source_id.label("source_id"),
             func.max(MatchRun.finished_at).label("last_compared_at"),
         )
-        .join(MatchRun, MatchRun.id == match_run_batches.c.match_run_id)
+        .join(MatchRun, MatchRun.id == match_run_sources.c.match_run_id)
         .filter(MatchRun.status == "completed")
-        .group_by(match_run_batches.c.import_batch_id)
+        .group_by(match_run_sources.c.data_source_id)
         .subquery()
     )
 
     query = (
         db.query(ImportBatch, last_compared_subq.c.last_compared_at)
         .join(DataSource, ImportBatch.data_source_id == DataSource.id)
-        .outerjoin(last_compared_subq, ImportBatch.id == last_compared_subq.c.batch_id)
+        .outerjoin(last_compared_subq, ImportBatch.data_source_id == last_compared_subq.c.source_id)
     )
     if data_source_id is not None:
         query = query.filter(ImportBatch.data_source_id == data_source_id)

@@ -3,16 +3,16 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base, json_type
 
-match_run_batches = Table(
-    "match_run_batches",
+match_run_sources = Table(
+    "match_run_sources",
     Base.metadata,
     Column("match_run_id", Integer, ForeignKey("match_runs.id", ondelete="CASCADE"), primary_key=True),
-    Column("import_batch_id", Integer, ForeignKey("import_batches.id", ondelete="CASCADE"), primary_key=True),
+    Column("data_source_id", Integer, ForeignKey("data_sources.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
 class MatchRun(Base):
-    """A user-initiated match job over files/golden records of one type."""
+    """A user-initiated match job over the current state of one or two sources."""
 
     __tablename__ = "match_runs"
 
@@ -29,8 +29,8 @@ class MatchRun(Base):
     stats = Column(json_type(), nullable=False, default=dict)
     error_message = Column(Text, nullable=True)
 
-    batches = relationship(
-        "ImportBatch",
-        secondary=match_run_batches,
+    sources = relationship(
+        "DataSource",
+        secondary=match_run_sources,
         backref="match_runs",
     )
