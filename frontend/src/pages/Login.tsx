@@ -1,8 +1,11 @@
-// ── Login — terminal aesthetic, centered panel ──
-
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
+import { AlertCircleIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import Spinner from '../components/ui/Spinner';
 
 export default function Login() {
@@ -13,11 +16,10 @@ export default function Login() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
-
     try {
       await login(username, password);
       navigate('/dashboard', { replace: true });
@@ -29,127 +31,63 @@ export default function Login() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        background: 'var(--bg-0)',
-      }}
-    >
-      <div className="fade" style={{ width: '100%', maxWidth: 360 }}>
-        {/* Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              background: 'var(--fg-0)',
-              color: 'var(--bg-1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 700,
-              fontSize: 14,
-              fontFamily: 'IBM Plex Mono, monospace',
-              borderRadius: 4,
-            }}
-          >
-            1B
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>OneBase</span>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
-              records data ledger
-            </span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="panel" style={{ padding: 0 }}>
-          <div className="panel-head">
-            <span className="panel-title">Sign in</span>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>SSO unavailable · use credentials</span>
-          </div>
-
-          <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div className="flex min-h-screen items-center justify-center p-6 bg-background">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle>Sign in</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {error && (
               <div
-                className="pill danger"
-                style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}
                 role="alert"
+                className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
-                {error}
+                <AlertCircleIcon className="size-3.5" aria-hidden="true" />
+                <span>{error}</span>
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label htmlFor="username" className="label">Username</label>
-              <input
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="username">Username</Label>
+              <Input
                 id="username"
                 type="text"
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="input"
                 placeholder="admin"
                 autoComplete="username"
                 autoFocus
               />
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label htmlFor="password" className="label">Password</label>
-              <input
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
                 id="password"
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input"
                 placeholder="••••••••"
                 autoComplete="current-password"
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="btn btn-accent"
-              style={{ height: 32, justifyContent: 'center' }}
-            >
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <Spinner size={12} color="#fff" />
+                  <Spinner size={12} />
                   Signing in…
                 </>
               ) : (
-                <>
-                  Sign in
-                  <span className="kbd" style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', borderColor: 'rgba(255,255,255,0.25)' }}>↵</span>
-                </>
+                'Sign in'
               )}
-            </button>
-          </div>
-
-          <div
-            style={{
-              padding: '8px 14px',
-              borderTop: '1px solid var(--border-0)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 10,
-              color: 'var(--fg-2)',
-              fontFamily: 'IBM Plex Mono, monospace',
-            }}
-          >
-            <span>v4.2.1</span>
-            <span>onebase · enterprise edition</span>
-          </div>
-        </form>
-      </div>
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
