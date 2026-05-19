@@ -105,14 +105,36 @@ function deriveActions(d: DashboardResponse): NextAction[] {
 
 function Skeleton() {
   return (
-    <div className="px-5 py-5">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[0, 1, 2, 3].map(i => (
-          <div key={i} className="rounded-md border p-4">
-            <div className="text-xs text-muted-foreground">Loading…</div>
-            <div className="font-mono tabular-nums text-muted-foreground text-lg font-semibold">—</div>
+    <div className="px-5 py-5" data-testid="dashboard-skeleton">
+      <div className="mb-6 rounded-lg border border-border bg-card px-8 py-10">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] items-center gap-10">
+          <div className="space-y-3">
+            <div className="h-3 w-32 bg-muted rounded animate-pulse" />
+            <div className="h-16 w-full bg-muted rounded animate-pulse" />
+            <div className="h-3 w-48 bg-muted rounded animate-pulse" />
+          </div>
+          <div className="flex justify-center">
+            <div className="size-[200px] rounded-full bg-muted animate-pulse" />
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="rounded-lg border border-border bg-card p-6 space-y-3">
+            <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+            <div className="h-32 w-full bg-muted rounded animate-pulse" />
           </div>
         ))}
+      </div>
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <div className="grid grid-cols-5 divide-x divide-border">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="p-4 space-y-2">
+              <div className="h-2.5 w-16 bg-muted rounded animate-pulse" />
+              <div className="h-6 w-12 bg-muted rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
