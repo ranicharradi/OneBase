@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckIcon, XCircleIcon, CloudUploadIcon } from "lucide-react";
 import { api, probeSourceOverlap } from "../api/client";
 import type {
   BatchResponse,
@@ -18,8 +19,16 @@ import ColumnMapper from "../components/ColumnMapper";
 import ReUploadDialog from "../components/ReUploadDialog";
 import SourceOverlapDialog from "../components/SourceOverlapDialog";
 import BatchHistory from "../components/BatchHistory";
-import Panel, { PanelHead } from "../components/ui/Panel";
 import Spinner from "../components/ui/Spinner";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardAction,
+  CardContent,
+} from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
 import { useRecordType, useRecordTypes } from "../hooks/useRecordTypes";
 import { parseFileHeaders } from "../utils/fileHeaders";
 import { defaultType } from "../utils/recordDisplay";
@@ -63,85 +72,60 @@ function stepIndex(state: UploadState): number {
 function Stepper({ state }: { state: UploadState }) {
   const idx = stepIndex(state);
   return (
-    <div
-      className="panel"
-      style={{
-        padding: "10px 14px",
-        display: "flex",
-        gap: 18,
-        marginBottom: 14,
-      }}
-    >
-      {STEPS.map((s, i) => {
-        const active = i === idx;
-        const done = i < idx;
-        return (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flex: i < STEPS.length - 1 ? "1 1 0" : "0 0 auto",
-            }}
-          >
-            <div
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 4,
-                background: done
-                  ? "var(--ok)"
-                  : active
-                    ? "var(--accent)"
-                    : "var(--bg-2)",
-                color: done || active ? "#fff" : "var(--fg-2)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 11,
-                fontWeight: 600,
-                fontFamily: "IBM Plex Mono, monospace",
-                flexShrink: 0,
-              }}
-            >
-              {done ? (
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontSize: 12 }}
-                >
-                  check
-                </span>
-              ) : (
-                i + 1
-              )}
-            </div>
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: active ? 600 : 400,
-                color: active
-                  ? "var(--fg-0)"
-                  : done
-                    ? "var(--fg-1)"
-                    : "var(--fg-2)",
-              }}
-            >
-              {s.label}
-            </span>
-            {i < STEPS.length - 1 && (
+    <Card size="sm" className="mb-3.5">
+      <CardContent className="py-2.5">
+        <div className="flex gap-4">
+          {STEPS.map((s, i) => {
+            const active = i === idx;
+            const done = i < idx;
+            return (
               <div
-                style={{
-                  flex: 1,
-                  height: 1,
-                  background: done ? "var(--ok)" : "var(--border-0)",
-                }}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
+                key={i}
+                className="flex items-center gap-2"
+                style={{ flex: i < STEPS.length - 1 ? "1 1 0" : "0 0 auto" }}
+              >
+                <div
+                  className={[
+                    "flex size-[22px] shrink-0 items-center justify-center rounded font-mono text-[11px] font-semibold",
+                    done
+                      ? "bg-emerald-500 text-white"
+                      : active
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground",
+                  ].join(" ")}
+                >
+                  {done ? (
+                    <CheckIcon className="size-3" />
+                  ) : (
+                    i + 1
+                  )}
+                </div>
+                <span
+                  className={[
+                    "text-xs",
+                    active
+                      ? "font-semibold text-foreground"
+                      : done
+                        ? "text-foreground/80"
+                        : "text-muted-foreground",
+                  ].join(" ")}
+                >
+                  {s.label}
+                </span>
+                {i < STEPS.length - 1 && (
+                  <div
+                    className={[
+                      "h-px flex-1",
+                      done ? "bg-emerald-500" : "bg-border",
+                    ].join(" ")}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -411,76 +395,37 @@ export default function Upload() {
   const isUploading = uploadWithFileMutation.isPending;
 
   return (
-    <div className="scroll" style={{ height: "100%" }}>
-      <div style={{ padding: 20, maxWidth: 1160, margin: "0 auto" }}>
+    <div className="h-full overflow-auto">
+      <div className="mx-auto max-w-[1160px] p-5">
         {/* Page title removed to keep upload page fixed-size without scrolling */}
 
         <Stepper state={uploadState} />
 
         {error && (
-          <div
-            className="pill danger"
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              justifyContent: "flex-start",
-              marginBottom: 12,
-            }}
+          <Badge
+            variant="destructive"
+            className="mb-3 w-full justify-start gap-2 px-3 py-2 text-sm"
           >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 12 }}
-            >
-              error
-            </span>
+            <XCircleIcon className="size-4 shrink-0" />
             <span>
               <b>Upload error:</b> {error}
             </span>
-          </div>
+          </Badge>
         )}
 
         {/* PICK_SOURCE */}
         {uploadState.step === "PICK_SOURCE" && (
-          <div
-            className="fade"
-            style={{ display: "flex", flexDirection: "column", gap: 12 }}
-          >
-            <Panel>
-              <PanelHead
-                title="Create new source from this file"
-                actions={
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      background: "var(--bg-0)",
-                      border: "1px solid var(--border-0)",
-                      borderRadius: 4,
-                      padding: "3px 7px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: "var(--fg-2)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+          <div className="flex flex-col gap-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create new source from this file</CardTitle>
+                <CardAction>
+                  <div className="flex items-center gap-1.5 rounded border border-border bg-background px-2 py-1">
+                    <span className="text-[10px] whitespace-nowrap text-muted-foreground">
                       or existing:
                     </span>
                     <select
-                      className="input"
-                      style={{
-                        fontSize: 10,
-                        padding: "1px 4px",
-                        height: "auto",
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--accent)",
-                        minWidth: 90,
-                        cursor: "pointer",
-                      }}
+                      className="min-w-[90px] cursor-pointer border-none bg-transparent text-[10px] text-primary outline-none"
                       value=""
                       onChange={(e) => {
                         const val = Number(e.target.value);
@@ -496,65 +441,65 @@ export default function Upload() {
                       ))}
                     </select>
                   </div>
-                }
-              />
-              <div style={{ padding: 14 }}>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
                 <DropZone onFileSelected={handleCreateFromFile} />
-              </div>
-            </Panel>
+              </CardContent>
+            </Card>
           </div>
         )}
 
         {/* DROP_FILE */}
         {uploadState.step === "DROP_FILE" && (
-          <Panel className="fade">
-            <PanelHead>
-              <span className="panel-title">
+          <Card>
+            <CardHeader>
+              <CardTitle>
                 Upload to{" "}
-                <span style={{ color: "var(--accent)" }}>
+                <span className="text-primary">
                   {sources?.find((s) => s.id === uploadState.sourceId)?.name ??
                     `Source #${uploadState.sourceId}`}
                 </span>
-              </span>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={() => setUploadState({ step: "PICK_SOURCE" })}
-              >
-                Change source
-              </button>
-            </PanelHead>
-            <div style={{ padding: 14 }}>
+              </CardTitle>
+              <CardAction>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setUploadState({ step: "PICK_SOURCE" })}
+                >
+                  Change source
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
               <DropZone
                 onFileSelected={(file) =>
                   handleFileDropped(uploadState.sourceId, file)
                 }
                 disabled={isUploading}
               />
-            </div>
-          </Panel>
+            </CardContent>
+          </Card>
         )}
 
         {/* DETECTING */}
         {uploadState.step === "DETECTING" && (
-          <Panel className="fade">
-            <div style={{ padding: 36, textAlign: "center" }}>
-              <Spinner size={20} />
-              <div style={{ marginTop: 10, fontSize: 13, fontWeight: 500 }}>
+          <Card>
+            <CardContent className="py-9 text-center">
+              <Spinner size={20} className="mx-auto" />
+              <div className="mt-2.5 text-[13px] font-medium">
                 Checking upload history…
               </div>
-              <div
-                className="mono"
-                style={{ fontSize: 11, color: "var(--fg-2)", marginTop: 4 }}
-              >
+              <div className="mt-1 font-mono text-[11px] text-muted-foreground">
                 {uploadState.file.name}
               </div>
-            </div>
-          </Panel>
+            </CardContent>
+          </Card>
         )}
 
         {/* MAP_COLUMNS */}
         {uploadState.step === "MAP_COLUMNS" && (
-          <div className="fade">
+          <div>
             <ColumnMapper
               columns={uploadState.columns}
               type={uploadState.type}
@@ -572,17 +517,17 @@ export default function Upload() {
               detectedDelimiter={uploadState.detectedDelimiter}
               recordTypeKey={uploadState.type}
             />
-            <div style={{ marginTop: 12, textAlign: "center" }}>
-              <button onClick={handleReset} className="btn btn-ghost btn-sm">
+            <div className="mt-3 text-center">
+              <Button variant="ghost" size="sm" onClick={handleReset}>
                 Start over
-              </button>
+              </Button>
             </div>
           </div>
         )}
 
         {/* PROCESSING */}
         {uploadState.step === "PROCESSING" && (
-          <div className="fade">
+          <div>
             <ProgressTracker
               taskId={uploadState.taskId}
               onComplete={() => {
@@ -593,35 +538,21 @@ export default function Upload() {
             />
             {uploadComplete && (
               <>
-                <div
-                  style={{
-                    marginTop: 12,
-                    padding: 12,
-                    background: "var(--bg-1)",
-                    border: "1px solid var(--border-0)",
-                    borderRadius: 4,
-                  }}
-                >
-                  <span
-                    className="mono"
-                    style={{ fontSize: 12, color: "var(--fg-1)" }}
-                  >
-                    Ingest complete ·{" "}
-                    <Link to="/match" style={{ color: "var(--accent)" }}>
-                      Compare this file →
-                    </Link>
-                  </span>
-                </div>
-                <div style={{ marginTop: 8, textAlign: "center" }}>
-                  <button onClick={handleReset} className="btn btn-sm">
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontSize: 12 }}
-                    >
-                      cloud_upload
+                <Card size="sm" className="mt-3">
+                  <CardContent className="py-2">
+                    <span className="font-mono text-[12px] text-foreground/80">
+                      Ingest complete ·{" "}
+                      <Link to="/match" className="text-primary hover:underline">
+                        Compare this file →
+                      </Link>
                     </span>
+                  </CardContent>
+                </Card>
+                <div className="mt-2 text-center">
+                  <Button size="sm" onClick={handleReset}>
+                    <CloudUploadIcon className="size-3.5" />
                     Upload another file
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
@@ -631,31 +562,29 @@ export default function Upload() {
         {/* Recent files — shown when idle or after processing */}
         {(uploadState.step === "PICK_SOURCE" ||
           uploadState.step === "PROCESSING") && (
-          <div className="fade" style={{ marginTop: 14 }}>
+          <div className="mt-3.5">
             <BatchHistory />
           </div>
         )}
       </div>
 
-      {showReUpload && (
-        <ReUploadDialog
-          sourceName={reUploadSourceName}
-          preview={reUploadPreview}
-          forceReplace={forceReplace}
-          onForceReplaceChange={setForceReplace}
-          onConfirm={handleReUploadConfirm}
-          onCancel={handleReUploadCancel}
-        />
-      )}
+      <ReUploadDialog
+        open={showReUpload}
+        onOpenChange={(o) => { if (!o) handleReUploadCancel(); }}
+        sourceName={reUploadSourceName}
+        preview={reUploadPreview}
+        forceReplace={forceReplace}
+        onForceReplaceChange={setForceReplace}
+        onConfirm={handleReUploadConfirm}
+      />
 
-      {overlapMatches.length > 0 && (
-        <SourceOverlapDialog
-          matches={overlapMatches}
-          onReuploadTo={handleOverlapReuploadTo}
-          onCreateAnyway={handleOverlapCreateAnyway}
-          onCancel={handleOverlapCancel}
-        />
-      )}
+      <SourceOverlapDialog
+        open={overlapMatches.length > 0}
+        onOpenChange={(o) => { if (!o) handleOverlapCancel(); }}
+        matches={overlapMatches}
+        onReuploadTo={handleOverlapReuploadTo}
+        onCreateAnyway={handleOverlapCreateAnyway}
+      />
     </div>
   );
 }

@@ -101,7 +101,7 @@ describe('Upload source creation from file preflight', () => {
     })
 
     await screen.findByText('Supplier Name')
-    pickIdentityField()
+    await pickIdentityField(user)
     await user.click(screen.getByRole('button', { name: /create & upload/i }))
 
     await waitFor(() => {
@@ -172,7 +172,7 @@ describe('Upload source creation from file preflight', () => {
     })
 
     await screen.findByText('Supplier Name')
-    pickIdentityField()
+    await pickIdentityField(user)
     await user.click(screen.getByRole('button', { name: /create & upload/i }))
 
     expect(await screen.findByRole('dialog')).toHaveTextContent('Industry A Suppliers')
@@ -245,7 +245,7 @@ describe('Upload source creation from file preflight', () => {
     })
 
     await screen.findByText('Supplier Name')
-    pickIdentityField()
+    await pickIdentityField(user)
     await user.dblClick(screen.getByRole('button', { name: /create & upload/i }))
 
     await waitFor(() => {
@@ -315,7 +315,7 @@ describe('Upload source creation from file preflight', () => {
     })
 
     await screen.findByText('Supplier Name')
-    pickIdentityField()
+    await pickIdentityField(user)
     await user.click(screen.getByRole('button', { name: /create & upload/i }))
 
     await waitFor(() => {
@@ -329,7 +329,10 @@ function json(body: unknown): Response {
   return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } })
 }
 
-function pickIdentityField(): void {
-  const identitySelect = screen.getByDisplayValue('— pick the column that uniquely identifies a row —')
-  fireEvent.change(identitySelect, { target: { value: 'supplier_name' } })
+async function pickIdentityField(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  // Map the Supplier Name column-mapping Select first to enable the identity Select.
+  await user.click(screen.getByRole('combobox', { name: /map supplier name/i }))
+  await user.click(await screen.findByRole('option', { name: 'Vendor Name' }))
+  await user.click(screen.getByRole('combobox', { name: /identity column/i }))
+  await user.click(await screen.findByRole('option', { name: 'supplier_name' }))
 }

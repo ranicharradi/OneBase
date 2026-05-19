@@ -8,6 +8,12 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import {
+  BadgeCheckIcon,
+  ChevronRightIcon,
+  DownloadIcon,
+  ShieldCheckIcon,
+} from "lucide-react";
 import { useRecordType } from "../hooks/useRecordTypes";
 import { fieldValue } from "../utils/recordDisplay";
 import { dqTone } from "../utils/confidence";
@@ -19,11 +25,21 @@ import type {
   SingletonListResponse,
   UnifiedRecordListResponse,
 } from "../api/types";
-import Panel, { PanelHead } from "../components/ui/Panel";
-import Seg from "../components/ui/Seg";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import IdChip from "../components/ui/IdChip";
 import SourcePill from "../components/ui/SourcePill";
-import Pill from "../components/ui/Pill";
 import Pagination from "../components/Pagination";
 import WorkflowStageRail from "../components/WorkflowStageRail";
 import HandoffBanner from "../components/HandoffBanner";
@@ -280,502 +296,426 @@ export default function UnifiedRecords() {
   const singletonTotal = singletonData?.total ?? 0;
 
   return (
-    <div className="scroll" style={{ height: "100%" }}>
-      <div style={{ padding: 20 }}>
+    <div className="overflow-y-auto h-full">
+      <div className="p-5">
         <WorkflowStageRail
           activeStage="unified"
-          match={{ onClick: () => navigate("/match"), title: "Go to Runs" }}
+          match={{
+            onClick: () => navigate(withRecordType("/match")),
+            title: "Go to Match runs",
+          }}
           review={{
-            onClick: () => navigate("/review"),
+            onClick: () => navigate(withRecordType("/review")),
             title: "Go to Review queue",
           }}
           merge={{
-            onClick: () => navigate("/merge"),
+            onClick: () => navigate(withRecordType("/merge")),
             title: "Go to Merge queue",
-          }}
-          unified={{
-            count: { value: unifiedTotal.toLocaleString(), unit: "records" },
           }}
         />
 
         <HandoffBanner
-          icon="verified"
+          icon={BadgeCheckIcon}
           text="golden records are the pipeline output — export as CSV or push to downstream systems."
           note="no further stages · singletons promotable"
-          tone="ok"
         />
 
         {/* Header */}
-        <div
-          className="fade"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 14,
-            marginTop: 12,
-          }}
-        >
+        <div className="flex items-center justify-between mb-3.5 mt-3">
           <div>
-            <div style={{ fontSize: 12, color: "var(--fg-2)" }}>
+            <div className="text-xs text-muted-foreground">
               {unifiedTotal.toLocaleString()} unified ·{" "}
               {singletonTotal.toLocaleString()} singletons awaiting promotion
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
+          <div className="flex items-center gap-1.5">
+            <Input
               type="date"
               aria-label="From date"
-              className="input mono"
+              className="h-6 text-[11px] px-1.5 font-mono w-auto"
               value={fromDate}
               onChange={(e) => {
                 setFromDate(e.target.value);
                 setUnifiedPage(0);
               }}
-              style={{ height: 24, fontSize: 11, padding: "0 6px" }}
             />
-            <input
+            <Input
               type="date"
               aria-label="To date"
-              className="input mono"
+              className="h-6 text-[11px] px-1.5 font-mono w-auto"
               value={toDate}
               onChange={(e) => {
                 setToDate(e.target.value);
                 setUnifiedPage(0);
               }}
-              style={{ height: 24, fontSize: 11, padding: "0 6px" }}
             />
             {exportError && (
-              <span
-                className="pill danger"
-                style={{ padding: "2px 6px", fontSize: 10 }}
-              >
+              <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">
                 {exportError}
-              </span>
+              </Badge>
             )}
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleExport}
               disabled={isExporting}
-              className="btn btn-sm"
+              className="gap-1"
             >
-              <span
-                className="material-symbols-outlined"
-                style={{ fontSize: 12 }}
-              >
-                download
-              </span>
+              <DownloadIcon className="size-3" />
               {isExporting
                 ? "Exporting…"
                 : search || sourceType || fromDate || toDate
                   ? "Export CSV (filtered)"
                   : "Export CSV"}
-            </button>
+            </Button>
           </div>
         </div>
 
-        <Panel className="fade">
-          <PanelHead>
-            <Seg<Tab>
-              value={tab}
-              onChange={setTab}
-              options={[
-                { value: "unified", label: "Unified", count: unifiedTotal },
-                {
-                  value: "singletons",
-                  label: "Singletons",
-                  count: singletonTotal,
-                },
-              ]}
-            />
-            {tab === "unified" ? (
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  className="input"
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setUnifiedPage(0);
-                  }}
-                  placeholder="Filter by name or code…"
-                  style={{ width: 260, height: 24, fontSize: 11 }}
-                />
-                <select
-                  value={sourceType}
-                  onChange={(e) => {
-                    setSourceType(e.target.value);
-                    setUnifiedPage(0);
-                  }}
-                  className="input mono"
-                  style={{ height: 24, fontSize: 11, padding: "0 8px" }}
-                >
-                  <option value="">All types</option>
-                  <option value="merged">Merged</option>
-                  <option value="singleton">Singleton</option>
-                </select>
-              </div>
-            ) : (
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  className="input"
-                  value={singletonSearch}
-                  onChange={(e) => {
-                    setSingletonSearch(e.target.value);
-                    setSingletonsPage(0);
-                  }}
-                  placeholder="Search singletons…"
-                  style={{ width: 220, height: 24, fontSize: 11 }}
-                />
-                <select
-                  value={singletonSourceId}
-                  onChange={(e) => {
-                    setSingletonSourceId(e.target.value);
-                    setSingletonsPage(0);
-                  }}
-                  className="input mono"
-                  style={{ height: 24, fontSize: 11, padding: "0 8px" }}
-                >
-                  <option value="">All sources</option>
-                  {(sources?.filter((s) => s.type === selectedType) ?? []).map(
-                    (s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ),
-                  )}
-                </select>
-                {selectedSingletons.size > 0 && (
-                  <button
-                    onClick={() =>
-                      bulkPromoteMutation.mutate([...selectedSingletons])
-                    }
-                    disabled={bulkPromoteMutation.isPending}
-                    className="btn btn-sm btn-accent"
-                  >
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontSize: 12 }}
+        <Card>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+            <CardHeader className="pb-0 pt-3 px-3">
+              <div className="flex items-center justify-between gap-3">
+                <TabsList>
+                  <TabsTrigger value="unified">
+                    Unified
+                    {unifiedTotal > 0 && (
+                      <Badge variant="secondary" className="ml-1.5 text-[10px] px-1 py-0 h-4">
+                        {unifiedTotal.toLocaleString()}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="singletons">
+                    Singletons
+                    {singletonTotal > 0 && (
+                      <Badge variant="secondary" className="ml-1.5 text-[10px] px-1 py-0 h-4">
+                        {singletonTotal.toLocaleString()}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+
+                {tab === "unified" ? (
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      value={search}
+                      onChange={(e) => {
+                        setSearch(e.target.value);
+                        setUnifiedPage(0);
+                      }}
+                      placeholder="Filter by name or code…"
+                      className="w-64 h-6 text-[11px]"
+                    />
+                    <select
+                      value={sourceType}
+                      onChange={(e) => {
+                        setSourceType(e.target.value);
+                        setUnifiedPage(0);
+                      }}
+                      className="h-6 text-[11px] px-2 font-mono rounded-md border border-border bg-background"
                     >
-                      verified
-                    </span>
-                    {bulkPromoteMutation.isPending
-                      ? "Promoting…"
-                      : `Promote ${selectedSingletons.size}`}
-                  </button>
+                      <option value="">All types</option>
+                      <option value="merged">Merged</option>
+                      <option value="singleton">Singleton</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      value={singletonSearch}
+                      onChange={(e) => {
+                        setSingletonSearch(e.target.value);
+                        setSingletonsPage(0);
+                      }}
+                      placeholder="Search singletons…"
+                      className="w-56 h-6 text-[11px]"
+                    />
+                    <select
+                      value={singletonSourceId}
+                      onChange={(e) => {
+                        setSingletonSourceId(e.target.value);
+                        setSingletonsPage(0);
+                      }}
+                      className="h-6 text-[11px] px-2 font-mono rounded-md border border-border bg-background"
+                    >
+                      <option value="">All sources</option>
+                      {(sources?.filter((s) => s.type === selectedType) ?? []).map(
+                        (s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                    {selectedSingletons.size > 0 && (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          bulkPromoteMutation.mutate([...selectedSingletons])
+                        }
+                        disabled={bulkPromoteMutation.isPending}
+                        className="gap-1"
+                      >
+                        <ShieldCheckIcon className="size-3" />
+                        {bulkPromoteMutation.isPending
+                          ? "Promoting…"
+                          : `Promote ${selectedSingletons.size}`}
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </PanelHead>
+            </CardHeader>
 
-          {/* Unified table */}
-          {tab === "unified" && (
-            <>
-              {unifiedTotal > PAGE_SIZE && (
-                <div
-                  ref={unifiedTableRef}
-                  style={{
-                    padding: "8px 14px",
-                    borderBottom: "1px solid var(--border-0)",
-                    scrollMarginTop: 56,
-                  }}
+            {/* Unified tab */}
+            <TabsContent value="unified">
+              <CardContent className="p-0">
+                {unifiedTotal > PAGE_SIZE && (
+                  <div
+                    ref={unifiedTableRef}
+                    className="px-3.5 py-2 border-b border-border scroll-mt-14"
+                  >
+                    <Pagination
+                      page={unifiedPage}
+                      pageSize={PAGE_SIZE}
+                      totalItems={unifiedTotal}
+                      onPageChange={handleUnifiedPageChange}
+                    />
+                  </div>
+                )}
+
+                <LoadingErrorEmpty
+                  loading={unifiedLoading && !unifiedData}
+                  empty={filteredUnified.length === 0}
+                  emptyMessage="No unified records yet — merge match candidates or promote singletons."
                 >
-                  <Pagination
-                    page={unifiedPage}
-                    pageSize={PAGE_SIZE}
-                    totalItems={unifiedTotal}
-                    onPageChange={handleUnifiedPageChange}
-                  />
-                </div>
-              )}
-
-              <LoadingErrorEmpty
-                isLoading={unifiedLoading && !unifiedData}
-                isEmpty={filteredUnified.length === 0}
-                emptyMessage={
-                  <>
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontSize: 28, color: "var(--fg-3)" }}
-                    >
-                      inbox
-                    </span>
-                    <div style={{ fontSize: 13, marginTop: 8 }}>
-                      No unified records yet
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--fg-2)",
-                        marginTop: 4,
-                      }}
-                    >
-                      Merge match candidates or promote singletons to build your
-                      unified records.
-                    </div>
-                  </>
-                }
-              >
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 80 }}>ID</th>
-                      <th>Name</th>
-                      {displayFields.map((f) => (
-                        <th key={f.key}>{f.label}</th>
-                      ))}
-                      <th className="num" style={{ width: 80 }}>
-                        Sources
-                      </th>
-                      <th>Origin</th>
-                      <th style={{ width: 60 }}>DQ</th>
-                      <th>Created</th>
-                      <th style={{ width: 30 }} />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUnified.map((s) => (
-                      <tr
-                        key={s.id}
-                        className="clickable"
-                        onClick={() =>
-                          navigate(withRecordType(`/unified/${s.id}`))
-                        }
-                      >
-                        <td>
-                          <IdChip>{s.id}</IdChip>
-                        </td>
-                        <td>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            }}
-                          >
-                            <span style={{ fontWeight: 500 }}>
-                              {s.name || "—"}
-                            </span>
-                          </div>
-                        </td>
-                        {displayFields.map((field) => (
-                          <td key={field.key}>
-                            {fieldValue(
-                              s.fields as Record<string, unknown>,
-                              field.key,
-                            ) ?? (
-                              <span style={{ color: "var(--fg-3)" }}>-</span>
-                            )}
-                          </td>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead style={{ width: 80 }}>ID</TableHead>
+                        <TableHead>Name</TableHead>
+                        {displayFields.map((f) => (
+                          <TableHead key={f.key}>{f.label}</TableHead>
                         ))}
-                        <td className="num mono">{s.source_count}</td>
-                        <td>
-                          {s.is_singleton ? (
-                            <Pill tone="warn">singleton</Pill>
-                          ) : (
-                            <Pill tone="ok">merged</Pill>
-                          )}
-                        </td>
-                        <td>
-                          <Pill tone={dqTone(s.dq_score)}>
-                            {s.dq_score == null
-                              ? "—"
-                              : `${Math.round(s.dq_score * 100)}%`}
-                          </Pill>
-                        </td>
-                        <td
-                          className="mono"
-                          style={{ fontSize: 11, color: "var(--fg-2)" }}
-                        >
-                          {s.created_at
-                            ? new Date(s.created_at).toLocaleDateString()
-                            : "—"}
-                        </td>
-                        <td>
-                          <span
-                            className="material-symbols-outlined"
-                            style={{ fontSize: 12, color: "var(--fg-3)" }}
-                          >
-                            chevron_right
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </LoadingErrorEmpty>
-
-              {unifiedTotal > 0 && (
-                <div
-                  style={{
-                    padding: "8px 14px",
-                    borderTop: "1px solid var(--border-0)",
-                  }}
-                >
-                  <Pagination
-                    page={unifiedPage}
-                    pageSize={PAGE_SIZE}
-                    totalItems={unifiedTotal}
-                    onPageChange={handleUnifiedPageChange}
-                  />
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Singletons table */}
-          {tab === "singletons" && (
-            <>
-              {singletonTotal > PAGE_SIZE && (
-                <div
-                  ref={singletonsTableRef}
-                  style={{
-                    padding: "8px 14px",
-                    borderBottom: "1px solid var(--border-0)",
-                    scrollMarginTop: 56,
-                  }}
-                >
-                  <Pagination
-                    page={singletonsPage}
-                    pageSize={PAGE_SIZE}
-                    totalItems={singletonTotal}
-                    onPageChange={handleSingletonsPageChange}
-                  />
-                </div>
-              )}
-
-              <LoadingErrorEmpty
-                isLoading={singletonsLoading && !singletonData}
-                isEmpty={filteredSingletons.length === 0}
-                emptyMessage={
-                  <>
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontSize: 28, color: "var(--ok)" }}
-                    >
-                      check_circle
-                    </span>
-                    <div style={{ fontSize: 13, marginTop: 8 }}>
-                      All records matched or unified
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--fg-2)",
-                        marginTop: 4,
-                      }}
-                    >
-                      No singleton candidates available for promotion.
-                    </div>
-                  </>
-                }
-              >
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 34 }}>
-                        <input
-                          type="checkbox"
-                          checked={
-                            !!singletonData &&
-                            selectedSingletons.size ===
-                              singletonData.items.length &&
-                            singletonData.items.length > 0
+                        <TableHead className="text-right" style={{ width: 80 }}>
+                          Sources
+                        </TableHead>
+                        <TableHead>Origin</TableHead>
+                        <TableHead style={{ width: 60 }}>DQ</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead style={{ width: 30 }} />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUnified.map((s) => (
+                        <TableRow
+                          key={s.id}
+                          className="clickable"
+                          onClick={() =>
+                            navigate(withRecordType(`/unified/${s.id}`))
                           }
-                          onChange={toggleAllSingletons}
-                          aria-label="Select all singletons"
-                        />
-                      </th>
-                      <th style={{ width: 80 }}>ID</th>
-                      <th>Name</th>
-                      {displayFields.map((f) => (
-                        <th key={f.key}>{f.label}</th>
+                        >
+                          <TableCell>
+                            <IdChip>{s.id}</IdChip>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <span style={{ fontWeight: 500 }}>
+                                {s.name || "—"}
+                              </span>
+                            </div>
+                          </TableCell>
+                          {displayFields.map((field) => (
+                            <TableCell key={field.key}>
+                              {fieldValue(
+                                s.fields as Record<string, unknown>,
+                                field.key,
+                              ) ?? (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-right font-mono">{s.source_count}</TableCell>
+                          <TableCell>
+                            {s.is_singleton ? (
+                              <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                                singleton
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                merged
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {(() => {
+                              const tone = dqTone(s.dq_score);
+                              const label =
+                                s.dq_score == null
+                                  ? "—"
+                                  : `${Math.round(s.dq_score * 100)}%`;
+                              if (tone === "ok")
+                                return (
+                                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                    {label}
+                                  </Badge>
+                                );
+                              if (tone === "warn")
+                                return (
+                                  <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                                    {label}
+                                  </Badge>
+                                );
+                              if (tone === "danger")
+                                return (
+                                  <Badge variant="destructive">{label}</Badge>
+                                );
+                              return <Badge variant="outline">{label}</Badge>;
+                            })()}
+                          </TableCell>
+                          <TableCell className="font-mono text-[11px] text-muted-foreground">
+                            {s.created_at
+                              ? new Date(s.created_at).toLocaleDateString()
+                              : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <ChevronRightIcon className="size-3 text-muted-foreground" />
+                          </TableCell>
+                        </TableRow>
                       ))}
-                      <th style={{ width: 100 }}>Source</th>
-                      <th style={{ width: 110 }} />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSingletons.map((s) => (
-                      <tr key={s.id}>
-                        <td onClick={(e) => e.stopPropagation()}>
+                    </TableBody>
+                  </Table>
+                </LoadingErrorEmpty>
+
+                {unifiedTotal > 0 && (
+                  <div className="px-3.5 py-2 border-t border-border">
+                    <Pagination
+                      page={unifiedPage}
+                      pageSize={PAGE_SIZE}
+                      totalItems={unifiedTotal}
+                      onPageChange={handleUnifiedPageChange}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </TabsContent>
+
+            {/* Singletons tab */}
+            <TabsContent value="singletons">
+              <CardContent className="p-0">
+                {singletonTotal > PAGE_SIZE && (
+                  <div
+                    ref={singletonsTableRef}
+                    className="px-3.5 py-2 border-b border-border scroll-mt-14"
+                  >
+                    <Pagination
+                      page={singletonsPage}
+                      pageSize={PAGE_SIZE}
+                      totalItems={singletonTotal}
+                      onPageChange={handleSingletonsPageChange}
+                    />
+                  </div>
+                )}
+
+                <LoadingErrorEmpty
+                  loading={singletonsLoading && !singletonData}
+                  empty={filteredSingletons.length === 0}
+                  emptyMessage="All records matched or unified — no singleton candidates available for promotion."
+                >
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead style={{ width: 34 }}>
                           <input
                             type="checkbox"
-                            checked={selectedSingletons.has(s.id)}
-                            onChange={() => toggleSingleton(s.id)}
-                            aria-label={`Select singleton ${s.id}`}
+                            checked={
+                              !!singletonData &&
+                              selectedSingletons.size ===
+                                singletonData.items.length &&
+                              singletonData.items.length > 0
+                            }
+                            onChange={toggleAllSingletons}
+                            aria-label="Select all singletons"
                           />
-                        </td>
-                        <td>
-                          <IdChip>{s.id}</IdChip>
-                        </td>
-                        <td>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            }}
-                          >
-                            <span style={{ fontWeight: 500 }}>
-                              {s.name || "—"}
-                            </span>
-                          </div>
-                        </td>
-                        {displayFields.map((field) => (
-                          <td key={field.key}>
-                            {fieldValue(
-                              s.fields as Record<string, unknown>,
-                              field.key,
-                            ) ?? (
-                              <span style={{ color: "var(--fg-3)" }}>-</span>
-                            )}
-                          </td>
+                        </TableHead>
+                        <TableHead style={{ width: 80 }}>ID</TableHead>
+                        <TableHead>Name</TableHead>
+                        {displayFields.map((f) => (
+                          <TableHead key={f.key}>{f.label}</TableHead>
                         ))}
-                        <td>
-                          {s.data_source_name ? (
-                            <SourcePill short={s.data_source_name} />
-                          ) : (
-                            <span style={{ color: "var(--fg-3)" }}>—</span>
-                          )}
-                        </td>
-                        <td>
-                          <button
-                            onClick={() => promoteMutation.mutate(s.id)}
-                            disabled={promoteMutation.isPending}
-                            className="btn btn-sm"
-                          >
-                            <span
-                              className="material-symbols-outlined"
-                              style={{ fontSize: 12 }}
+                        <TableHead style={{ width: 100 }}>Source</TableHead>
+                        <TableHead style={{ width: 110 }} />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredSingletons.map((s) => (
+                        <TableRow key={s.id}>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedSingletons.has(s.id)}
+                              onChange={() => toggleSingleton(s.id)}
+                              aria-label={`Select singleton ${s.id}`}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <IdChip>{s.id}</IdChip>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <span style={{ fontWeight: 500 }}>
+                                {s.name || "—"}
+                              </span>
+                            </div>
+                          </TableCell>
+                          {displayFields.map((field) => (
+                            <TableCell key={field.key}>
+                              {fieldValue(
+                                s.fields as Record<string, unknown>,
+                                field.key,
+                              ) ?? (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                          ))}
+                          <TableCell>
+                            {s.data_source_name ? (
+                              <SourcePill short={s.data_source_name} />
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => promoteMutation.mutate(s.id)}
+                              disabled={promoteMutation.isPending}
+                              className="gap-1"
                             >
-                              verified
-                            </span>
-                            Promote
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </LoadingErrorEmpty>
+                              <ShieldCheckIcon className="size-3" />
+                              Promote
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </LoadingErrorEmpty>
 
-              {singletonTotal > 0 && (
-                <div
-                  style={{
-                    padding: "8px 14px",
-                    borderTop: "1px solid var(--border-0)",
-                  }}
-                >
-                  <Pagination
-                    page={singletonsPage}
-                    pageSize={PAGE_SIZE}
-                    totalItems={singletonTotal}
-                    onPageChange={handleSingletonsPageChange}
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </Panel>
+                {singletonTotal > 0 && (
+                  <div className="px-3.5 py-2 border-t border-border">
+                    <Pagination
+                      page={singletonsPage}
+                      pageSize={PAGE_SIZE}
+                      totalItems={singletonTotal}
+                      onPageChange={handleSingletonsPageChange}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </TabsContent>
+          </Tabs>
+        </Card>
       </div>
     </div>
   );

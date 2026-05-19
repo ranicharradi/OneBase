@@ -1,38 +1,37 @@
 import type { ReactNode } from 'react';
-import Hbar from './Hbar';
-import type { PillTone } from './Pill';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface KpiProps {
   label: string;
-  /** Material Symbols icon name shown in front of the label. */
-  icon?: string;
-  value: string;
-  delta?: ReactNode;
-  /** 0–100 */
-  bar?: number;
-  tone?: Exclude<PillTone, 'neutral'>;
+  value: ReactNode;
+  delta?: { value: string; tone?: 'positive' | 'negative' | 'neutral' };
+  icon?: ReactNode;
+  className?: string;
 }
 
-export default function Kpi({ label, icon, value, delta, bar, tone }: KpiProps) {
+export default function Kpi({ label, value, delta, icon, className }: KpiProps) {
+  const deltaClass =
+    delta?.tone === 'positive'
+      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+      : delta?.tone === 'negative'
+        ? 'bg-destructive/10 text-destructive'
+        : '';
   return (
-    <div className="kpi">
-      <div className="kpi-label">
-        {icon && (
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: 12, color: tone ? `var(--${tone})` : 'var(--fg-2)' }}
-            aria-hidden="true"
-          >
-            {icon}
-          </span>
+    <Card size="sm" className={cn('gap-2', className)}>
+      <CardContent className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+          {icon}
+        </div>
+        <span className="text-2xl font-medium tabular-nums">{value}</span>
+        {delta && (
+          <Badge variant={delta.tone === 'neutral' ? 'outline' : 'secondary'} className={deltaClass}>
+            {delta.value}
+          </Badge>
         )}
-        {label}
-      </div>
-      <div className="kpi-value">{value}</div>
-      {delta && <div className="kpi-sub">{delta}</div>}
-      {typeof bar === 'number' && (
-        <Hbar value={bar} tone={tone} style={{ marginTop: 10, height: 4 }} />
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }

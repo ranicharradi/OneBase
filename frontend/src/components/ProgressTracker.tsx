@@ -2,10 +2,11 @@
 
 import { useEffect, useRef } from 'react';
 import { useTaskStatus } from '../hooks/useTaskStatus';
-import Panel, { PanelHead } from './ui/Panel';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { CheckCircle2Icon, XCircleIcon, CheckIcon } from 'lucide-react';
 import Hbar from './ui/Hbar';
 import Spinner from './ui/Spinner';
-import Pill from './ui/Pill';
 
 interface ProgressTrackerProps {
   taskId: string;
@@ -41,41 +42,42 @@ export default function ProgressTracker({ taskId, onComplete }: ProgressTrackerP
   const overallPct = isComplete ? 100 : isFailed ? 0 : progress ?? 0;
 
   return (
-    <Panel className="fade">
-      <PanelHead>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {isComplete ? (
-            <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--ok)' }}>check_circle</span>
-          ) : isFailed ? (
-            <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--danger)' }}>error</span>
-          ) : (
-            <Spinner size={14} />
-          )}
-          <span className="panel-title">
-            {isComplete ? 'Ingestion complete' : isFailed ? 'Ingestion failed' : 'Ingestion in progress'}
-          </span>
-          {isComplete && row_count != null && (
-            <Pill tone="ok">{row_count.toLocaleString()} rows</Pill>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2.5 justify-between">
+          <div className="flex items-center gap-2.5">
+            {isComplete ? (
+              <CheckCircle2Icon className="size-4 text-emerald-600" />
+            ) : isFailed ? (
+              <XCircleIcon className="size-4 text-destructive" />
+            ) : (
+              <Spinner size={14} />
+            )}
+            <CardTitle className="text-sm">
+              {isComplete ? 'Ingestion complete' : isFailed ? 'Ingestion failed' : 'Ingestion in progress'}
+            </CardTitle>
+            {isComplete && row_count != null && (
+              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 ml-auto">
+                {row_count.toLocaleString()} rows
+              </Badge>
+            )}
+          </div>
+          {!isComplete && !isFailed && (
+            <span className="font-mono tabular-nums text-xs font-semibold text-primary">
+              {Math.round(overallPct)}%
+            </span>
           )}
         </div>
-        {!isComplete && !isFailed && (
-          <span
-            className="mono tnum"
-            style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}
-          >
-            {Math.round(overallPct)}%
-          </span>
-        )}
-      </PanelHead>
+      </CardHeader>
 
-      <div style={{ padding: 14 }}>
+      <CardContent className="space-y-4">
         <Hbar
           value={overallPct}
-          tone={isComplete ? 'ok' : isFailed ? 'danger' : 'accent'}
-          style={{ height: 6 }}
+          fillClassName={isComplete ? 'bg-emerald-500' : isFailed ? 'bg-destructive' : 'bg-primary'}
+          className="h-1.5"
         />
 
-        <div style={{ marginTop: 16 }}>
+        <div className="space-y-0">
           {STAGES.map((s, i) => {
             const done = isComplete || activeIndex > i;
             const active = !isComplete && !isFailed && activeIndex === i;
@@ -83,51 +85,28 @@ export default function ProgressTracker({ taskId, onComplete }: ProgressTrackerP
             return (
               <div
                 key={s.key}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '20px 1fr 60px 60px',
-                  padding: '8px 0',
-                  gap: 12,
-                  alignItems: 'center',
-                  borderBottom: i < STAGES.length - 1 ? '1px solid var(--border-0)' : 'none',
-                }}
+                className={`grid grid-cols-[20px_1fr_60px_60px] gap-3 py-2 px-0 items-center ${i < STAGES.length - 1 ? 'border-b border-border' : ''}`}
               >
-                <span style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                <div className="flex justify-center">
                   {done ? (
-                    <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--ok)' }}>
-                      check
-                    </span>
+                    <CheckIcon className="size-3.5 text-emerald-600" />
                   ) : active ? (
                     <Spinner size={10} />
                   ) : (
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        border: '1.5px solid var(--border-1)',
-                      }}
-                    />
+                    <div className="size-2 rounded-full border-1.5 border-border" />
                   )}
-                </span>
+                </div>
                 <span
-                  style={{
-                    fontSize: 13,
-                    color: done ? 'var(--fg-1)' : active ? 'var(--fg-0)' : 'var(--fg-2)',
-                  }}
+                  className={`text-xs ${done ? 'text-foreground/80' : active ? 'text-foreground' : 'text-muted-foreground'}`}
                 >
                   {s.label}
                 </span>
                 <Hbar
                   value={stagePct}
-                  tone={done ? 'ok' : active ? 'accent' : undefined}
-                  style={{ height: 3 }}
+                  fillClassName={done ? 'bg-emerald-500' : active ? 'bg-primary' : undefined}
+                  className="h-0.5"
                 />
-                <span
-                  className="mono tnum"
-                  style={{ fontSize: 11, textAlign: 'right', color: 'var(--fg-2)' }}
-                >
+                <span className="font-mono tabular-nums text-xs text-muted-foreground text-right">
                   {done ? 'done' : active ? `${stagePct}%` : 'queued'}
                 </span>
               </div>
@@ -136,31 +115,18 @@ export default function ProgressTracker({ taskId, onComplete }: ProgressTrackerP
         </div>
 
         {detail && (
-          <div
-            className="mono"
-            style={{
-              fontSize: 11,
-              color: 'var(--fg-2)',
-              marginTop: 12,
-              padding: '6px 10px',
-              background: 'var(--bg-2)',
-              borderRadius: 4,
-            }}
-          >
+          <div className="font-mono text-xs text-muted-foreground mt-3 p-2.5 bg-muted rounded">
             {detail}
           </div>
         )}
 
         {isFailed && detail && (
-          <div
-            className="pill danger"
-            style={{ marginTop: 12, padding: '6px 10px', width: '100%', justifyContent: 'flex-start' }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
-            {detail}
+          <div className="flex items-start gap-2 mt-3 p-2.5 w-full bg-destructive/10 rounded">
+            <XCircleIcon className="size-3 text-destructive flex-shrink-0 mt-0.5" />
+            <span className="text-xs text-destructive">{detail}</span>
           </div>
         )}
-      </div>
-    </Panel>
+      </CardContent>
+    </Card>
   );
 }

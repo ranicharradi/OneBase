@@ -1,6 +1,9 @@
-// ── Drag-and-drop file upload zone — terminal aesthetic ──
+// ── Drag-and-drop file upload zone ──
 
 import { useCallback, useRef, useState } from 'react';
+import { CheckCircle2Icon, CloudUploadIcon, FolderOpenIcon } from 'lucide-react';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import { formatFileSize } from '../utils/filesize';
 import { ALLOWED_UPLOAD_ACCEPT, isAllowedUpload } from '../utils/fileFormat';
 
@@ -72,132 +75,100 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
       role="button"
       tabIndex={disabled ? -1 : 0}
       aria-label="Drop a CSV or Excel file or click to browse"
-      style={{
-        border: `2px dashed ${isDragOver ? 'var(--accent)' : selectedFile ? 'var(--ok)' : 'var(--border-1)'}`,
-        background: isDragOver
-          ? 'var(--accent-soft)'
+      className={[
+        'relative overflow-hidden rounded-[var(--radius)] border-2 border-dashed px-10 py-[60px] text-center transition-all duration-200',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        isDragOver
+          ? 'scale-[1.005] border-primary bg-primary/5 shadow-lg'
           : selectedFile
-            ? 'var(--ok-soft)'
-            : 'var(--bg-1)',
-        padding: '60px 40px',
-        textAlign: 'center',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        borderRadius: 'var(--radius)',
-        transition:
-          'border-color 0.18s ease, background 0.25s ease, transform 0.18s ease, box-shadow 0.25s ease',
-        transform: isDragOver ? 'scale(1.005)' : 'scale(1)',
-        boxShadow: isDragOver ? '0 8px 32px -8px var(--accent-border)' : 'none',
-        opacity: disabled ? 0.6 : 1,
-        position: 'relative',
-        overflow: 'hidden',
-      }}
+            ? 'border-emerald-500/60 bg-emerald-50/60 dark:bg-emerald-950/30'
+            : 'border-primary/40 bg-card hover:border-primary hover:bg-primary/5',
+        disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
+      ].join(' ')}
     >
       {/* Subtle accent sweep on drag-over */}
       {isDragOver && (
         <div
           aria-hidden="true"
+          className="pointer-events-none absolute inset-0 animate-[drop-marching_0.8s_linear_infinite] opacity-70"
           style={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
             background:
-              'repeating-linear-gradient(45deg, transparent 0 12px, var(--accent-soft) 12px 24px)',
+              'repeating-linear-gradient(45deg, transparent 0 12px, rgb(from var(--primary) r g b / 0.08) 12px 24px)',
             backgroundSize: '32px 32px',
-            animation: 'drop-marching 0.8s linear infinite',
-            opacity: 0.7,
           }}
         />
       )}
 
       <div
-        style={{
-          width: 44,
-          height: 44,
-          margin: '0 auto 12px',
-          borderRadius: 8,
-          background: isDragOver
-            ? 'var(--accent-soft)'
+        className={[
+          'relative z-[1] mx-auto mb-3 flex size-11 items-center justify-center rounded-lg transition-all duration-200',
+          isDragOver
+            ? 'scale-[1.12] bg-primary/10 text-primary'
             : selectedFile
-              ? 'var(--ok-soft)'
-              : 'var(--bg-2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: isDragOver ? 'var(--accent)' : selectedFile ? 'var(--ok)' : 'var(--fg-1)',
-          transition: 'background 0.25s ease, color 0.25s ease, transform 0.2s ease',
-          transform: isDragOver ? 'scale(1.12)' : 'scale(1)',
-          // Idle = breathing; selected = one-shot pop; dragging = no animation, transform takes over
+              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400'
+              : 'bg-muted text-foreground/60',
+        ].join(' ')}
+        style={{
           animation: selectedFile
             ? 'drop-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both'
             : isDragOver
               ? 'none'
               : 'drop-breathe 3.2s ease-in-out infinite',
-          position: 'relative',
-          zIndex: 1,
         }}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
-          {selectedFile ? 'check_circle' : 'cloud_upload'}
-        </span>
+        {selectedFile ? (
+          <CheckCircle2Icon className="size-[22px]" />
+        ) : (
+          <CloudUploadIcon className="size-[22px]" />
+        )}
       </div>
 
-      <div className="fade" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="relative z-[1]">
         {selectedFile ? (
           <>
-            <div className="mono" style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
+            <div className="mb-1 font-mono text-[13px] font-medium">
               {selectedFile.name}
             </div>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+            <div className="font-mono text-[11px] text-muted-foreground">
               {formatFileSize(selectedFile.size)}
             </div>
           </>
         ) : (
           <>
             <div
-              style={{
-                fontSize: 15,
-                fontWeight: 500,
-                marginBottom: 4,
-                color: isDragOver ? 'var(--accent)' : 'var(--fg-0)',
-                transition: 'color 0.18s ease',
-              }}
+              className={[
+                'mb-1 text-[15px] font-medium transition-colors duration-200',
+                isDragOver ? 'text-primary' : 'text-foreground',
+              ].join(' ')}
             >
               {isDragOver ? 'Release to upload' : 'Drop CSV or Excel file here'}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+            <div className="text-[12px] text-muted-foreground">
               up to 50 MB · UTF-8 preferred
             </div>
             {error && (
-              <div
+              <Badge
+                variant="destructive"
                 role="alert"
-                className="pill danger"
-                style={{
-                  margin: '12px auto 0',
-                  padding: '6px 10px',
-                  width: 'fit-content',
-                  maxWidth: '100%',
-                  justifyContent: 'center',
-                }}
+                className="mx-auto mt-3 w-fit max-w-full justify-center px-2.5 py-1"
               >
                 {error}
-              </div>
+              </Badge>
             )}
-            <button
+            <Button
               type="button"
+              size="sm"
               onClick={(e) => { e.stopPropagation(); handleBrowseClick(); }}
               disabled={disabled}
-              className="btn btn-sm"
-              style={{
-                marginTop: 14,
-                opacity: isDragOver ? 0 : 1,
-                pointerEvents: isDragOver ? 'none' : 'auto',
-                transition: 'opacity 0.18s ease',
-              }}
+              className={[
+                'mt-3.5 transition-opacity duration-200',
+                isDragOver ? 'pointer-events-none opacity-0' : 'opacity-100',
+              ].join(' ')}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>folder_open</span>
+              <FolderOpenIcon className="size-3.5" />
               Browse files
-            </button>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 12 }}>
+            </Button>
+            <div className="mt-3 font-mono text-[10px] text-muted-foreground/70">
               .csv · .xlsx · delimiters auto-detected
             </div>
           </>
@@ -209,7 +180,7 @@ export default function DropZone({ onFileSelected, disabled = false }: DropZoneP
         type="file"
         accept={ALLOWED_UPLOAD_ACCEPT}
         onChange={handleFileInput}
-        style={{ display: 'none' }}
+        className="hidden"
         disabled={disabled}
       />
     </div>

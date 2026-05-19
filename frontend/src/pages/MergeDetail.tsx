@@ -3,14 +3,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertTriangleIcon,
+  ArrowLeftIcon,
+  CheckCircle2Icon,
+  CircleIcon,
+  MergeIcon,
+  XCircleIcon,
+  XIcon,
+} from "lucide-react";
 import { api } from "../api/client";
 import type { MatchDetailResponse, ReviewActionResponse } from "../api/types";
 import { confidenceTone } from "../utils/confidence";
 import { useRecordType } from "../hooks/useRecordTypes";
 import { useSelectedRecordType } from "../contexts/RecordTypeContext";
 import { fieldValue } from "../utils/recordDisplay";
-import Panel from "../components/ui/Panel";
-import Pill from "../components/ui/Pill";
+import { Card, CardContent } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
 import IdChip from "../components/ui/IdChip";
 import SourcePill from "../components/ui/SourcePill";
 import MatchSignalsPanel from "../components/MatchSignalsPanel";
@@ -131,8 +141,8 @@ export default function MergeDetail() {
 
   if (isLoading) {
     return (
-      <div className="scroll" style={{ height: "100%" }}>
-        <div style={{ padding: 20, fontSize: 12, color: "var(--fg-2)" }}>
+      <div className="overflow-y-auto h-full">
+        <div className="p-5 text-xs text-muted-foreground">
           Loading candidate…
         </div>
       </div>
@@ -141,36 +151,27 @@ export default function MergeDetail() {
 
   if (error || !detail) {
     return (
-      <div className="scroll" style={{ height: "100%" }}>
-        <div style={{ padding: 20 }}>
-          <Panel>
-            <div style={{ padding: 28, textAlign: "center" }}>
-              <span
-                className="material-symbols-outlined"
-                style={{ fontSize: 28, color: "var(--danger)" }}
-              >
-                error
-              </span>
-              <div style={{ marginTop: 8, fontSize: 12 }}>
+      <div className="overflow-y-auto h-full">
+        <div className="p-5">
+          <Card>
+            <CardContent className="py-7 text-center">
+              <XCircleIcon className="size-7 text-destructive mx-auto" />
+              <div className="mt-2 text-xs">
                 {error instanceof Error
                   ? error.message
                   : "Match candidate not found"}
               </div>
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => navigate(withRecordType("/merge"))}
-                className="btn btn-sm"
-                style={{ marginTop: 12 }}
+                className="mt-3 gap-1"
               >
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontSize: 12 }}
-                >
-                  arrow_back
-                </span>
+                <ArrowLeftIcon className="size-3" />
                 Back to merge queue
-              </button>
-            </div>
-          </Panel>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -186,76 +187,81 @@ export default function MergeDetail() {
     conflicts.length === 0 || resolvedCount === conflicts.length;
 
   return (
-    <div className="scroll" style={{ height: "100%" }}>
-      <div style={{ padding: 20, paddingBottom: 80 }}>
+    <div className="overflow-y-auto h-full">
+      <div className="p-5 pb-20">
         {/* Header */}
-        <div className="fade" style={{ marginBottom: 12 }}>
-          <button
+        <div className="mb-3">
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => navigate(withRecordType("/merge"))}
-            className="btn btn-sm btn-ghost"
-            style={{ marginBottom: 8 }}
+            className="mb-2 gap-1"
           >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 12 }}
-            >
-              arrow_back
-            </span>
+            <ArrowLeftIcon className="size-3" />
             Merge queue
-          </button>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              flexWrap: "wrap",
-            }}
-          >
-            <IdChip style={{ fontSize: 13, padding: "3px 8px" }}>
+          </Button>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <IdChip className="text-[13px] px-2 py-0.5">
               #{detail.id}
             </IdChip>
-            <h1
-              style={{ fontSize: 18, fontWeight: 600, margin: 0, minWidth: 0 }}
-            >
+            <h1 className="text-[18px] font-semibold m-0 min-w-0">
               {record_a.name || `Record #${record_a.id}`}{" "}
-              <span style={{ color: "var(--fg-3)", fontWeight: 400 }}>↔</span>{" "}
+              <span className="text-muted-foreground font-normal">↔</span>{" "}
               {record_b.name || `Record #${record_b.id}`}
             </h1>
-            <Pill tone={tone} dot>
+            <Badge
+              variant="secondary"
+              className={
+                tone === "ok"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                  : tone === "warn"
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                    : tone === "danger"
+                      ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+                      : "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+              }
+            >
+              <CircleIcon className="size-2 fill-current" />
               {detail.confidence.toFixed(3)} confidence
-            </Pill>
+            </Badge>
             {conflicts.length > 0 && (
-              <Pill tone="warn" icon="warning">
+              <Badge
+                variant="secondary"
+                className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+              >
+                <AlertTriangleIcon className="size-3" />
                 {conflicts.length} conflict{conflicts.length !== 1 ? "s" : ""}
-              </Pill>
+              </Badge>
             )}
             {!isConfirmed && (
-              <Pill
-                tone={
+              <Badge
+                variant={
                   detail.status === "merged"
-                    ? "ok"
+                    ? "secondary"
                     : detail.status === "rejected"
-                      ? "danger"
-                      : "neutral"
+                      ? "destructive"
+                      : "outline"
                 }
-                dot
+                className={
+                  detail.status === "merged"
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                    : undefined
+                }
               >
+                <CircleIcon className="size-2 fill-current" />
                 {detail.status}
                 {detail.reviewed_by && (
-                  <span
-                    className="mono"
-                    style={{ marginLeft: 4, opacity: 0.7 }}
-                  >
+                  <span className="font-mono ml-1 opacity-70">
                     · {detail.reviewed_by}
                   </span>
                 )}
-              </Pill>
+              </Badge>
             )}
           </div>
           {detail.reviewed_by && (
-            <div style={{ marginTop: 6, fontSize: 11, color: "var(--fg-2)" }}>
+            <div className="mt-1.5 text-[11px] text-muted-foreground">
               Confirmed by{" "}
-              <span className="mono" style={{ color: "var(--accent)" }}>
+              <span className="font-mono text-primary">
                 {detail.reviewed_by}
               </span>
               {detail.reviewed_at && (
@@ -263,16 +269,7 @@ export default function MergeDetail() {
               )}
             </div>
           )}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              marginTop: 6,
-              fontSize: 11,
-              color: "var(--fg-2)",
-            }}
-          >
+          <div className="flex items-center gap-4 mt-1.5 text-[11px] text-muted-foreground">
             {(() => {
               const codeField = recordType?.fields.find(
                 (f) => f.role === "code",
@@ -280,15 +277,9 @@ export default function MergeDetail() {
               return (
                 <>
                   {record_a.data_source_name && (
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
+                    <span className="inline-flex items-center gap-1.5">
                       <SourcePill short={record_a.data_source_name} />
-                      <span className="mono">
+                      <span className="font-mono">
                         {codeField
                           ? fieldValue(record_a.fields, codeField.key)
                           : `#${record_a.id}`}
@@ -296,15 +287,9 @@ export default function MergeDetail() {
                     </span>
                   )}
                   {record_b.data_source_name && (
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
+                    <span className="inline-flex items-center gap-1.5">
                       <SourcePill short={record_b.data_source_name} />
-                      <span className="mono">
+                      <span className="font-mono">
                         {codeField
                           ? fieldValue(record_b.fields, codeField.key)
                           : `#${record_b.id}`}
@@ -343,41 +328,21 @@ export default function MergeDetail() {
 
         {/* Sticky verdict bar */}
         {isConfirmed && (
-          <div
-            className="fade"
-            style={{
-              position: "sticky",
-              bottom: 0,
-              background: "var(--bg-1)",
-              border: "1px solid var(--border-0)",
-              borderRadius: 6,
-              padding: "10px 14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              boxShadow: "var(--shadow-md)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="sticky bottom-0 bg-card border border-border rounded-md px-3.5 py-2.5 flex items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center gap-2.5">
               <div
-                style={{
-                  padding: "3px 10px",
-                  borderRadius: 4,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  background: allResolved
-                    ? "var(--ok-soft)"
-                    : "var(--warn-soft)",
-                  color: allResolved ? "var(--ok)" : "var(--warn)",
-                }}
+                className={`px-2.5 py-0.5 rounded text-xs font-semibold ${
+                  allResolved
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                    : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                }`}
               >
-                <span className="mono tnum">
+                <span className="font-mono tabular-nums">
                   {resolvedCount}/{conflicts.length}
                 </span>{" "}
                 conflicts resolved
               </div>
-              <span style={{ fontSize: 12, color: "var(--fg-2)" }}>
+              <span className="text-xs text-muted-foreground">
                 {allResolved
                   ? conflicts.length === 0
                     ? "No conflicts — ready to merge"
@@ -385,127 +350,68 @@ export default function MergeDetail() {
                   : "Pick a side for each conflicting field"}
               </span>
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button
-                className="btn btn-sm btn-danger"
+            <div className="flex gap-1.5">
+              <Button
+                variant="destructive"
+                size="sm"
                 onClick={handleReject}
                 disabled={actionInFlight !== null}
+                className="gap-1"
               >
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontSize: 12 }}
-                >
-                  close
-                </span>
+                <XIcon className="size-3" />
                 {actionInFlight === "reject" ? "Rejecting…" : "Reject"}
-                <span className="kbd">R</span>
-              </button>
-              <button
-                className="btn btn-sm btn-accent"
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground">R</span>
+              </Button>
+              <Button
+                size="sm"
                 onClick={handleMerge}
                 disabled={!allResolved || actionInFlight !== null}
+                className="gap-1"
               >
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontSize: 12 }}
-                >
-                  merge
-                </span>
+                <MergeIcon className="size-3" />
                 {actionInFlight === "merge" ? "Merging…" : "Confirm merge"}
-                <span
-                  className="kbd"
-                  style={{
-                    background: "rgba(255,255,255,0.18)",
-                    color: "#fff",
-                    borderColor: "rgba(255,255,255,0.25)",
-                  }}
-                >
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-white/25 bg-white/18 text-white">
                   ↵
                 </span>
-              </button>
+              </Button>
             </div>
           </div>
         )}
 
         {/* Post-action banners */}
         {!isConfirmed && detail.status === "merged" && (
-          <div
-            className="fade"
-            style={{
-              marginTop: 10,
-              padding: "10px 14px",
-              background: "var(--ok-soft)",
-              border: "1px solid var(--ok)",
-              borderRadius: 6,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontSize: 12,
-            }}
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 14, color: "var(--ok)" }}
-            >
-              check_circle
+          <div className="mt-2.5 px-3.5 py-2.5 bg-emerald-100 dark:bg-emerald-950 border border-emerald-600/30 rounded-md flex items-center gap-2 text-xs">
+            <CheckCircle2Icon className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
+              Merged
             </span>
-            <span style={{ color: "var(--ok)", fontWeight: 600 }}>Merged</span>
-            <span style={{ color: "var(--fg-2)" }}>
+            <span className="text-muted-foreground">
               — unified record created in Unified records
             </span>
           </div>
         )}
         {!isConfirmed && detail.status === "rejected" && (
-          <div
-            className="fade"
-            style={{
-              marginTop: 10,
-              padding: "10px 14px",
-              background: "var(--danger-soft)",
-              border: "1px solid var(--danger)",
-              borderRadius: 6,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontSize: 12,
-            }}
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 14, color: "var(--danger)" }}
-            >
-              cancel
-            </span>
-            <span style={{ color: "var(--danger)", fontWeight: 600 }}>
-              Rejected
-            </span>
+          <div className="mt-2.5 px-3.5 py-2.5 bg-destructive/10 border border-destructive/30 rounded-md flex items-center gap-2 text-xs">
+            <XCircleIcon className="size-3.5 text-destructive shrink-0" />
+            <span className="text-destructive font-semibold">Rejected</span>
             {detail.reviewed_by && (
-              <span style={{ color: "var(--fg-2)" }}>
-                — reviewed by <span className="mono">{detail.reviewed_by}</span>
+              <span className="text-muted-foreground">
+                — reviewed by{" "}
+                <span className="font-mono">{detail.reviewed_by}</span>
               </span>
             )}
           </div>
         )}
 
         {(mergeMutation.error || rejectMutation.error) && (
-          <div
-            className="pill danger"
-            style={{
-              marginTop: 10,
-              padding: "6px 10px",
-              width: "100%",
-              justifyContent: "flex-start",
-            }}
+          <Badge
+            variant="destructive"
+            className="mt-2.5 w-full justify-start px-2.5 py-1.5 gap-1.5"
           >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 12 }}
-            >
-              error
-            </span>
+            <XCircleIcon className="size-3 shrink-0" />
             {(mergeMutation.error as Error)?.message ||
               (rejectMutation.error as Error)?.message}
-          </div>
+          </Badge>
         )}
       </div>
     </div>

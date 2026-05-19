@@ -141,7 +141,7 @@ function LayoutContent() {
   }, [location.pathname]);
 
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <div className="flex h-screen overflow-hidden">
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
@@ -149,14 +149,7 @@ function LayoutContent() {
         mergeCount={reviewStats?.total_confirmed ?? 0}
       />
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          minWidth: 0,
-        }}
-      >
+      <div className="flex flex-1 flex-col min-w-0">
         <TopBar
           breadcrumb={breadcrumb}
           onOpenPalette={() => setPaletteOpen(true)}
@@ -167,14 +160,7 @@ function LayoutContent() {
           onLogout={handleLogout}
         />
 
-        <main
-          style={{
-            flex: 1,
-            minHeight: 0,
-            background: "var(--bg-0)",
-            overflow: "hidden",
-          }}
-        >
+        <main className="flex-1 min-h-0 bg-background overflow-y-auto">
           <Outlet />
         </main>
       </div>

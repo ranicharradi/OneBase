@@ -1,5 +1,12 @@
 import type { MatchRunResponse } from '../api/types';
 import { relativeTime } from '../utils/time';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface MatchRunSelectProps {
   validRuns: MatchRunResponse[];
@@ -9,18 +16,20 @@ interface MatchRunSelectProps {
 
 export default function MatchRunSelect({ validRuns, runId, onChange }: MatchRunSelectProps) {
   return (
-    <select
-      className="input"
-      style={{ height: 26, fontSize: 11, padding: '0 8px', minWidth: 200 }}
+    <Select
       value={runId ?? ''}
-      onChange={(e) => onChange(e.target.value || null)}
+      onValueChange={(val) => onChange(val || null)}
     >
-      <option value="" disabled>— pick a run —</option>
-      {validRuns.map(r => (
-        <option key={r.id} value={String(r.id)}>
-          #{r.id} · {r.name} · {relativeTime(r.created_at)}
-        </option>
-      ))}
-    </select>
+      <SelectTrigger size="sm" className="min-w-[200px] text-xs">
+        <SelectValue placeholder="— pick a run —" />
+      </SelectTrigger>
+      <SelectContent>
+        {validRuns.map(r => (
+          <SelectItem key={r.id} value={String(r.id)}>
+            #{r.id} · {r.name} · {relativeTime(r.created_at)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

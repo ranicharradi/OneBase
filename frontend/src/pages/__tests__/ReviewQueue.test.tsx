@@ -239,9 +239,9 @@ describe('ReviewQueue page', () => {
       return new Promise(() => {})
     })
     const { container } = render(<ReviewQueue />)
-    // LoadingErrorEmpty renders a <Spinner /> (no text) during loading
+    // LoadingErrorEmpty renders <Skeleton> elements during loading
     await vi.waitFor(() => {
-      expect(container.querySelector('.spin')).toBeInTheDocument()
+      expect(container.querySelector('[data-slot="skeleton"]')).toBeInTheDocument()
     })
   })
 
@@ -292,16 +292,16 @@ describe('ReviewQueue page', () => {
 
     await screen.findByText('Acme Corp')
 
-    // ConfRing renders confidence as integer pct (Math.round(value * 100)) with var(--tone) color
+    // ConfRing renders confidence as integer pct (Math.round(value * 100)) with tone className
     const value92 = screen.getByText('92')
-    expect(value92.getAttribute('style') || '').toMatch(/--ok/)
+    expect(value92.getAttribute('class') || '').toMatch(/text-emerald-600/)
 
-    const value75 = screen.getAllByText('75').find(el => (el.getAttribute('style') || '').includes('--warn'))
+    const value75 = screen.getAllByText('75').find(el => (el.getAttribute('class') || '').includes('text-amber-600'))
     expect(value75).toBeTruthy()
-    expect(value75?.getAttribute('style') || '').toMatch(/--warn/)
+    expect(value75?.getAttribute('class') || '').toMatch(/text-amber-600/)
 
-    // '40' also appears as a bucket count; find the ConfRing element by its danger style
-    const value40 = screen.getAllByText('40').find(el => (el.getAttribute('style') || '').includes('--danger'))
+    // '40' also appears as a bucket count; find the ConfRing element by its danger className
+    const value40 = screen.getAllByText('40').find(el => (el.getAttribute('class') || '').includes('text-destructive'))
     expect(value40).toBeTruthy()
   })
 
@@ -309,8 +309,9 @@ describe('ReviewQueue page', () => {
     setupFetch()
     render(<ReviewQueue />)
     await screen.findByText('Acme Corp')
-    expect(screen.getByText('pending')).toBeInTheDocument()
-    // 'Confirmed dupe' appears in both the bucket tab and the status pill
+    // 'Pending' bucket tab label is always visible
+    expect(screen.getByText('Pending')).toBeInTheDocument()
+    // 'Confirmed dupe' appears in both the bucket tab and the status badge
     expect(screen.getAllByText('Confirmed dupe').length).toBeGreaterThan(0)
   })
 

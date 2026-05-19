@@ -1,15 +1,18 @@
 import type { FieldComparison, RecordDetail } from '../api/types';
-import Panel, { PanelHead } from './ui/Panel';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { CheckIcon, ArrowRightIcon } from 'lucide-react';
 import SourcePill from './ui/SourcePill';
 import type { Layout } from './fieldComparisonLayout';
 
 function statusPill(comp: FieldComparison, selections: Record<string, number> = {}) {
   if (comp.is_conflict && selections[comp.field] !== undefined) {
-    return <span className="pill ok" style={{ padding: '1px 6px', fontSize: 10 }}>resolved</span>;
+    return <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-xs">resolved</Badge>;
   }
-  if (comp.is_conflict) return <span className="pill warn" style={{ padding: '1px 6px', fontSize: 10 }}>conflict</span>;
-  if (comp.is_identical) return <span className="pill ok" style={{ padding: '1px 6px', fontSize: 10 }}>identical</span>;
-  if (comp.is_a_only || comp.is_b_only) return <span className="pill info" style={{ padding: '1px 6px', fontSize: 10 }}>source-only</span>;
+  if (comp.is_conflict) return <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 text-xs">conflict</Badge>;
+  if (comp.is_identical) return <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-xs">identical</Badge>;
+  if (comp.is_a_only || comp.is_b_only) return <Badge variant="secondary" className="bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 text-xs">source-only</Badge>;
   return null;
 }
 
@@ -30,56 +33,51 @@ function ChoiceBtn({
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <Button
       onClick={onClick}
-      className="btn btn-sm"
-      style={{
-        padding: '2px 8px', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace',
-        background: chosen ? 'var(--accent-soft)' : 'transparent',
-        border: `1px solid ${chosen ? 'var(--accent)' : 'var(--border-0)'}`,
-        color: chosen ? 'var(--accent)' : 'var(--fg-0)',
-        opacity: active && !chosen ? 0.5 : 1,
-      }}
+      size="sm"
+      variant={chosen ? 'default' : 'outline'}
+      className={`font-mono text-xs ${active && !chosen ? 'opacity-50' : ''}`}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
 function SideBySideLayout({ comparisons, recordA, recordB, selections = {}, onSelect }: LayoutProps) {
   return (
-    <table className="table">
+    <table className="w-full border-collapse">
       <thead>
         <tr>
-          <th style={{ width: 180 }}>Field</th>
-          <th style={{ borderLeft: '2px solid var(--accent-border)', color: 'var(--accent)' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <th className="w-[180px] text-left text-foreground font-medium">Field</th>
+          <th className="border-l-2 border-primary text-primary text-left font-medium">
+            <span className="inline-flex items-center gap-1.5">
               {recordA.data_source_name && <SourcePill short={recordA.data_source_name} />}
               {recordA.name || `#${recordA.id}`}
             </span>
           </th>
-          <th style={{ width: 40 }} />
-          <th style={{ borderLeft: '2px solid var(--info-border)', color: 'var(--info)' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <th className="w-10" />
+          <th className="border-l-2 border-sky-600 text-sky-600 text-left font-medium">
+            <span className="inline-flex items-center gap-1.5">
               {recordB.data_source_name && <SourcePill short={recordB.data_source_name} />}
               {recordB.name || `#${recordB.id}`}
             </span>
           </th>
-          <th style={{ width: 90 }}>Status</th>
+          <th className="w-[90px] text-left font-medium">Status</th>
         </tr>
       </thead>
       <tbody>
         {comparisons.map(f => {
           const isSelected = selections[f.field] !== undefined;
           return (
-            <tr key={f.field} style={{ background: f.is_conflict && !isSelected ? 'var(--warn-soft)' : 'transparent' }}>
-              <td>
-                <div style={{ fontWeight: 500 }}>{f.label}</div>
-                <div className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>{f.field}</div>
+            <tr key={f.field} className={f.is_conflict && !isSelected ? 'bg-amber-100' : ''}>
+              <td className="px-4 py-3 align-top">
+                <div className="font-medium">{f.label}</div>
+                <div className="font-mono text-xs text-muted-foreground">{f.field}</div>
               </td>
-              <td style={{ borderLeft: '2px solid var(--accent-border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="mono" style={{ fontSize: 12, color: f.value_a ? 'var(--fg-0)' : 'var(--fg-3)', flex: 1 }}>
+              <td className="border-l-2 border-primary px-4 py-3 align-top">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-sm flex-1" style={{ color: f.value_a ? 'var(--tw-prose-body)' : 'var(--tw-prose-captions)' }}>
                     {f.value_a || '∅'}
                   </span>
                   {f.is_conflict && onSelect && (
@@ -93,17 +91,17 @@ function SideBySideLayout({ comparisons, recordA, recordB, selections = {}, onSe
                   )}
                 </div>
               </td>
-              <td style={{ textAlign: 'center', color: 'var(--fg-3)' }}>
+              <td className="px-4 py-3 text-center align-top text-muted-foreground">
                 {f.is_conflict ? (
-                  <span style={{ color: 'var(--warn)', fontSize: 11, fontWeight: 600 }}>vs</span>
+                  <span className="text-amber-600 text-xs font-semibold">vs</span>
                 ) : f.is_identical ? (
-                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>check</span>
+                  <CheckIcon className="size-4 mx-auto" />
                 ) : (
-                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_forward</span>
+                  <ArrowRightIcon className="size-4 mx-auto" />
                 )}
               </td>
-              <td style={{ borderLeft: '2px solid var(--info-border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <td className="border-l-2 border-sky-600 px-4 py-3 align-top">
+                <div className="flex items-center gap-1.5">
                   {f.is_conflict && onSelect && (
                     <ChoiceBtn
                       chosen={selections[f.field] === recordB.id}
@@ -113,12 +111,12 @@ function SideBySideLayout({ comparisons, recordA, recordB, selections = {}, onSe
                       Use B
                     </ChoiceBtn>
                   )}
-                  <span className="mono" style={{ fontSize: 12, color: f.value_b ? 'var(--fg-0)' : 'var(--fg-3)', flex: 1 }}>
+                  <span className="font-mono text-sm flex-1" style={{ color: f.value_b ? 'var(--tw-prose-body)' : 'var(--tw-prose-captions)' }}>
                     {f.value_b || '∅'}
                   </span>
                 </div>
               </td>
-              <td>{statusPill(f, selections)}</td>
+              <td className="px-4 py-3 align-top">{statusPill(f, selections)}</td>
             </tr>
           );
         })}
@@ -129,47 +127,40 @@ function SideBySideLayout({ comparisons, recordA, recordB, selections = {}, onSe
 
 function StackedLayout({ comparisons, recordA, recordB, selections = {}, onSelect }: LayoutProps) {
   return (
-    <div style={{ padding: 12 }}>
+    <div className="p-3">
       {comparisons.map(f => {
         const isSelected = selections[f.field] !== undefined;
         return (
-          <div key={f.field} style={{ marginBottom: 10, padding: 10, background: 'var(--bg-0)', border: '1px solid var(--border-0)', borderRadius: 4 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div key={f.field} className="mb-2.5 p-2.5 bg-background border border-border rounded">
+            <div className="flex items-baseline justify-between mb-1.5">
               <div>
-                <span style={{ fontSize: 12, fontWeight: 600 }}>{f.label}</span>
-                <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 8 }}>{f.field}</span>
+                <span className="text-xs font-semibold">{f.label}</span>
+                <span className="font-mono text-[10px] text-muted-foreground ml-2">{f.field}</span>
               </div>
               {statusPill(f, selections)}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div className="grid grid-cols-2 gap-2">
               {([['a', recordA, f.value_a] as const, ['b', recordB, f.value_b] as const]).map(([key, sup, val]) => {
                 const chosen = f.is_conflict && selections[f.field] === sup.id;
                 return (
                   <div
                     key={key}
                     onClick={() => f.is_conflict && onSelect && onSelect(f.field, sup.id)}
-                    style={{
-                      padding: '8px 10px',
-                      border: chosen
-                        ? '2px solid var(--accent)'
-                        : `1px solid ${key === 'a' ? 'var(--accent-border)' : 'var(--info-border)'}`,
-                      borderLeft: chosen
-                        ? '3px solid var(--accent)'
-                        : `3px solid ${key === 'a' ? 'var(--accent-border)' : 'var(--info-border)'}`,
-                      background: chosen ? 'var(--accent-soft)' : 'var(--bg-1)',
-                      borderRadius: 4,
-                      cursor: f.is_conflict && onSelect ? 'pointer' : 'default',
-                      opacity: f.is_conflict && isSelected && !chosen ? 0.5 : 1,
-                      transition: 'border-color 0.1s, background 0.1s, opacity 0.1s',
-                    }}
+                    className={`p-2.5 border rounded transition-all ${
+                      chosen
+                        ? 'border-primary border-l-4 bg-primary/10'
+                        : `border-l-4 bg-card ${key === 'a' ? 'border-primary' : 'border-sky-600'}`
+                    } ${f.is_conflict && onSelect ? 'cursor-pointer' : 'cursor-default'} ${
+                      f.is_conflict && isSelected && !chosen ? 'opacity-50' : ''
+                    }`}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <div className="flex items-center gap-1.5 mb-1">
                       {sup.data_source_name && <SourcePill short={sup.data_source_name} />}
                       {chosen && (
-                        <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>✓ chosen</span>
+                        <span className="text-[10px] text-primary font-semibold">✓ chosen</span>
                       )}
                     </div>
-                    <div className="mono" style={{ fontSize: 12, color: val ? 'var(--fg-0)' : 'var(--fg-3)' }}>
+                    <div className="font-mono text-xs" style={{ color: val ? 'var(--tw-prose-body)' : 'var(--tw-prose-captions)' }}>
                       {val || '∅'}
                     </div>
                   </div>
@@ -189,37 +180,35 @@ function DiffLayout({ comparisons, recordA, recordB, selections = {}, onSelect }
       {comparisons.map((f, i) => {
         const isSelected = selections[f.field] !== undefined;
         return (
-          <div key={f.field} style={{ borderBottom: i < comparisons.length - 1 ? '1px solid var(--border-0)' : 'none', padding: '10px 14px' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div key={f.field} className={`${i < comparisons.length - 1 ? 'border-b border-border' : ''} px-3.5 py-2.5`}>
+            <div className="flex items-baseline justify-between mb-1.5">
               <div>
-                <span style={{ fontSize: 12, fontWeight: 500 }}>{f.label}</span>
-                <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)', marginLeft: 8 }}>{f.field}</span>
+                <span className="text-xs font-medium">{f.label}</span>
+                <span className="font-mono text-[10px] text-muted-foreground ml-2">{f.field}</span>
               </div>
               {statusPill(f, selections)}
             </div>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, background: 'var(--bg-0)', border: '1px solid var(--border-0)', borderRadius: 4, overflow: 'hidden' }}>
-              {([['a', recordA, f.value_a, f.is_conflict ? '−' : ' ', f.is_conflict ? 'var(--danger)' : 'var(--border-0)', f.is_conflict ? 'var(--danger-soft)' : 'transparent'] as const,
-                 ['b', recordB, f.value_b, f.is_conflict ? '+' : ' ', f.is_conflict ? 'var(--ok)' : 'var(--border-0)', f.is_conflict ? 'var(--ok-soft)' : 'transparent'] as const]).map(([key, sup, val, symbol, borderColor, bg]) => {
+            <div className="font-mono text-xs bg-background border border-border rounded overflow-hidden">
+              {([['a', recordA, f.value_a, f.is_conflict ? '−' : ' ', f.is_conflict ? 'text-destructive' : 'text-border', f.is_conflict ? 'bg-destructive/10' : 'transparent'] as const,
+                 ['b', recordB, f.value_b, f.is_conflict ? '+' : ' ', f.is_conflict ? 'text-emerald-600' : 'text-border', f.is_conflict ? 'bg-emerald-100' : 'transparent'] as const]).map(([key, sup, val, symbol, borderClass, bgClass]) => {
                 const chosen = f.is_conflict && selections[f.field] === sup.id;
                 return (
                   <div
                     key={key}
                     onClick={() => f.is_conflict && onSelect && onSelect(f.field, sup.id)}
-                    style={{
-                      padding: '6px 10px',
-                      background: chosen ? 'var(--accent-soft)' : bg,
-                      borderLeft: `3px solid ${chosen ? 'var(--accent)' : borderColor}`,
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      cursor: f.is_conflict && onSelect ? 'pointer' : 'default',
-                      opacity: f.is_conflict && isSelected && !chosen ? 0.5 : 1,
-                      transition: 'background 0.1s, opacity 0.1s',
-                    }}
+                    className={`px-2.5 py-1.5 flex items-center gap-2 border-l-4 transition-all ${
+                      chosen ? 'border-primary bg-primary/10' : `${bgClass} border-l-[${borderClass}]`
+                    } ${f.is_conflict && onSelect ? 'cursor-pointer' : 'cursor-default'} ${
+                      f.is_conflict && isSelected && !chosen ? 'opacity-50' : ''
+                    }`}
                   >
-                    <span className="mono" style={{ width: 20, color: borderColor, fontWeight: 600 }}>{symbol}</span>
+                    <span className="w-5 font-semibold" style={{ color: chosen ? 'var(--tw-prose-headings)' : (borderClass === 'text-destructive' ? '#ef4444' : borderClass === 'text-emerald-600' ? '#16a34a' : 'var(--tw-prose-captions)') }}>
+                      {symbol}
+                    </span>
                     {sup.data_source_name && <SourcePill short={sup.data_source_name} />}
-                    <span style={{ color: 'var(--fg-0)', flex: 1 }}>{val || '∅'}</span>
+                    <span className="flex-1 text-foreground">{val || '∅'}</span>
                     {chosen && (
-                      <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>✓</span>
+                      <span className="text-[10px] text-primary font-semibold">✓</span>
                     )}
                   </div>
                 );
@@ -250,48 +239,73 @@ export default function FieldComparisonPanel({
 }: FieldComparisonPanelProps) {
   const allResolved = conflictCount === 0 || (resolvedCount ?? 0) === conflictCount;
   return (
-    <Panel className="fade" style={{ marginBottom: 12 }}>
-      <PanelHead>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span className="panel-title">Field comparison</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: 'var(--fg-2)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 8, height: 8, background: 'var(--warn)', borderRadius: 2 }} />
-              conflict
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 8, height: 8, background: 'var(--ok)', borderRadius: 2 }} />
-              identical
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 8, height: 8, background: 'var(--info)', borderRadius: 2 }} />
-              source-only
-            </span>
+    <Card className="mb-3">
+      <CardHeader>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <CardTitle>Field comparison</CardTitle>
+            <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-amber-600 rounded-sm" />
+                conflict
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-emerald-600 rounded-sm" />
+                identical
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-sky-600 rounded-sm" />
+                source-only
+              </span>
+            </div>
+            {onSelect == null && conflictCount > 0 && (
+              <span className="text-xs text-muted-foreground">
+                conflicts resolved in <span className="text-primary font-semibold">Merge step</span>
+              </span>
+            )}
+            {onSelect != null && conflictCount > 0 && resolvedCount !== undefined && (
+              <span className={`px-2 py-0.5 rounded text-xs font-semibold tabular-nums ${
+                allResolved
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+              }`}>
+                {resolvedCount}/{conflictCount} conflicts resolved
+              </span>
+            )}
           </div>
-          {onSelect == null && conflictCount > 0 && (
-            <span style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-              conflicts resolved in <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Merge step</span>
-            </span>
-          )}
-          {onSelect != null && conflictCount > 0 && resolvedCount !== undefined && (
-            <span style={{
-              padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-              background: allResolved ? 'var(--ok-soft)' : 'var(--warn-soft)',
-              color: allResolved ? 'var(--ok)' : 'var(--warn)',
-            }}>
-              <span className="mono tnum">{resolvedCount}/{conflictCount}</span> conflicts resolved
-            </span>
-          )}
+          <div className="flex gap-1 border border-border rounded-md p-1 w-fit">
+            <Button
+              variant={layout === 'sideBySide' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onLayoutChange('sideBySide')}
+              className="text-xs"
+            >
+              Side
+            </Button>
+            <Button
+              variant={layout === 'stacked' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onLayoutChange('stacked')}
+              className="text-xs"
+            >
+              Stacked
+            </Button>
+            <Button
+              variant={layout === 'diff' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onLayoutChange('diff')}
+              className="text-xs"
+            >
+              Diff
+            </Button>
+          </div>
         </div>
-        <div className="seg">
-          <button className={layout === 'sideBySide' ? 'active' : ''} onClick={() => onLayoutChange('sideBySide')}>Side</button>
-          <button className={layout === 'stacked' ? 'active' : ''} onClick={() => onLayoutChange('stacked')}>Stacked</button>
-          <button className={layout === 'diff' ? 'active' : ''} onClick={() => onLayoutChange('diff')}>Diff</button>
-        </div>
-      </PanelHead>
-      {layout === 'sideBySide' && <SideBySideLayout comparisons={comparisons} recordA={recordA} recordB={recordB} selections={selections} onSelect={onSelect} />}
-      {layout === 'stacked' && <StackedLayout comparisons={comparisons} recordA={recordA} recordB={recordB} selections={selections} onSelect={onSelect} />}
-      {layout === 'diff' && <DiffLayout comparisons={comparisons} recordA={recordA} recordB={recordB} selections={selections} onSelect={onSelect} />}
-    </Panel>
+      </CardHeader>
+      <CardContent className="p-0">
+        {layout === 'sideBySide' && <SideBySideLayout comparisons={comparisons} recordA={recordA} recordB={recordB} selections={selections} onSelect={onSelect} />}
+        {layout === 'stacked' && <StackedLayout comparisons={comparisons} recordA={recordA} recordB={recordB} selections={selections} onSelect={onSelect} />}
+        {layout === 'diff' && <DiffLayout comparisons={comparisons} recordA={recordA} recordB={recordB} selections={selections} onSelect={onSelect} />}
+      </CardContent>
+    </Card>
   );
 }

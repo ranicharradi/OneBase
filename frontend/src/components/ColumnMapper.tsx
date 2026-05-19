@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { AlertTriangleIcon, ArrowRightIcon, AsteriskIcon, TagIcon, XCircleIcon } from 'lucide-react';
 import type {
   ColumnMapping,
   DataSourceCreate,
@@ -12,9 +13,19 @@ import type {
 } from '../api/types';
 import { api, ApiError } from '../api/client';
 import { useRecordType } from '../hooks/useRecordTypes';
-import Panel, { PanelHead } from './ui/Panel';
+import { Card, CardHeader, CardTitle, CardAction, CardContent, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 import Hbar from './ui/Hbar';
-import Pill from './ui/Pill';
 import Spinner from './ui/Spinner';
 
 function autoMap(cols: string[], fieldList: FieldDef[]): Record<string, string> {
@@ -150,7 +161,7 @@ export default function ColumnMapper({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -171,23 +182,23 @@ export default function ColumnMapper({
 
   if (isLoading) {
     return (
-      <Panel>
-        <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
+      <Card>
+        <CardContent className="p-7 text-center text-xs text-muted-foreground">
           Loading field definitions…
-        </div>
-      </Panel>
+        </CardContent>
+      </Card>
     );
   }
   if (error || !recordType) {
     return (
-      <Panel>
-        <div style={{ padding: 28, textAlign: 'center' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--danger)' }}>error</span>
-          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}>
+      <Card>
+        <CardContent className="p-7 text-center">
+          <XCircleIcon className="mx-auto size-7 text-destructive" />
+          <div className="mt-2 text-xs text-destructive">
             Failed to load record type fields. Refresh and try again.
           </div>
-        </div>
-      </Panel>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -203,38 +214,41 @@ export default function ColumnMapper({
   return (
     <form onSubmit={handleSubmit}>
       {/* Source identity panel */}
-      <Panel className="fade" style={{ marginBottom: 12 }}>
-        <PanelHead>
-          <span className="panel-title">Source identity</span>
+      <Card className="mb-3">
+        <CardHeader className="border-b">
+          <CardTitle>Source identity</CardTitle>
           {detectedDelimiter && (
-            <span className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-              detected delimiter: "{detectedDelimiter}"
-            </span>
+            <CardAction>
+              <span className="font-mono text-[11px] text-muted-foreground">
+                detected delimiter: &quot;{detectedDelimiter}&quot;
+              </span>
+            </CardAction>
           )}
-        </PanelHead>
-        <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2.5 pt-3">
           {recordTypes && recordTypes.types.length > 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="label">
-                Type <span style={{ color: 'var(--danger)' }}>*</span>
-              </label>
-              <select
-                className="input"
-                value={type}
-                onChange={e => onTypeChange?.(e.target.value)}
-                required
-              >
-                {recordTypes.types.map(rt => (
-                  <option key={rt.key} value={rt.key}>{rt.label}</option>
-                ))}
-              </select>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="record-type-select">
+                Type <span className="text-destructive">*</span>
+              </Label>
+              <Select value={type} onValueChange={onTypeChange}>
+                <SelectTrigger id="record-type-select" className="w-full">
+                  <SelectValue placeholder="Select type…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {recordTypes.types.map(rt => (
+                    <SelectItem key={rt.key} value={rt.key}>{rt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label className="label">
-              Source name <span style={{ color: 'var(--danger)' }}>*</span>
-            </label>
-            <input
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="source-name">
+              Source name <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="source-name"
               type="text"
               value={sourceName}
               onChange={e => {
@@ -248,59 +262,65 @@ export default function ColumnMapper({
                 }
               }}
               placeholder="e.g. SAP Vendor Export"
-              className="input"
-              style={{
-                borderColor: errors.sourceName ? 'var(--danger)' : undefined,
-                boxShadow: errors.sourceName ? '0 0 0 3px var(--danger-soft)' : undefined,
-              }}
+              aria-invalid={!!errors.sourceName}
             />
             {errors.sourceName && (
-              <span style={{ fontSize: 11, color: 'var(--danger)' }}>{errors.sourceName}</span>
+              <span className="text-[11px] text-destructive">{errors.sourceName}</span>
             )}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label className="label">Description</label>
-            <input
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="source-description">Description</Label>
+            <Input
+              id="source-description"
               type="text"
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Optional description"
-              className="input"
             />
           </div>
-        </div>
-      </Panel>
+        </CardContent>
+      </Card>
 
       {/* Column mapping panel */}
-      <Panel className="fade">
-        <PanelHead>
-          <span className="panel-title">Column mapping</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Pill tone={requiredMapped === requiredTotal ? 'ok' : 'warn'}>
-              {requiredMapped}/{requiredTotal} required
-            </Pill>
-            {(recordTypeKey ?? type) && (
-              <>
-                <button
-                  type="button"
-                  onClick={onSuggestClick}
-                  disabled={suggestMutation.isPending}
-                  className="btn btn-sm btn-ghost"
-                >
-                  {suggestMutation.isPending
-                    ? <><Spinner size={10} />&nbsp;Suggesting…</>
-                    : <><span className="material-symbols-outlined" style={{ fontSize: 12 }}>auto_awesome</span>&nbsp;Suggest with AI</>
-                  }
-                </button>
-                {suggestMutation.isError && (
-                  <span style={{ fontSize: 11, color: 'var(--err, var(--danger))' }}>
-                    {(suggestMutation.error as ApiError | Error).message}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-        </PanelHead>
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>Column mapping</CardTitle>
+          <CardAction>
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="secondary"
+                className={
+                  requiredMapped === requiredTotal
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                }
+              >
+                {requiredMapped}/{requiredTotal} required
+              </Badge>
+              {(recordTypeKey ?? type) && (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onSuggestClick}
+                    disabled={suggestMutation.isPending}
+                  >
+                    {suggestMutation.isPending
+                      ? <><Spinner size={10} />&nbsp;Suggesting…</>
+                      : <>✨&nbsp;Suggest with AI</>
+                    }
+                  </Button>
+                  {suggestMutation.isError && (
+                    <span className="text-[11px] text-destructive">
+                      {(suggestMutation.error as ApiError | Error).message}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          </CardAction>
+        </CardHeader>
 
         <table className="table">
           <thead>
@@ -319,67 +339,64 @@ export default function ColumnMapper({
               return (
                 <tr key={field.key} style={{ cursor: 'default' }}>
                   <td>
-                    <span
-                      className="material-symbols-outlined"
-                      style={{
-                        fontSize: 14,
-                        color: field.required ? 'var(--danger)' : 'var(--fg-2)',
-                      }}
-                    >
-                      {field.required ? 'label_important' : 'label'}
-                    </span>
+                    {field.required ? (
+                      <AsteriskIcon className="size-3.5 text-destructive" />
+                    ) : (
+                      <TagIcon className="size-3.5 text-muted-foreground" />
+                    )}
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontWeight: 500 }}>{field.label}</span>
                       {field.required && (
-                        <span style={{ color: 'var(--danger)', fontSize: 10 }}>required</span>
+                        <span className="text-destructive text-[10px]">required</span>
                       )}
                     </div>
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
+                    <div className="font-mono text-[10px] text-muted-foreground">
                       {field.key}
                     </div>
                   </td>
                   <td>
-                    <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>
+                    <span className="font-mono text-[10px] text-muted-foreground">
                       {field.role}
                     </span>
                   </td>
                   <td>
-                    <select
+                    <Select
                       value={value}
-                      onChange={e => updateMapping(field.key, e.target.value)}
-                      className="input mono"
-                      style={{
-                        height: 24,
-                        fontSize: 11,
-                        padding: '0 8px',
-                        borderColor: errors[field.key] ? 'var(--danger)' : undefined,
-                        width: '100%',
-                      }}
+                      onValueChange={(v) => updateMapping(field.key, v === '__clear__' ? '' : v)}
                     >
-                      <option value="">— select column —</option>
-                      {uniqueColumns.map(col => (
-                        <option
-                          key={col}
-                          value={col}
-                          disabled={usedColumns.has(col) && value !== col}
-                        >
-                          {col}
-                          {usedColumns.has(col) && value !== col ? ' (used)' : ''}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger
+                        className={`w-full font-mono text-[11px] h-6 py-0 px-2${errors[field.key] ? ' border-destructive' : ''}`}
+                        aria-invalid={!!errors[field.key]}
+                        aria-label={`Map ${field.label}`}
+                      >
+                        <SelectValue placeholder="— select column —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__clear__">— select column —</SelectItem>
+                        {uniqueColumns.map(col => (
+                          <SelectItem
+                            key={col}
+                            value={col}
+                            disabled={usedColumns.has(col) && value !== col}
+                          >
+                            {col}
+                            {usedColumns.has(col) && value !== col ? ' (used)' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </td>
                   <td className="num">
                     {isMapped ? (
                       autoMapped.has(field.key) ? (
-                        <span className="mono" style={{ fontSize: 10, color: 'var(--accent)' }}>auto</span>
+                        <span className="font-mono text-[10px] text-primary">auto</span>
                       ) : (
-                        <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>manual</span>
+                        <span className="font-mono text-[10px] text-muted-foreground">manual</span>
                       )
                     ) : (
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--fg-3)' }}>—</span>
+                      <span className="font-mono text-[10px] text-muted-foreground/70">—</span>
                     )}
                   </td>
                 </tr>
@@ -389,29 +406,21 @@ export default function ColumnMapper({
         </table>
 
         {/* Identity column picker */}
-        <div
-          style={{
-            margin: '0 14px 10px',
-            padding: '10px 12px',
-            background: 'var(--bg-1)',
-            border: '1px solid var(--border-0)',
-            borderRadius: 6,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div className="mx-3.5 mb-2.5 rounded-md border border-border bg-card p-2.5">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <div style={{ fontSize: 12, fontWeight: 500 }}>
+              <div className="text-xs font-medium">
                 Identity column
-                <span style={{ color: 'var(--danger)', marginLeft: 4 }}>*</span>
+                <span className="ml-1 text-destructive">*</span>
               </div>
-              <div style={{ fontSize: 10, color: 'var(--fg-2)', marginTop: 2 }}>
+              <div className="mt-0.5 text-[10px] text-muted-foreground">
                 Used to recognize the same row across re-uploads
               </div>
             </div>
-            <select
+            <Select
               value={identityFieldKey}
-              onChange={(e) => {
-                setIdentityFieldKey(e.target.value);
+              onValueChange={(v) => {
+                setIdentityFieldKey(v === '__none__' ? '' : v);
                 if (errors.identityFieldKey) {
                   setErrors((prev) => {
                     const n = { ...prev };
@@ -420,81 +429,69 @@ export default function ColumnMapper({
                   });
                 }
               }}
-              className="input mono"
-              style={{
-                height: 24,
-                fontSize: 11,
-                padding: '0 8px',
-                minWidth: 220,
-                borderColor: errors.identityFieldKey ? 'var(--danger)' : undefined,
-              }}
               disabled={Object.keys(mapping).filter((k) => mapping[k]).length === 0}
             >
-              <option value="">— pick the column that uniquely identifies a row —</option>
-              {Object.keys(mapping)
-                .filter((k) => mapping[k])
-                .map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
-                ))}
-            </select>
+              <SelectTrigger
+                className={`min-w-[220px] font-mono text-[11px] h-6 py-0 px-2${errors.identityFieldKey ? ' border-destructive' : ''}`}
+                aria-invalid={!!errors.identityFieldKey}
+                aria-label="Identity column"
+              >
+                <SelectValue placeholder="— pick the column that uniquely identifies a row —" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— pick the column that uniquely identifies a row —</SelectItem>
+                {Object.keys(mapping)
+                  .filter((k) => mapping[k])
+                  .map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {k}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </div>
           {errors.identityFieldKey && (
-            <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 6 }}>
+            <div className="mt-1.5 text-[11px] text-destructive">
               {errors.identityFieldKey}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div
-          style={{
-            padding: '10px 14px',
-            borderTop: '1px solid var(--border-0)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          <span className="mono tnum" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+        <CardFooter className="gap-3">
+          <span className="font-mono tabular-nums text-[11px] text-muted-foreground">
             {mappedCount}/{totalFields}
           </span>
           <Hbar
             value={progress}
-            tone={mappedCount === totalFields ? 'ok' : 'accent'}
-            style={{ flex: 1, height: 4 }}
+            fillClassName={mappedCount === totalFields ? 'bg-emerald-500' : 'bg-primary'}
+            className="flex-1 h-1"
           />
-          <span className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+          <span className="font-mono text-[11px] text-muted-foreground">
             {columns.length} CSV columns
           </span>
-          <button
+          <Button
             type="submit"
             disabled={isSubmitting}
-            className="btn btn-sm btn-accent"
+            size="sm"
           >
-            {isSubmitting && <Spinner size={10} color="#fff" />}
-            Create & upload
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_forward</span>
-          </button>
-        </div>
+            {isSubmitting && <Spinner size={10} />}
+            Create &amp; upload
+            <ArrowRightIcon className="size-3" />
+          </Button>
+        </CardFooter>
 
         {/* Validation summary */}
         {Object.keys(errors).filter(k => k !== 'sourceName').length > 0 && (
-          <div
-            className="pill danger"
-            style={{
-              margin: '0 14px 10px',
-              padding: '6px 10px',
-              width: 'calc(100% - 28px)',
-              justifyContent: 'flex-start',
-            }}
+          <Badge
+            variant="destructive"
+            className="mx-3.5 mb-2.5 h-auto w-[calc(100%-28px)] justify-start gap-1.5 rounded-md px-2.5 py-1.5 text-xs"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>warning</span>
+            <AlertTriangleIcon className="size-3" />
             {Object.values(errors).filter((_, i, arr) => arr.indexOf(arr[i]) === i).join(' · ')}
-          </div>
+          </Badge>
         )}
-      </Panel>
+      </Card>
     </form>
   );
 }

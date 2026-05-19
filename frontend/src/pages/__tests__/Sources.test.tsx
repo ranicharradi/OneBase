@@ -111,7 +111,8 @@ describe('Sources page record types', () => {
     render(<Sources />)
 
     await user.click(await screen.findByRole('button', { name: /new source/i }))
-    expect(await screen.findByRole('combobox')).toHaveValue('supplier')
+    // shadcn Select renders a combobox button displaying the selected label (not a native <select>)
+    expect(await screen.findByRole('combobox')).toHaveTextContent('Supplier')
 
     await user.type(screen.getByPlaceholderText(/sap vendor export/i), 'Oracle Vendors')
     await user.type(screen.getByPlaceholderText(/csv column for supplier name/i), 'Vendor Name')
@@ -180,7 +181,7 @@ describe('Sources page record types', () => {
 
     const mappedCell = await screen.findByText('1 / 2')
     await waitFor(() => {
-      expect(mappedCell).toHaveStyle({ color: 'var(--warn)' })
+      expect(mappedCell.className).toMatch(/text-amber/)
     })
   })
 })

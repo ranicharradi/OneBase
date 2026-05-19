@@ -1,62 +1,81 @@
-// ── Users management — terminal aesthetic ──
+// ── Users management ──
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import type { User, UserCreate } from '../api/types';
-import Panel from '../components/ui/Panel';
-import { Modal } from '../components/ui/Modal';
-import Pill from '../components/ui/Pill';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import Spinner from '../components/ui/Spinner';
 import { LoadingErrorEmpty } from '../components/ui/LoadingErrorEmpty';
-import type { PillTone } from '../components/ui/Pill';
+import {
+  UserPlusIcon,
+  EyeIcon,
+  EyeOffIcon,
+  PencilIcon,
+  XCircleIcon,
+  CheckCircle2Icon,
+  CheckIcon,
+  Trash2Icon,
+  XIcon,
+} from 'lucide-react';
 
 const ROLES = ['admin', 'reviewer', 'viewer'] as const;
 
-const ROLE_TONES: Record<string, PillTone> = {
-  admin: 'accent',
-  reviewer: 'info',
-  viewer: 'neutral',
-};
-
 // Deterministic per-user palette so each username has a stable colored avatar
-const AVATAR_PALETTE: Array<{ bg: string; fg: string }> = [
-  { bg: 'var(--accent-soft)', fg: 'var(--accent)' },
-  { bg: 'var(--info-soft)',   fg: 'var(--info)'   },
-  { bg: 'var(--ok-soft)',     fg: 'var(--ok)'     },
-  { bg: 'var(--warn-soft)',   fg: 'var(--warn)'   },
-  { bg: 'var(--danger-soft)', fg: 'var(--danger)' },
-  { bg: 'var(--bg-3)',        fg: 'var(--fg-1)'   },
+const AVATAR_CLASSES: Array<{ bg: string; fg: string }> = [
+  { bg: 'bg-primary/10',          fg: 'text-primary'       },
+  { bg: 'bg-sky-100 dark:bg-sky-950',    fg: 'text-sky-700 dark:text-sky-300'     },
+  { bg: 'bg-emerald-100 dark:bg-emerald-950', fg: 'text-emerald-700 dark:text-emerald-300' },
+  { bg: 'bg-amber-100 dark:bg-amber-950',   fg: 'text-amber-700 dark:text-amber-300'   },
+  { bg: 'bg-destructive/10',       fg: 'text-destructive'   },
+  { bg: 'bg-secondary',            fg: 'text-secondary-foreground' },
 ];
 
-function avatarTone(name: string): { bg: string; fg: string } {
+function avatarClasses(name: string): { bg: string; fg: string } {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+  return AVATAR_CLASSES[Math.abs(hash) % AVATAR_CLASSES.length];
 }
 
 function Avatar({ username, size = 28 }: { username: string; size?: number }) {
-  const tone = avatarTone(username);
+  const tone = avatarClasses(username);
   return (
     <div
+      className={`shrink-0 rounded-md flex items-center justify-center font-mono font-bold uppercase tracking-tight ${tone.bg} ${tone.fg}`}
       style={{
         width: size,
         height: size,
-        borderRadius: 6,
-        background: tone.bg,
-        color: tone.fg,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: 'IBM Plex Mono, monospace',
-        fontWeight: 700,
         fontSize: Math.max(10, Math.round(size * 0.4)),
-        textTransform: 'uppercase',
         letterSpacing: '-0.02em',
-        flexShrink: 0,
       }}
     >
       {username.slice(0, 2)}
@@ -64,10 +83,26 @@ function Avatar({ username, size = 28 }: { username: string; size?: number }) {
   );
 }
 
+function RoleBadge({ role }: { role: string }) {
+  if (role === 'admin') {
+    return <Badge variant="secondary">{role}</Badge>;
+  }
+  if (role === 'reviewer') {
+    return (
+      <Badge variant="secondary" className="bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+        {role}
+      </Badge>
+    );
+  }
+  return <Badge variant="outline">{role}</Badge>;
+}
+
 function CreateUserModal({
+  open,
   onClose,
   onCreated,
 }: {
+  open: boolean;
   onClose: () => void;
   onCreated: (msg: string) => void;
 }) {
@@ -90,7 +125,7 @@ function CreateUserModal({
     onError: (err: Error) => setFormError(err.message),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setFormError('');
     if (!username.trim()) return setFormError('Username is required');
@@ -98,100 +133,103 @@ function CreateUserModal({
     mutation.mutate();
   };
 
+  const handleClose = () => {
+    setUsername('');
+    setPassword('');
+    setFormError('');
+    onClose();
+  };
+
   return (
-    <Modal onClose={onClose} title="New user" size="md">
-      <form onSubmit={handleSubmit}>
-        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New user</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {formError && (
-            <div className="pill danger" style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
+            <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <XCircleIcon className="size-4 shrink-0" />
               {formError}
             </div>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label className="label">
-              Username <span style={{ color: 'var(--danger)' }}>*</span>
-            </label>
-            <input
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="create-username">
+              Username <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="create-username"
               type="text"
               required
               autoFocus
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="e.g. jane.smith"
-              className="input"
             />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label className="label">
-              Password <span style={{ color: 'var(--danger)' }}>*</span>
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="create-password">
+              Password <span className="text-destructive">*</span>
+            </Label>
+            <div className="relative">
+              <Input
+                id="create-password"
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="min 4 characters"
-                className="input"
-                style={{ width: '100%', paddingRight: 32 }}
+                className="pr-8"
               />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setShowPassword(!showPassword)}
-                className="btn btn-ghost btn-sm"
-                style={{ position: 'absolute', right: 4, top: 2, padding: 4, height: 22 }}
+                className="absolute right-0.5 top-0.5"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
-                  {showPassword ? 'visibility_off' : 'visibility'}
-                </span>
-              </button>
+                {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+              </Button>
             </div>
           </div>
-        </div>
-        <div
-          style={{
-            padding: '10px 14px',
-            borderTop: '1px solid var(--border-0)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 8,
-          }}
-        >
-          <button type="button" onClick={onClose} className="btn btn-sm">Cancel</button>
-          <button type="submit" disabled={mutation.isPending} className="btn btn-sm btn-accent">
-            {mutation.isPending && <Spinner size={10} color="#fff" />}
-            Create user
-          </button>
-        </div>
-      </form>
-    </Modal>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending && <Spinner size={14} />}
+              Create user
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function EditUserModal({
   target,
   currentUser,
+  open,
   onClose,
   onSaved,
 }: {
-  target: User;
+  target: User | null;
   currentUser: User;
+  open: boolean;
   onClose: () => void;
   onSaved: (msg: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [username, setUsername] = useState(target.username);
-  const [role, setRole] = useState(target.role);
+  const [username, setUsername] = useState(target?.username ?? '');
+  const [role, setRole] = useState(target?.role ?? 'viewer');
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const isSelf = target.id === currentUser.id;
+  const isSelf = target?.id === currentUser.id;
 
   const updateMutation = useMutation({
-    mutationFn: () => api.put<User>(`/api/users/${target.id}`, { username, role }),
+    mutationFn: () => api.put<User>(`/api/users/${target?.id}`, { username, role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       onSaved(`User "${username}" updated`);
@@ -202,36 +240,36 @@ function EditUserModal({
 
   const passwordMutation = useMutation({
     mutationFn: () =>
-      api.post<User>(`/api/users/${target.id}/change-password`, { new_password: newPassword }),
+      api.post<User>(`/api/users/${target?.id}/change-password`, { new_password: newPassword }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      onSaved(`Password changed for "${target.username}"`);
+      onSaved(`Password changed for "${target?.username}"`);
       onClose();
     },
     onError: (err: Error) => setFormError(err.message),
   });
 
   const toggleMutation = useMutation({
-    mutationFn: () => api.post<User>(`/api/users/${target.id}/toggle-active`, {}),
+    mutationFn: () => api.post<User>(`/api/users/${target?.id}/toggle-active`, {}),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      onSaved(`User "${target.username}" ${updated.is_active ? 'activated' : 'deactivated'}`);
+      onSaved(`User "${target?.username}" ${updated.is_active ? 'activated' : 'deactivated'}`);
       onClose();
     },
     onError: (err: Error) => setFormError(err.message),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => api.delete(`/api/users/${target.id}`),
+    mutationFn: () => api.delete(`/api/users/${target?.id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      onSaved(`User "${target.username}" deleted`);
+      onSaved(`User "${target?.username}" deleted`);
       onClose();
     },
     onError: (err: Error) => setFormError(err.message),
   });
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setFormError('');
     if (!username.trim()) return setFormError('Username is required');
@@ -244,177 +282,194 @@ function EditUserModal({
     passwordMutation.mutate();
   };
 
+  const handleClose = () => {
+    setFormError('');
+    setConfirmDelete(false);
+    setNewPassword('');
+    onClose();
+  };
+
   const isPending =
     updateMutation.isPending ||
     passwordMutation.isPending ||
     toggleMutation.isPending ||
     deleteMutation.isPending;
 
+  if (!target) return null;
+
   return (
-    <Modal
-      onClose={onClose}
-      title={
-        <span className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Avatar username={target.username} size={26} />
-          <span>
-            Edit user — <span className="mono" style={{ fontWeight: 500 }}>{target.username}</span>
-            {isSelf && <span style={{ color: 'var(--fg-2)', marginLeft: 6, fontWeight: 400 }}>(you)</span>}
-          </span>
-        </span>
-      }
-      size="md"
-    >
-      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {formError && (
-          <div className="pill danger" style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
-            {formError}
-          </div>
-        )}
-
-        {/* Profile */}
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div className="label">Profile</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: 10 }}>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="input"
-              placeholder="Username"
-            />
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="input mono"
-              disabled={isSelf}
-              style={{ fontSize: 12 }}
-            >
-              {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-          {isSelf && (
-            <span className="mono" style={{ fontSize: 10, color: 'var(--fg-3)' }}>
-              Cannot change your own role
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            <span className="flex items-center gap-2.5">
+              <Avatar username={target.username} size={26} />
+              <span>
+                Edit user —{' '}
+                <span className="font-mono font-medium">{target.username}</span>
+                {isSelf && <span className="ml-1.5 text-sm font-normal text-muted-foreground">(you)</span>}
+              </span>
             </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4">
+          {formError && (
+            <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <XCircleIcon className="size-4 shrink-0" />
+              {formError}
+            </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button
-              type="submit"
-              disabled={isPending || (username === target.username && role === target.role)}
-              className="btn btn-sm btn-accent"
-            >
-              {updateMutation.isPending && <Spinner size={10} color="#fff" />}
-              Save changes
-            </button>
-          </div>
-        </form>
 
-        <div style={{ borderTop: '1px solid var(--border-0)' }} />
-
-        {/* Password reset */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div className="label">Reset password</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="New password (min 4 chars)"
-                className="input"
-                style={{ width: '100%', paddingRight: 32 }}
+          {/* Profile */}
+          <form onSubmit={handleSave} className="flex flex-col gap-3">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Profile</div>
+            <div className="grid grid-cols-[1fr_160px] gap-2.5">
+              <Input
+                id="edit-username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Username"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="btn btn-ghost btn-sm"
-                style={{ position: 'absolute', right: 4, top: 2, padding: 4, height: 22 }}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              <Select
+                value={role}
+                onValueChange={(v) => setRole(v)}
+                disabled={isSelf}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
-                  {showPassword ? 'visibility_off' : 'visibility'}
-                </span>
-              </button>
+                <SelectTrigger className="font-mono text-xs w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLES.map(r => (
+                    <SelectItem key={r} value={r} className="font-mono text-xs">{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <button
-              type="button"
-              onClick={handlePasswordReset}
-              disabled={isPending || !newPassword}
-              className="btn btn-sm"
-            >
-              {passwordMutation.isPending && <Spinner size={10} />}
-              Reset
-            </button>
+            {isSelf && (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                Cannot change your own role
+              </span>
+            )}
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isPending || (username === target.username && role === target.role)}
+              >
+                {updateMutation.isPending && <Spinner size={12} />}
+                Save changes
+              </Button>
+            </div>
+          </form>
+
+          <div className="border-t border-border" />
+
+          {/* Password reset */}
+          <div className="flex flex-col gap-2">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reset password</div>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="New password (min 4 chars)"
+                  className="pr-8"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-0.5 top-0.5"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handlePasswordReset}
+                disabled={isPending || !newPassword}
+              >
+                {passwordMutation.isPending && <Spinner size={12} />}
+                Reset
+              </Button>
+            </div>
+          </div>
+
+          <div className="border-t border-border" />
+
+          {/* Danger zone */}
+          <div className="flex flex-col gap-2">
+            <div className="text-xs font-medium text-destructive uppercase tracking-wide">Danger zone</div>
+            {isSelf ? (
+              <span className="font-mono text-[11px] text-muted-foreground">
+                You cannot deactivate or delete your own account.
+              </span>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant={target.is_active ? 'destructive' : 'outline'}
+                  size="sm"
+                  onClick={() => toggleMutation.mutate()}
+                  disabled={isPending}
+                >
+                  {toggleMutation.isPending ? (
+                    <Spinner size={12} />
+                  ) : target.is_active ? (
+                    <XCircleIcon className="size-3.5" />
+                  ) : (
+                    <CheckCircle2Icon className="size-3.5" />
+                  )}
+                  {target.is_active ? 'Deactivate' : 'Activate'}
+                </Button>
+
+                {!confirmDelete ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setConfirmDelete(true)}
+                    disabled={isPending}
+                  >
+                    <Trash2Icon className="size-3.5" />
+                    Delete user
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-medium text-destructive">Confirm?</span>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteMutation.mutate()}
+                      disabled={isPending}
+                    >
+                      {deleteMutation.isPending && <Spinner size={12} />}
+                      Yes, delete
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConfirmDelete(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
-
-        <div style={{ borderTop: '1px solid var(--border-0)' }} />
-
-        {/* Danger zone */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div className="label" style={{ color: 'var(--danger)' }}>Danger zone</div>
-          {isSelf ? (
-            <span className="mono" style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-              You cannot deactivate or delete your own account.
-            </span>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => toggleMutation.mutate()}
-                disabled={isPending}
-                className={target.is_active ? 'btn btn-sm btn-danger' : 'btn btn-sm'}
-              >
-                {toggleMutation.isPending ? (
-                  <Spinner size={10} color={target.is_active ? 'var(--danger)' : undefined} />
-                ) : (
-                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>
-                    {target.is_active ? 'block' : 'check_circle'}
-                  </span>
-                )}
-                {target.is_active ? 'Deactivate' : 'Activate'}
-              </button>
-
-              {!confirmDelete ? (
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(true)}
-                  disabled={isPending}
-                  className="btn btn-sm btn-danger"
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>delete</span>
-                  Delete user
-                </button>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 500 }}>
-                    Confirm?
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => deleteMutation.mutate()}
-                    disabled={isPending}
-                    className="btn btn-sm"
-                    style={{ background: 'var(--danger)', color: '#fff', borderColor: 'var(--danger)' }}
-                  >
-                    {deleteMutation.isPending && <Spinner size={10} color="#fff" />}
-                    Yes, delete
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDelete(false)}
-                    className="btn btn-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -439,162 +494,134 @@ export default function Users() {
   const activeCount = users?.filter(u => u.is_active).length ?? 0;
 
   return (
-    <div className="scroll" style={{ height: '100%' }}>
-      <div style={{ padding: 20 }}>
-        <div className="fade" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+    <div className="overflow-y-auto h-full">
+      <div className="p-5">
+        <div className="flex items-center justify-between mb-3.5">
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Users & access</h1>
-            <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>
+            <h1 className="text-lg font-semibold">Users &amp; access</h1>
+            <div className="text-xs text-muted-foreground mt-0.5">
               {users
                 ? `${users.length} user${users.length === 1 ? '' : 's'} · ${activeCount} active · ${adminCount} admin`
                 : 'Loading…'}
             </div>
           </div>
           {isAdmin && (
-            <button onClick={() => setShowCreate(true)} className="btn btn-sm btn-primary">
-              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>person_add</span>
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <UserPlusIcon className="size-3.5" />
               Add user
-            </button>
+            </Button>
           )}
         </div>
 
-        <Panel className="fade">
-          <LoadingErrorEmpty
-            isLoading={isLoading}
-            error={error}
-            isEmpty={!users || users.length === 0}
-            errorPrefix="Failed to load users"
-            emptyMessage={
-              <>
-                <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--fg-3)' }}>group</span>
-                <div style={{ fontSize: 14, fontWeight: 500, marginTop: 10 }}>No users yet</div>
-                <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4, marginBottom: 12 }}>
-                  Create the first user account to begin managing system access.
-                </div>
-                {isAdmin && (
-                  <button onClick={() => setShowCreate(true)} className="btn btn-sm btn-accent">
-                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>person_add</span>
-                    Create first user
-                  </button>
-                )}
-              </>
-            }
-          >
-            <table className="table">
-              <thead>
-                <tr>
-                  <th style={{ width: 34 }} />
-                  <th>Username</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  {isAdmin && <th style={{ width: 80 }} />}
-                </tr>
-              </thead>
-              <tbody>
-                {(users ?? []).map(user => (
-                  <tr key={user.id}>
-                    <td>
-                      <Avatar username={user.username} size={26} />
-                    </td>
-                    <td>
-                      <span className="mono" style={{ fontWeight: 500 }}>{user.username}</span>
-                      {user.id === currentUser?.id && (
-                        <span style={{ fontSize: 10, color: 'var(--accent)', marginLeft: 6 }}>(you)</span>
+        <Card>
+          <CardContent className="pt-4">
+            <LoadingErrorEmpty
+              loading={isLoading}
+              error={error ? `Failed to load users: ${error instanceof Error ? error.message : String(error)}` : null}
+              empty={!users || users.length === 0}
+              emptyMessage="No users yet"
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-9" />
+                    <TableHead>Username</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    {isAdmin && <TableHead className="w-20" />}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(users ?? []).map(user => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <Avatar username={user.username} size={26} />
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono font-medium">{user.username}</span>
+                        {user.id === currentUser?.id && (
+                          <span className="ml-1.5 text-[10px] text-primary">(you)</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <RoleBadge role={user.role} />
+                      </TableCell>
+                      <TableCell>
+                        {user.is_active ? (
+                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                            active
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">inactive</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-[11px] text-muted-foreground">
+                        {new Date(user.created_at).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </TableCell>
+                      {isAdmin && (
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditTarget(user)}
+                            aria-label={`Edit ${user.username}`}
+                          >
+                            <PencilIcon className="size-3.5" />
+                            Edit
+                          </Button>
+                        </TableCell>
                       )}
-                    </td>
-                    <td>
-                      <Pill tone={ROLE_TONES[user.role] ?? 'neutral'}>
-                        {user.role}
-                      </Pill>
-                    </td>
-                    <td>
-                      {user.is_active ? (
-                        <Pill tone="ok" dot>active</Pill>
-                      ) : (
-                        <Pill tone="neutral" dot>inactive</Pill>
-                      )}
-                    </td>
-                    <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-                      {new Date(user.created_at).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </td>
-                    {isAdmin && (
-                      <td>
-                        <button
-                          onClick={() => setEditTarget(user)}
-                          className="btn btn-ghost btn-sm"
-                          aria-label={`Edit ${user.username}`}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>edit</span>
-                          Edit
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </LoadingErrorEmpty>
-        </Panel>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </LoadingErrorEmpty>
+          </CardContent>
+        </Card>
       </div>
 
-      {showCreate && (
-        <CreateUserModal onClose={() => setShowCreate(false)} onCreated={(msg) => showToast(msg)} />
-      )}
-      {editTarget && currentUser && (
+      <CreateUserModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onCreated={(msg) => showToast(msg)}
+      />
+
+      {currentUser && (
         <EditUserModal
           target={editTarget}
           currentUser={currentUser}
+          open={editTarget !== null}
           onClose={() => setEditTarget(null)}
           onSaved={(msg) => showToast(msg)}
         />
       )}
 
-      {/* Inline toast — bottom-right (slim, terminal style) */}
+      {/* Inline toast — bottom-right */}
       {toast && (
         <div
           role="alert"
-          style={{
-            position: 'fixed',
-            bottom: 36,
-            right: 16,
-            zIndex: 250,
-            background: 'var(--bg-1)',
-            border: `1px solid var(--border-1)`,
-            borderLeft: `3px solid var(--${toast.type === 'success' ? 'ok' : 'danger'})`,
-            borderRadius: 'var(--radius)',
-            boxShadow: 'var(--shadow-lg)',
-            padding: '8px 12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 12,
-            color: 'var(--fg-0)',
-          }}
-          className="fade"
+          className="fixed bottom-9 right-4 z-[250] flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground shadow-lg"
+          style={{ borderLeft: `3px solid ${toast.type === 'success' ? 'var(--color-emerald-500, #10b981)' : 'hsl(var(--destructive))'}` }}
         >
-          <span
-            className="material-symbols-outlined"
-            style={{
-              fontSize: 14,
-              color: `var(--${toast.type === 'success' ? 'ok' : 'danger'})`,
-            }}
-          >
-            {toast.type === 'success' ? 'check_circle' : 'error'}
-          </span>
+          {toast.type === 'success' ? (
+            <CheckIcon className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          ) : (
+            <XCircleIcon className="size-3.5 text-destructive shrink-0" />
+          )}
           {toast.message}
-          <button
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={() => setToast(null)}
-            className="btn btn-ghost btn-sm"
-            style={{ padding: 2, height: 18 }}
             aria-label="Dismiss"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
-          </button>
+            <XIcon className="size-3" />
+          </Button>
         </div>
       )}
     </div>

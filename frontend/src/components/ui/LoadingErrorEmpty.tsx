@@ -1,46 +1,44 @@
+// frontend/src/components/ui/LoadingErrorEmpty.tsx
 import type { ReactNode } from 'react';
-import Spinner from './Spinner';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AlertTriangleIcon, InboxIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-type Props = {
-  isLoading: boolean;
-  error?: unknown;
-  isEmpty: boolean;
+interface Props {
+  loading?: boolean;
+  error?: Error | string | null;
+  empty?: boolean;
   emptyMessage?: ReactNode;
-  errorPrefix?: string;
   children: ReactNode;
-};
+  className?: string;
+}
 
 export function LoadingErrorEmpty({
-  isLoading,
-  error,
-  isEmpty,
-  emptyMessage = 'No items',
-  errorPrefix,
-  children,
+  loading, error, empty, emptyMessage = 'Nothing to show', children, className,
 }: Props) {
+  if (loading) {
+    return (
+      <div className={cn('space-y-2', className)}>
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-4/5" />
+        <Skeleton className="h-8 w-3/5" />
+      </div>
+    );
+  }
   if (error) {
-    const prefix = errorPrefix ? `${errorPrefix}: ` : '';
-    const msg = error instanceof Error ? error.message : 'Unknown error';
+    const msg = typeof error === 'string' ? error : error.message;
     return (
-      <div style={{ padding: 28, textAlign: 'center' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--danger)' }}>error</span>
-        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}>
-          {prefix}{msg}
-        </div>
+      <div className={cn('flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive', className)}>
+        <AlertTriangleIcon className="size-4" />
+        <span>{msg}</span>
       </div>
     );
   }
-  if (isLoading) {
+  if (empty) {
     return (
-      <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: 'var(--fg-2)' }}>
-        <Spinner />
-      </div>
-    );
-  }
-  if (isEmpty) {
-    return (
-      <div style={{ padding: 36, textAlign: 'center' }}>
-        {emptyMessage}
+      <div className={cn('flex flex-col items-center gap-2 py-12 text-muted-foreground', className)}>
+        <InboxIcon className="size-8 opacity-50" />
+        <span className="text-sm">{emptyMessage}</span>
       </div>
     );
   }

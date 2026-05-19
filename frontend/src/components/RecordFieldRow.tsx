@@ -13,32 +13,24 @@ export default function RecordFieldRow({ field, fields, provenance, compact = fa
 
   return (
     <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: compact ? '130px minmax(0, 1fr)' : '180px minmax(0, 1fr)',
-        gap: 12,
-        padding: compact ? '6px 0' : '9px 0',
-        borderBottom: '1px solid var(--border-0)',
-        minWidth: 0,
-      }}
+      className={[
+        'grid gap-3 border-b border-border min-w-0',
+        compact ? 'grid-cols-[130px_minmax(0,1fr)] py-1.5' : 'grid-cols-[180px_minmax(0,1fr)] py-2.5',
+      ].join(' ')}
     >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: 'var(--fg-1)', fontWeight: 500 }}>{field.label}</div>
-        <div className="mono" style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>{field.role}</div>
+      <div className="min-w-0">
+        <div className="text-xs text-foreground/80 font-medium">{field.label}</div>
+        <div className="font-mono text-[10px] text-muted-foreground/70 mt-0.5">{field.role}</div>
       </div>
-      <div style={{ minWidth: 0 }}>
+      <div className="min-w-0">
         <div
-          className="mono"
-          style={{
-            fontSize: 12,
-            color: value ? 'var(--fg-0)' : 'var(--fg-3)',
-            overflowWrap: 'anywhere',
-          }}
+          className={`font-mono text-xs overflow-wrap-anywhere ${value ? 'text-foreground' : 'text-muted-foreground/70'}`}
+          style={{ overflowWrap: 'anywhere' }}
         >
           {value ?? '-'}
         </div>
         {provenance?.source_entity && (
-          <div style={{ fontSize: 10, color: 'var(--fg-2)', marginTop: 3 }}>
+          <div className="text-[10px] text-muted-foreground mt-0.5">
             {provenance.source_entity}
           </div>
         )}

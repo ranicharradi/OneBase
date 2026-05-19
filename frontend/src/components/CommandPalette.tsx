@@ -1,6 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import type { LucideIcon } from "lucide-react";
+import {
+  SearchIcon,
+  HomeIcon,
+  CloudUploadIcon,
+  DatabaseIcon,
+  ArrowRightLeftIcon,
+  SplitIcon,
+  GitMergeIcon,
+  BadgeCheckIcon,
+  HistoryIcon,
+  BarChart3Icon,
+  ListChecksIcon,
+  MessageSquareIcon,
+  PlusIcon,
+  SparklesIcon,
+  ArrowRightIcon,
+} from "lucide-react";
 import { api } from "../api/client";
 import type { UnifiedRecordListResponse } from "../api/types";
 import { useSelectedRecordType } from "../contexts/RecordTypeContext";
@@ -14,7 +32,7 @@ interface PaletteItem {
   section: "Navigate" | "Actions" | "Records";
   label: string;
   hint?: string;
-  icon: string;
+  icon: LucideIcon;
   onSelect: () => void;
 }
 
@@ -54,24 +72,24 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const items = useMemo<PaletteItem[]>(() => {
     const navItems: PaletteItem[] = [
       // Pipeline
-      { section: "Navigate", label: "Go to Overview",      icon: "home",           onSelect: () => navigate("/dashboard") },
-      { section: "Navigate", label: "Go to Upload",        icon: "cloud_upload",   onSelect: () => navigate("/upload") },
-      { section: "Navigate", label: "Go to Sources",       icon: "storage",        onSelect: () => navigate("/sources") },
+      { section: "Navigate", label: "Go to Overview",      icon: HomeIcon,           onSelect: () => navigate("/dashboard") },
+      { section: "Navigate", label: "Go to Upload",        icon: CloudUploadIcon,    onSelect: () => navigate("/upload") },
+      { section: "Navigate", label: "Go to Sources",       icon: DatabaseIcon,       onSelect: () => navigate("/sources") },
       // Matching
-      { section: "Navigate", label: "Go to Match",          icon: "compare_arrows", onSelect: () => navigate("/match") },
-      { section: "Navigate", label: "Go to Review queue",  icon: "swap_horiz",     onSelect: () => navigate(withRecordType("/review")) },
-      { section: "Navigate", label: "Go to Merge queue",   icon: "merge",          onSelect: () => navigate(withRecordType("/merge")) },
-      { section: "Navigate", label: "Go to Unified",       icon: "verified",       onSelect: () => navigate(withRecordType("/unified")) },
-      { section: "Navigate", label: "Go to History",       icon: "history",        onSelect: () => navigate("/history") },
+      { section: "Navigate", label: "Go to Match",         icon: ArrowRightLeftIcon, onSelect: () => navigate("/match") },
+      { section: "Navigate", label: "Go to Review queue",  icon: SplitIcon,          onSelect: () => navigate(withRecordType("/review")) },
+      { section: "Navigate", label: "Go to Merge queue",   icon: GitMergeIcon,       onSelect: () => navigate(withRecordType("/merge")) },
+      { section: "Navigate", label: "Go to Unified",       icon: BadgeCheckIcon,     onSelect: () => navigate(withRecordType("/unified")) },
+      { section: "Navigate", label: "Go to History",       icon: HistoryIcon,        onSelect: () => navigate("/history") },
       // Utilities
-      { section: "Navigate", label: "Go to Insights",      icon: "insights",       onSelect: () => navigate("/insights") },
-      { section: "Navigate", label: "Go to File checker",  icon: "rule",           onSelect: () => navigate("/file-checker") },
-      { section: "Navigate", label: "Go to Ask",           icon: "forum",          onSelect: () => navigate("/ask") },
+      { section: "Navigate", label: "Go to Insights",      icon: BarChart3Icon,      onSelect: () => navigate("/insights") },
+      { section: "Navigate", label: "Go to File checker",  icon: ListChecksIcon,     onSelect: () => navigate("/file-checker") },
+      { section: "Navigate", label: "Go to Ask",           icon: MessageSquareIcon,  onSelect: () => navigate("/ask") },
       // Actions
-      { section: "Actions",  label: "New data source",     icon: "add",            onSelect: () => navigate("/sources") },
-      { section: "Actions",  label: "Upload CSV batch",    icon: "cloud_upload",   onSelect: () => navigate("/upload") },
-      { section: "Actions",  label: "Retrain model",       icon: "auto_awesome",   onSelect: () => navigate(withRecordType("/review")) },
-      { section: "Actions",  label: "Browse unified",      icon: "arrow_forward",  onSelect: () => navigate(withRecordType("/unified")) },
+      { section: "Actions",  label: "New data source",     icon: PlusIcon,           onSelect: () => navigate("/sources") },
+      { section: "Actions",  label: "Upload CSV batch",    icon: CloudUploadIcon,    onSelect: () => navigate("/upload") },
+      { section: "Actions",  label: "Retrain model",       icon: SparklesIcon,       onSelect: () => navigate(withRecordType("/review")) },
+      { section: "Actions",  label: "Browse unified",      icon: ArrowRightIcon,     onSelect: () => navigate(withRecordType("/unified")) },
     ];
 
     const recordItems: PaletteItem[] = (recordResults?.items ?? []).map(
@@ -79,7 +97,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
         section: "Records" as const,
         label: s.name || `Record #${s.id}`,
         hint: `${s.type} · ${s.source_count} source${s.source_count === 1 ? "" : "s"}`,
-        icon: "verified",
+        icon: BadgeCheckIcon,
         onSelect: () => navigate(withRecordType(`/unified/${s.id}`)),
       }),
     );
@@ -138,69 +156,37 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       <div
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
-        style={{
-          width: 560,
-          background: "var(--bg-1)",
-          border: "1px solid var(--border-1)",
-          borderRadius: 8,
-          boxShadow: "var(--shadow-lg)",
-          overflow: "hidden",
-        }}
+        className="w-[560px] bg-card border border-border rounded-lg shadow-lg overflow-hidden"
       >
-        <div
-          style={{
-            padding: "12px 14px",
-            borderBottom: "1px solid var(--border-0)",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: 16, color: "var(--fg-2)" }}
-          >
-            search
-          </span>
+        <div className="px-3.5 py-3 border-b border-border flex items-center gap-2.5">
+          <SearchIcon className="size-4 text-muted-foreground" />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type a command, search records, paste an ID…"
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              fontFamily: "inherit",
-              fontSize: 14,
-              color: "var(--fg-0)",
-            }}
+            className="flex-1 bg-transparent border-none outline-none font-[inherit] text-[14px] text-foreground placeholder:text-muted-foreground"
             aria-label="Command palette query"
           />
-          <span className="kbd">ESC</span>
+          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground">
+            ESC
+          </span>
         </div>
 
-        <div className="scroll" style={{ maxHeight: "50vh" }}>
+        <div className="overflow-y-auto max-h-[50vh]">
           {items.length === 0 && (
-            <div
-              style={{
-                padding: 28,
-                textAlign: "center",
-                fontSize: 12,
-                color: "var(--fg-2)",
-              }}
-            >
+            <div className="p-7 text-center text-xs text-muted-foreground">
               No matches
             </div>
           )}
           {Object.entries(grouped).map(([section, entries]) => (
             <div key={section}>
-              <div className="label" style={{ padding: "10px 14px 4px" }}>
+              <div className="px-3.5 pt-2.5 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                 {section}
               </div>
               {entries.map(({ item, idx }) => {
                 const active = idx === activeIdx;
+                const IconCmp = item.icon;
                 return (
                   <button
                     key={`${section}-${idx}`}
@@ -209,33 +195,12 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                       item.onSelect();
                       onClose();
                     }}
-                    style={{
-                      width: "100%",
-                      padding: "8px 14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      background: active ? "var(--bg-2)" : "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      color: "var(--fg-0)",
-                      fontSize: 13,
-                      textAlign: "left",
-                    }}
+                    className={`w-full px-3.5 py-2 flex items-center gap-2.5 border-none cursor-pointer font-[inherit] text-foreground text-[13px] text-left transition-colors ${active ? "bg-muted" : "bg-transparent hover:bg-muted/50"}`}
                   >
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontSize: 14, color: "var(--fg-2)" }}
-                    >
-                      {item.icon}
-                    </span>
-                    <span style={{ flex: 1 }}>{item.label}</span>
+                    <IconCmp className="size-3.5 text-muted-foreground shrink-0" />
+                    <span className="flex-1">{item.label}</span>
                     {item.hint && (
-                      <span
-                        className="mono"
-                        style={{ fontSize: 11, color: "var(--fg-2)" }}
-                      >
+                      <span className="font-mono text-[11px] text-muted-foreground">
                         {item.hint}
                       </span>
                     )}
@@ -246,24 +211,18 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
           ))}
         </div>
 
-        <div
-          style={{
-            padding: "8px 14px",
-            borderTop: "1px solid var(--border-0)",
-            display: "flex",
-            gap: 14,
-            color: "var(--fg-2)",
-            fontSize: 10,
-          }}
-        >
+        <div className="px-3.5 py-2 border-t border-border flex gap-3.5 text-muted-foreground text-[10px]">
           <span>
-            <span className="kbd">↑↓</span> navigate
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground">↑↓</span>
+            {" "}navigate
           </span>
           <span>
-            <span className="kbd">↵</span> select
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground">↵</span>
+            {" "}select
           </span>
           <span>
-            <span className="kbd">⌘</span> open
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground">⌘</span>
+            {" "}open
           </span>
         </div>
       </div>

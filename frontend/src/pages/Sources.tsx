@@ -2,6 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { RefreshCwIcon, PlusIcon, FilterIcon, Trash2Icon, DatabaseIcon, SearchXIcon, AlertTriangleIcon } from 'lucide-react';
 import { api } from '../api/client';
 import type {
   BatchResponse,
@@ -12,10 +13,30 @@ import type {
 } from '../api/types';
 import { ToastContainer, type ToastData } from '../components/Toast';
 import { useRecordType, useRecordTypes } from '../hooks/useRecordTypes';
-import Panel, { PanelHead } from '../components/ui/Panel';
-import { Modal } from '../components/ui/Modal';
-import Pill from '../components/ui/Pill';
-import Seg from '../components/ui/Seg';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader as DialogHead,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from '@/components/ui/table';
 import Spinner from '../components/ui/Spinner';
 import { LoadingErrorEmpty } from '../components/ui/LoadingErrorEmpty';
 import SourcePill from '../components/ui/SourcePill';
@@ -82,48 +103,32 @@ function ColumnMappingEditor({
   };
 
   const renderField = (f: FieldDef, isRequired: boolean) => (
-    <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-      <label style={{ width: 150, fontSize: 12, color: 'var(--fg-1)', display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div key={f.key} className="flex items-center gap-2.5 py-1.5">
+      <Label className="w-36 text-xs flex items-center gap-1.5 shrink-0">
         {f.label}
-        {isRequired && <span style={{ color: 'var(--danger)', fontSize: 10 }}>*</span>}
-      </label>
-      <input
+        {isRequired && <span className="text-destructive text-[10px]">*</span>}
+      </Label>
+      <Input
         type="text"
         value={(value as unknown as Record<string, string | undefined>)[f.key] ?? ''}
         onChange={(e) => updateField(f.key as keyof ColumnMapping, e.target.value)}
         placeholder={`CSV column for ${f.label}`}
-        className="input mono"
-        style={{ flex: 1, fontSize: 11 }}
+        className="font-mono flex-1 h-7 text-[11px]"
       />
     </div>
   );
 
   return (
     <div>
-      <div className="label" style={{ marginBottom: 8 }}>Column mapping</div>
-      <div
-        style={{
-          background: 'var(--accent-soft)',
-          border: '1px solid var(--accent-border)',
-          borderRadius: 4,
-          padding: '10px 12px',
-          marginBottom: 10,
-        }}
-      >
-        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+      <Label className="text-xs mb-2 block">Column mapping</Label>
+      <div className="rounded-md border border-primary/20 bg-primary/5 p-3 mb-2.5">
+        <div className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">
           Required fields
         </div>
         {requiredFields.map(f => renderField(f, true))}
       </div>
-      <div
-        style={{
-          background: 'var(--bg-2)',
-          border: '1px solid var(--border-0)',
-          borderRadius: 4,
-          padding: '10px 12px',
-        }}
-      >
-        <div className="label" style={{ marginBottom: 4 }}>Optional fields</div>
+      <div className="rounded-md border border-border bg-muted/30 p-3">
+        <Label className="text-[10px] mb-1 block">Optional fields</Label>
         {optionalFields.map(f => renderField(f, false))}
       </div>
     </div>
@@ -180,7 +185,7 @@ function SourceModal({
     onError: (err: Error) => setFormError(err.message),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (mutation.isPending) return;
     setFormError('');
@@ -211,114 +216,112 @@ function SourceModal({
   };
 
   return (
-    <Modal
-      onClose={onClose}
-      title="New data source"
-      size="lg" // lg gives column-mapper room
-      panelStyle={{ maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        className="max-w-lg max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden"
+        showCloseButton={false}
       >
-        <div className="scroll" style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {formError && (
-            <div className="pill danger" style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
-              {formError}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label className="label">
-              Name <span style={{ color: 'var(--danger)' }}>*</span>
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="e.g. SAP Vendor Export"
-              className="input"
-              autoFocus
-            />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label className="label">
-              Type <span style={{ color: 'var(--danger)' }}>*</span>
-            </label>
-            <select
-              className="input"
-              value={type}
-              onChange={(e) => {
-                setType(e.target.value);
-                setMapping({});
-              }}
-              required
-            >
-              {recordTypes.types.map(rt => (
-                <option key={rt.key} value={rt.key}>{rt.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label className="label">Description</label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Optional description"
-              rows={2}
-              className="input"
-              style={{ height: 'auto', padding: '6px 10px', resize: 'vertical' }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label className="label">Delimiter</label>
-              <input
-                type="text"
-                value={delimiter}
-                onChange={e => setDelimiter(e.target.value)}
-                placeholder=";"
-                className="input mono"
-                style={{ width: 80, textAlign: 'center' }}
-              />
-            </div>
-          </div>
-
-          {fieldsLoading ? (
-            <div style={{ padding: 12, fontSize: 12, color: 'var(--fg-2)' }}>
-              Loading field definitions…
-            </div>
-          ) : fieldsError ? (
-            <div className="pill danger" style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>
-              Field definitions could not be loaded.
-            </div>
-          ) : (
-            <ColumnMappingEditor value={effectiveMapping} onChange={setMapping} fields={fields} />
-          )}
-        </div>
-
-        <div
-          style={{
-            padding: '10px 14px',
-            borderTop: '1px solid var(--border-0)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 8,
-          }}
+        <DialogHead className="px-4 pt-4 pb-0">
+          <DialogTitle>New data source</DialogTitle>
+        </DialogHead>
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col flex-1 overflow-hidden"
         >
-          <button type="button" onClick={onClose} className="btn btn-sm">Cancel</button>
-          <button type="submit" disabled={mutation.isPending} className="btn btn-sm btn-accent">
-            {mutation.isPending && <Spinner size={10} color="#fff" />}
-            Create source
-          </button>
-        </div>
-      </form>
-    </Modal>
+          <ScrollArea className="flex-1 px-4 py-4">
+            <div className="flex flex-col gap-3.5">
+              {formError && (
+                <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">
+                  <AlertTriangleIcon className="size-3 shrink-0" />
+                  {formError}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-1">
+                <Label>
+                  Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="e.g. SAP Vendor Export"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <Label>
+                  Type <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={type}
+                  onValueChange={(val) => {
+                    setType(val);
+                    setMapping({});
+                  }}
+                  required
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {recordTypes.types.map(rt => (
+                      <SelectItem key={rt.key} value={rt.key}>{rt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <Label>Description</Label>
+                <Textarea
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  placeholder="Optional description"
+                  rows={2}
+                  className="resize-y min-h-0 py-1.5"
+                />
+              </div>
+
+              <div className="flex gap-2.5">
+                <div className="flex flex-col gap-1">
+                  <Label>Delimiter</Label>
+                  <Input
+                    type="text"
+                    value={delimiter}
+                    onChange={e => setDelimiter(e.target.value)}
+                    placeholder=";"
+                    className="w-20 font-mono text-center"
+                  />
+                </div>
+              </div>
+
+              {fieldsLoading ? (
+                <div className="text-xs text-muted-foreground px-1 py-3">
+                  Loading field definitions…
+                </div>
+              ) : fieldsError ? (
+                <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">
+                  <AlertTriangleIcon className="size-3 shrink-0" />
+                  Field definitions could not be loaded.
+                </div>
+              ) : (
+                <ColumnMappingEditor value={effectiveMapping} onChange={setMapping} fields={fields} />
+              )}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter className="px-4 py-2.5 border-t">
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+            <Button type="submit" size="sm" disabled={mutation.isPending}>
+              {mutation.isPending && <Spinner size={12} />}
+              Create source
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -346,39 +349,33 @@ function DeleteConfirm({
   });
 
   return (
-    <Modal
-      onClose={onClose}
-      title={<span className="panel-title" style={{ color: 'var(--danger)' }}>Delete source</span>}
-      size="sm"
-    >
-      <div style={{ padding: 16 }}>
-        <p style={{ fontSize: 13, margin: 0, marginBottom: 8 }}>
-          Delete <b>{source.name}</b>?
-        </p>
-        <p style={{ fontSize: 11, color: 'var(--fg-2)', margin: 0 }}>
-          This cannot be undone. All batches, staged records, and match candidates for this source will be deleted.
-        </p>
-      </div>
-      <div
-        style={{
-          padding: '10px 14px',
-          borderTop: '1px solid var(--border-0)',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: 8,
-        }}
-      >
-        <button onClick={onClose} className="btn btn-sm">Cancel</button>
-        <button
-          onClick={() => !mutation.isPending && mutation.mutate()}
-          disabled={mutation.isPending}
-          className="btn btn-sm btn-danger"
-        >
-          {mutation.isPending && <Spinner size={10} color="var(--danger)" />}
-          Delete
-        </button>
-      </div>
-    </Modal>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-sm" showCloseButton={false}>
+        <DialogHead>
+          <DialogTitle className="text-destructive">Delete source</DialogTitle>
+        </DialogHead>
+        <div>
+          <p className="text-sm mb-2">
+            Delete <b>{source.name}</b>?
+          </p>
+          <p className="text-xs text-muted-foreground">
+            This cannot be undone. All batches, staged records, and match candidates for this source will be deleted.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => !mutation.isPending && mutation.mutate()}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending && <Spinner size={12} />}
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -407,45 +404,48 @@ function SourceRow({
     : fieldCount === 0;
 
   return (
-    <tr style={{ height: 48 }}>
-      <td><SourcePill short={shortFor(src.name)} title={src.name} /></td>
-      <td>
-        <div style={{ fontWeight: 500 }}>{src.name}</div>
+    <TableRow className="h-12">
+      <TableCell className="w-[50px]"><SourcePill short={shortFor(src.name)} title={src.name} /></TableCell>
+      <TableCell>
+        <div className="font-medium">{src.name}</div>
         {src.description && (
-          <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 2 }}>{src.description}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">{src.description}</div>
         )}
-      </td>
-      <td className="num mono">
-        {stats.rows > 0 ? stats.rows.toLocaleString() : <span style={{ color: 'var(--fg-3)' }}>—</span>}
-      </td>
-      <td className="num mono" style={{ color: allRequiredMapped ? 'var(--fg-0)' : 'var(--warn)' }}>
+      </TableCell>
+      <TableCell className="text-right font-mono tabular-nums w-[90px]">
+        {stats.rows > 0 ? stats.rows.toLocaleString() : <span className="text-muted-foreground">—</span>}
+      </TableCell>
+      <TableCell
+        className={`text-right font-mono tabular-nums w-[90px]${allRequiredMapped ? '' : ' text-amber-600 dark:text-amber-400'}`}
+      >
         {totalFields > 0 ? `${mappedCount} / ${totalFields}` : `${mappedCount}`}
-      </td>
-      <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
+      </TableCell>
+      <TableCell className="font-mono text-[11px] text-muted-foreground w-[110px]">
         {relativeTime(stats.lastSync)}
-      </td>
-      <td>
+      </TableCell>
+      <TableCell className="w-[100px]">
         {stats.status === 'healthy' ? (
-          <Pill tone="ok" dot>healthy</Pill>
+          <Badge variant="secondary" className="text-emerald-700 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300">healthy</Badge>
         ) : stats.status === 'stale' ? (
-          <Pill tone="warn" dot>stale</Pill>
+          <Badge variant="secondary" className="text-amber-700 bg-amber-100 dark:bg-amber-950 dark:text-amber-300">stale</Badge>
         ) : (
-          <Pill tone="neutral" dot>new</Pill>
+          <Badge variant="outline">new</Badge>
         )}
-      </td>
-      <td>
-        <div className="row-actions" style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-          <button
+      </TableCell>
+      <TableCell className="w-[80px]">
+        <div className="flex gap-1 justify-end">
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={() => onDelete(src)}
-            className="btn btn-ghost btn-sm"
-            style={{ padding: 4, color: 'var(--danger)' }}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
             aria-label={`Delete ${src.name}`}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>delete</span>
-          </button>
+            <Trash2Icon className="size-3" />
+          </Button>
         </div>
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -511,7 +511,7 @@ export default function Sources() {
   // We need to look up fields per source type dynamically below
   // so we won't calculate a single requiredFieldCount here.
 
-  // Counts for the seg tabs
+  // Counts for the toggle-group tabs
   const tabCounts = useMemo(() => {
     if (!sources) return { all: 0, healthy: 0, stale: 0 };
     let healthy = 0;
@@ -555,13 +555,13 @@ export default function Sources() {
   }, []);
 
   return (
-    <div className="scroll" style={{ height: '100%' }}>
-      <div style={{ padding: 20 }}>
+    <div className="h-full overflow-y-auto">
+      <div className="p-5">
         {/* Header */}
-        <div className="fade" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div className="flex items-center justify-between mb-3.5">
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Sources</h1>
-            <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>
+            <h1 className="text-lg font-semibold">Sources</h1>
+            <div className="text-xs text-muted-foreground mt-0.5">
               {(() => {
                 if (!sources) return 'Loading…';
                 if (sources.length === 0) return 'No sources connected yet';
@@ -571,149 +571,150 @@ export default function Sources() {
               })()}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
+          <div className="flex gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleSyncAll}
               disabled={isFetching}
-              className="btn btn-sm"
               title="Refresh sources and batch stats"
             >
               {isFetching ? (
-                <Spinner size={10} />
+                <Spinner size={12} />
               ) : (
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>refresh</span>
+                <RefreshCwIcon className="size-3" />
               )}
               Sync all
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
               onClick={() => setShowCreate(true)}
               disabled={!canCreateSource}
-              className="btn btn-sm btn-primary"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
+              <PlusIcon className="size-3" />
               New source
-            </button>
+            </Button>
           </div>
         </div>
 
         {recordTypesError && (
-          <div
-            className="pill danger"
-            style={{ width: '100%', padding: '6px 10px', justifyContent: 'flex-start', marginBottom: 12 }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>warning</span>
+          <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-xs text-destructive mb-3">
+            <AlertTriangleIcon className="size-3 shrink-0" />
             Could not load field definitions — source creation is temporarily unavailable.
           </div>
         )}
 
-        <Panel className="fade">
+        <Card>
           {/* Filter / search / advanced — only when there's at least one source */}
           {sources && sources.length > 0 && (
-            <PanelHead>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Seg<StatusFilter>
+            <CardHeader className="flex-row items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2.5">
+                <ToggleGroup
+                  type="single"
                   value={statusFilter}
-                  onChange={setStatusFilter}
-                  options={[
-                    { value: 'all', label: 'All', count: tabCounts.all },
-                    { value: 'healthy', label: 'Healthy', count: tabCounts.healthy },
-                    { value: 'stale', label: 'Stale', count: tabCounts.stale },
-                  ]}
-                />
-                <input
-                  className="input"
+                  onValueChange={(v) => { if (v) setStatusFilter(v as StatusFilter); }}
+                  variant="outline"
+                  size="sm"
+                  spacing={0}
+                >
+                  <ToggleGroupItem value="all">All <span className="ml-1 text-muted-foreground">{tabCounts.all}</span></ToggleGroupItem>
+                  <ToggleGroupItem value="healthy">Healthy <span className="ml-1 text-muted-foreground">{tabCounts.healthy}</span></ToggleGroupItem>
+                  <ToggleGroupItem value="stale">Stale <span className="ml-1 text-muted-foreground">{tabCounts.stale}</span></ToggleGroupItem>
+                </ToggleGroup>
+                <Input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Filter sources…"
-                  style={{ width: 220, height: 24, fontSize: 11 }}
+                  className="w-56 h-7 text-[11px]"
                 />
               </div>
-              <button
-                className="btn btn-sm btn-ghost"
+              <Button
+                variant="ghost"
+                size="sm"
                 title="Advanced filters"
                 aria-label="Advanced filters"
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>filter_list</span>
+                <FilterIcon className="size-3" />
                 Advanced
-              </button>
-            </PanelHead>
+              </Button>
+            </CardHeader>
           )}
 
-          <LoadingErrorEmpty
-            isLoading={isLoading}
-            error={error}
-            isEmpty={sources != null && sources.length === 0}
-            errorPrefix="Failed to load sources"
-            emptyMessage={
-              <>
-                <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--fg-3)' }}>storage</span>
-                <div style={{ fontSize: 14, fontWeight: 500, marginTop: 10 }}>No data sources yet</div>
-                <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4, marginBottom: 12 }}>
-                  Create your first data source to begin mapping records for unification.
+          <CardContent className="p-0">
+            <LoadingErrorEmpty
+              loading={isLoading}
+              error={error}
+            >
+              {sources != null && sources.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
+                  <DatabaseIcon className="size-8 opacity-50" />
+                  <div className="text-sm font-medium">No data sources yet</div>
+                  <div className="text-xs text-center">
+                    Create your first data source to begin mapping records for unification.
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowCreate(true)}
+                    disabled={!canCreateSource}
+                    className="mt-1"
+                  >
+                    <PlusIcon className="size-3" />
+                    Create first source
+                  </Button>
                 </div>
-                <button
-                  onClick={() => setShowCreate(true)}
-                  disabled={!canCreateSource}
-                  className="btn btn-sm btn-accent"
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
-                  Create first source
-                </button>
-              </>
-            }
-          >
-            {filteredSources.length === 0 ? (
-              <div style={{ padding: 36, textAlign: 'center' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>search_off</span>
-                <div style={{ fontSize: 13, marginTop: 8 }}>No sources match the current filter</div>
-                <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
-                  Adjust the tab or clear the search to see all {sources?.length ?? 0} source{(sources?.length ?? 0) !== 1 ? 's' : ''}.
+              ) : filteredSources.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
+                  <SearchXIcon className="size-7 opacity-50" />
+                  <div className="text-sm">No sources match the current filter</div>
+                  <div className="text-xs">
+                    Adjust the tab or clear the search to see all {sources?.length ?? 0} source{(sources?.length ?? 0) !== 1 ? 's' : ''}.
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 50 }} />
-                    <th>Name</th>
-                    <th className="num" style={{ width: 90 }}>Rows</th>
-                    <th className="num" style={{ width: 90 }}>Mapped</th>
-                    <th style={{ width: 110 }}>Last sync</th>
-                    <th style={{ width: 100 }}>Status</th>
-                    <th style={{ width: 80 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupSources(filteredSources).map(({ key: groupKey, items }) => {
-                    const typeLabel = recordTypes?.types.find(rt => rt.key === groupKey)?.label ?? groupKey;
-                    return (
-                      <React.Fragment key={groupKey}>
-                        <tr style={{ background: 'var(--bg-1)', pointerEvents: 'none' }}>
-                          <td colSpan={7} style={{ padding: '5px 14px' }}>
-                            <Pill tone="ok">{typeLabel}</Pill>
-                          </td>
-                        </tr>
-                        {items.map(src => {
-                          const stats = statsBySource.get(src.id) ?? { rows: 0, batches: 0, lastSync: null, status: 'new' as const };
-                          const typeSummary = recordTypes?.types.find(rt => rt.key === src.type);
-                          return (
-                            <SourceRow
-                              key={src.id}
-                              src={src}
-                              stats={stats}
-                              fieldCount={typeSummary?.field_count ?? 0}
-                              onDelete={setDeleteSource}
-                            />
-                          );
-                        })}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </LoadingErrorEmpty>
-        </Panel>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[50px]" />
+                      <TableHead>Name</TableHead>
+                      <TableHead className="text-right w-[90px]">Rows</TableHead>
+                      <TableHead className="text-right w-[90px]">Mapped</TableHead>
+                      <TableHead className="w-[110px]">Last sync</TableHead>
+                      <TableHead className="w-[100px]">Status</TableHead>
+                      <TableHead className="w-[80px]" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {groupSources(filteredSources).map(({ key: groupKey, items }) => {
+                      const typeLabel = recordTypes?.types.find(rt => rt.key === groupKey)?.label ?? groupKey;
+                      return (
+                        <React.Fragment key={groupKey}>
+                          <TableRow className="bg-muted/30 pointer-events-none hover:bg-muted/30">
+                            <TableCell colSpan={7} className="py-1.5">
+                              <Badge variant="secondary">{typeLabel}</Badge>
+                            </TableCell>
+                          </TableRow>
+                          {items.map(src => {
+                            const stats = statsBySource.get(src.id) ?? { rows: 0, batches: 0, lastSync: null, status: 'new' as const };
+                            const typeSummary = recordTypes?.types.find(rt => rt.key === src.type);
+                            return (
+                              <SourceRow
+                                key={src.id}
+                                src={src}
+                                stats={stats}
+                                fieldCount={typeSummary?.field_count ?? 0}
+                                onDelete={setDeleteSource}
+                              />
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </LoadingErrorEmpty>
+          </CardContent>
+        </Card>
       </div>
 
       {showCreate && recordTypes && (

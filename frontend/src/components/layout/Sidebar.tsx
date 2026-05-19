@@ -1,11 +1,35 @@
 import { useCallback, useState } from "react";
 import { NavLink } from "react-router";
+import type { LucideIcon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  TagIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  HomeIcon,
+  CloudUploadIcon,
+  DatabaseIcon,
+  ArrowRightLeftIcon,
+  SplitIcon,
+  GitMergeIcon,
+  BadgeCheckIcon,
+  HistoryIcon,
+  BarChart3Icon,
+  ListChecksIcon,
+  MessageSquareIcon,
+} from "lucide-react";
 import { useSelectedRecordType } from "../../contexts/RecordTypeContext";
-import Icon from "../ui/Icon";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+const NAV_ITEM_BASE =
+  "flex items-center gap-2.5 h-9 rounded-md text-sm text-foreground/80 hover:bg-muted hover:text-foreground transition-colors cursor-pointer relative";
+const NAV_ITEM_ACTIVE = "bg-muted text-foreground";
 
 interface NavItem {
   to: string;
-  icon: string;
+  icon: LucideIcon;
   label: string;
   badge?: number;
 }
@@ -19,27 +43,27 @@ const NAV: NavSection[] = [
   {
     section: "Pipeline",
     items: [
-      { to: "/dashboard", icon: "home", label: "Overview" },
-      { to: "/upload", icon: "cloud_upload", label: "Upload" },
-      { to: "/sources", icon: "storage", label: "Sources" },
+      { to: "/dashboard", icon: HomeIcon, label: "Overview" },
+      { to: "/upload", icon: CloudUploadIcon, label: "Upload" },
+      { to: "/sources", icon: DatabaseIcon, label: "Sources" },
     ],
   },
   {
     section: "Matching",
     items: [
-      { to: "/match", icon: "compare_arrows", label: "Match" },
-      { to: "/review", icon: "swap_horiz", label: "Review queue" },
-      { to: "/merge", icon: "merge", label: "Merge queue" },
-      { to: "/unified", icon: "verified", label: "Unified" },
-      { to: "/history", icon: "history", label: "History" },
+      { to: "/match", icon: ArrowRightLeftIcon, label: "Match" },
+      { to: "/review", icon: SplitIcon, label: "Review queue" },
+      { to: "/merge", icon: GitMergeIcon, label: "Merge queue" },
+      { to: "/unified", icon: BadgeCheckIcon, label: "Unified" },
+      { to: "/history", icon: HistoryIcon, label: "History" },
     ],
   },
   {
     section: "Utilities",
     items: [
-      { to: "/insights", icon: "insights", label: "Insights" },
-      { to: "/file-checker", icon: "rule", label: "File checker" },
-      { to: "/ask", icon: "forum", label: "Ask" },
+      { to: "/insights", icon: BarChart3Icon, label: "Insights" },
+      { to: "/file-checker", icon: ListChecksIcon, label: "File checker" },
+      { to: "/ask", icon: MessageSquareIcon, label: "Ask" },
     ],
   },
 ];
@@ -65,111 +89,85 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
 
   return (
     <aside
-      style={{
-        width: collapsed ? 56 : 240,
-        transition: "width 0.2s ease",
-        background: "var(--bg-1)",
-        borderRight: "1px solid var(--border-0)",
-        display: "flex",
-        flexDirection: "column",
-        flexShrink: 0,
-      }}
+      style={{ width: collapsed ? 56 : 240, transition: "width 0.2s ease" }}
+      className="bg-card border-r border-border flex flex-col flex-shrink-0"
     >
       <div
+        className="border-b border-border flex items-center"
         style={{
           height: 48,
           padding: collapsed ? 0 : "0 10px 0 14px",
-          display: "flex",
-          alignItems: "center",
           justifyContent: collapsed ? "center" : "flex-start",
           gap: 10,
-          borderBottom: "1px solid var(--border-0)",
         }}
       >
         {collapsed ? (
           <button
             onClick={onToggleCollapse}
-            className="nav-item"
+            className={cn(NAV_ITEM_BASE, "justify-center w-full")}
             title="Expand sidebar"
             aria-label="Expand sidebar"
-            style={{ justifyContent: "center", padding: 0, color: "var(--fg-2)" }}
           >
-            <span style={{ display: "inline-flex" }}>
-              <Icon name="arrow_forward" size={20} />
+            <span className="inline-flex text-muted-foreground">
+              <ArrowRightIcon className="size-5" />
             </span>
           </button>
         ) : (
           <>
             <div
+              className="bg-foreground text-card flex items-center justify-center font-bold font-mono flex-shrink-0"
               style={{
                 width: 28,
                 height: 28,
-                background: "var(--fg-0)",
-                color: "var(--bg-1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
                 fontSize: 14,
-                fontFamily: "IBM Plex Mono, monospace",
                 borderRadius: 5,
-                flexShrink: 0,
               }}
             >
               1B
             </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                lineHeight: 1.1,
-                minWidth: 0,
-                flex: 1,
-              }}
-            >
+            <div className="flex flex-col min-w-0 flex-1" style={{ lineHeight: 1.1 }}>
               <span style={{ fontSize: 13, fontWeight: 600 }}>OneBase</span>
-              <span className="mono" style={{ fontSize: 9, color: "var(--fg-2)" }}>
+              <span className="font-mono text-muted-foreground" style={{ fontSize: 9 }}>
                 record unification
               </span>
             </div>
-            <button
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={onToggleCollapse}
-              className="btn btn-ghost btn-sm"
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
-              style={{ padding: 4, color: "var(--fg-3)", flexShrink: 0 }}
+              className="text-muted-foreground flex-shrink-0"
             >
-              <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
-                <Icon name="arrow_forward" size={14} />
+              <span className="inline-flex rotate-180">
+                <ArrowRightIcon className="size-3.5" />
               </span>
-            </button>
+            </Button>
           </>
         )}
       </div>
 
       <div
-        style={{
-          padding: collapsed ? "8px 6px" : "10px 12px",
-          borderBottom: "1px solid var(--border-0)",
-        }}
+        className="border-b border-border"
+        style={{ padding: collapsed ? "8px 6px" : "10px 12px" }}
       >
         {collapsed ? (
-          <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
-            <button
-              type="button"
-              className="nav-item"
+          <div className="relative flex justify-center">
+            <div
+              className={cn(NAV_ITEM_BASE, "justify-center w-full pointer-events-none")}
               title={`Record type: ${selectedType}`}
               aria-label={`Record type: ${selectedType}`}
-              style={{ justifyContent: "center", padding: 0, color: "var(--fg-2)", pointerEvents: "none" }}
             >
-              <Icon name="category" size={20} />
-            </button>
+              <span className="text-muted-foreground">
+                <TagIcon className="size-5" />
+              </span>
+            </div>
             <select
               aria-label="Record type"
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
               disabled={isLoading || recordTypes.length === 0}
-              style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
             >
               {recordTypes.map((type) => (
                 <option key={type.key} value={type.key}>{type.label}</option>
@@ -177,15 +175,14 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
             </select>
           </div>
         ) : (
-          <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <span className="label" style={{ fontSize: 10 }}>Record Type</span>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Record Type</span>
             <select
-              className="input"
               aria-label="Record type"
               value={selectedType}
               onChange={(event) => setSelectedType(event.target.value)}
               disabled={isLoading || recordTypes.length === 0}
-              style={{ height: 28, fontSize: 12, padding: "0 8px", width: "100%" }}
+              className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs"
             >
               {recordTypes.length === 0 ? (
                 <option value={selectedType}>{selectedType}</option>
@@ -199,7 +196,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
         )}
       </div>
 
-      <nav className="scroll" style={{ flex: 1, padding: "8px 0" }}>
+      <nav className="flex-1 overflow-y-auto py-2">
         {NAV.map((sec) => {
           const sectionOpen = openSections[sec.section] ?? true;
           return (
@@ -207,29 +204,12 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
               {!collapsed && (
                 <button
                   type="button"
-                  className="label"
                   aria-expanded={sectionOpen}
                   onClick={() => toggleSection(sec.section)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px 6px",
-                    fontSize: 11,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    background: "transparent",
-                    border: 0,
-                    color: "var(--fg-2)",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    textAlign: "left",
-                  }}
+                  className="w-full flex items-center justify-between px-3.5 pt-3 pb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground hover:text-foreground bg-transparent border-0 cursor-pointer font-[inherit] text-left"
                 >
                   <span>{sec.section}</span>
-                  <Icon
-                    name={sectionOpen ? "expand_less" : "expand_more"}
-                    size={14}
-                  />
+                  {sectionOpen ? <ChevronUpIcon className="size-3.5" /> : <ChevronDownIcon className="size-3.5" />}
                 </button>
               )}
               {(collapsed || sectionOpen) &&
@@ -240,45 +220,36 @@ export default function Sidebar({ collapsed, onToggleCollapse, reviewCount, merg
                       : item.to === "/merge"
                         ? mergeCount
                         : undefined;
-                  const badgeColor =
-                    item.to === "/review" ? "var(--warn)" : "var(--accent)";
+                  const badgeTone =
+                    item.to === "/review"
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                      : "bg-primary/10 text-primary";
+                  const dotTone = item.to === "/review" ? "bg-amber-500" : "bg-primary";
+                  const IconCmp = item.icon;
                   return (
                     <NavLink
                       key={item.to}
                       to={withRecordType(item.to)}
                       title={collapsed ? item.label : undefined}
                       className={({ isActive }) =>
-                        `nav-item${isActive ? " active" : ""}`
+                        cn(
+                          NAV_ITEM_BASE,
+                          collapsed ? "justify-center mx-1.5" : "mx-2 px-3",
+                          isActive && NAV_ITEM_ACTIVE,
+                        )
                       }
-                      style={{
-                        justifyContent: collapsed ? "center" : "flex-start",
-                        padding: collapsed ? 0 : "0 12px",
-                      }}
                     >
-                      <Icon name={item.icon} size={collapsed ? 20 : 18} />
+                      <IconCmp className={collapsed ? "size-5" : "size-[18px]"} />
                       {!collapsed && (
-                        <span style={{ flex: 1 }}>{item.label}</span>
+                        <span className="flex-1">{item.label}</span>
                       )}
                       {!collapsed && badge !== undefined && badge > 0 && (
-                        <span
-                          className="nav-badge mono"
-                          style={{ background: badgeColor }}
-                        >
+                        <Badge variant="secondary" className={cn("font-mono px-1.5 h-4 text-[10px]", badgeTone)}>
                           {badge}
-                        </span>
+                        </Badge>
                       )}
                       {collapsed && badge !== undefined && badge > 0 && (
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: 6,
-                            right: 6,
-                            width: 7,
-                            height: 7,
-                            borderRadius: "50%",
-                            background: badgeColor,
-                          }}
-                        />
+                        <span className={cn("absolute top-1.5 right-1.5 size-1.5 rounded-full", dotTone)} />
                       )}
                     </NavLink>
                   );

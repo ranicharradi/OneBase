@@ -1,21 +1,17 @@
+import { Loader2Icon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
 interface SpinnerProps {
-  size?: number;
-  color?: string;
+  size?: number;          // px
+  className?: string;
 }
 
-export default function Spinner({ size = 14, color = 'var(--accent)' }: SpinnerProps) {
+export default function Spinner({ size = 14, className }: SpinnerProps) {
   return (
-    <span
-      className="spin"
-      style={{
-        display: 'inline-block',
-        width: size,
-        height: size,
-        border: '2px solid var(--border-1)',
-        borderTopColor: color,
-        borderRadius: '50%',
-      }}
-      aria-hidden="true"
+    <Loader2Icon
+      className={cn('animate-spin text-muted-foreground', className)}
+      style={{ width: size, height: size }}
+      aria-hidden
     />
   );
 }

@@ -1,13 +1,7 @@
 export { default as ConfMini } from './ConfMini';
 export { default as Hbar } from './Hbar';
-export { default as Icon } from './Icon';
 export { default as IdChip } from './IdChip';
 export { default as Kpi } from './Kpi';
 export { LoadingErrorEmpty } from './LoadingErrorEmpty';
-export { Modal } from './Modal';
-export { default as Panel, PanelHead } from './Panel';
-export { default as Pill } from './Pill';
-export type { PillTone } from './Pill';
-export { default as Seg } from './Seg';
 export { default as SourcePill } from './SourcePill';
 export { default as Spinner } from './Spinner';

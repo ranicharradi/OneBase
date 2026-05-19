@@ -1,33 +1,21 @@
 import type { ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
 
-const TONE = {
-  accent: { bg: 'var(--accent-soft)', border: '1px dashed var(--accent-border)', fg: 'var(--accent)' },
-  ok:     { bg: 'var(--ok-soft)',     border: '1px dashed var(--ok)',            fg: 'var(--ok)'     },
-} as const;
-
-export default function HandoffBanner({
-  icon,
-  text,
-  note,
-  tone = 'accent',
-}: {
-  icon: string;
+interface HandoffBannerProps {
+  icon: LucideIcon;
   text: ReactNode;
   note: string;
-  tone?: keyof typeof TONE;
-}) {
-  const t = TONE[tone];
+}
+
+export default function HandoffBanner({ icon: Icon, text, note }: HandoffBannerProps) {
   return (
-    <div className="fade" style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      padding: '8px 14px', marginTop: 8, marginBottom: 20,
-      background: t.bg, border: t.border,
-      borderRadius: 6, fontSize: 12, color: 'var(--fg-1)',
-    }}>
-      <span className="material-symbols-outlined" style={{ fontSize: 14, color: t.fg }}>{icon}</span>
-      <span><b>Handoff:</b> {text}</span>
-      <span style={{ flex: 1 }} />
-      <span className="mono" style={{ fontSize: 10, color: 'var(--fg-2)' }}>{note}</span>
+    <div className="mt-2 mb-5 flex items-center gap-2.5 rounded-md border border-dashed border-primary/30 bg-primary/5 px-3.5 py-2 text-xs text-muted-foreground">
+      <Icon className="size-3.5 text-foreground" aria-hidden="true" />
+      <span>
+        <strong className="font-semibold text-foreground">Handoff:</strong> {text}
+      </span>
+      <span className="flex-1" />
+      <span className="font-mono text-[10px] text-muted-foreground">{note}</span>
     </div>
   );
 }

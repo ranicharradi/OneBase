@@ -1,11 +1,21 @@
 // ── Batch history table — terminal aesthetic ──
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { XIcon, HistoryIcon } from 'lucide-react';
 import { api } from '../api/client';
 import type { BatchResponse } from '../api/types';
-import Panel, { PanelHead } from './ui/Panel';
-import Pill from './ui/Pill';
-import type { PillTone } from './ui/Pill';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Badge } from './ui/badge';
+import { ScrollArea } from './ui/scroll-area';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from './ui/table';
+import { Button } from './ui/button';
 import { datasourceFileLabel } from '../utils/filename';
 
 interface BatchHistoryProps {
@@ -13,14 +23,23 @@ interface BatchHistoryProps {
   type?: string;
 }
 
-const STATUS_TONES: Record<string, PillTone> = {
-  completed: 'ok',
-  complete: 'ok',
-  failed: 'danger',
-  failure: 'danger',
-  processing: 'accent',
-  pending: 'warn',
-  superseded: 'neutral',
+const STATUS_BADGE_VARIANTS: Record<string, { variant: 'secondary' | 'destructive' | 'outline'; className?: string }> = {
+  completed: {
+    variant: 'secondary',
+    className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  complete: {
+    variant: 'secondary',
+    className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  failed: { variant: 'destructive' },
+  failure: { variant: 'destructive' },
+  processing: { variant: 'secondary' },
+  pending: {
+    variant: 'secondary',
+    className: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  },
+  superseded: { variant: 'outline' },
 };
 
 const DELETABLE_STATUSES = new Set(['pending', 'failed', 'failure']);
@@ -56,23 +75,31 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
 
   if (isLoading) {
     return (
-      <Panel>
-        <PanelHead title="Recent files" />
-        <div style={{ padding: 20, fontSize: 12, color: 'var(--fg-2)', textAlign: 'center' }}>
-          Loading…
-        </div>
-      </Panel>
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent files</CardTitle>
+        </CardHeader>
+        <CardContent className="text-center">
+          <div className="py-5 text-xs text-muted-foreground">
+            Loading…
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <Panel>
-        <PanelHead title="Recent files" />
-        <div style={{ padding: 20, fontSize: 12, color: 'var(--danger)', textAlign: 'center' }}>
-          Failed to load file history
-        </div>
-      </Panel>
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent files</CardTitle>
+        </CardHeader>
+        <CardContent className="text-center">
+          <div className="py-5 text-xs text-destructive">
+            Failed to load file history
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -82,18 +109,20 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
 
   if (sorted.length === 0) {
     return (
-      <Panel>
-        <PanelHead title="Recent files" />
-        <div style={{ padding: 28, textAlign: 'center' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--fg-3)' }}>
-            history
-          </span>
-          <div style={{ fontSize: 13, marginTop: 8 }}>No uploads yet</div>
-          <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
-            Upload a CSV file to see file history here.
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent files</CardTitle>
+        </CardHeader>
+        <CardContent className="text-center">
+          <div className="py-7">
+            <HistoryIcon className="size-7 mx-auto text-muted-foreground/50" />
+            <div className="text-sm mt-2">No uploads yet</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Upload a CSV file to see file history here.
+            </div>
           </div>
-        </div>
-      </Panel>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -104,65 +133,75 @@ export default function BatchHistory({ dataSourceId, type }: BatchHistoryProps) 
   const VISIBLE_ROWS = 3;
 
   return (
-    <Panel>
-      <PanelHead>
-        <span className="panel-title">Recent files</span>
-        <span className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-          {sorted.length} total · {completed} ok · {failed} failed
-        </span>
-      </PanelHead>
-      <div style={{ overflowY: 'auto', maxHeight: VISIBLE_ROWS * ROW_HEIGHT + 33 }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>File</th>
-              <th>Uploaded by</th>
-              <th className="num">Rows</th>
-              <th>Status</th>
-              <th>Date</th>
-              <th style={{ width: 30 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map(batch => {
-              const statusKey = batch.status.toLowerCase();
-              const tone = STATUS_TONES[statusKey] ?? 'neutral';
-              const canDelete = DELETABLE_STATUSES.has(statusKey);
-              return (
-                <tr key={batch.id} style={{ height: ROW_HEIGHT }}>
-                  <td className="mono" style={{ fontSize: 11 }}>
-                    {datasourceFileLabel({ data_source_name: batch.data_source_name, file_extension: batch.file_extension })}
-                  </td>
-                  <td className="mono" style={{ fontSize: 11, color: 'var(--fg-1)' }}>
-                    {batch.uploaded_by}
-                  </td>
-                  <td className="num mono">{batch.row_count?.toLocaleString() ?? '—'}</td>
-                  <td>
-                    <Pill tone={tone} dot>{batch.status}</Pill>
-                  </td>
-                  <td className="mono" style={{ fontSize: 11, color: 'var(--fg-2)' }}>
-                    {formatDate(batch.created_at)}
-                  </td>
-                  <td>
-                    {canDelete && (
-                      <button
-                        onClick={() => deleteMutation.mutate(batch.id)}
-                        disabled={deleteMutation.isPending}
-                        className="btn btn-ghost btn-sm"
-                        style={{ padding: 4, color: 'var(--danger)' }}
-                        title="Dismiss file"
-                        aria-label={`Dismiss file ${datasourceFileLabel({ data_source_name: batch.data_source_name, file_extension: batch.file_extension })}`}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle>Recent files</CardTitle>
+          <span className="font-mono text-xs text-muted-foreground">
+            {sorted.length} total · {completed} ok · {failed} failed
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <ScrollArea className="w-full" style={{ maxHeight: VISIBLE_ROWS * ROW_HEIGHT + 33 }}>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>File</TableHead>
+                <TableHead>Uploaded by</TableHead>
+                <TableHead className="text-right">Rows</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="w-8" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sorted.map(batch => {
+                const statusKey = batch.status.toLowerCase();
+                const badgeConfig = STATUS_BADGE_VARIANTS[statusKey] ?? { variant: 'outline' as const };
+                const canDelete = DELETABLE_STATUSES.has(statusKey);
+                return (
+                  <TableRow key={batch.id} style={{ height: ROW_HEIGHT }}>
+                    <TableCell className="font-mono text-xs">
+                      {datasourceFileLabel({ data_source_name: batch.data_source_name, file_extension: batch.file_extension })}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-foreground/80">
+                      {batch.uploaded_by}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-right">
+                      {batch.row_count?.toLocaleString() ?? '—'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={badgeConfig.variant} className={badgeConfig.className}>
+                        <span className="inline-block size-2 rounded-full bg-current mr-1.5" />
+                        {batch.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {formatDate(batch.created_at)}
+                    </TableCell>
+                    <TableCell>
+                      {canDelete && (
+                        <Button
+                          onClick={() => deleteMutation.mutate(batch.id)}
+                          disabled={deleteMutation.isPending}
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                          title="Dismiss file"
+                          aria-label={`Dismiss file ${datasourceFileLabel({ data_source_name: batch.data_source_name, file_extension: batch.file_extension })}`}
+                        >
+                          <XIcon className="size-3" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </ScrollArea>
+      </CardContent>
+    </Card>
   );
 }

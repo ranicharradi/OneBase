@@ -124,7 +124,7 @@ describe('Dashboard page', () => {
     // KPI section is rendered with placeholders, but the real "Overview" header
     // and stage labels haven't appeared yet
     expect(screen.queryByRole('heading', { name: /overview/i })).not.toBeInTheDocument()
-    expect(document.querySelector('.kpi-grid')).toBeInTheDocument()
+    expect(screen.getByTestId('dashboard-skeleton')).toBeInTheDocument()
   })
 
   it('renders the unified overview layout with populated dashboard data', async () => {
@@ -134,11 +134,11 @@ describe('Dashboard page', () => {
 
     await screen.findByRole('heading', { name: /overview/i })
 
-    expect(document.querySelector('.empty-overview-grid')).toBeInTheDocument()
-    expect(screen.getByText('Pipeline Health')).toBeInTheDocument()
+    expect(screen.getByTestId('dashboard-hero')).toBeInTheDocument()
+    expect(screen.getByText('Pipeline')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: '40% unified' })).toBeInTheDocument()
-    expect(screen.getByText('60 / 150 records')).toBeInTheDocument()
-    expect(document.querySelector('.kpi-grid')).not.toBeInTheDocument()
+    expect(screen.getByText(/60 of 150 records/)).toBeInTheDocument()
+    expect(screen.getByTestId('dashboard-kpi-strip')).toBeInTheDocument()
     expect(screen.queryByText('Records staged')).not.toBeInTheDocument()
   })
 
@@ -196,7 +196,6 @@ describe('Dashboard page', () => {
 
     expect(screen.getByText('reviewer')).toBeInTheDocument()
     expect(screen.getByText('Rejected match candidate')).toBeInTheDocument()
-    expect(screen.getByText('Supplier pipeline')).toBeInTheDocument()
     expect(screen.queryByText('Noisy Candidate Name')).not.toBeInTheDocument()
   })
 
@@ -213,9 +212,9 @@ describe('Dashboard page', () => {
 
     await screen.findByRole('heading', { name: /overview/i })
 
-    expect(document.querySelector('.empty-overview-grid')).toBeInTheDocument()
+    expect(screen.getByTestId('dashboard-hero')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: '0% unified' })).toBeInTheDocument()
-    expect(screen.getByText('Upload your first CSV')).toBeInTheDocument()
+    expect(screen.getByText('Upload your first file')).toBeInTheDocument()
   })
 
   it('shows ML section for admin users', async () => {

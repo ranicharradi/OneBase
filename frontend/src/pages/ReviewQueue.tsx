@@ -8,6 +8,7 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import { AlertTriangleIcon, ArrowRightIcon, SplitIcon } from "lucide-react";
 import { api } from "../api/client";
 import { useRecordType } from "../hooks/useRecordTypes";
 import { useMatchRun } from "../hooks/useMatchRun";
@@ -21,14 +22,15 @@ import type {
   ReviewActionResponse,
   ReviewStats,
 } from "../api/types";
-import Panel, { PanelHead } from "../components/ui/Panel";
+import { Card, CardHeader, CardContent, CardFooter } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
 import { LoadingErrorEmpty } from "../components/ui/LoadingErrorEmpty";
 import Pagination from "../components/Pagination";
 import WorkflowStageRail from "../components/WorkflowStageRail";
 import HandoffBanner from "../components/HandoffBanner";
 import MatchRunSelect from "../components/MatchRunSelect";
 import QueueBucketTabs from "../components/QueueBucketTabs";
-import Spinner from "../components/ui/Spinner";
+
 
 // ── Constants ────────────────────────────────────────
 
@@ -77,7 +79,7 @@ function ConfRing({ value }: { value: number }) {
           cy="20"
           r={r}
           fill="none"
-          stroke="var(--border-0)"
+          stroke="hsl(var(--border))"
           strokeWidth="3"
         />
         <circle
@@ -85,7 +87,7 @@ function ConfRing({ value }: { value: number }) {
           cy="20"
           r={r}
           fill="none"
-          stroke={`var(--${tone})`}
+          className={tone === 'ok' ? 'stroke-emerald-600' : tone === 'warn' ? 'stroke-amber-600' : 'stroke-destructive'}
           strokeWidth="3"
           strokeDasharray={`${dash} ${circ}`}
           strokeLinecap="round"
@@ -102,24 +104,11 @@ function ConfRing({ value }: { value: number }) {
         }}
       >
         <span
-          className="mono tnum"
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: `var(--${tone})`,
-            lineHeight: 1,
-          }}
+          className={`font-mono tabular-nums text-[11px] font-semibold leading-none ${tone === 'ok' ? 'text-emerald-600' : tone === 'warn' ? 'text-amber-600' : 'text-destructive'}`}
         >
           {pct}
         </span>
-        <span
-          style={{
-            fontSize: 7,
-            color: "var(--fg-3)",
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-          }}
-        >
+        <span className="text-muted-foreground/60 uppercase tracking-wider" style={{ fontSize: 7 }}>
           conf
         </span>
       </div>
@@ -129,31 +118,12 @@ function ConfRing({ value }: { value: number }) {
 
 // Source pill fixed to record-identity color
 function RecordPill({ short, tone }: { short: string; tone: "a" | "b" }) {
-  const style =
+  const className =
     tone === "a"
-      ? {
-          background: "var(--accent-soft)",
-          border: "1px solid var(--accent-border)",
-          color: "var(--accent)",
-        }
-      : {
-          background: "var(--info-soft)",
-          border: "1px solid var(--info-border)",
-          color: "var(--info)",
-        };
+      ? "font-mono inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-semibold bg-primary/10 border border-primary/20 text-primary"
+      : "font-mono inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-semibold bg-sky-100 border border-sky-200 text-sky-700 dark:bg-sky-950 dark:border-sky-800 dark:text-sky-300";
   return (
-    <span
-      className="mono"
-      style={{
-        ...style,
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "2px 7px",
-        borderRadius: 3,
-        fontSize: 10,
-        fontWeight: 600,
-      }}
-    >
+    <span className={className}>
       {short.toUpperCase()}
     </span>
   );
@@ -275,47 +245,33 @@ export default function ReviewQueue() {
   }, [queue, searchQuery]);
 
   return (
-    <div className="scroll" style={{ height: "100%" }}>
-      <div style={{ padding: 20 }}>
+    <div className="overflow-y-auto h-full">
+      <div className="p-5">
         <WorkflowStageRail
           activeStage="review"
           match={{
-            onClick: () => navigate("/match"),
+            onClick: () => navigate(withRecordType("/match")),
             title: "Go to Match runs",
-            count: {
-              value:
-                (stats?.total_pending ?? 0) +
-                (stats?.total_confirmed ?? 0) +
-                (stats?.total_rejected ?? 0),
-              unit: "matched",
-            },
-          }}
-          review={{
-            count: { value: stats?.total_pending ?? "—", unit: "pending" },
           }}
           merge={{
             onClick: () =>
               navigate(
-                withRecordType(
-                  runId ? `/merge?match_run_id=${runId}` : "/merge",
-                ),
+                withRecordType(runId ? `/merge?match_run_id=${runId}` : "/merge"),
               ),
             title: "Go to Merge queue",
-            count: { value: stats?.total_confirmed ?? "—", unit: "queued" },
           }}
           unified={{
             onClick: () => navigate(withRecordType("/unified")),
             title: "Go to Unified records",
-            count: { value: stats?.total_unified ?? "—", unit: "records" },
           }}
         />
 
         <HandoffBanner
-          icon="call_split"
+          icon={SplitIcon}
           text={
             <>
               items confirmed here move to the{" "}
-              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+              <span className="font-semibold text-foreground">
                 Merge queue
               </span>{" "}
               for field-level reconciliation by a data steward.
@@ -326,26 +282,8 @@ export default function ReviewQueue() {
 
         {/* ── Stale warning ── */}
         {selectedRun?.status === "stale" && (
-          <div
-            style={{
-              padding: "6px 14px",
-              marginBottom: 8,
-              fontSize: 11,
-              color: "var(--warn)",
-              background: "var(--warn-soft)",
-              border: "1px solid var(--border-0)",
-              borderRadius: 6,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 12 }}
-            >
-              warning
-            </span>
+          <div className="flex items-center gap-1.5 px-3.5 py-1.5 mb-2 text-xs text-amber-600 bg-amber-100 dark:bg-amber-950 dark:text-amber-300 border border-border rounded-md">
+            <AlertTriangleIcon className="size-3 shrink-0" />
             Source data has changed since this run — results may be outdated
           </div>
         )}
@@ -363,8 +301,8 @@ export default function ReviewQueue() {
         />
 
         {/* ── Filters ── */}
-        <Panel className="fade">
-          <PanelHead>
+        <Card>
+          <CardHeader className="flex-row items-center justify-between flex-wrap gap-3 border-b pb-3">
             <MatchRunSelect
               validRuns={validRuns}
               runId={runId}
@@ -373,8 +311,8 @@ export default function ReviewQueue() {
                 setPage(0);
               }}
             />
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="label">min confidence</span>
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs text-muted-foreground">min confidence</span>
               <input
                 type="range"
                 min={0}
@@ -385,24 +323,21 @@ export default function ReviewQueue() {
                   setMinConfidence(Number(e.target.value));
                   setPage(0);
                 }}
-                style={{ width: 120, accentColor: "var(--accent)" }}
+                className="w-30 accent-primary"
+                style={{ width: 120 }}
                 aria-label="Minimum confidence"
               />
-              <span className="mono tnum" style={{ fontSize: 11, width: 36 }}>
+              <span className="font-mono tabular-nums text-[11px] w-9">
                 {(minConfidence / 100).toFixed(2)}
               </span>
             </div>
-          </PanelHead>
+          </CardHeader>
 
           {/* Top pagination */}
           {queue && queue.total > PAGE_SIZE && (
             <div
               ref={tableRef}
-              style={{
-                padding: "8px 14px",
-                borderBottom: "1px solid var(--border-0)",
-                scrollMarginTop: 56,
-              }}
+              className="px-3.5 py-2 border-b scroll-mt-14"
             >
               <Pagination
                 page={page}
@@ -414,50 +349,16 @@ export default function ReviewQueue() {
           )}
 
           {/* Card list */}
-          <div
-            style={{
-              padding: 12,
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
+          <CardContent className="p-3 flex flex-col gap-2">
             <LoadingErrorEmpty
-              isLoading={isLoading && !queue}
-              isEmpty={!runId || !runReady || filteredItems.length === 0}
+              loading={isLoading && !queue}
+              empty={!runId || !runReady || filteredItems.length === 0}
               emptyMessage={
-                !runId ? (
-                  <div style={{ fontSize: 12, color: "var(--fg-2)" }}>
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontSize: 28, color: "var(--fg-3)" }}
-                    >
-                      compare_arrows
-                    </span>
-                    <div style={{ marginTop: 8 }}>
-                      Select a run above to load the review queue.
-                    </div>
-                  </div>
-                ) : !runReady ? (
-                  <div style={{ fontSize: 12, color: "var(--fg-2)" }}>
-                    <Spinner size={14} />
-                    <div style={{ marginTop: 8 }}>
-                      Matching run #{runId} is still processing.
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 12, color: "var(--fg-2)" }}>
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontSize: 28, color: "var(--fg-3)" }}
-                    >
-                      inbox
-                    </span>
-                    <div style={{ marginTop: 8 }}>
-                      No candidates match the current filters.
-                    </div>
-                  </div>
-                )
+                !runId
+                  ? "Select a run above to load the review queue."
+                  : !runReady
+                    ? `Matching run #${runId} is still processing.`
+                    : "No candidates match the current filters."
               }
             >
               <>
@@ -481,32 +382,11 @@ export default function ReviewQueue() {
                   return (
                     <div
                       key={item.id}
-                      className="review-card"
+                      className={`review-card bg-card rounded-md overflow-hidden border border-border transition-all duration-150 hover:-translate-y-px hover:shadow-md border-l-[3px] ${statusTone === 'ok' ? 'border-l-emerald-600' : statusTone === 'danger' ? 'border-l-destructive' : 'border-l-transparent'}`}
                       style={{
-                        background: "var(--bg-1)",
-                        border: "1px solid var(--border-0)",
-                        borderLeft: statusTone
-                          ? `3px solid var(--${statusTone})`
-                          : "3px solid transparent",
-                        borderRadius: 6,
-                        overflow: "hidden",
                         opacity: !isPending ? 0.75 : 1,
-                        transition:
-                          "opacity 0.2s, border-color 0.2s, transform 0.12s, box-shadow 0.12s",
                         animation: "fadeIn 0.2s ease both",
                         animationDelay: `${i * 35}ms`,
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLDivElement).style.transform =
-                          "translateY(-1px)";
-                        (e.currentTarget as HTMLDivElement).style.boxShadow =
-                          "var(--shadow-md)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLDivElement).style.transform =
-                          "";
-                        (e.currentTarget as HTMLDivElement).style.boxShadow =
-                          "";
                       }}
                     >
                       <div
@@ -518,155 +398,70 @@ export default function ReviewQueue() {
                       >
                         {/* ── Record A ── */}
                         <div
-                          style={{
-                            padding: "14px 16px",
-                            borderRight: "1px solid var(--border-0)",
-                            borderLeft: "3px solid var(--accent-border)",
-                          }}
+                          className="p-3.5 border-r border-border border-l-[3px] border-l-primary/30"
                         >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 7,
-                              marginBottom: 7,
-                            }}
-                          >
+                          <div className="flex items-center gap-1.5 mb-1.5">
                             <RecordPill
                               short={item.record_a_source ?? "?"}
                               tone="a"
                             />
                           </div>
-                          <div
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 600,
-                              letterSpacing: "-0.01em",
-                              color: "var(--fg-0)",
-                              lineHeight: 1.3,
-                            }}
-                          >
+                          <div className="text-sm font-semibold leading-snug tracking-tight text-foreground">
                             {item.record_a_name || "—"}
                           </div>
                           {recordASummary && (
-                            <div
-                              className="mono"
-                              style={{
-                                fontSize: 11,
-                                color: "var(--fg-2)",
-                                marginTop: 5,
-                              }}
-                            >
+                            <div className="font-mono text-[11px] text-muted-foreground mt-1">
                               {recordASummary}
                             </div>
                           )}
                         </div>
 
                         {/* ── Confidence ring + age ── */}
-                        <div
-                          style={{
-                            padding: "14px 8px",
-                            borderRight: "1px solid var(--border-0)",
-                            background: "var(--bg-2)",
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 6,
-                          }}
-                        >
+                        <div className="p-3.5 border-r border-border bg-muted flex flex-col items-center justify-center gap-1.5">
                           <ConfRing value={item.confidence} />
-                          <span
-                            className="mono"
-                            style={{
-                              fontSize: 9,
-                              color: "var(--fg-3)",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
-                            }}
-                          >
+                          <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-wider">
                             {relativeTime(item.created_at)}
                           </span>
                         </div>
 
                         {/* ── Record B ── */}
                         <div
-                          style={{
-                            padding: "14px 16px",
-                            borderRight: "1px solid var(--border-0)",
-                            borderLeft: "3px solid var(--info-border)",
-                          }}
+                          className="p-3.5 border-r border-border border-l-[3px] border-l-sky-300 dark:border-l-sky-700"
                         >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 7,
-                              marginBottom: 7,
-                            }}
-                          >
+                          <div className="flex items-center gap-1.5 mb-1.5">
                             <RecordPill
                               short={item.record_b_source ?? "?"}
                               tone="b"
                             />
                           </div>
-                          <div
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 600,
-                              letterSpacing: "-0.01em",
-                              color: "var(--fg-0)",
-                              lineHeight: 1.3,
-                            }}
-                          >
+                          <div className="text-sm font-semibold leading-snug tracking-tight text-foreground">
                             {item.record_b_name || "—"}
                           </div>
                           {recordBSummary && (
-                            <div
-                              className="mono"
-                              style={{
-                                fontSize: 11,
-                                color: "var(--fg-2)",
-                                marginTop: 5,
-                              }}
-                            >
+                            <div className="font-mono text-[11px] text-muted-foreground mt-1">
                               {recordBSummary}
                             </div>
                           )}
                         </div>
 
                         {/* ── Decision column ── */}
-                        <div
-                          style={{
-                            padding: "12px 14px",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 6,
-                            justifyContent: "center",
-                          }}
-                        >
+                        <div className="p-3 flex flex-col gap-1.5 justify-center">
                           {!isPending ? (
-                            <span
-                              className={`pill ${statusTone ?? "accent"}`}
-                              style={{
-                                padding: "3px 8px",
-                                justifyContent: "center",
-                              }}
+                            <Badge
+                              variant={statusTone === "ok" ? "secondary" : "destructive"}
+                              className={
+                                statusTone === "ok"
+                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 justify-center"
+                                  : "justify-center"
+                              }
                             >
-                              <span className="pill-dot" />
                               {item.status === "confirmed"
                                 ? "Confirmed dupe"
                                 : "Not a duplicate"}
-                            </span>
+                            </Badge>
                           ) : (
                             <>
-                              <div
-                                style={{
-                                  display: "grid",
-                                  gridTemplateColumns: "1fr 1fr",
-                                  gap: 6,
-                                }}
-                              >
+                              <div className="grid grid-cols-2 gap-1.5">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -676,40 +471,7 @@ export default function ReviewQueue() {
                                     confirmMutation.isPending ||
                                     rejectMutation.isPending
                                   }
-                                  style={{
-                                    padding: "5px 10px",
-                                    cursor:
-                                      confirmMutation.isPending ||
-                                      rejectMutation.isPending
-                                        ? "default"
-                                        : "pointer",
-                                    background: "transparent",
-                                    color: "var(--ok)",
-                                    border: "1px solid var(--ok)",
-                                    borderRadius: 3,
-                                    fontFamily: "var(--font-mono)",
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 3,
-                                    letterSpacing: "0.02em",
-                                    transition: "background 0.1s, filter 0.1s",
-                                    opacity:
-                                      confirmMutation.isPending ||
-                                      rejectMutation.isPending
-                                        ? 0.5
-                                        : 1,
-                                  }}
-                                  onMouseEnter={(e) =>
-                                    (e.currentTarget.style.background =
-                                      "var(--ok-soft)")
-                                  }
-                                  onMouseLeave={(e) =>
-                                    (e.currentTarget.style.background =
-                                      "transparent")
-                                  }
+                                  className="px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wide flex items-center justify-center gap-1 rounded-sm border border-emerald-600 text-emerald-600 bg-transparent transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-950/50 disabled:opacity-50 disabled:cursor-default"
                                 >
                                   ✓ Same
                                 </button>
@@ -719,79 +481,22 @@ export default function ReviewQueue() {
                                     rejectMutation.mutate(item.id);
                                   }}
                                   disabled={rejectMutation.isPending}
-                                  style={{
-                                    padding: "5px 10px",
-                                    cursor: "pointer",
-                                    background: "transparent",
-                                    color: "var(--danger)",
-                                    border: "1px solid var(--danger)",
-                                    borderRadius: 3,
-                                    fontFamily: "var(--font-mono)",
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 3,
-                                    letterSpacing: "0.02em",
-                                    transition: "background 0.1s",
-                                    opacity: rejectMutation.isPending ? 0.5 : 1,
-                                  }}
-                                  onMouseEnter={(e) =>
-                                    (e.currentTarget.style.background =
-                                      "var(--danger-soft)")
-                                  }
-                                  onMouseLeave={(e) =>
-                                    (e.currentTarget.style.background =
-                                      "transparent")
-                                  }
+                                  className="px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wide flex items-center justify-center gap-1 rounded-sm border border-destructive text-destructive bg-transparent transition-colors hover:bg-destructive/10 disabled:opacity-50"
                                 >
                                   ✕ Diff
                                 </button>
                               </div>
-                              <div
-                                style={{
-                                  borderTop: "1px solid var(--border-0)",
-                                  paddingTop: 6,
-                                  marginTop: 2,
-                                }}
-                              >
+                              <div className="border-t border-border pt-1.5 mt-0.5">
                                 <button
                                   onClick={() =>
                                     navigate(
                                       withRecordType(`/review/${item.id}`),
                                     )
                                   }
-                                  style={{
-                                    width: "100%",
-                                    padding: "5px 8px",
-                                    cursor: "pointer",
-                                    background: "transparent",
-                                    border: "none",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 5,
-                                    fontFamily: "var(--font-mono)",
-                                    fontSize: 11,
-                                    color: "var(--accent)",
-                                    letterSpacing: "0.03em",
-                                    transition: "opacity 0.1s",
-                                  }}
-                                  onMouseEnter={(e) =>
-                                    (e.currentTarget.style.opacity = "0.7")
-                                  }
-                                  onMouseLeave={(e) =>
-                                    (e.currentTarget.style.opacity = "1")
-                                  }
+                                  className="w-full py-1 px-2 font-mono text-[11px] text-primary flex items-center justify-center gap-1 tracking-wide transition-opacity hover:opacity-70 bg-transparent border-none"
                                 >
                                   See evidence
-                                  <span
-                                    className="material-symbols-outlined"
-                                    style={{ fontSize: 12 }}
-                                  >
-                                    arrow_forward
-                                  </span>
+                                  <ArrowRightIcon className="size-3" />
                                 </button>
                               </div>
                             </>
@@ -803,25 +508,20 @@ export default function ReviewQueue() {
                 })}
               </>
             </LoadingErrorEmpty>
-          </div>
+          </CardContent>
 
           {/* Bottom pagination */}
           {queue && queue.total > 0 && (
-            <div
-              style={{
-                padding: "8px 14px",
-                borderTop: "1px solid var(--border-0)",
-              }}
-            >
+            <CardFooter className="px-3.5 py-2 border-t bg-transparent">
               <Pagination
                 page={page}
                 pageSize={PAGE_SIZE}
                 totalItems={queue.total}
                 onPageChange={handlePageChange}
               />
-            </div>
+            </CardFooter>
           )}
-        </Panel>
+        </Card>
       </div>
     </div>
   );

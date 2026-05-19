@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type DragEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ClipboardCheckIcon, UploadIcon } from 'lucide-react';
 import { api } from '../api/client';
 import type {
   FileCheckIssue,
@@ -8,9 +9,19 @@ import type {
   FileCheckReportListResponse,
 } from '../api/types';
 import Kpi from '../components/ui/Kpi';
-import Panel, { PanelHead } from '../components/ui/Panel';
-import Pill from '../components/ui/Pill';
 import Spinner from '../components/ui/Spinner';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent, CardAction } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Table,
+  TableHeader,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+} from '@/components/ui/table';
 import { formatFileSize } from '../utils/filesize';
 
 type IssueTypeFilter = FileCheckIssue['issue_type'] | 'all';
@@ -37,12 +48,27 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
+function statusBadge(status: FileCheckReport['status']) {
+  if (status === 'clean') {
+    return <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">{status}</Badge>;
+  }
+  if (status === 'warning') {
+    return <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">{status}</Badge>;
+  }
+  if (status === 'failed' || status === 'error') {
+    return <Badge variant="destructive">{status}</Badge>;
+  }
+  return <Badge variant="secondary">{status}</Badge>;
+}
 
-function statusTone(status: FileCheckReport['status']): 'ok' | 'warn' | 'danger' | 'accent' {
-  if (status === 'clean') return 'ok';
-  if (status === 'warning') return 'warn';
-  if (status === 'failed' || status === 'error') return 'danger';
-  return 'accent';
+function severityBadge(severity: FileCheckIssue['severity']) {
+  if (severity === 'error') {
+    return <Badge variant="destructive">{severity}</Badge>;
+  }
+  if (severity === 'warning') {
+    return <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">{severity}</Badge>;
+  }
+  return <Badge variant="secondary" className="bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">{severity}</Badge>;
 }
 
 function issueLabel(type: FileCheckIssue['issue_type']): string {
@@ -114,17 +140,17 @@ export default function FileChecker() {
   };
 
   return (
-    <div className="scroll" style={{ height: '100%', padding: 18 }}>
-      <div style={{ maxWidth: 1240, margin: '0 auto' }}>
-        <header style={{ marginBottom: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 650 }}>File checker</h1>
-          <p style={{ margin: '6px 0 0', color: 'var(--fg-2)', fontSize: 13 }}>
+    <div className="overflow-auto h-full p-4">
+      <div className="max-w-[1240px] mx-auto">
+        <header className="mb-4">
+          <h1 className="text-2xl font-semibold">File checker</h1>
+          <p className="mt-1.5 text-muted-foreground text-sm">
             Check CSV/TSV files for missing rows and quality issues outside the ingestion pipeline.
           </p>
         </header>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: 14 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+        <div className="grid gap-3.5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))' }}>
+          <div className="flex flex-col gap-3.5 min-w-0">
             <section
               aria-label="File upload"
               aria-busy={uploadMutation.isPending}
@@ -135,17 +161,10 @@ export default function FileChecker() {
               onDragOver={event => event.preventDefault()}
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
-              style={{
-                minHeight: 180,
-                border: `1px dashed ${isDragging ? 'var(--accent)' : 'var(--border-1)'}`,
-                borderRadius: 6,
-                background: 'var(--bg-0)',
-                color: 'var(--fg-2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 20,
-              }}
+              className={[
+                'min-h-[180px] border border-dashed rounded-md bg-background text-muted-foreground flex items-center justify-center p-5',
+                isDragging ? 'border-primary' : 'border-border',
+              ].join(' ')}
             >
               <input
                 ref={inputRef}
@@ -153,24 +172,19 @@ export default function FileChecker() {
                 type="file"
                 accept=".csv,.tsv,text/csv,text/tab-separated-values"
                 disabled={uploadMutation.isPending}
-                style={{ display: 'none' }}
+                className="hidden"
                 onChange={event => uploadFile(event.target.files?.[0])}
               />
-              <div style={{ textAlign: 'center', maxWidth: 260 }}>
-                <span
-                  className="material-symbols-outlined"
-                  aria-hidden="true"
-                  style={{ fontSize: 28, color: 'var(--fg-2)', marginBottom: 10 }}
-                >
-                  rule
-                </span>
-                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg-0)' }}>Drop CSV or TSV file here</div>
-                <button
+              <div className="text-center max-w-[260px]">
+                <ClipboardCheckIcon className="size-7 text-muted-foreground mb-2.5 mx-auto" aria-hidden="true" />
+                <div className="text-sm font-semibold text-foreground">Drop CSV or TSV file here</div>
+                <Button
                   type="button"
-                  className="btn"
+                  variant="outline"
+                  size="sm"
                   onClick={() => inputRef.current?.click()}
                   disabled={uploadMutation.isPending}
-                  style={{ marginTop: 12 }}
+                  className="mt-3"
                 >
                   {uploadMutation.isPending ? (
                     <>
@@ -179,196 +193,182 @@ export default function FileChecker() {
                     </>
                   ) : (
                     <>
-                      <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 14 }}>
-                        upload_file
-                      </span>
+                      <UploadIcon className="size-3.5" aria-hidden="true" />
                       Browse
                     </>
                   )}
-                </button>
+                </Button>
                 {uploadMutation.isError && (
                   <div
                     role="alert"
-                    className="pill danger"
-                    style={{ marginTop: 12, width: '100%', padding: '6px 10px', justifyContent: 'center' }}
+                    className="mt-3 w-full flex justify-center"
                   >
-                    {errorMessage(uploadMutation.error)}
+                    <Badge variant="destructive">
+                      {errorMessage(uploadMutation.error)}
+                    </Badge>
                   </div>
                 )}
               </div>
             </section>
 
-            <Panel>
-              <PanelHead title="Report history" />
-              <div style={{ padding: 10, minHeight: 160 }}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Report history</CardTitle>
+              </CardHeader>
+              <CardContent className="min-h-[160px]">
                 {historyIsLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg-2)', fontSize: 12 }}>
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs">
                     <Spinner size={14} />
                     <span>Loading reports</span>
                   </div>
                 ) : historyIsError ? (
                   <div>
-                    <div style={{ color: 'var(--danger)', fontSize: 13, fontWeight: 600 }}>
+                    <div className="text-destructive text-sm font-semibold">
                       Could not load file check history
                     </div>
-                    <div style={{ marginTop: 4, color: 'var(--fg-2)', fontSize: 12 }}>
+                    <div className="mt-1 text-muted-foreground text-xs">
                       Refresh the page or try again later.
                     </div>
                   </div>
                 ) : reportItems.length === 0 ? (
-                  <span style={{ color: 'var(--fg-2)', fontSize: 12 }}>No file checks yet</span>
+                  <span className="text-muted-foreground text-xs">No file checks yet</span>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div className="flex flex-col gap-1.5">
                     {reportItems.map(report => (
-                      <button
+                      <Button
                         key={report.id}
                         type="button"
-                        className="btn"
+                        variant="outline"
+                        size="sm"
                         aria-pressed={selectedReportId === report.id}
                         onClick={() => {
                           setSelectedReportId(report.id);
                           setIssueType('all');
                           setSeverity('all');
                         }}
-                        style={{
-                          justifyContent: 'space-between',
-                          width: '100%',
-                          minHeight: 40,
-                          borderColor: selectedReportId === report.id ? 'var(--accent)' : 'var(--border-1)',
-                        }}
+                        className={[
+                          'justify-between w-full min-h-[40px]',
+                          selectedReportId === report.id ? 'border-primary' : 'border-border',
+                        ].join(' ')}
                       >
-                        <span style={{ minWidth: 0, textAlign: 'left' }}>
-                          <span
-                            style={{
-                              display: 'block',
-                              color: 'var(--fg-0)',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
+                        <span className="min-w-0 text-left">
+                          <span className="block text-foreground text-xs font-semibold overflow-hidden text-ellipsis whitespace-nowrap">
                             {report.original_filename}
                           </span>
-                          <span className="mono" style={{ display: 'block', color: 'var(--fg-2)', fontSize: 10 }}>
+                          <span className="block text-muted-foreground text-[10px] font-mono">
                             {formatDate(report.completed_at ?? report.created_at)}
                           </span>
                         </span>
-                        <Pill tone={statusTone(report.status)}>{report.status}</Pill>
-                      </button>
+                        {statusBadge(report.status)}
+                      </Button>
                     ))}
                   </div>
                 )}
-              </div>
-            </Panel>
+              </CardContent>
+            </Card>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-            <Panel>
-              <PanelHead
-                title={currentReport ? currentReport.original_filename : 'Current report'}
-                actions={currentReport && <Pill tone={statusTone(currentReport.status)}>{currentReport.status}</Pill>}
-              />
-              <div style={{ padding: 14 }}>
+          <div className="flex flex-col gap-3.5 min-w-0">
+            <Card>
+              <CardHeader>
+                <CardTitle>{currentReport ? currentReport.original_filename : 'Current report'}</CardTitle>
+                {currentReport && (
+                  <CardAction>{statusBadge(currentReport.status)}</CardAction>
+                )}
+              </CardHeader>
+              <CardContent>
                 {detailQuery.isLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg-2)', fontSize: 12 }}>
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs">
                     <Spinner size={14} />
                     <span>Loading report</span>
                   </div>
                 ) : detailQuery.isError ? (
-                  <div
-                    role="alert"
-                    className="pill danger"
-                    style={{ padding: '6px 10px', justifyContent: 'flex-start' }}
-                  >
-                    {errorMessage(detailQuery.error)}
+                  <div role="alert" className="flex">
+                    <Badge variant="destructive">
+                      {errorMessage(detailQuery.error)}
+                    </Badge>
                   </div>
                 ) : currentReport ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div className="flex flex-col gap-3.5">
                     <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                        gap: 10,
-                      }}
+                      className="grid gap-2.5"
+                      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}
                     >
-                      <Kpi label="Total rows" icon="table_rows" value={formatNumber(currentReport.total_rows)} />
+                      <Kpi label="Total rows" value={formatNumber(currentReport.total_rows)} />
                       <Kpi
                         label="Rows with issues"
-                        icon="warning"
                         value={formatNumber(currentReport.rows_with_issues)}
-                        tone={currentReport.rows_with_issues > 0 ? 'warn' : 'ok'}
+                        delta={
+                          currentReport.rows_with_issues > 0
+                            ? { value: 'has issues', tone: 'negative' }
+                            : { value: 'none', tone: 'positive' }
+                        }
                       />
-                      <Kpi label="Empty rows" icon="remove_selection" value={formatNumber(currentReport.empty_row_count)} />
+                      <Kpi label="Empty rows" value={formatNumber(currentReport.empty_row_count)} />
                       <Kpi
                         label="Missing values"
-                        icon="data_alert"
                         value={formatNumber(currentReport.missing_value_count)}
                       />
                       <Kpi
                         label="Corrupted values"
-                        icon="error"
                         value={formatNumber(currentReport.corrupted_value_count)}
                       />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                      <span className="mono" style={{ color: 'var(--fg-2)' }}>
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      <span className="font-mono text-muted-foreground">
                         {formatFileSize(currentReport.file_size_bytes)}
                       </span>
-                      <span className="mono" style={{ color: 'var(--fg-2)' }}>
+                      <span className="font-mono text-muted-foreground">
                         delimiter {currentReport.delimiter === '\t' ? 'tab' : currentReport.delimiter}
                       </span>
-                      <span className="mono" style={{ color: 'var(--fg-2)' }}>
+                      <span className="font-mono text-muted-foreground">
                         {formatNumber(currentReport.issue_total)} issues
                       </span>
                     </div>
                     {currentReport.issue_cap_reached && (
-                      <div
+                      <Badge
                         aria-live="polite"
-                        className="pill warn"
-                        style={{ padding: '6px 10px', justifyContent: 'flex-start' }}
+                        variant="secondary"
+                        className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
                       >
                         Issue cap reached. Showing stored issues only.
-                      </div>
+                      </Badge>
                     )}
                     {hasPartialIssues && (
-                      <div
+                      <Badge
                         aria-live="polite"
-                        className="pill warn"
-                        style={{ padding: '6px 10px', justifyContent: 'flex-start' }}
+                        variant="secondary"
+                        className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
                       >
                         Showing first {formatNumber(loadedIssueCount)} of {formatNumber(currentReport.issue_total)} issues.
                         Filters apply to loaded issues.
-                      </div>
+                      </Badge>
                     )}
                     {currentReport.status === 'error' && currentReport.error_message && (
-                      <div
-                        role="alert"
-                        className="pill danger"
-                        style={{ padding: '6px 10px', justifyContent: 'flex-start' }}
-                      >
-                        {currentReport.error_message}
+                      <div role="alert">
+                        <Badge variant="destructive">
+                          {currentReport.error_message}
+                        </Badge>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <span style={{ color: 'var(--fg-2)', fontSize: 12 }}>Select or upload a report.</span>
+                  <span className="text-muted-foreground text-xs">Select or upload a report.</span>
                 )}
-              </div>
-            </Panel>
+              </CardContent>
+            </Card>
 
-            <Panel>
-              <PanelHead
-                title="Issues"
-                actions={
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Issues</CardTitle>
+                <CardAction>
+                  <div className="flex gap-2 flex-wrap">
                     <select
                       aria-label="Filter issue type"
                       value={issueType}
                       disabled={filtersDisabled}
                       onChange={event => setIssueType(event.target.value as IssueTypeFilter)}
-                      style={{ height: 28, fontSize: 12 }}
+                      className="h-7 text-xs rounded border border-border bg-background px-2"
                     >
                       {ISSUE_TYPES.map(type => (
                         <option key={type} value={type}>
@@ -381,7 +381,7 @@ export default function FileChecker() {
                       value={severity}
                       disabled={filtersDisabled}
                       onChange={event => setSeverity(event.target.value as SeverityFilter)}
-                      style={{ height: 28, fontSize: 12 }}
+                      className="h-7 text-xs rounded border border-border bg-background px-2"
                     >
                       {SEVERITIES.map(item => (
                         <option key={item} value={item}>
@@ -390,61 +390,51 @@ export default function FileChecker() {
                       ))}
                     </select>
                   </div>
-                }
-              />
-              <div className="scroll" style={{ maxHeight: 430 }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Row</th>
-                      <th>Column</th>
-                      <th>Type</th>
-                      <th>Severity</th>
-                      <th>Value</th>
-                      <th>Message</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                </CardAction>
+              </CardHeader>
+              <ScrollArea className="max-h-[430px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Row</TableHead>
+                      <TableHead>Column</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Severity</TableHead>
+                      <TableHead>Value</TableHead>
+                      <TableHead>Message</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {currentReport && visibleIssues.length === 0 && (
-                      <tr>
-                        <td colSpan={6} style={{ color: 'var(--fg-2)' }}>
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-muted-foreground">
                           {hasActiveIssueFilters ? 'No issues match the current filters.' : 'No issues found'}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )}
                     {!currentReport && (
-                      <tr>
-                        <td colSpan={6} style={{ color: 'var(--fg-2)' }}>
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-muted-foreground">
                           No report selected.
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )}
                     {visibleIssues.map(issue => (
-                      <tr key={issue.id}>
-                        <td className="mono">{issue.row_number}</td>
-                        <td>{issue.column_name ?? '-'}</td>
-                        <td>{issueLabel(issue.issue_type)}</td>
-                        <td>
-                          <Pill
-                            tone={
-                              issue.severity === 'error'
-                                ? 'danger'
-                                : issue.severity === 'warning'
-                                  ? 'warn'
-                                  : 'info'
-                            }
-                          >
-                            {issue.severity}
-                          </Pill>
-                        </td>
-                        <td className="mono">{issue.value_preview ?? '-'}</td>
-                        <td>{issue.message}</td>
-                      </tr>
+                      <TableRow key={issue.id}>
+                        <TableCell className="font-mono">{issue.row_number}</TableCell>
+                        <TableCell>{issue.column_name ?? '-'}</TableCell>
+                        <TableCell>{issueLabel(issue.issue_type)}</TableCell>
+                        <TableCell>
+                          {severityBadge(issue.severity)}
+                        </TableCell>
+                        <TableCell className="font-mono">{issue.value_preview ?? '-'}</TableCell>
+                        <TableCell>{issue.message}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </Panel>
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </Card>
           </div>
         </div>
       </div>
