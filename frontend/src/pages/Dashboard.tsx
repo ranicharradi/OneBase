@@ -43,6 +43,11 @@ interface MatchProgress {
   progress: number;
 }
 
+// Dashboard response with optional trend data (used in future task phases)
+type DashboardResponseWithTrend = DashboardResponse & {
+  trend?: { delta: number; period: string } | null;
+};
+
 interface NextAction {
   key: string;
   tone: 'danger' | 'warn' | 'info';
@@ -240,6 +245,51 @@ function formatRelativeTime(iso: string | null): string {
   if (sameDay) return `Today, ${hhmm}`;
   if (isYest) return `Yesterday, ${hhmm}`;
   return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${hhmm}`;
+}
+
+// Convert ISO timestamp to compact relative format (e.g., "5m", "2h", "yest", "Jan 15")
+function compactRelative(iso: string | null): string {
+  if (!iso) return '—';
+  const ts = new Date(iso).getTime();
+  const now = Date.now();
+  const diffSec = Math.max(0, Math.round((now - ts) / 1000));
+  if (diffSec < 60) return `${diffSec}s`;
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay === 1) return 'yest';
+  if (diffDay < 7) return `${diffDay}d`;
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+// Group recent activity items by day (Today, Yesterday, or date range)
+function groupActivityByDay(items: RecentActivity[]): Array<{ label: string; items: RecentActivity[] }> {
+  if (items.length === 0) return [];
+  const sorted = [...items].sort((a, b) => {
+    const at = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return bt - at;
+  });
+  const now = new Date();
+  const todayKey = now.toDateString();
+  const yest = new Date(now);
+  yest.setDate(now.getDate() - 1);
+  const yestKey = yest.toDateString();
+  const groups = new Map<string, { label: string; items: RecentActivity[] }>();
+  for (const item of sorted) {
+    if (!item.created_at) continue;
+    const d = new Date(item.created_at);
+    const key = d.toDateString();
+    let label: string;
+    if (key === todayKey) label = 'Today';
+    else if (key === yestKey) label = 'Yesterday';
+    else label = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    if (!groups.has(key)) groups.set(key, { label, items: [] });
+    groups.get(key)!.items.push(item);
+  }
+  return Array.from(groups.values());
 }
 
 // ── Dashboard overview — one pipeline shape for empty and populated states ──
